@@ -146,82 +146,10 @@ export class ServerManager {
     });
   }
 
-  /**
-   * B42 Beta Workaround: Create symlink for workshop mods
-   * In B42 beta, using -cachedir breaks workshop mod loading.
-   * This creates a symlink from cachedir/steamapps to installPath/steamapps
-   * so PZ can find the workshop mods.
-   */
-  async ensureWorkshopSymlink() {
-    if (!this.savePath || !this.serverPath) return;
-    
-    // Only needed if cachedir (savePath) is different from installPath (serverPath)
-    if (path.resolve(this.savePath) === path.resolve(this.serverPath)) return;
-    
-    const sourceWorkshop = path.join(this.serverPath, 'steamapps');
-    const targetWorkshop = path.join(this.savePath, 'steamapps');
-    
-    // Check if source exists
-    if (!fs.existsSync(sourceWorkshop)) {
-      logger.debug('B42 Workaround: No steamapps folder in install path, skipping symlink');
-      return;
-    }
-    
-    // Check if target already exists
-    if (fs.existsSync(targetWorkshop)) {
-      try {
-        const stats = fs.lstatSync(targetWorkshop);
-        if (stats.isSymbolicLink()) {
-          logger.debug('B42 Workaround: Workshop symlink already exists');
-          return; // Already a symlink, we're good
-        }
-        // It's a real folder, don't touch it
-        logger.debug('B42 Workaround: steamapps folder exists in data path, not creating symlink');
-        return;
-      } catch (e) {
-        // Couldn't stat, try to create anyway
-      }
-    }
-    
-    // Create the symlink (requires admin on Windows for directory symlinks)
-    try {
-      // Use junction on Windows (doesn't require admin)
-      if (process.platform === 'win32') {
-        // Create junction using mklink /J
-        const cmd = `mklink /J "${targetWorkshop}" "${sourceWorkshop}"`;
-        await new Promise((resolve, reject) => {
-          exec(cmd, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
-            if (error) {
-              logger.warn(`B42 Workaround: Failed to create junction: ${error.message}`);
-              reject(error);
-            } else {
-              logger.info(`B42 Workaround: Created workshop junction from ${targetWorkshop} to ${sourceWorkshop}`);
-              resolve();
-            }
-          });
-        });
-      } else {
-        // Unix symlink
-        fs.symlinkSync(sourceWorkshop, targetWorkshop, 'dir');
-        logger.info(`B42 Workaround: Created workshop symlink from ${targetWorkshop} to ${sourceWorkshop}`);
-      }
-    } catch (error) {
-      logger.warn(`B42 Workaround: Could not create workshop symlink: ${error.message}`);
-      logger.warn('Workshop mods may not load correctly with -cachedir in B42 beta.');
-    }
-  }
-
   async startServer() {
     // Force reload config from database before starting (settings may have changed)
     this.configLoaded = false;
     await this.loadConfig();
-    
-    // B42 Beta Workaround: Ensure workshop symlink exists
-    try {
-      await this.ensureWorkshopSymlink();
-    } catch (e) {
-      logger.warn(`B42 workaround failed: ${e.message}`);
-    }
     
     if (!this.serverPath) {
       throw new Error('Server path not configured');

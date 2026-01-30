@@ -433,6 +433,16 @@ export class RconService extends EventEmitter {
         timeout: 5000
       });
       
+      // Increase max listeners on the internal socket to prevent warnings during rapid reconnections
+      try {
+        const socket = newClient.connection || newClient.socket || newClient._socket;
+        if (socket && typeof socket.setMaxListeners === 'function') {
+          socket.setMaxListeners(20);
+        }
+      } catch (e) {
+        // Ignore - socket may not be created yet
+      }
+      
       // Track this client so it can be cleaned up if connection is force reset
       this.pendingClients.add(newClient);
       this.client = newClient;
