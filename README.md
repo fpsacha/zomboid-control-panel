@@ -1,4 +1,6 @@
-# PZ Server Panel
+# Zomboid Control Panel
+
+> ⚠️ **ALPHA RELEASE** - This software is in early development. Expect bugs and breaking changes.
 
 A web-based management panel for Project Zomboid dedicated servers on Windows.
 
@@ -38,7 +40,7 @@ The launcher will:
 - 🧟 **Event Triggers** - Start helicopter events, hordes, and other game events
 - 🤖 **Discord Bot** - Manage your server from Discord
 - 🗑️ **Chunk Cleaner** - Remove old/unused chunks to reduce save size
-- 🔌 **PanelBridge Lua Mod** - Direct server communication for advanced features
+- 🔌 **PanelBridge** - Server-side Lua script for advanced features (not a mod!)
 - 🌐 **Network Configuration** - Configure server port and UPnP settings
 - 🖥️ **Multi-Server Support** - Manage multiple PZ servers from one panel
 
@@ -74,10 +76,11 @@ RCONPort=27015
 
 Then restart your server for changes to take effect.
 
-## PanelBridge Lua Mod
+## PanelBridge Installation
 
-The PanelBridge mod enables advanced server control features that aren't possible through RCON alone:
+**PanelBridge is NOT a workshop mod** - it's a Lua script that runs directly on your server.
 
+### Features enabled by PanelBridge:
 - **Player Management**: Teleport players, view detailed stats, heal players
 - **Character Export/Import**: Backup and restore player XP, perks, skills, and recipes
 - **World Control**: Set time, weather effects, spawn items/vehicles
@@ -85,10 +88,25 @@ The PanelBridge mod enables advanced server control features that aren't possibl
 
 ### Installing PanelBridge
 
-1. Copy `pz-mod/PanelBridge` to your server's workshop mods folder or custom mods folder
-2. Add `PanelBridge` to your server's `Mods=` line in the .ini file
-3. Restart your server
-4. Configure the bridge in the panel's Settings page
+**Step 1:** Copy the Lua file to your server:
+```
+pz-mod/PanelBridge/media/lua/server/PanelBridge.lua
+```
+↓ Copy to ↓
+```
+YOUR_SERVER_INSTALL_PATH/media/lua/server/PanelBridge.lua
+```
+
+**Step 2:** Disable Lua Checksum in your server's `.ini` file (REQUIRED):
+```ini
+DoLuaChecksum=false
+```
+
+**Step 3:** Restart your PZ server
+
+⚠️ **Important:**
+- Do NOT add PanelBridge to your `Mods=` line - it's not a mod!
+- Re-deploy PanelBridge after game updates (updates may overwrite the lua folder)
 
 ## Network Configuration
 
@@ -179,10 +197,10 @@ When PanelBridge is installed, additional commands are available:
 4. Ensure the password matches exactly
 
 ### PanelBridge not working
-1. Make sure the mod is installed in your server's mods folder
-2. Verify `PanelBridge` is in your server's `Mods=` line
-3. Check that the bridge data path is correctly configured in Settings
-4. Restart both the PZ server and the panel after installing
+1. Verify `PanelBridge.lua` is in your server's `media/lua/server/` folder
+2. Make sure `DoLuaChecksum=false` is set in your server's .ini file
+3. Restart the PZ server after installing PanelBridge
+4. Check the panel's Debug page for PanelBridge status
 
 ### Mod updates not detecting
 1. Verify your Steam Web API key if using one
