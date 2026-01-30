@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
 import { logger, onLog } from './utils/logger.js';
-import { initDatabase, getActiveServer, getAllSettings } from './database/init.js';
+import { initDatabase, getActiveServer, getAllSettings, getSetting } from './database/init.js';
 import { RconService } from './services/rcon.js';
 import { ServerManager } from './services/serverManager.js';
 import { ModChecker } from './services/modChecker.js';
@@ -482,6 +482,45 @@ async function start() {
           }
         } else {
           logger.info('PZ server not detected running on startup');
+          
+          // Check if auto-start is enabled
+          const autoStartServer = await getSetting('autoStartServer');
+          if (autoStartServer === true || autoStartServer === 'true') {
+            logger.info('Auto-start is enabled - starting PZ server...');
+            try {
+              const startResult = await serverManager.startServer();
+              if (startResult.success) {
+                logger.info('PZ server auto-started successfully');
+                
+                // Wait for server to fully start before connecting RCON
+                await new Promise(r => setTimeout(r, 10000));
+                
+                // Try to connect RCON
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  try {
+                    await Promise.race([
+                      rconService.connect(),
+                      new Promise((_, reject) => setTimeout(() => reject(new Error('RCON connection timeout')), timeoutMs))
+                    ]);
+                    
+                    if (rconService.connected) {
+                      logger.info(`RCON connected after auto-start on attempt ${attempt}`);
+                      break;
+                    }
+                  } catch (e) {
+                    logger.debug(`RCON connection attempt ${attempt} failed: ${e.message}`);
+                    if (attempt < 3) {
+                      await new Promise(r => setTimeout(r, 5000));
+                    }
+                  }
+                }
+              } else {
+                logger.error('Failed to auto-start PZ server:', startResult.error);
+              }
+            } catch (e) {
+              logger.error('Error during auto-start:', e.message);
+            }
+          }
           
           // Even if server isn't running, Panel Bridge might have stale files
           // The bridge will detect the mod isn't responding via status timestamp

@@ -11,7 +11,8 @@ const VALID_SETTINGS_KEYS = [
   'steamcmdPath', 'steamApiKey', 'serverName', 'minMemory', 'maxMemory', 'serverPort',
   'modCheckInterval', 'modAutoRestart', 'modRestartDelay',
   'darkMode', 'autoReconnect', 'reconnectInterval',
-  'discordEnabled', 'discordToken', 'discordGuildId', 'discordAdminRole'
+  'discordEnabled', 'discordToken', 'discordGuildId', 'discordAdminRole',
+  'autoStartServer'
 ];
 
 const OPTION_NAME_REGEX = /^[a-zA-Z0-9_]{1,64}$/;

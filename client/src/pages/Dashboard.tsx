@@ -39,9 +39,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { serverApi, rconApi, playersApi, panelBridgeApi, backupApi } from '@/lib/api'
+import { serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
 import { useSocket } from '@/contexts/SocketContext'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 interface PlayerActivity {
   id: number
@@ -97,6 +99,7 @@ export default function Dashboard() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [autoStartServer, setAutoStartServer] = useState<boolean>(false)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [confirmAction, setConfirmAction] = useState<{
     title: string
@@ -167,10 +170,42 @@ export default function Dashboard() {
     }
   }, [])
 
+  const fetchAutoStartSetting = useCallback(async () => {
+    try {
+      const response = await configApi.getAppSettings()
+      if (response?.settings?.autoStartServer !== undefined) {
+        setAutoStartServer(response.settings.autoStartServer === true || response.settings.autoStartServer === 'true')
+      }
+    } catch {
+      // Setting may not exist yet
+    }
+  }, [])
+
+  const handleAutoStartChange = async (checked: boolean) => {
+    setAutoStartServer(checked)
+    try {
+      await configApi.updateAppSettings({ autoStartServer: String(checked) })
+      toast({
+        title: checked ? 'Auto-start enabled' : 'Auto-start disabled',
+        description: checked 
+          ? 'Server will start automatically when the panel launches' 
+          : 'Server will not start automatically',
+      })
+    } catch {
+      // Revert on error
+      setAutoStartServer(!checked)
+      toast({
+        title: 'Error',
+        description: 'Failed to save auto-start setting',
+        variant: 'destructive',
+      })
+    }
+  }
+
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        await Promise.all([fetchStatus(), fetchPlayers(), fetchBridgeStatus(), fetchPlayerActivity(), fetchPerformanceHistory()])
+        await Promise.all([fetchStatus(), fetchPlayers(), fetchBridgeStatus(), fetchPlayerActivity(), fetchPerformanceHistory(), fetchAutoStartSetting()])
       } catch (error) {
         console.error('Failed to load initial data:', error)
       } finally {
@@ -626,6 +661,18 @@ export default function Dashboard() {
                 Connect RCON
               </Button>
             )}
+          </div>
+          
+          {/* Auto-start setting */}
+          <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+            <Checkbox 
+              id="autoStartServer" 
+              checked={autoStartServer}
+              onCheckedChange={(checked) => handleAutoStartChange(checked === true)}
+            />
+            <Label htmlFor="autoStartServer" className="text-sm text-muted-foreground cursor-pointer">
+              Auto-start server when panel launches
+            </Label>
           </div>
         </CardContent>
       </Card>
