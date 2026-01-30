@@ -1,0 +1,606 @@
+/* ==============================================
+   PROJECT ZOMBOID - CUSTOM FONTS
+   ============================================== */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Special+Elite&family=Roboto+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    
+    /* PZ-specific font stacks */
+    --font-display: 'Bebas Neue', Impact, 'Arial Black', sans-serif;
+    --font-typewriter: 'Special Elite', 'Courier New', monospace;
+    --font-mono: 'Roboto Mono', 'Consolas', monospace;
+  }
+  
+  /* ==========================================
+     THEME: CLEAN (Modern Dark)
+     ========================================== */
+  .dark.theme-clean {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 20%;
+    --input: 217.2 32.6% 12%;
+    --ring: 142 70% 45%;
+    --chart-1: 142 70% 45%;
+    --chart-2: 0 65% 50%;
+    --chart-3: 45 80% 50%;
+    --chart-4: 200 50% 45%;
+    --chart-5: 30 60% 45%;
+  }
+  
+  /* ==========================================
+     THEME: SURVIVAL (Project Zomboid Authentic)
+     Grungy, post-apocalyptic, worn aesthetic
+     ========================================== */
+  .dark.theme-survival {
+    /* Deep infected darkness - like a basement at night */
+    --background: 75 25% 4%;
+    --foreground: 55 15% 75%;
+    
+    /* Cards - worn paper/military document feel */
+    --card: 60 12% 8%;
+    --card-foreground: 55 15% 75%;
+    
+    --popover: 60 12% 8%;
+    --popover-foreground: 55 15% 75%;
+    
+    /* Primary - Toxic/infection green (like zombie blood) */
+    --primary: 85 65% 35%;
+    --primary-foreground: 0 0% 5%;
+    
+    /* Secondary - Military olive drab */
+    --secondary: 75 25% 12%;
+    --secondary-foreground: 55 15% 75%;
+    
+    /* Muted - Dusty/grimy tones */
+    --muted: 50 18% 10%;
+    --muted-foreground: 45 12% 45%;
+    
+    /* Accent - Warning amber/rust (emergency broadcast) */
+    --accent: 30 70% 22%;
+    --accent-foreground: 40 90% 65%;
+    
+    /* Destructive - Dried/old blood */
+    --destructive: 0 60% 28%;
+    --destructive-foreground: 0 20% 85%;
+    
+    /* Borders - Grungy, like tape or duct tape edges */
+    --border: 45 20% 18%;
+    --input: 50 25% 6%;
+    --ring: 85 65% 35%;
+    
+    /* Charts - Post-apocalyptic palette */
+    --chart-1: 85 65% 35%;  /* Infection green */
+    --chart-2: 0 55% 35%;    /* Blood red */
+    --chart-3: 35 80% 40%;   /* Warning amber */
+    --chart-4: 180 25% 30%;  /* Muted teal */
+    --chart-5: 20 60% 30%;   /* Rust orange */
+  }
+  
+  /* Default to clean theme if no theme class */
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 142 70% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 20%;
+    --input: 217.2 32.6% 12%;
+    --ring: 142 70% 45%;
+    --chart-1: 142 70% 45%;
+    --chart-2: 0 65% 50%;
+    --chart-3: 45 80% 50%;
+    --chart-4: 200 50% 45%;
+    --chart-5: 30 60% 45%;
+  }
+}
+
+/* ==============================================
+   SURVIVAL THEME - PROJECT ZOMBOID EFFECTS
+   ============================================== */
+
+/* Noise/grain texture overlay for that post-apocalyptic feel */
+.theme-survival {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* VHS/CRT scanline effect - subtle for immersion */
+.theme-survival::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.02) 2px,
+    rgba(0, 0, 0, 0.02) 4px
+  );
+}
+
+/* Header styling - emergency broadcast feel */
+.theme-survival .sidebar-header {
+  background: linear-gradient(180deg, 
+    hsl(35 40% 8%) 0%, 
+    hsl(75 25% 4%) 100%
+  );
+  border-bottom: 2px solid hsl(35 50% 20%);
+  position: relative;
+}
+
+/* Military/tactical active nav item */
+.theme-survival .nav-item-active {
+  background: linear-gradient(90deg,
+    hsl(85 50% 18%) 0%,
+    hsl(85 40% 12%) 100%
+  );
+  border-left: 3px solid hsl(85 65% 40%);
+  box-shadow: inset 0 0 20px rgba(85, 130, 50, 0.1);
+}
+
+/* Custom scrollbar for survival theme */
+.theme-survival ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.theme-survival ::-webkit-scrollbar-track {
+  background: hsl(75 25% 6%);
+  border-left: 1px solid hsl(45 20% 15%);
+}
+
+.theme-survival ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(75 30% 20%), hsl(45 25% 15%));
+  border-radius: 2px;
+  border: 1px solid hsl(45 20% 12%);
+}
+
+.theme-survival ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsl(85 40% 25%), hsl(45 30% 20%));
+}
+
+/* Card styling - worn paper/military document */
+.theme-survival .card-zomboid {
+  position: relative;
+  border: 1px solid hsl(45 20% 18%);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.theme-survival .card-zomboid::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Emergency/danger stripe effect */
+.theme-survival .danger-stripe {
+  background: repeating-linear-gradient(
+    -45deg,
+    hsl(40 80% 20%),
+    hsl(40 80% 20%) 10px,
+    hsl(0 0% 10%) 10px,
+    hsl(0 0% 10%) 20px
+  );
+}
+
+/* Blood splatter decoration for critical elements */
+.theme-survival .blood-accent::after {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(ellipse at center, 
+    hsl(0 60% 25%) 0%, 
+    transparent 70%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Infection pulse for status indicators */
+@keyframes infection-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px hsl(85 65% 35% / 0.6), 0 0 20px hsl(85 65% 35% / 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px hsl(85 65% 45% / 0.8), 0 0 30px hsl(85 65% 35% / 0.3);
+  }
+}
+
+.theme-survival .status-online {
+  animation: infection-pulse 2s ease-in-out infinite;
+  background: linear-gradient(135deg, hsl(85 70% 40%), hsl(85 60% 30%));
+}
+
+/* Warning/alert pulse */
+@keyframes warning-flicker {
+  0%, 90%, 100% { opacity: 1; }
+  92%, 98% { opacity: 0.7; }
+  95% { opacity: 0.5; }
+}
+
+.theme-survival .warning-flicker {
+  animation: warning-flicker 3s ease-in-out infinite;
+}
+
+/* Typewriter text effect class */
+.theme-survival .text-typewriter {
+  font-family: var(--font-typewriter);
+  letter-spacing: 0.5px;
+}
+
+/* Display/header text (like emergency broadcasts) */
+.theme-survival .text-display {
+  font-family: var(--font-display);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Terminal/console styling */
+.theme-survival .terminal-output {
+  font-family: var(--font-mono);
+  background: linear-gradient(180deg, 
+    hsl(75 30% 3%) 0%, 
+    hsl(85 25% 5%) 100%
+  );
+  border: 1px solid hsl(85 40% 15%);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Biohazard warning badge */
+.theme-survival .badge-biohazard {
+  background: linear-gradient(135deg, hsl(85 60% 30%), hsl(85 50% 20%));
+  color: hsl(55 20% 85%);
+  border: 1px solid hsl(85 50% 25%);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Smooth transitions on color scheme change */
+  * {
+    transition-property: color, background-color, border-color;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Disable transition when switching themes to avoid jank */
+  .theme-transitioning * {
+    transition: none !important;
+  }
+}
+
+/* Modern scrollbar styling */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+  border: 2px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.7);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Terminal styling */
+.terminal-output {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Status indicators with modern glow effects */
+.status-online {
+  @apply bg-emerald-500;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.7), inset 0 1px 1px rgba(255,255,255,0.2);
+  animation: status-pulse-online 2s ease-in-out infinite;
+}
+
+.status-offline {
+  @apply bg-red-500;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.7), inset 0 1px 1px rgba(255,255,255,0.2);
+}
+
+.status-connecting {
+  @apply bg-amber-500;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
+  animation: status-pulse-connecting 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse-online {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.7), inset 0 1px 1px rgba(255,255,255,0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.9), inset 0 1px 1px rgba(255,255,255,0.2);
+  }
+}
+
+@keyframes status-pulse-connecting {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+  }
+}
+
+/* Modern card hover effects */
+.card-interactive {
+  @apply transition-all duration-200;
+}
+
+.card-interactive:hover {
+  @apply border-primary/30;
+  box-shadow: 0 4px 20px -4px rgba(0,0,0,0.3), 0 0 0 1px hsl(var(--primary) / 0.1);
+  transform: translateY(-1px);
+}
+
+/* Glass morphism effect for modals and overlays */
+.glass {
+  backdrop-filter: blur(12px) saturate(180%);
+  background: hsl(var(--background) / 0.8);
+}
+
+/* Improved focus states for accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
+}
+
+/* Smooth page transitions */
+.page-transition {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stats card number styling */
+.stat-number {
+  @apply text-3xl font-bold tracking-tight;
+  background: linear-gradient(135deg, hsl(var(--foreground)) 0%, hsl(var(--muted-foreground)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Success state number */
+.stat-number-success {
+  background: linear-gradient(135deg, hsl(142 70% 50%) 0%, hsl(142 70% 35%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Button group styling */
+.button-group {
+  @apply flex flex-wrap gap-2;
+}
+
+.button-group > button {
+  @apply flex-shrink-0;
+}
+
+/* ==============================================
+   PROJECT ZOMBOID - ADDITIONAL THEMED ELEMENTS
+   ============================================== */
+
+/* Survival theme stat numbers - military/tactical look */
+.theme-survival .stat-number {
+  background: linear-gradient(135deg, hsl(55 15% 75%) 0%, hsl(45 12% 50%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: var(--font-display);
+}
+
+.theme-survival .stat-number-success {
+  background: linear-gradient(135deg, hsl(85 70% 45%) 0%, hsl(85 60% 30%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Worn paper card effect for survival theme */
+.theme-survival .card {
+  position: relative;
+  border-color: hsl(45 20% 18%);
+}
+
+.theme-survival .card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(135deg, transparent 40%, rgba(0,0,0,0.1) 100%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.03' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)' opacity='0.015'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Survival theme buttons - military tactical style */
+.theme-survival .btn-primary,
+.theme-survival [data-slot="button"][data-variant="default"] {
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  box-shadow: 
+    0 2px 4px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* Emergency/danger button in survival theme */
+.theme-survival .btn-danger {
+  background: linear-gradient(135deg, hsl(0 60% 35%), hsl(0 50% 25%));
+  border-color: hsl(0 50% 20%);
+}
+
+/* Zombie count badge */
+.theme-survival .zombie-count {
+  background: linear-gradient(135deg, hsl(0 55% 30%), hsl(0 45% 22%));
+  color: hsl(0 20% 85%);
+  border: 1px solid hsl(0 40% 25%);
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+}
+
+/* Player count badge */
+.theme-survival .player-count {
+  background: linear-gradient(135deg, hsl(85 60% 30%), hsl(85 50% 22%));
+  color: hsl(55 20% 85%);
+  border: 1px solid hsl(85 50% 25%);
+  font-family: var(--font-display);
+  letter-spacing: 1px;
+}
+
+/* Radio/broadcast styling */
+.theme-survival .broadcast-message {
+  background: linear-gradient(180deg, hsl(50 30% 8%), hsl(45 25% 6%));
+  border-left: 3px solid hsl(40 80% 45%);
+  font-family: var(--font-typewriter);
+  letter-spacing: 0.3px;
+}
+
+/* Map/chunk styling */
+.theme-survival .map-grid {
+  background: 
+    linear-gradient(90deg, hsl(85 30% 15% / 0.3) 1px, transparent 1px),
+    linear-gradient(hsl(85 30% 15% / 0.3) 1px, transparent 1px),
+    hsl(75 25% 6%);
+  background-size: 20px 20px;
+}
+
+/* Log entry styling */
+.theme-survival .log-entry {
+  border-bottom: 1px dashed hsl(45 15% 15%);
+  font-family: var(--font-mono);
+}
+
+.theme-survival .log-entry:hover {
+  background: hsl(85 30% 8% / 0.5);
+}
+
+/* Tab styling for survival */
+.theme-survival [data-state="active"][role="tab"] {
+  border-bottom-color: hsl(85 65% 40%);
+  color: hsl(85 65% 50%);
+}
+
+/* Input fields - worn/tactical look */
+.theme-survival input,
+.theme-survival textarea,
+.theme-survival select {
+  border-color: hsl(45 20% 20%);
+  background: hsl(50 25% 6%);
+}
+
+.theme-survival input:focus,
+.theme-survival textarea:focus,
+.theme-survival select:focus {
+  border-color: hsl(85 50% 35%);
+  box-shadow: 0 0 0 2px hsl(85 50% 35% / 0.2);
+}
+
+/* Improved scrollbar styling */

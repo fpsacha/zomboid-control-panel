@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+client/node_modules/
+
+# Environment & Secrets (NEVER COMMIT)
+.env
+
+# Database (user data)
+data/db.json
+*.db
+
+# Build outputs
+client/dist/
+dist-exe/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Release builds (optional - you may want to include these)
+release/
+
+# Backup files
+*.bak

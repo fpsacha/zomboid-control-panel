@@ -1,0 +1,11 @@
+name=PanelBridge - External Control Panel
+id=PanelBridge
+description=Enables external web panel communication with the server. Provides advanced weather control (blizzard, tropical storm), player monitoring, and server status features not available via RCON. Required for Zomboid Control Panel advanced features.
+modversion=1.0.0
+pzversion=41.78
+authors=ZomboidControlPanel
+url=https://github.com/zomboid-control-panel
+icon=icon.png
+poster=poster.png
+require=
+pack=media/

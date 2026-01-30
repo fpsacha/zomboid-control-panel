@@ -1,0 +1,18 @@
+{
+  "command_history": [],
+  "server_events": [],
+  "activity_log": [],
+  "mods": [],
+  "servers": [],
+  "active_server_id": null,
+  "scheduled_tasks": [],
+  "settings": {
+    "panel_password": "",
+    "discord_token": "",
+    "discord_channel_id": "",
+    "discord_enabled": false,
+    "auto_restart_on_mod_update": false,
+    "mod_check_interval": 300000,
+    "steam_api_key": ""
+  }
+}
