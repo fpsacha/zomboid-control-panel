@@ -4,6 +4,8 @@
 
 A web-based management panel for Project Zomboid dedicated servers on Windows.
 
+![Dashboard](Screenshots/Main_Dashboard.png)
+
 ## Quick Start
 
 **Option 1: Standalone Executable (Recommended)**
