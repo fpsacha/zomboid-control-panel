@@ -67,16 +67,6 @@ The launcher will:
    - Make sure `DoLuaChecksum=false` is set in your server's .ini file
    - This enables advanced features like player teleporting, character export/import, and more
 
-## Enabling RCON on Your PZ Server
-
-In your server's `.ini` file (usually in `Zomboid/Server/`), set:
-```ini
-RCONPassword=your_password
-RCONPort=27015
-```
-
-Then restart your server for changes to take effect.
-
 ## PanelBridge Installation
 
 **PanelBridge is NOT a workshop mod** - it's a Lua script that runs directly on your server.
@@ -106,27 +96,6 @@ YOUR_SERVER_INSTALL_PATH/media/lua/server/PanelBridge.lua
 ⚠️ **Important:**
 - Do NOT add PanelBridge to your `Mods=` line - it's not a mod!
 - Re-deploy PanelBridge after game updates (updates may overwrite the lua folder)
-
-## Network Configuration
-
-When creating a new server, you can configure:
-- **Game Port** - The main server port (default: 16261)
-- **UPnP** - Automatic port forwarding for home routers (enabled by default)
-
-## Manual Installation (Optional)
-
-If you prefer manual setup:
-| `RCON_PORT` | PZ server RCON port | 27015 |
-| `RCON_PASSWORD` | RCON password | (required) |
-| `SERVER_PATH` | Path to PZ server installation | |
-| `ZOMBOID_DATA_PATH` | Path to Zomboid user data folder | |
-| `MOD_CHECK_INTERVAL` | Minutes between mod update checks | 30 |
-
-### Server Paths
-
-- **Server Installation**: Where `StartServer64.bat` is located
-- **Config Path**: Usually `C:\Users\<Name>\Zomboid\Server`
-- **Data Path**: Usually `C:\Users\<Name>\Zomboid`
 
 ## Project Structure
 
@@ -194,3 +163,15 @@ Dev1/
 ## License
 
 MIT License - Feel free to modify and use as needed.
+
+---
+
+## Disclaimer
+
+This project was created with the assistance of **Claude Opus** (Anthropic) and **Visual Studio Code** with GitHub Copilot.
+
+---
+
+## Disclaimer
+
+This project was created with the assistance of **Claude Opus** (Anthropic) and **Visual Studio Code** with GitHub Copilot.
