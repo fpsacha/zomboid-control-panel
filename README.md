@@ -61,9 +61,10 @@ The launcher will:
 2. **Configure your server** in the Settings page:
    - Set RCON password (must match your server's INI file)
    - Set server paths
-3. **Install PanelBridge mod** (optional but recommended):
-   - Copy the `pz-mod/PanelBridge` folder to your server's mods directory
-   - Add `PanelBridge` to your server's mod list
+3. **Install PanelBridge** (optional but recommended):
+   - Go to **Settings** → **Panel Bridge (Advanced)** section
+   - Click **"Install to Active Server"** for automatic installation
+   - Make sure `DoLuaChecksum=false` is set in your server's .ini file
    - This enables advanced features like player teleporting, character export/import, and more
 
 ## Enabling RCON on Your PZ Server
@@ -86,23 +87,21 @@ Then restart your server for changes to take effect.
 - **World Control**: Set time, weather effects, spawn items/vehicles
 - **Server Info**: Get detailed server status, player lists with positions
 
-### Installing PanelBridge
+### Installing PanelBridge (Recommended Method)
 
-**Step 1:** Copy the Lua file to your server:
-```
-pz-mod/PanelBridge/media/lua/server/PanelBridge.lua
-```
-↓ Copy to ↓
+1. Open the panel and go to **Settings**
+2. Scroll to **Panel Bridge (Advanced)** section
+3. Click **"Auto-Configure from Active Server"** or enter your server name
+4. Click **"Install to Active Server"** - this copies PanelBridge.lua automatically
+5. Set `DoLuaChecksum=false` in your server's `.ini` file (REQUIRED)
+6. Restart your PZ server
+
+### Manual Installation (Alternative)
+
+Copy `pz-mod/PanelBridge/media/lua/server/PanelBridge.lua` to:
 ```
 YOUR_SERVER_INSTALL_PATH/media/lua/server/PanelBridge.lua
 ```
-
-**Step 2:** Disable Lua Checksum in your server's `.ini` file (REQUIRED):
-```ini
-DoLuaChecksum=false
-```
-
-**Step 3:** Restart your PZ server
 
 ⚠️ **Important:**
 - Do NOT add PanelBridge to your `Mods=` line - it's not a mod!
@@ -162,31 +161,6 @@ Dev1/
 ├── data/                  # SQLite database (created at runtime)
 └── logs/                  # Application logs
 ```
-
-## RCON Commands Reference
-
-The panel supports all standard Project Zomboid RCON commands:
-
-- **Server**: `save`, `quit`, `servermsg`
-- **Players**: `players`, `kick`, `banuser`, `unbanuser`, `adduser`
-- **Admin**: `setaccesslevel`, `grantadmin`, `removeadmin`
-- **Weather**: `changeoption`, `rain`, `fog`
-- **Events**: `helicopter`, `gunshot`
-- **Items**: `additem`, `addxp`, `addvehicle`
-- **Cheats**: `godmod`, `invisible`, `noclip`
-
-## PanelBridge Commands (via Lua mod)
-
-When PanelBridge is installed, additional commands are available:
-
-- **Player Info**: Get detailed player stats, inventory, position
-- **Teleport**: Move players to coordinates or other players
-- **Character Export**: Save player perks, XP, skills to JSON
-- **Character Import**: Restore perks, stats, recipes to a player
-- **Heal**: Restore player health
-- **Give Items**: Spawn items directly in player inventory
-- **Spawn Vehicles**: Create vehicles at player location
-- **World Time**: Set in-game time and weather
 
 ## Troubleshooting
 
