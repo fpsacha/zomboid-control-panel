@@ -43,32 +43,51 @@
   
   /* ==========================================
      THEME: CLEAN (Modern Dark)
+     Premium, sleek, efficient dashboard aesthetic
      ========================================== */
   .dark.theme-clean {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142 70% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 20%;
-    --input: 217.2 32.6% 12%;
-    --ring: 142 70% 45%;
-    --chart-1: 142 70% 45%;
-    --chart-2: 0 65% 50%;
-    --chart-3: 45 80% 50%;
-    --chart-4: 200 50% 45%;
-    --chart-5: 30 60% 45%;
+    /* Deep navy background - professional and easy on eyes */
+    --background: 225 35% 6%;
+    --foreground: 210 40% 96%;
+    
+    /* Cards - slightly elevated from background */
+    --card: 225 30% 8%;
+    --card-foreground: 210 40% 96%;
+    
+    --popover: 225 30% 10%;
+    --popover-foreground: 210 40% 96%;
+    
+    /* Primary - Vibrant cyan-teal for actions */
+    --primary: 175 85% 45%;
+    --primary-foreground: 225 35% 6%;
+    
+    /* Secondary - Subtle elevation */
+    --secondary: 225 25% 12%;
+    --secondary-foreground: 210 40% 96%;
+    
+    /* Muted - For less important elements */
+    --muted: 225 20% 14%;
+    --muted-foreground: 215 20% 55%;
+    
+    /* Accent - Subtle highlight */
+    --accent: 225 25% 15%;
+    --accent-foreground: 210 40% 96%;
+    
+    /* Destructive - Clean red */
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders - Subtle but visible */
+    --border: 225 20% 16%;
+    --input: 225 25% 10%;
+    --ring: 175 85% 45%;
+    
+    /* Charts - Vibrant but harmonious */
+    --chart-1: 175 85% 45%;   /* Primary cyan */
+    --chart-2: 340 75% 55%;   /* Magenta pink */
+    --chart-3: 45 95% 55%;    /* Warm yellow */
+    --chart-4: 260 65% 60%;   /* Purple */
+    --chart-5: 25 90% 55%;    /* Orange */
   }
   
   /* ==========================================
@@ -122,31 +141,155 @@
   
   /* Default to clean theme if no theme class */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142 70% 45%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 20%;
-    --input: 217.2 32.6% 12%;
-    --ring: 142 70% 45%;
-    --chart-1: 142 70% 45%;
-    --chart-2: 0 65% 50%;
-    --chart-3: 45 80% 50%;
-    --chart-4: 200 50% 45%;
-    --chart-5: 30 60% 45%;
+    /* Deep navy background - professional and easy on eyes */
+    --background: 225 35% 6%;
+    --foreground: 210 40% 96%;
+    
+    /* Cards - slightly elevated from background */
+    --card: 225 30% 8%;
+    --card-foreground: 210 40% 96%;
+    
+    --popover: 225 30% 10%;
+    --popover-foreground: 210 40% 96%;
+    
+    /* Primary - Vibrant cyan-teal for actions */
+    --primary: 175 85% 45%;
+    --primary-foreground: 225 35% 6%;
+    
+    /* Secondary - Subtle elevation */
+    --secondary: 225 25% 12%;
+    --secondary-foreground: 210 40% 96%;
+    
+    /* Muted - For less important elements */
+    --muted: 225 20% 14%;
+    --muted-foreground: 215 20% 55%;
+    
+    /* Accent - Subtle highlight */
+    --accent: 225 25% 15%;
+    --accent-foreground: 210 40% 96%;
+    
+    /* Destructive - Clean red */
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Borders - Subtle but visible */
+    --border: 225 20% 16%;
+    --input: 225 25% 10%;
+    --ring: 175 85% 45%;
+    
+    /* Charts - Vibrant but harmonious */
+    --chart-1: 175 85% 45%;   /* Primary cyan */
+    --chart-2: 340 75% 55%;   /* Magenta pink */
+    --chart-3: 45 95% 55%;    /* Warm yellow */
+    --chart-4: 260 65% 60%;   /* Purple */
+    --chart-5: 25 90% 55%;    /* Orange */
   }
+}
+
+/* ==============================================
+   CLEAN THEME - MODERN PROFESSIONAL EFFECTS
+   ============================================== */
+
+/* Subtle gradient background for depth */
+.theme-clean {
+  background: linear-gradient(180deg, 
+    hsl(225 35% 6%) 0%,
+    hsl(225 30% 5%) 100%
+  );
+}
+
+/* Premium card styling */
+.theme-clean .card-interactive {
+  background: linear-gradient(135deg, 
+    hsl(225 30% 9%) 0%,
+    hsl(225 30% 7.5%) 100%
+  );
+  border: 1px solid hsl(225 20% 18% / 0.8);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.theme-clean .card-interactive:hover {
+  border-color: hsl(175 85% 45% / 0.3);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 0 0 1px hsl(175 85% 45% / 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* Glowing primary buttons */
+.theme-clean .btn-primary,
+.theme-clean button[variant="success"],
+.theme-clean [data-variant="success"] {
+  box-shadow: 0 0 20px hsl(175 85% 45% / 0.3);
+}
+
+/* Status indicators with cyan glow */
+.theme-clean .status-online {
+  background: linear-gradient(135deg, hsl(175 85% 50%), hsl(175 85% 40%));
+  box-shadow: 0 0 12px hsl(175 85% 45% / 0.7), 0 0 4px hsl(175 85% 45% / 0.5);
+}
+
+/* Custom scrollbar for clean theme */
+.theme-clean ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.theme-clean ::-webkit-scrollbar-track {
+  background: hsl(225 30% 7%);
+  border-radius: 4px;
+}
+
+.theme-clean ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, hsl(225 25% 20%), hsl(225 25% 16%));
+  border-radius: 4px;
+  border: 1px solid hsl(225 20% 12%);
+}
+
+.theme-clean ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, hsl(175 50% 35%), hsl(175 50% 30%));
+}
+
+/* Sidebar header glow */
+.theme-clean .sidebar-header {
+  background: linear-gradient(180deg, 
+    hsl(225 30% 9%) 0%,
+    hsl(225 30% 7%) 100%
+  );
+  border-bottom: 1px solid hsl(225 20% 16%);
+}
+
+/* Active nav item with cyan accent */
+.theme-clean .nav-item-active {
+  background: linear-gradient(90deg,
+    hsl(175 85% 45% / 0.12) 0%,
+    hsl(175 85% 45% / 0.05) 100%
+  );
+  border-left: 2px solid hsl(175 85% 45%);
+}
+
+/* Input fields */
+.theme-clean input,
+.theme-clean textarea,
+.theme-clean select {
+  background: hsl(225 30% 7%);
+  border: 1px solid hsl(225 20% 18%);
+}
+
+.theme-clean input:focus,
+.theme-clean textarea:focus,
+.theme-clean select:focus {
+  border-color: hsl(175 85% 45%);
+  box-shadow: 0 0 0 3px hsl(175 85% 45% / 0.15);
+}
+
+/* Badge styling */
+.theme-clean .badge-primary {
+  background: linear-gradient(135deg, hsl(175 85% 45%), hsl(175 85% 38%));
+  box-shadow: 0 0 8px hsl(175 85% 45% / 0.3);
 }
 
 /* ==============================================
