@@ -171,9 +171,3 @@ MIT License - Feel free to modify and use as needed.
 ## Disclaimer
 
 This project was created with the assistance of **Claude Opus** (Anthropic) and **Visual Studio Code** with GitHub Copilot.
-
----
-
-## Disclaimer
-
-This project was created with the assistance of **Claude Opus** (Anthropic) and **Visual Studio Code** with GitHub Copilot.
