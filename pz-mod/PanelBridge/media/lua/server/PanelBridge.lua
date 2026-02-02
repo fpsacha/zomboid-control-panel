@@ -1,9 +1,15 @@
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.4.1
+    Version: 1.4.2
     
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
+    
+    v1.4.2 Changes:
+    - Fixed race condition in command processing (infinite command loops)
+    - Improved type declaration safety for all Climate handlers (numeric parsing)
+    - Fixed ambiguous inputs in generic climate float handler
+    - Cleanup of unused reference code
     
     v1.4.1 Changes:
     - Increased status update frequency from 5s to 3s for faster panel detection
@@ -799,13 +805,17 @@ handlers.triggerBlizzard = function(args)
     -- Duration is passed directly - the game adds its own minimum
     local duration = args.duration or 2.0
     
-    -- Wrap in pcall in case B42 changed the API
-    local success, err
-    if climate.transmitTriggerBlizzard then
-        success, err = pcall(function() climate:transmitTriggerBlizzard(duration) end)
-    else
-        return false, nil, "transmitTriggerBlizzard method not available in this version"
-    end
+    local success, err = pcall(function()
+        if climate.triggerCustomWeatherStage and WeatherPeriod and WeatherPeriod.STAGE_BLIZZARD then
+            print("PanelBridge: Triggering Blizzard via triggerCustomWeatherStage")
+            climate:triggerCustomWeatherStage(WeatherPeriod.STAGE_BLIZZARD, duration)
+        elseif climate.transmitTriggerBlizzard then
+            print("PanelBridge: Triggering Blizzard via transmitTriggerBlizzard (fallback)")
+            climate:transmitTriggerBlizzard(duration)
+        else
+            error("No weather trigger method available")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to trigger blizzard: " .. tostring(err)
@@ -823,13 +833,17 @@ handlers.triggerTropicalStorm = function(args)
     
     local duration = args.duration or 2.0
     
-    -- Wrap in pcall in case B42 changed the API
-    local success, err
-    if climate.transmitTriggerTropical then
-        success, err = pcall(function() climate:transmitTriggerTropical(duration) end)
-    else
-        return false, nil, "transmitTriggerTropical method not available in this version"
-    end
+    local success, err = pcall(function()
+        if climate.triggerCustomWeatherStage and WeatherPeriod and WeatherPeriod.STAGE_TROPICAL_STORM then
+             print("PanelBridge: Triggering Tropical Storm via triggerCustomWeatherStage")
+            climate:triggerCustomWeatherStage(WeatherPeriod.STAGE_TROPICAL_STORM, duration)
+        elseif climate.transmitTriggerTropical then
+            print("PanelBridge: Triggering Tropical Storm via transmitTriggerTropical (fallback)")
+            climate:transmitTriggerTropical(duration)
+        else
+            error("No weather trigger method available")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to trigger tropical storm: " .. tostring(err)
@@ -847,13 +861,17 @@ handlers.triggerStorm = function(args)
     
     local duration = args.duration or 2.0
     
-    -- Wrap in pcall in case B42 changed the API
-    local success, err
-    if climate.transmitTriggerStorm then
-        success, err = pcall(function() climate:transmitTriggerStorm(duration) end)
-    else
-        return false, nil, "transmitTriggerStorm method not available in this version"
-    end
+    local success, err = pcall(function()
+        if climate.triggerCustomWeatherStage and WeatherPeriod and WeatherPeriod.STAGE_STORM then
+            print("PanelBridge: Triggering Storm via triggerCustomWeatherStage")
+            climate:triggerCustomWeatherStage(WeatherPeriod.STAGE_STORM, duration)
+        elseif climate.transmitTriggerStorm then
+            print("PanelBridge: Triggering Storm via transmitTriggerStorm (fallback)")
+            climate:transmitTriggerStorm(duration)
+        else
+            error("No weather trigger method available")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to trigger storm: " .. tostring(err)
@@ -869,13 +887,20 @@ handlers.stopWeather = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    -- Wrap in pcall in case B42 changed the API
-    local success, err
-    if climate.transmitServerStopWeather then
-        success, err = pcall(function() climate:transmitServerStopWeather() end)
-    else
-        return false, nil, "transmitServerStopWeather method not available in this version"
-    end
+    local success, err = pcall(function()
+        if climate.stopWeatherAndThunder then
+            print("PanelBridge: Stopping weather via stopWeatherAndThunder")
+            climate:stopWeatherAndThunder()
+        elseif climate.transmitServerStopWeather then
+             print("PanelBridge: Stopping weather via transmitServerStopWeather (fallback)")
+            climate:transmitServerStopWeather()
+        elseif climate.transmitStopWeather then
+             print("PanelBridge: Stopping weather via transmitStopWeather (fallback)")
+            climate:transmitStopWeather()
+        else
+            error("No stop weather method available")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to stop weather: " .. tostring(err)
@@ -894,13 +919,17 @@ handlers.generateWeather = function(args)
     local strength = args.strength or 0.5
     local frontType = args.frontType or 0 -- 0 = stationary, 1 = cold, 2 = warm
     
-    -- Wrap in pcall in case B42 changed the API
-    local success, err
-    if climate.transmitGenerateWeather then
-        success, err = pcall(function() climate:transmitGenerateWeather(strength, frontType) end)
-    else
-        return false, nil, "transmitGenerateWeather method not available in this version"
-    end
+    local success, err = pcall(function()
+        if climate.triggerCustomWeather then
+            print("PanelBridge: Generating weather via triggerCustomWeather")
+            climate:triggerCustomWeather(strength, frontType == 0)
+        elseif climate.transmitGenerateWeather then
+            print("PanelBridge: Generating weather via transmitGenerateWeather (fallback)")
+            climate:transmitGenerateWeather(strength, frontType)
+        else
+            error("No generate weather method available")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to generate weather: " .. tostring(err)
@@ -923,18 +952,26 @@ handlers.setSnow = function(args)
     if enabled and climate.isRaining and not climate:isRaining() then
         local intensity = args.intensity or 0.5
         if climate.transmitServerStartRain then
-            success, err = pcall(function() climate:transmitServerStartRain(intensity) end)
-            if not success then
-                return false, nil, "Failed to start rain for snow: " .. tostring(err)
-            end
+            pcall(function() climate:transmitServerStartRain(intensity) end)
         end
     end
     
-    if climate.setPrecipitationIsSnow then
-        success, err = pcall(function() climate:setPrecipitationIsSnow(enabled) end)
-    else
-        return false, nil, "setPrecipitationIsSnow method not available in this version"
-    end
+    success, err = pcall(function()
+        -- Try Admin Override (Robust method)
+        local snowBool = climate:getClimateBool(0) -- BOOL_IS_SNOW = 0
+        if snowBool then
+            snowBool:setEnableAdmin(true)
+            snowBool:setAdminValue(enabled)
+            -- Also trigger normal method just in case
+            if climate.setPrecipitationIsSnow then
+                climate:setPrecipitationIsSnow(enabled)
+            end
+        elseif climate.setPrecipitationIsSnow then
+            climate:setPrecipitationIsSnow(enabled)
+        else
+            error("No method to set snow")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set snow: " .. tostring(err)
@@ -1021,14 +1058,19 @@ handlers.setDayLight = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local value = args.value or 1.0
+    local value = tonumber(args.value) or 1.0
     
-    local success, err
-    if climate.setDayLightStrength then
-        success, err = pcall(function() climate:setDayLightStrength(value) end)
-    else
-        return false, nil, "setDayLightStrength method not available in this version"
-    end
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(11) -- FLOAT_DAYLIGHT_STRENGTH = 11
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        elseif climate.setDayLightStrength then
+            climate:setDayLightStrength(value)
+        else
+            error("No method to set daylight")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set daylight: " .. tostring(err)
@@ -1044,14 +1086,19 @@ handlers.setNightStrength = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local value = args.value or 0.0
+    local value = tonumber(args.value) or 0.0
     
-    local success, err
-    if climate.setNightStrength then
-        success, err = pcall(function() climate:setNightStrength(value) end)
-    else
-        return false, nil, "setNightStrength method not available in this version"
-    end
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(2) -- FLOAT_NIGHT_STRENGTH = 2
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        elseif climate.setNightStrength then
+            climate:setNightStrength(value)
+        else
+            error("No method to set night strength")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set night strength: " .. tostring(err)
@@ -1067,14 +1114,19 @@ handlers.setDesaturation = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local value = args.value or 0.0
+    local value = tonumber(args.value) or 0.0
     
-    local success, err
-    if climate.setDesaturation then
-        success, err = pcall(function() climate:setDesaturation(value) end)
-    else
-        return false, nil, "setDesaturation method not available in this version"
-    end
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(0) -- FLOAT_DESATURATION = 0
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        elseif climate.setDesaturation then
+            climate:setDesaturation(value)
+        else
+            error("No method to set desaturation")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set desaturation: " .. tostring(err)
@@ -1090,14 +1142,19 @@ handlers.setViewDistance = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local value = args.value or 1.0
+    local value = tonumber(args.value) or 1.0
     
-    local success, err
-    if climate.setViewDistance then
-        success, err = pcall(function() climate:setViewDistance(value) end)
-    else
-        return false, nil, "setViewDistance method not available in this version"
-    end
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(10) -- FLOAT_VIEW_DISTANCE = 10
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        elseif climate.setViewDistance then
+            climate:setViewDistance(value)
+        else
+            error("No method to set view distance")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set view distance: " .. tostring(err)
@@ -1113,20 +1170,126 @@ handlers.setAmbient = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local value = args.value or 1.0
+    local value = tonumber(args.value) or 1.0
     
-    local success, err
-    if climate.setAmbient then
-        success, err = pcall(function() climate:setAmbient(value) end)
-    else
-        return false, nil, "setAmbient method not available in this version"
-    end
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(9) -- FLOAT_AMBIENT = 9
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        elseif climate.setAmbient then
+            climate:setAmbient(value)
+        else
+            error("No method to set ambient")
+        end
+    end)
     
     if not success then
         return false, nil, "Failed to set ambient: " .. tostring(err)
     end
     
     return true, { message = "Ambient set to " .. value }
+end
+
+-- Set temperature (Celsius)
+-- Ranges and Effects (Project Zomboid Mechanics):
+-- <-10 C: Extreme Cold. Winter clothes required. Poor quality vehicles may fail to start.
+-- < 0 C : Freezing. Snow replaces Rain. Farming crops loose health faster.
+-- 0 - 20 C: Cold to Cool. Light to Medium insulation required depending on wind/wetness.
+-- 22 C  : Neutral. Base "Room Temperature". Neutral impact on body heat.
+-- > 30 C: Hot. Rate of fatigue and thirst increases. Thick clothes cause overheating.
+-- > 40 C: Extreme Heat. Rapid dehydration. Hyperthermia risk even when naked.
+handlers.setTemperature = function(args)
+    local climate = getClimateManager()
+    if not climate then
+        return false, nil, "ClimateManager not available"
+    end
+    
+    local value = tonumber(args.value) or 22.0 -- Default to 22C (Neutral)
+    
+    -- API Safety Clamp: -50C to +50C
+    -- Note: Project Zomboid does not simulate water bodies freezing solid (rivers/lakes).
+    if value < -50 then value = -50 end
+    if value > 50 then value = 50 end
+
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(4) -- FLOAT_TEMPERATURE = 4
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        else
+            error("No method to set temperature")
+        end
+    end)
+    
+    if not success then
+        return false, nil, "Failed to set temperature: " .. tostring(err)
+    end
+    
+    return true, { message = "Temperature set to " .. value .. "C" }
+end
+
+-- Set wind intensity
+handlers.setWind = function(args)
+    local climate = getClimateManager()
+    if not climate then return false, nil, "ClimateManager not available" end
+    
+    local value = tonumber(args.value) or 0.5 -- 0 to 1
+    
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(6) -- FLOAT_WIND_INTENSITY = 6
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        else
+             error("No method to set wind")
+        end
+    end)
+    
+    if not success then return false, nil, "Failed to set wind: " .. tostring(err) end
+    return true, { message = "Wind set to " .. value }
+end
+
+-- Set fog intensity
+handlers.setFog = function(args)
+    local climate = getClimateManager()
+    if not climate then return false, nil, "ClimateManager not available" end
+    
+    local value = tonumber(args.value) or 0.0 -- 0 (Clear) to 1 (Silent Hill)
+    
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(5) -- FLOAT_FOG_INTENSITY = 5
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        else
+             error("No method to set fog")
+        end
+    end)
+    
+    if not success then return false, nil, "Failed to set fog: " .. tostring(err) end
+    return true, { message = "Fog set to " .. value }
+end
+
+-- Set cloud intensity
+handlers.setClouds = function(args)
+    local climate = getClimateManager()
+    if not climate then return false, nil, "ClimateManager not available" end
+    
+    local value = tonumber(args.value) or 0.0 -- 0 to 1
+    
+    local success, err = pcall(function()
+        local cf = climate:getClimateFloat(8) -- FLOAT_CLOUD_INTENSITY = 8
+        if cf then
+            cf:setEnableAdmin(true)
+            cf:setAdminValue(value)
+        else
+             error("No method to set clouds")
+        end
+    end)
+    
+    if not success then return false, nil, "Failed to set clouds: " .. tostring(err) end
+    return true, { message = "Clouds set to " .. value }
 end
 
 -- Climate override control - set individual climate float values
@@ -1137,12 +1300,12 @@ handlers.setClimateFloat = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    local floatId = args.floatId
-    local value = args.value
+    local floatId = tonumber(args.floatId)
+    local value = tonumber(args.value)
     local enable = args.enable ~= false
     
     if floatId == nil or value == nil then
-        return false, nil, "floatId and value are required"
+        return false, nil, "floatId and value are required numbers"
     end
     
     local climateFloat = climate:getClimateFloat(floatId)
@@ -2553,12 +2716,95 @@ handlers.shutOffUtilities = function(args)
             -- By setting ElecShutModifier to 0, and NightsSurvived >= 0, power stays OFF
             SandboxVars.ElecShutModifier = 0
             table.insert(debugInfo, "Set SandboxVars.ElecShutModifier = 0")
+            
+            -- Step 3: Set sandbox options via Java API (like restoreUtilities)
+            local sandboxOptions = getSandboxOptions()
+            if sandboxOptions then
+                local elecOption = sandboxOptions:getOptionByName("ElecShutModifier")
+                if elecOption and elecOption.setValue then
+                    elecOption:setValue(0)
+                    table.insert(debugInfo, "elecOption:setValue(0)")
+                end
+            end
+            
+            -- Step 4: Try to use GameServer.sendWorldState if available
+            local gs = GameServer
+            if gs then
+                if gs.sendWorldState then
+                    pcall(function() gs.sendWorldState() end)
+                    table.insert(debugInfo, "GameServer.sendWorldState called")
+                end
+                
+                if gs.syncSandboxOptions then
+                    pcall(function() gs.syncSandboxOptions() end)
+                    table.insert(debugInfo, "GameServer.syncSandboxOptions called")
+                end
+                
+                if gs.sendSandboxOptionsToClient then
+                    local players = getOnlinePlayers()
+                    if players then
+                        for i = 0, players:size() - 1 do
+                            local player = players:get(i)
+                            if player then
+                                pcall(function() gs.sendSandboxOptionsToClient(player:getOnlineID()) end)
+                            end
+                        end
+                        table.insert(debugInfo, "sendSandboxOptionsToClient called for all players")
+                    end
+                end
+            end
+            
+            -- Step 5: Activate light switches (turn them off)
+            -- REMOVED: activateLightSwitchesInLoadedChunks() checks for OFF loops and turns them ON.
+            -- calling this during shutoff actually TURNS LIGHTS BACK ON.
+            -- local switchesActivated, statusMsg = activateLightSwitchesInLoadedChunks()
+            -- instead, we rely on the power cut.
+            
+            -- Step 6: Transmit weather to sync world state
+            if world.transmitWeather then
+                pcall(function() world:transmitWeather() end)
+                table.insert(debugInfo, "transmitWeather called")
+            end
+            
+            -- Step 7: Apply settings
+            pcall(function()
+                if getSandboxOptions() and getSandboxOptions().applySettings then
+                    getSandboxOptions():applySettings()
+                    table.insert(debugInfo, "SandboxOptions applySettings() called")
+                end
+            end)
+            
+            -- Step 8: Notify players
+             local players = getOnlinePlayers()
+            if players then
+                for i = 0, players:size() - 1 do
+                    local player = players:get(i)
+                    if player then
+                        sendServerCommand(player, "PanelBridge", "refreshPowerState", {powerOn = false, elecShutModifier = 0})
+                        -- Also send a visible message
+                        sendServerCommand(player, "chat", "addMessage", {
+                            message = "[Server] Power has been shut off.",
+                            type = "server"
+                        })
+                    end
+                end
+            end
         end
         
         if shutWater then
             -- Same pattern for water
             SandboxVars.WaterShutModifier = 0
             table.insert(debugInfo, "Set SandboxVars.WaterShutModifier = 0")
+            
+            -- Sync Java options for water too
+            local sandboxOptions = getSandboxOptions()
+            if sandboxOptions then
+                local waterOption = sandboxOptions:getOptionByName("WaterShutModifier")
+                if waterOption and waterOption.setValue then
+                    waterOption:setValue(0)
+                    table.insert(debugInfo, "waterOption:setValue(0)")
+                end
+            end
         end
         
         -- Final verification
@@ -2907,11 +3153,13 @@ function PanelBridge.processCommands()
     end
     
     -- Clear commands file after processing
-    -- Note: There's a small race condition here if Node writes while we're processing,
-    -- but processedIds tracking prevents re-execution of commands
-    if processedCount > 0 then
+    -- We clear if we found ANY commands, even if they were duplicates (already processed),
+    -- to prevent the file from getting stuck with old commands that prevent new ones.
+    if commands.commands and #commands.commands > 0 then
         PanelBridge.clearFile("commands.json")
-        PanelBridge.debug("Processed " .. processedCount .. " commands")
+        if processedCount > 0 then
+            PanelBridge.debug("Processed " .. processedCount .. " commands")
+        end
     end
     
     -- Cleanup old processed IDs (keep manageable size, remove oldest half)

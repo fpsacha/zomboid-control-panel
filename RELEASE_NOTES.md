@@ -1,3 +1,18 @@
+# v1.4.2 - Weather & Stability Update
+
+## 🎮 Zomboid Control Panel - v1.4.2
+
+### 🌤️ Weather & Climate Overhaul
+- **Advanced Weather Control**: Trigger specific weather events (Blizzards, Tropical Storms, Thunderstorms).
+- **Climate Manipulation**: Direct control over Wind, Temperature, Fog, Clouds, and Ambient Light.
+- **Sound Events**: Play world sounds (gunshots, alarms) to attract zombies or create atmosphere.
+
+### 🛠️ Stability & Fixes
+- **Command Lock Fix**: Resolved a race condition where the command queue could get stuck in an infinite loop.
+- **Type Safety**: Improved numeric parsing for climate controls to prevent API mismatches.
+- **Performance**: Increased status update frequency (3s) for snappier panel detection.
+- **Compatibility**: Verified B41/B42 cross-compatibility for basic features.
+
 # v0.1.0-alpha - Initial Alpha Release
 
 ## 🎮 Zomboid Control Panel - Alpha Release

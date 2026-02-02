@@ -493,10 +493,12 @@ async function start() {
                 logger.info('PZ server auto-started successfully');
                 
                 // Wait for server to fully start before connecting RCON
-                await new Promise(r => setTimeout(r, 10000));
+                // PZ can take 60-90 seconds to fully boot and enable RCON
+                logger.info('Waiting 60 seconds for PZ server to start RCON...');
+                await new Promise(r => setTimeout(r, 60000));
                 
                 // Try to connect RCON
-                for (let attempt = 1; attempt <= 3; attempt++) {
+                for (let attempt = 1; attempt <= 5; attempt++) {
                   try {
                     await Promise.race([
                       rconService.connect(),
@@ -509,8 +511,9 @@ async function start() {
                     }
                   } catch (e) {
                     logger.debug(`RCON connection attempt ${attempt} failed: ${e.message}`);
-                    if (attempt < 3) {
-                      await new Promise(r => setTimeout(r, 5000));
+                    if (attempt < 5) {
+                      logger.info(`RCON not ready, waiting 15 seconds before retry ${attempt + 1}/5...`);
+                      await new Promise(r => setTimeout(r, 15000));
                     }
                   }
                 }
