@@ -8,6 +8,7 @@
 - **Sound Events**: Play world sounds (gunshots, alarms) to attract zombies or create atmosphere.
 
 ### 🛠️ Stability & Fixes
+- **Weather Sync Fix**: Corrected client/server desync when triggering custom weather stages (Blizzards/Storms).
 - **Command Lock Fix**: Resolved a race condition where the command queue could get stuck in an infinite loop.
 - **Type Safety**: Improved numeric parsing for climate controls to prevent API mismatches.
 - **Performance**: Increased status update frequency (3s) for snappier panel detection.
