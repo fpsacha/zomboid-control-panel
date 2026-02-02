@@ -1,6 +1,6 @@
-# v1.4.2 - Weather & Stability Update
+# v0.1.2-alpha - Weather & Stability Update
 
-## 🎮 Zomboid Control Panel - v1.4.2
+## 🎮 Zomboid Control Panel - v0.1.2-alpha
 
 ### 🌤️ Weather & Climate Overhaul
 - **Advanced Weather Control**: Trigger specific weather events (Blizzards, Tropical Storms, Thunderstorms).
