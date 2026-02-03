@@ -38,7 +38,7 @@ The launcher will:
 - 📦 **Mod Manager** - Track Steam Workshop mods and auto-detect updates
 - ⏰ **Scheduler** - Schedule automatic restarts and recurring tasks
 - 🔄 **Auto-Restart on Mod Update** - Automatically restart when mods are updated
-- �️ **Advanced Weather System** - Trigger Blizzards, Tropical Storms, Thunderstorms, and customized weather stages
+- 🌤️ **Advanced Weather System** - Trigger Blizzards, Tropical Storms, Thunderstorms, and customized weather stages
 - 🌡️ **Climate Manipulation** - Direct control over Temperature, Wind Intensity, Fog, Cloud Density, and Ambient Light
 - 🔊 **Sound Events** - Trigger gunshots, house alarms, and custom world sounds to create events or attract zombies
 - 🧟 **Event Triggers** - Start helicopter events, hordes, and other game events
@@ -69,7 +69,7 @@ The launcher will:
    - Go to **Settings** → **Panel Bridge (Advanced)** section
    - Click **"Install to Active Server"** for automatic installation
    - Make sure `DoLuaChecksum=false` is set in your server's .ini file
-   - This enables advanced features like player teleporting, character export/import, and more
+   - This enables advanced features like player teleporting, weather control, character export/import, and live map data
 
 ## PanelBridge Installation
 
