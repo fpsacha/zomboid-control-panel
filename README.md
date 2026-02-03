@@ -78,7 +78,9 @@ The launcher will:
 ### Features enabled by PanelBridge:
 - **Player Management**: Teleport players, view detailed stats, heal players
 - **Character Export/Import**: Backup and restore player XP, perks, skills, and recipes
-- **World Control**: Set time, weather effects, spawn items/vehicles
+- **Advanced Weather**: Trigger Blizzards, Tropical Storms, Thunderstorms with custom duration
+- **Climate Control**: Manipulate Temperature, Wind, Fog, Clouds, and Light levels
+- **Sound Events**: Play gunshots, screams, and alarms at any location
 - **Server Info**: Get detailed server status, player lists with positions
 
 ### Installing PanelBridge (Recommended Method)
