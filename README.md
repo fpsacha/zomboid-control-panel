@@ -38,7 +38,9 @@ The launcher will:
 - 📦 **Mod Manager** - Track Steam Workshop mods and auto-detect updates
 - ⏰ **Scheduler** - Schedule automatic restarts and recurring tasks
 - 🔄 **Auto-Restart on Mod Update** - Automatically restart when mods are updated
-- 🌧️ **Weather Control** - Change weather conditions in-game
+- �️ **Advanced Weather System** - Trigger Blizzards, Tropical Storms, Thunderstorms, and customized weather stages
+- 🌡️ **Climate Manipulation** - Direct control over Temperature, Wind Intensity, Fog, Cloud Density, and Ambient Light
+- 🔊 **Sound Events** - Trigger gunshots, house alarms, and custom world sounds to create events or attract zombies
 - 🧟 **Event Triggers** - Start helicopter events, hordes, and other game events
 - 🤖 **Discord Bot** - Manage your server from Discord
 - 🗑️ **Chunk Cleaner** - Remove old/unused chunks to reduce save size
