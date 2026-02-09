@@ -1,9 +1,19 @@
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.4.2
+    Version: 1.4.3
     
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
+    
+    v1.4.3 Changes:
+    - CRITICAL: Fixed JSON object parser infinite loop on malformed input (while true → bounded)
+    - Added pcall protection to getWeather handler for cross-version safety
+    - Added pcall protection to getServerInfo GameTime access
+    - Added per-field pcall to setGameTime to prevent partial failure cascades
+    - Added pcall to teleportPlayer for proper error reporting
+    - Added safe individual access to getSandboxOptions for B42 compatibility
+    - Clamped giveItem count to 1-100 per call to prevent server freeze
+    - Fixed indentation in shutOffUtilities Step 8
     
     v1.4.2 Changes:
     - Fixed race condition in command processing (infinite command loops)
@@ -60,7 +70,7 @@
 ]]
 
 local PanelBridge = {
-    VERSION = "1.4.2",
+    VERSION = "1.4.3",
     CHECK_INTERVAL = 1000, -- milliseconds
     lastCheck = 0,
     lastStatusUpdate = 0,
@@ -358,8 +368,9 @@ function json.decode(str)
                 pos = pos + 1
                 return obj
             end
-            while true do
+            while pos <= #str do
                 skip_whitespace()
+                if pos > #str then break end
                 local key = parse_value()
                 skip_whitespace()
                 if str:sub(pos, pos) == ':' then pos = pos + 1 end
@@ -374,6 +385,7 @@ function json.decode(str)
                     pos = pos + 1
                 end
             end
+            return obj
         elseif c == '[' then
             -- Array
             pos = pos + 1
@@ -727,13 +739,15 @@ handlers.getServerInfo = function(args)
     local gameTime = getGameTime()
     local gameTimeData = nil
     if gameTime then
-        gameTimeData = {
-            day = gameTime:getDay(),
-            month = gameTime:getMonth() + 1, -- Lua 1-indexed
-            year = gameTime:getYear(),
-            hour = gameTime:getHour(),
-            minute = gameTime:getMinutes()
-        }
+        pcall(function()
+            gameTimeData = {
+                day = gameTime:getDay(),
+                month = gameTime:getMonth() + 1, -- Lua 1-indexed
+                year = gameTime:getYear(),
+                hour = gameTime:getHour(),
+                minute = gameTime:getMinutes()
+            }
+        end)
     end
     
     return true, {
@@ -750,27 +764,35 @@ handlers.getWeather = function(args)
         return false, nil, "ClimateManager not available"
     end
     
-    -- Get ClimateFloat values for more detailed info
-    local cloudIntensity = climate:getCloudIntensity()
-    local precipIntensity = climate:getPrecipitationIntensity()
+    -- Get weather data with safe access for cross-version compatibility
+    local success, data = pcall(function()
+        local cloudIntensity = climate:getCloudIntensity()
+        local precipIntensity = climate:getPrecipitationIntensity()
+        
+        return {
+            temperature = climate:getTemperature(),
+            humidity = climate:getHumidity(),
+            windSpeed = climate:getWindspeedKph(),
+            windAngle = climate:getWindAngleDegrees(),
+            fogIntensity = climate:getFogIntensity(),
+            cloudIntensity = cloudIntensity,
+            precipitationIntensity = precipIntensity,
+            isRaining = climate:isRaining(),
+            isSnowing = climate:isSnowing(),
+            isThunderStorming = climate.isThunderStorming and climate:isThunderStorming() or false,
+            dayLight = climate:getDayLightStrength(),
+            nightStrength = climate:getNightStrength(),
+            desaturation = climate:getDesaturation(),
+            viewDistance = climate.getViewDistance and climate:getViewDistance() or 1.0,
+            ambient = climate.getAmbient and climate:getAmbient() or 1.0
+        }
+    end)
     
-    return true, {
-        temperature = climate:getTemperature(),
-        humidity = climate:getHumidity(),
-        windSpeed = climate:getWindspeedKph(),
-        windAngle = climate:getWindAngleDegrees(),
-        fogIntensity = climate:getFogIntensity(),
-        cloudIntensity = cloudIntensity,
-        precipitationIntensity = precipIntensity,
-        isRaining = climate:isRaining(),
-        isSnowing = climate:isSnowing(),
-        isThunderStorming = climate.isThunderStorming and climate:isThunderStorming() or false,
-        dayLight = climate:getDayLightStrength(),
-        nightStrength = climate:getNightStrength(),
-        desaturation = climate:getDesaturation(),
-        viewDistance = climate.getViewDistance and climate:getViewDistance() or 1.0,
-        ambient = climate.getAmbient and climate:getAmbient() or 1.0
-    }
+    if not success then
+        return false, nil, "Failed to get weather data: " .. tostring(data)
+    end
+    
+    return true, data
 end
 
 -- Trigger blizzard (duration is in hours, minimum ~2 hours in game)
@@ -1599,20 +1621,28 @@ handlers.setGameTime = function(args)
         return false, nil, "GameTime not available"
     end
     
+    local updated = {}
+    
     if args.hour ~= nil then
         local hour = tonumber(args.hour) or 12
-        -- Use transmit for multiplayer sync
-        if gameTime.transmitSetTimeOfDay then
-            gameTime:transmitSetTimeOfDay(hour)
-        else
-            gameTime:setTimeOfDay(hour)
-        end
+        pcall(function()
+            -- Use transmit for multiplayer sync
+            if gameTime.transmitSetTimeOfDay then
+                gameTime:transmitSetTimeOfDay(hour)
+            else
+                gameTime:setTimeOfDay(hour)
+            end
+            updated.hour = hour
+        end)
     end
     
     if args.day ~= nil then
         local day = tonumber(args.day)
         if day then
-            gameTime:setDay(day)
+            pcall(function()
+                gameTime:setDay(day)
+                updated.day = day
+            end)
         end
     end
     
@@ -1621,18 +1651,24 @@ handlers.setGameTime = function(args)
         if month then
             -- Expects 1-indexed month (1=Jan, 12=Dec), clamp to valid range
             month = math.max(1, math.min(12, month))
-            gameTime:setMonth(month - 1) -- Convert to 0-indexed for Java API
+            pcall(function()
+                gameTime:setMonth(month - 1) -- Convert to 0-indexed for Java API
+                updated.month = month
+            end)
         end
     end
     
     if args.year ~= nil then
         local year = tonumber(args.year)
         if year then
-            gameTime:setYear(year)
+            pcall(function()
+                gameTime:setYear(year)
+                updated.year = year
+            end)
         end
     end
     
-    return true, { message = "Game time updated" }
+    return true, { message = "Game time updated", updated = updated }
 end
 
 -- Get world statistics
@@ -2094,25 +2130,31 @@ handlers.teleportPlayer = function(args)
         return false, nil, "Player not found: " .. username
     end
     
-    -- Use teleport for proper network sync
-    if player.setPosition then
-        player:setPosition(x, y, z)
-    elseif player.setLx and player.setLy then
-        -- Alternative: set logical position then force network update
-        player:setX(x)
-        player:setY(y)
-        player:setZ(z)
-        player:setLx(x)
-        player:setLy(y)
-        player:setLz(z)
-    else
-        player:setX(x)
-        player:setY(y)
-        player:setZ(z)
-    end
-    -- Force network sync to client
-    if player.sendObjectChange then
-        player:sendObjectChange("teleport")
+    local success, err = pcall(function()
+        -- Use teleport for proper network sync
+        if player.setPosition then
+            player:setPosition(x, y, z)
+        elseif player.setLx and player.setLy then
+            -- Alternative: set logical position then force network update
+            player:setX(x)
+            player:setY(y)
+            player:setZ(z)
+            player:setLx(x)
+            player:setLy(y)
+            player:setLz(z)
+        else
+            player:setX(x)
+            player:setY(y)
+            player:setZ(z)
+        end
+        -- Force network sync to client
+        if player.sendObjectChange then
+            player:sendObjectChange("teleport")
+        end
+    end)
+    
+    if not success then
+        return false, nil, "Failed to teleport player: " .. tostring(err)
     end
     
     return true, { 
@@ -2155,20 +2197,24 @@ handlers.getSandboxOptions = function(args)
         return false, nil, "SandboxOptions not available"
     end
     
-    -- Get commonly used sandbox settings
-    local options = {
-        zombieCount = sandbox:getZombieCount(),
-        zombieSpeed = sandbox:getZombieSpeed(),
-        dayLength = sandbox:getDayLength(),
-        startMonth = sandbox:getStartMonth(),
-        startDay = sandbox:getStartDay(),
-        waterShutoff = sandbox:getWaterShutoff(),
-        elecShutoff = sandbox:getElecShutoff(),
-        zombieLore = sandbox:getZombieLore(),
-        charactersPerPlayer = sandbox:getCharactersPerPlayer(),
-        sleepAllowed = sandbox:getSleepAllowed(),
-        sleepNeeded = sandbox:getSleepNeeded()
-    }
+    -- Get commonly used sandbox settings with safe access
+    local options = {}
+    local function safeOpt(name, getter)
+        local ok, val = pcall(getter)
+        if ok then options[name] = val end
+    end
+    
+    safeOpt("zombieCount", function() return sandbox:getZombieCount() end)
+    safeOpt("zombieSpeed", function() return sandbox:getZombieSpeed() end)
+    safeOpt("dayLength", function() return sandbox:getDayLength() end)
+    safeOpt("startMonth", function() return sandbox:getStartMonth() end)
+    safeOpt("startDay", function() return sandbox:getStartDay() end)
+    safeOpt("waterShutoff", function() return sandbox:getWaterShutoff() end)
+    safeOpt("elecShutoff", function() return sandbox:getElecShutoff() end)
+    safeOpt("zombieLore", function() return sandbox:getZombieLore() end)
+    safeOpt("charactersPerPlayer", function() return sandbox:getCharactersPerPlayer() end)
+    safeOpt("sleepAllowed", function() return sandbox:getSleepAllowed() end)
+    safeOpt("sleepNeeded", function() return sandbox:getSleepNeeded() end)
     
     return true, { options = options }
 end
@@ -2769,7 +2815,7 @@ handlers.shutOffUtilities = function(args)
             end)
             
             -- Step 8: Notify players
-             local players = getOnlinePlayers()
+            local players = getOnlinePlayers()
             if players then
                 for i = 0, players:size() - 1 do
                     local player = players:get(i)
@@ -2969,7 +3015,7 @@ end
 handlers.giveItem = function(args)
     local username = args.username
     local itemType = args.itemType
-    local count = args.count or 1
+    local count = math.min(math.max(tonumber(args.count) or 1, 1), 100) -- Clamp 1-100 per call
     
     if not username then
         return false, nil, "Username required"
