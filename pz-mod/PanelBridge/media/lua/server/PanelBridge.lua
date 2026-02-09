@@ -126,7 +126,7 @@ function PanelBridge.log(level, message, context)
     local prefix = "[PanelBridge][" .. levelName .. "] "
     if level >= LOG_LEVEL.WARN or PanelBridge.DEBUG_MODE then
         print(prefix .. message)
-        if context and PanelBridge.DEBUG_MODE then
+        if context and PanelBridge.DEBUG_MODE and json and json.encode then
             print(prefix .. "  Context: " .. json.encode(context))
         end
     end
@@ -440,38 +440,6 @@ local function getPlayerByUsername(username)
     return nil
 end
 
--- Wrap a handler function with error catching and timing
-local function wrapHandler(name, handler)
-    return function(args)
-        local startTime = getTimestampMs and getTimestampMs() or 0
-        
-        PanelBridge.debug("Executing handler: " .. name, { args = args })
-        
-        local success, result1, result2, result3 = pcall(function()
-            return handler(args)
-        end)
-        
-        local duration = (getTimestampMs and getTimestampMs() or 0) - startTime
-        
-        if success then
-            PanelBridge.debug("Handler completed: " .. name, { 
-                success = result1, 
-                duration = duration .. "ms" 
-            })
-            return result1, result2, result3
-        else
-            -- pcall failed - the handler threw an error
-            local errorMsg = "Handler error: " .. tostring(result1)
-            PanelBridge.error(errorMsg, { 
-                handler = name, 
-                args = args,
-                duration = duration .. "ms"
-            })
-            return false, nil, errorMsg
-        end
-    end
-end
-
 -- ============================================
 -- FILE OPERATIONS
 -- ============================================
@@ -518,14 +486,15 @@ function PanelBridge.readFile(filename)
         return nil
     end
     
-    local content = ""
+    local lines = {}
     local line = reader:readLine()
     while line do
-        content = content .. line .. "\n"
+        lines[#lines + 1] = line
         line = reader:readLine()
     end
     reader:close()
     
+    local content = table.concat(lines, "\n")
     return content:gsub("^%s*(.-)%s*$", "%1") -- trim
 end
 
@@ -1316,9 +1285,15 @@ handlers.setClimateFloat = function(args)
         return false, nil, "Invalid float ID: " .. floatId
     end
     
-    climateFloat:setEnableAdmin(enable)
-    if enable then
-        climateFloat:setAdminValue(value)
+    local success, err = pcall(function()
+        climateFloat:setEnableAdmin(enable)
+        if enable then
+            climateFloat:setAdminValue(value)
+        end
+    end)
+    
+    if not success then
+        return false, nil, "Failed to set climate float: " .. tostring(err)
     end
     
     return true, { 
@@ -1578,8 +1553,8 @@ end
 -- TIME & WORLD HANDLERS
 -- ============================================
 
--- Helper to safely call a method that might not exist
-local function safeCall(obj, methodName, default)
+-- Helper to safely get a value from a method that might not exist (with default fallback)
+local function safeGetValue(obj, methodName, default)
     if obj and obj[methodName] then
         local success, result = pcall(function() return obj[methodName](obj) end)
         if success then
@@ -1596,18 +1571,18 @@ handlers.getGameTime = function(args)
         return false, nil, "GameTime not available"
     end
     
-    -- Use safeCall for methods that may not exist in all PZ versions
+    -- Use safeGetValue for methods that may not exist in all PZ versions
     return true, {
-        year = safeCall(gameTime, "getYear", 1993),
-        month = (safeCall(gameTime, "getMonth", 0) or 0) + 1, -- Lua 1-indexed
-        day = safeCall(gameTime, "getDay", 1),
-        hour = safeCall(gameTime, "getTimeOfDay", 12),
-        minute = safeCall(gameTime, "getMinutes", 0),
-        dayOfWeek = safeCall(gameTime, "getDayOfWeek", nil),
-        worldAgeHours = safeCall(gameTime, "getWorldAgeHours", 0),
-        timeSinceApo = safeCall(gameTime, "getTimeSinceApo", 0),
-        moonPhase = safeCall(gameTime, "getMoon", nil),
-        nightsSurvived = safeCall(gameTime, "getNightsSurvived", 0)
+        year = safeGetValue(gameTime, "getYear", 1993),
+        month = (safeGetValue(gameTime, "getMonth", 0) or 0) + 1, -- Lua 1-indexed
+        day = safeGetValue(gameTime, "getDay", 1),
+        hour = safeGetValue(gameTime, "getTimeOfDay", 12),
+        minute = safeGetValue(gameTime, "getMinutes", 0),
+        dayOfWeek = safeGetValue(gameTime, "getDayOfWeek", nil),
+        worldAgeHours = safeGetValue(gameTime, "getWorldAgeHours", 0),
+        timeSinceApo = safeGetValue(gameTime, "getTimeSinceApo", 0),
+        moonPhase = safeGetValue(gameTime, "getMoon", nil),
+        nightsSurvived = safeGetValue(gameTime, "getNightsSurvived", 0)
     }
 end
 
@@ -1638,7 +1613,9 @@ handlers.setGameTime = function(args)
     if args.month ~= nil then
         local month = tonumber(args.month)
         if month then
-            gameTime:setMonth(month - 1) -- Convert to 0-indexed
+            -- Expects 1-indexed month (1=Jan, 12=Dec), clamp to valid range
+            month = math.max(1, math.min(12, month))
+            gameTime:setMonth(month - 1) -- Convert to 0-indexed for Java API
         end
     end
     
@@ -3232,7 +3209,7 @@ function PanelBridge.updateStatus()
             version = PanelBridge.VERSION,
             timestamp = getTimestampMs(),
             serverName = getServerName(),
-            playerCount = onlinePlayers:size(),
+            playerCount = onlinePlayers and onlinePlayers:size() or 0,
             players = playerNames,
             path = PanelBridge.getBasePath(),
             debugMode = PanelBridge.DEBUG_MODE,
