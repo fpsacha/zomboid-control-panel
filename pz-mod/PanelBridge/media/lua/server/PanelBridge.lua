@@ -332,8 +332,11 @@ function json.decode(str)
                     if escape == 'n' then result = result .. '\n'
                     elseif escape == 'r' then result = result .. '\r'
                     elseif escape == 't' then result = result .. '\t'
+                    elseif escape == 'b' then result = result .. '\b'
+                    elseif escape == 'f' then result = result .. '\f'
                     elseif escape == '"' then result = result .. '"'
                     elseif escape == '\\' then result = result .. '\\'
+                    elseif escape == '/' then result = result .. '/'
                     else result = result .. escape end
                     pos = pos + 1
                     start = pos
@@ -380,9 +383,10 @@ function json.decode(str)
                 pos = pos + 1
                 return arr
             end
-            while true do
+            while pos <= #str do
                 arr[#arr + 1] = parse_value()
                 skip_whitespace()
+                if pos > #str then break end
                 c = str:sub(pos, pos)
                 if c == ']' then
                     pos = pos + 1
@@ -391,6 +395,7 @@ function json.decode(str)
                     pos = pos + 1
                 end
             end
+            return arr
         elseif str:sub(pos, pos + 3) == 'true' then
             pos = pos + 4
             return true
@@ -2175,7 +2180,7 @@ end
 -- Send message to server chat (appears to all players)
 handlers.sendToServerChat = function(args)
     local message = args.message
-    local isAlert = args.isAlert or false
+    local isAlert = args.alert or args.isAlert or false
     
     if not message then
         return false, nil, "Message required"
@@ -2350,7 +2355,7 @@ handlers.getUtilitiesStatus = function(args)
         end
         
         -- Check the actual shutdown timers
-        local gameTime = GameTime:getInstance()
+        local gameTime = GameTime.getInstance()
         if gameTime then
             currentHour = gameTime:getWorldAgeHours()
             local modData = gameTime:getModData()
@@ -3067,13 +3072,17 @@ handlers.clearZombiesNearPlayer = function(args)
             for i = zombies:size() - 1, 0, -1 do
                 local zombie = zombies:get(i)
                 if zombie then
-                    local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
-                    local dist = math.sqrt((zx - px)^2 + (zy - py)^2 + (zz - pz)^2)
-                    if dist <= radius then
-                        zombie:removeFromWorld()
-                        zombie:removeFromSquare()
-                        removed = removed + 1
-                    end
+                    pcall(function()
+                        local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
+                        if zx and zy and zz then
+                            local dist = math.sqrt((zx - px)^2 + (zy - py)^2 + (zz - pz)^2)
+                            if dist <= radius then
+                                zombie:removeFromWorld()
+                                zombie:removeFromSquare()
+                                removed = removed + 1
+                            end
+                        end
+                    end)
                 end
             end
         end
@@ -3177,7 +3186,10 @@ function PanelBridge.updateStatus()
         local playerNames = {}
         if onlinePlayers then
             for i = 0, onlinePlayers:size() - 1 do
-                table.insert(playerNames, onlinePlayers:get(i):getUsername())
+                local player = onlinePlayers:get(i)
+                if player then
+                    table.insert(playerNames, player:getUsername())
+                end
             end
         end
         
