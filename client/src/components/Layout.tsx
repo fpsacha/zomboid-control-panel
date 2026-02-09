@@ -125,7 +125,22 @@ export default function Layout({ children }: LayoutProps) {
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(['active', 'world']))
   const [updateInfo, setUpdateInfo] = useState<UpdateStatus | null>(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
+  const [playerCount, setPlayerCount] = useState<number>(0)
   const socket = useContext(SocketContext)
+
+  // Listen for player updates globaly
+  useEffect(() => {
+    if (!socket) return
+
+    const handlePlayersUpdate = (players: any[]) => {
+      setPlayerCount(players.length)
+    }
+
+    socket.on('players:update', handlePlayersUpdate)
+    return () => {
+      socket.off('players:update', handlePlayersUpdate)
+    }
+  }, [socket])
   const navigate = useNavigate()
   const location = useLocation()
   const { theme, setTheme } = useTheme()
@@ -448,9 +463,9 @@ export default function Layout({ children }: LayoutProps) {
                 open={openSections.has(section.id)}
                 onOpenChange={() => toggleSection(section.id)}
               >
-                <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors group">
+                <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold uppercase tracking-wider text-primary/70 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors group">
                   <div className="flex items-center gap-2">
-                    <section.icon className="w-4 h-4" />
+                    <section.icon className="w-4 h-4 text-primary/50 group-hover:text-primary" />
                     {section.label}
                   </div>
                   {openSections.has(section.id) ? (
@@ -459,7 +474,7 @@ export default function Layout({ children }: LayoutProps) {
                     <ChevronRight className="w-4 h-4 transition-transform" />
                   )}
                 </CollapsibleTrigger>
-                <CollapsibleContent className="mt-1 space-y-1 pl-2">
+                <CollapsibleContent className="mt-1 space-y-1 ml-3 pl-3 border-l border-primary/15">
                   {section.items.map((item) => (
                     <NavLink
                       key={item.to}
@@ -474,8 +489,22 @@ export default function Layout({ children }: LayoutProps) {
                         )
                       }
                     >
-                      <item.icon className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
-                      {item.label}
+                      {({ isActive }) => (
+                        <>
+                          <item.icon className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
+                          {item.label}
+                          {item.to === '/players' && playerCount > 0 && (
+                            <span className={cn(
+                              "ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
+                              isActive 
+                                ? "bg-white/20 text-white" 
+                                : "bg-primary/10 text-primary"
+                            )}>
+                              {playerCount}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </NavLink>
                   ))}
                 </CollapsibleContent>
