@@ -222,8 +222,9 @@ function PanelBridge.detectVersion()
         end
     end
     
-    -- Check player API differences
-    local testPlayer = getOnlinePlayers and getOnlinePlayers():size() > 0 and getOnlinePlayers():get(0) or nil
+    -- Check player API differences (getOnlinePlayers may return nil at startup)
+    local onlinePlayers = getOnlinePlayers and getOnlinePlayers()
+    local testPlayer = onlinePlayers and onlinePlayers:size() > 0 and onlinePlayers:get(0) or nil
     if testPlayer then
         -- B42 traits are accessed via SurvivorDesc
         local desc = testPlayer:getDescriptor()
@@ -1639,7 +1640,12 @@ handlers.getWorldStats = function(args)
     local cell = world:getCell()
     local zombieCount = 0
     if cell and cell.getZombieList then
-        zombieCount = cell:getZombieList():size()
+        pcall(function()
+            local list = cell:getZombieList()
+            if list then
+                zombieCount = list:size()
+            end
+        end)
     end
     
     return true, {
@@ -1719,31 +1725,33 @@ handlers.getAllPlayerDetails = function(args)
     
     for i = 0, onlinePlayers:size() - 1 do
         local player = onlinePlayers:get(i)
-        local stats = player:getStats()
-        local bodyDamage = player:getBodyDamage()
-        
-        local playerData = {
-            username = player:getUsername(),
-            displayName = player:getDisplayName(),
-            x = player:getX(),
-            y = player:getY(),
-            z = player:getZ(),
-            accessLevel = player:getAccessLevel(),
-            isAlive = player:isAlive()
-        }
-        
-        if stats then
-            playerData.hunger = stats:getHunger()
-            playerData.thirst = stats:getThirst()
-            playerData.fatigue = stats:getFatigue()
+        if player then
+            local stats = player:getStats()
+            local bodyDamage = player:getBodyDamage()
+            
+            local playerData = {
+                username = player:getUsername(),
+                displayName = player:getDisplayName(),
+                x = player:getX(),
+                y = player:getY(),
+                z = player:getZ(),
+                accessLevel = player:getAccessLevel(),
+                isAlive = player:isAlive()
+            }
+            
+            if stats then
+                playerData.hunger = stats:getHunger()
+                playerData.thirst = stats:getThirst()
+                playerData.fatigue = stats:getFatigue()
+            end
+            
+            if bodyDamage then
+                playerData.health = bodyDamage:getOverallBodyHealth()
+                playerData.isInfected = bodyDamage:IsInfected()
+            end
+            
+            table.insert(players, playerData)
         end
-        
-        if bodyDamage then
-            playerData.health = bodyDamage:getOverallBodyHealth()
-            playerData.isInfected = bodyDamage:IsInfected()
-        end
-        
-        table.insert(players, playerData)
     end
     
     return true, { players = players }
@@ -1937,7 +1945,7 @@ handlers.exportPlayerData = function(args)
     end
     
     local exportData = {
-        version = "1.1",
+        version = "1.2",
         exportTime = getTimestampMs(),
         serverName = getServerName(),
         
@@ -1947,6 +1955,15 @@ handlers.exportPlayerData = function(args)
         
         -- Skills/Perks with XP (this is what we need for restore)
         perks = getPlayerPerks(player),
+        
+        -- Traits (reference - requires manual restore)
+        traits = getPlayerTraits(player),
+        
+        -- Known recipes
+        recipes = getKnownRecipes(player),
+        
+        -- Worn items (reference - what the player is wearing)
+        wornItems = getWornItems(player),
         
         -- Kill stats (for reference, can't easily restore)
         kills = {
@@ -2102,7 +2119,6 @@ end
 -- Send a server message (to all players)
 handlers.sendServerMessage = function(args)
     local message = args.message
-    local color = args.color or "white" -- white, red, green, blue, yellow
     
     if not message then
         return false, nil, "Message required"
@@ -2168,12 +2184,13 @@ handlers.sendToServerChat = function(args)
     -- Try ChatServer (primary method)
     local success, err = pcall(function()
         local chatServer = ChatServer.getInstance()
-        if chatServer then
-            if isAlert then
-                chatServer:sendServerAlertMessageToServerChat(message)
-            else
-                chatServer:sendMessageToServerChat(message)
-            end
+        if not chatServer then
+            error("ChatServer.getInstance() returned nil")
+        end
+        if isAlert then
+            chatServer:sendServerAlertMessageToServerChat(message)
+        else
+            chatServer:sendMessageToServerChat(message)
         end
     end)
     
@@ -2269,8 +2286,14 @@ handlers.saveWorld = function(args)
     -- Try to trigger server save
     local world = getWorld()
     if world and world.saveWorld then
-        world:saveWorld()
-        return true, { message = "World save triggered" }
+        local success, err = pcall(function()
+            world:saveWorld()
+        end)
+        if success then
+            return true, { message = "World save triggered" }
+        else
+            return false, nil, "World save failed: " .. tostring(err)
+        end
     end
     
     return false, nil, "Cannot trigger world save from Lua"
@@ -2431,52 +2454,6 @@ local function activateLightSwitchesInLoadedChunks()
     return activatedCount, "success"
 end
 
--- Helper function to set sandbox option properly via Java API
-local function setSandboxOptionValue(optionName, value)
-    local sandboxOptions = getSandboxOptions()
-    if not sandboxOptions then
-        return false, "getSandboxOptions() returned nil"
-    end
-    
-    -- Try to get the option by name and set its value
-    local option = sandboxOptions:getOptionByName(optionName)
-    if option then
-        -- Try different setter methods
-        if option.setValue then
-            local success, err = pcall(function()
-                option:setValue(value)
-            end)
-            if success then
-                return true, "setValue worked"
-            end
-        end
-        
-        -- Try setValueFromString if setValue didn't work
-        if option.setValueFromString then
-            local success, err = pcall(function()
-                option:setValueFromString(tostring(value))
-            end)
-            if success then
-                return true, "setValueFromString worked"
-            end
-        end
-        
-        -- Try direct value assignment
-        if option.value ~= nil then
-            local success, err = pcall(function()
-                option.value = value
-            end)
-            if success then
-                return true, "direct value assignment worked"
-            end
-        end
-        
-        return false, "Option found but couldn't set value"
-    else
-        return false, "Option not found: " .. optionName
-    end
-end
-
 -- Restore power and water (turn hydro power on and reset shutdown timers)
 handlers.restoreUtilities = function(args)
     local world = getWorld()
@@ -2575,7 +2552,7 @@ handlers.restoreUtilities = function(args)
                 table.insert(debugInfo, "Triggered OnHydroPowerOn event")
             end
             
-            -- Step 7: Verify Java API value
+            -- Step 8: Verify Java API value
             local sandboxOptions2 = getSandboxOptions()
             if sandboxOptions2 then
                 local elecOption2 = sandboxOptions2:getOptionByName("ElecShutModifier")
@@ -2585,13 +2562,13 @@ handlers.restoreUtilities = function(args)
                 end
             end
             
-            -- Step 8: Try transmitWeather to sync world state
+            -- Step 9: Try transmitWeather to sync world state
             if world.transmitWeather then
                 pcall(function() world:transmitWeather() end)
                 table.insert(debugInfo, "transmitWeather called")
             end
             
-            -- Step 9: Try to use the server's built-in sandbox sync
+            -- Step 10: Try to use the server's built-in sandbox sync
             -- In B42, need to find the right method
             pcall(function()
                 -- Try to force a world state update
@@ -2603,7 +2580,7 @@ handlers.restoreUtilities = function(args)
                 end
             end)
             
-            -- Step 10: Use IsoWorld's triggerNPCEvent if available
+            -- Step 11: Use IsoWorld's triggerNPCEvent if available
             pcall(function()
                 if world.triggerNPCEvent then
                     world:triggerNPCEvent("HydroPowerChanged")
@@ -2611,7 +2588,7 @@ handlers.restoreUtilities = function(args)
                 end
             end)
             
-            -- Step 11: Try all GameServer static methods we can find
+            -- Step 12: Try all GameServer static methods we can find
             pcall(function()
                 if GameServer then
                     local methods = {}
@@ -2626,7 +2603,7 @@ handlers.restoreUtilities = function(args)
                 end
             end)
             
-            -- Step 12: Send command to all clients to refresh their power state
+            -- Step 13: Send command to all clients to refresh their power state
             local players = getOnlinePlayers()
             if players then
                 for i = 0, players:size() - 1 do
@@ -2643,7 +2620,7 @@ handlers.restoreUtilities = function(args)
                 table.insert(debugInfo, "Sent refreshPowerState to " .. tostring(players:size()) .. " players")
             end
             
-            -- Step 13: Skip save() - it requires a ByteBuffer argument that can't be provided from Lua
+            -- Step 14: Skip save() - it requires a ByteBuffer argument that can't be provided from Lua
             -- Instead, rely on applySettings which syncs the options without file I/O
             pcall(function()
                 if getSandboxOptions() and getSandboxOptions().applySettings then
@@ -2652,7 +2629,7 @@ handlers.restoreUtilities = function(args)
                 end
             end)
             
-            -- Step 14: Try sending reloadoptions command (this is what the admin panel uses)
+            -- Step 15: Try sending reloadoptions command (this is what the admin panel uses)
             pcall(function()
                 if executeCommand then
                     executeCommand("/reloadoptions")
@@ -2660,7 +2637,7 @@ handlers.restoreUtilities = function(args)
                 end
             end)
             
-            -- Step 15: Try ServerAPI if available
+            -- Step 16: Try ServerAPI if available
             pcall(function()
                 if ServerAPI and ServerAPI.ReloadOptions then
                     ServerAPI.ReloadOptions()
