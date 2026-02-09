@@ -791,7 +791,7 @@ export default function Console() {
             {liveLog.length === 0 ? (
               <p className="text-muted-foreground">No commands executed yet. Type a command below.</p>
             ) : (
-              liveLog.map((entry, index) => (
+              liveLog.map((entry) => (
                 <div key={`${entry.timestamp}-${entry.command}`} className="mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-primary">{'>'}</span>
