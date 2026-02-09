@@ -51,7 +51,10 @@ export class Scheduler {
       
       for (const task of tasks) {
         if (task.enabled) {
-          this.scheduleTask(task);
+          const scheduled = this.scheduleTask(task);
+          if (!scheduled) {
+              logger.warn(`Failed to schedule task ${task.id} (${task.name}) - see previous errors`);
+          }
         }
       }
       
@@ -63,7 +66,7 @@ export class Scheduler {
 
   scheduleTask(task) {
     if (!cron.validate(task.cron_expression)) {
-      logger.error(`Invalid cron expression for task ${task.id}: ${task.cron_expression}`);
+      logger.error(`Invalid cron expression for task ${task.id} (${task.name}): ${task.cron_expression}`);
       return false;
     }
 
@@ -90,7 +93,7 @@ export class Scheduler {
         await logServerEvent('scheduled_task', `Executed: ${task.name}`);
       } catch (error) {
         const duration = Date.now() - startTime;
-        logger.error(`Scheduled task failed: ${error.message}`);
+        logger.error(`Scheduled task failed ${task.name}: ${error.message}`);
         await logScheduleExecution(task.id, task.name, task.command, false, error.message, duration);
         await logServerEvent('scheduled_task_error', `${task.name}: ${error.message}`);
       } finally {
@@ -104,19 +107,20 @@ export class Scheduler {
   }
 
   async executeTask(task) {
-    const command = task.command.toLowerCase();
+    const commandLower = task.command.toLowerCase();
     
     // Handle special commands - skip logging for automated scheduled tasks
-    if (command === 'restart') {
+    if (commandLower === 'restart') {
       const result = await this.performRestart();
       // If restart was skipped (already in progress), throw to mark task as failed
       if (!result.success && result.message === 'Restart already in progress') {
         throw new Error('Restart skipped - already in progress');
       }
-    } else if (command === 'save') {
+    } else if (commandLower === 'save') {
       await this.rconService.save({ skipLog: true });
-    } else if (command.startsWith('servermsg ')) {
-      const message = command.substring(10);
+    } else if (commandLower.startsWith('servermsg ')) {
+      // Preserve original casing for the message text
+      const message = task.command.substring(10);
       await this.rconService.serverMessage(message, { skipLog: true });
     } else {
       // Execute as raw RCON command - skip logging for scheduled tasks
@@ -132,6 +136,18 @@ export class Scheduler {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Cancel an in-progress restart countdown
+   */
+  cancelRestart() {
+    if (this.restartInProgress) {
+      this.restartCancelled = true;
+      logger.info('Restart cancellation requested');
+      return { success: true, message: 'Restart cancellation requested' };
+    }
+    return { success: false, message: 'No restart in progress' };
   }
 
   /**
@@ -276,6 +292,7 @@ export class Scheduler {
     }
     
     this.restartInProgress = true;
+    this.restartCancelled = false; // Allow cancellation
     const warningMinutes = warningMinutesParam ?? (parseInt(process.env.RESTART_WARNING_MINUTES, 10) || 5);
     const restartStartTime = Date.now();
     
@@ -354,6 +371,11 @@ export class Scheduler {
       if (warningMinutes > 0) {
         // Send countdown warnings - skip logging for automated restart messages
         for (let i = warningMinutes; i > 0; i--) {
+          if (this.restartCancelled) {
+            logger.info('Auto-restart: Cancelled during countdown');
+            await this.rconService.serverMessage('ℹ️ Server restart has been cancelled.', { skipLog: true });
+            return { success: false, message: 'Restart cancelled' };
+          }
           const msgResult = await this.rconService.serverMessage(`⚠️ Server restarting in ${i} minute(s)!`, { skipLog: true });
           if (!msgResult.success) {
             logger.warn(`Auto-restart: Warning message failed: ${msgResult.error}`);
@@ -362,6 +384,12 @@ export class Scheduler {
           if (i > 1) {
             await this.sleep(60000); // Wait 1 minute
           }
+        }
+
+        if (this.restartCancelled) {
+          logger.info('Auto-restart: Cancelled during countdown');
+          await this.rconService.serverMessage('ℹ️ Server restart has been cancelled.', { skipLog: true });
+          return { success: false, message: 'Restart cancelled' };
         }
 
         // 30 second warning
@@ -442,7 +470,7 @@ export class Scheduler {
       // Wait for RCON to be ready (PZ server takes 60-180s to fully initialize)
       // Keep serverStarting=true the whole time to block auto-reconnect
       logger.info('Auto-restart: Waiting for RCON to be ready...');
-      const rconDelays = [20000, 30000, 30000, 30000, 30000, 30000]; // 20s + 5x30s = 170s total
+      const rconDelays = [60000, 45000, 45000, 45000, 45000]; // 60s + 4x45s = 240s total (4 minutes)
       let rconConnected = false;
       
       for (let i = 0; i < rconDelays.length; i++) {

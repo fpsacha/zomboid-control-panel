@@ -17,6 +17,7 @@ import { Scheduler } from './services/scheduler.js';
 import { DiscordBot } from './services/discordBot.js';
 import { BackupService } from './services/backupService.js';
 import { UpdateChecker } from './services/updateChecker.js';
+import { LogTailer } from './services/logTailer.js';
 
 // Global error handlers to prevent app crashes
 process.on('uncaughtException', (error) => {
@@ -50,6 +51,11 @@ async function gracefulShutdown(signal) {
     // Stop mod checker
     if (modChecker) {
       modChecker.stop();
+    }
+    
+    // Stop log tailer
+    if (logTailer) {
+      logTailer.stopWatching();
     }
     
     // Stop update checker
@@ -129,8 +135,9 @@ app.use(express.json());
 const rconService = new RconService();
 const serverManager = new ServerManager();
 const modChecker = new ModChecker();
+const logTailer = new LogTailer();
 const scheduler = new Scheduler(rconService, serverManager);
-const discordBot = new DiscordBot(rconService, serverManager, scheduler);
+const discordBot = new DiscordBot(rconService, serverManager, scheduler, logTailer);
 const backupService = new BackupService();
 
 // Connect services for cross-communication
@@ -142,8 +149,8 @@ rconService.startAutoReconnect();
 
 /**
  * Find the PanelBridge path for the active server
- * PZ Lua mod writes to: {zomboidDataPath}/Lua/panelbridge/{serverName}/
- * This function checks for existing status.json to find the active bridge
+ * PZ Lua mod writes to: {serverRuntimePath}/Lua/panelbridge/{serverName}/
+ * For dedicated servers, this is usually a Server_files* folder (set via -cachedir)
  */
 async function findPanelBridgePath() {
   const activeServer = await getActiveServer();
@@ -169,24 +176,36 @@ async function findPanelBridgePath() {
   // Build list of possible paths - PZ Lua mod writes to Lua/panelbridge/
   const possiblePaths = [];
   
+  // Helper to safely read directory contents
+  const safeReadDir = (dirPath) => {
+    try {
+      return fs.existsSync(dirPath) ? fs.readdirSync(dirPath) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+  
+  // PRIORITY 1: zomboidDataPath is where -cachedir points - this is where the mod WRITES status.json
+  // This should be checked first since it's explicitly configured for the server
   if (activeServer.zomboidDataPath) {
-    // Primary: where PZ Lua mod actually writes
-    possiblePaths.push({ p: path.join(activeServer.zomboidDataPath, 'Lua', 'panelbridge', serverName), source: 'zomboidDataPath/Lua' });
-    possiblePaths.push({ p: path.join(activeServer.zomboidDataPath, 'panelbridge', serverName), source: 'zomboidDataPath' });
+    possiblePaths.push({ p: path.join(activeServer.zomboidDataPath, 'Lua', 'panelbridge', serverName), source: 'zomboidDataPath/Lua (cachedir)', priority: 1 });
   }
   
+  // PRIORITY 2: Look for Server_files* folders at parent level (dedicated server runtime data)
+  // This is where -cachedir typically points for dedicated servers with separate data folders
   if (activeServer.installPath) {
     const parentDir = path.dirname(activeServer.installPath);
-    try {
-      const parentContents = fs.readdirSync(parentDir);
-      for (const item of parentContents) {
-        if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
-          possiblePaths.push({ p: path.join(parentDir, item, 'Lua', 'panelbridge', serverName), source: `${item}/Lua` });
-          possiblePaths.push({ p: path.join(parentDir, item, 'panelbridge', serverName), source: item });
-        }
+    const parentContents = safeReadDir(parentDir);
+    for (const item of parentContents) {
+      if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
+        possiblePaths.push({ p: path.join(parentDir, item, 'Lua', 'panelbridge', serverName), source: `${item}/Lua`, priority: 2 });
       }
-    } catch (e) { /* ignore */ }
-    possiblePaths.push({ p: path.join(activeServer.installPath, 'Lua', 'panelbridge', serverName), source: 'installPath/Lua' });
+    }
+  }
+  
+  // PRIORITY 3: Lua folder directly in install path (fallback)
+  if (activeServer.installPath) {
+    possiblePaths.push({ p: path.join(activeServer.installPath, 'Lua', 'panelbridge', serverName), source: 'installPath/Lua', priority: 3 });
   }
   
   // Find first path with existing status.json (bridge is active)
@@ -205,7 +224,22 @@ async function findPanelBridgePath() {
     }
   }
   
-  return { error: 'No active PanelBridge found', searchedPaths: possiblePaths.map(x => x.p), serverName };
+  // Check if any of the paths exist (even if empty - mod may have started writing)
+  for (const { p, source } of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return { path: p, source: `${source} (exists)`, serverName };
+    }
+  }
+  
+  // No existing bridge found - return the best expected path but DON'T create it
+  // The directory will be created by the PZ mod when it runs
+  if (possiblePaths.length > 0) {
+    possiblePaths.sort((a, b) => a.priority - b.priority);
+    const bestPath = possiblePaths[0];
+    return { path: bestPath.p, source: `${bestPath.source} (expected)`, serverName, notCreated: true };
+  }
+  
+  return { error: 'No valid bridge path could be determined', searchedPaths: possiblePaths.map(x => x.p), serverName };
 }
 
 /**
@@ -318,7 +352,9 @@ if (isPackaged) {
 logger.info(`Serving client from: ${clientDistPath}`);
 app.use(express.static(clientDistPath));
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'API endpoint not found' });
+  } else {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   }
 });
@@ -408,6 +444,20 @@ async function start() {
     // Initialize database
     await initDatabase();
     logger.info('Database initialized');
+
+    // Initialize log tailer
+    await logTailer.init();
+    
+    // Broadcast live chat messages to Socket.IO clients
+    logTailer.on('chatMessage', (data) => {
+        io.emit('chat:message', {
+            id: Date.now().toString(),
+            type: 'general', // Default to general for now
+            author: data.author,
+            message: data.message,
+            timestamp: data.timestamp
+        });
+    });
     
     // Initialize scheduler first (needed by modChecker for auto-restart)
     await scheduler.init();
@@ -487,34 +537,60 @@ async function start() {
           const autoStartServer = await getSetting('autoStartServer');
           if (autoStartServer === true || autoStartServer === 'true') {
             logger.info('Auto-start is enabled - starting PZ server...');
+            
+            // Set flag to prevent auto-reconnect from interfering
+            rconService.setServerStarting(true);
+            
             try {
               const startResult = await serverManager.startServer();
               if (startResult.success) {
                 logger.info('PZ server auto-started successfully');
                 
                 // Wait for server to fully start before connecting RCON
-                // PZ can take 60-90 seconds to fully boot and enable RCON
-                logger.info('Waiting 60 seconds for PZ server to start RCON...');
-                await new Promise(r => setTimeout(r, 60000));
+                // Monitor the TCP port instead of hard waiting
+                logger.info('PZ server auto-started - Monitoring RCON port...');
                 
-                // Try to connect RCON
-                for (let attempt = 1; attempt <= 5; attempt++) {
+                await rconService.loadConfig(); // Ensure clean config
+                const rconHost = rconService.config.host || '127.0.0.1';
+                const rconPort = rconService.config.port || 27015;
+                
+                let connected = false;
+                const maxPollAttempts = 60; // 5 minutes max
+                
+                for (let i = 0; i < maxPollAttempts; i++) {
+                  // Check port readiness
+                  const portOpen = await rconService.checkPortOpen(rconHost, rconPort);
+                  
+                  if (!portOpen) {
+                    // Log every 30s
+                    if (i % 6 === 0) {
+                      logger.debug(`Auto-start: Waiting for RCON port ${rconHost}:${rconPort}...`);
+                    }
+                    await new Promise(r => setTimeout(r, 5000));
+                    continue;
+                  }
+                  
+                  // Port is open, try to connect
+                  logger.info(`RCON port open! Attempting connection...`);
+                  
                   try {
                     await Promise.race([
                       rconService.connect(),
-                      new Promise((_, reject) => setTimeout(() => reject(new Error('RCON connection timeout')), timeoutMs))
+                      new Promise((_, reject) => setTimeout(() => reject(new Error('RCON connection timeout')), 15000))
                     ]);
                     
                     if (rconService.connected) {
-                      logger.info(`RCON connected after auto-start on attempt ${attempt}`);
+                      logger.info('RCON connected successfully after auto-start');
+                      connected = true;
                       break;
+                    } else {
+                        // Port open but auth/handshake failed
+                        logger.debug('RCON port open but connection failed, retrying in 5s...');
+                        await new Promise(r => setTimeout(r, 5000));
                     }
                   } catch (e) {
-                    logger.debug(`RCON connection attempt ${attempt} failed: ${e.message}`);
-                    if (attempt < 5) {
-                      logger.info(`RCON not ready, waiting 15 seconds before retry ${attempt + 1}/5...`);
-                      await new Promise(r => setTimeout(r, 15000));
-                    }
+                    logger.debug(`Auto-start RCON connection failed: ${e.message}`);
+                    await new Promise(r => setTimeout(r, 5000));
                   }
                 }
               } else {
@@ -522,6 +598,9 @@ async function start() {
               }
             } catch (e) {
               logger.error('Error during auto-start:', e.message);
+            } finally {
+              // Clear the flag so auto-reconnect can resume normally
+              rconService.setServerStarting(false);
             }
           }
           

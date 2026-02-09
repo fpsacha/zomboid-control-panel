@@ -25,6 +25,9 @@ export class ModChecker extends EventEmitter {
     this.lastUpdateDetected = null;  // Timestamp of last update detection
     this.pendingRestart = false;  // Whether a restart is pending (waiting for players)
     this.playerCheckInterval = null;  // Interval for checking player count
+    
+    // Performance: Cache mod names to avoid repeated disk reads
+    this.modNameCache = new Map(); // WorkshopID -> { name, timestamp }
   }
 
   // Initialize with scheduler and restore saved settings
@@ -69,6 +72,14 @@ export class ModChecker extends EventEmitter {
   // Find the workshop ACF file path from server config
   async findWorkshopAcfPath() {
     try {
+      // Allow manual override from settings
+      const manualPath = await getSetting('modWorkshopAcfPath');
+      if (manualPath && fs.existsSync(manualPath)) {
+          this.workshopAcfPath = manualPath;
+          logger.info(`ModChecker: Using configured workshop ACF: ${manualPath}`);
+          return manualPath;
+      }
+
       const activeServer = await getActiveServer();
       let installPath = activeServer?.installPath;
       
@@ -89,6 +100,14 @@ export class ModChecker extends EventEmitter {
         logger.info(`ModChecker: Found workshop ACF at ${acfPath}`);
         return acfPath;
       }
+
+      // Check one level up (common if installPath points to a subfolder)
+      const acfPathUp = path.join(installPath, '..', 'steamapps', 'workshop', 'appworkshop_108600.acf');
+      if (fs.existsSync(acfPathUp)) {
+          this.workshopAcfPath = acfPathUp;
+          logger.info(`ModChecker: Found workshop ACF at parent: ${acfPathUp}`);
+          return acfPathUp;
+      }
       
       logger.debug(`ModChecker: Workshop ACF not found at ${acfPath}`);
       return null;
@@ -98,52 +117,79 @@ export class ModChecker extends EventEmitter {
     }
   }
 
-  // Parse Steam's VDF/ACF format (simplified parser)
+  // Parse Steam's VDF/ACF format (robust stack-based parser)
   parseAcfFile(content) {
     const result = {
       installedMods: {},
       modDetails: {}
     };
     
+    if (!content) return result;
+
     try {
-      // Extract WorkshopItemsInstalled section
-      const installedMatch = content.match(/"WorkshopItemsInstalled"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/);
-      if (installedMatch) {
-        const installedSection = installedMatch[1];
-        // Match each mod entry
-        const modPattern = /"(\d+)"\s*\{([^}]+)\}/g;
-        let match;
-        while ((match = modPattern.exec(installedSection)) !== null) {
-          const workshopId = match[1];
-          const modData = match[2];
+      // Basic VDF Parser
+      const lines = content.split(/\r?\n/);
+      const stack = [];
+      let current = {};
+      const root = current;
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line || line.startsWith('//')) continue; // Skip empty lines and comments
+
+        // Check for "Key" { start of block
+        if (line.endsWith('{')) {
+          const keyMatch = line.match(/"([^"]+)"/);
+          const key = keyMatch ? keyMatch[1] : 'unknown';
           
-          const sizeMatch = modData.match(/"size"\s*"(\d+)"/);
-          const timeMatch = modData.match(/"timeupdated"\s*"(\d+)"/);
-          
-          result.installedMods[workshopId] = {
-            size: sizeMatch ? parseInt(sizeMatch[1]) : 0,
-            timeupdated: timeMatch ? parseInt(timeMatch[1]) : 0
-          };
+          const newObj = {};
+          current[key] = newObj;
+          stack.push(current);
+          current = newObj;
+        } 
+        // Check for } end of block
+        else if (line === '}') {
+          if (stack.length > 0) {
+            current = stack.pop();
+          }
+        } 
+        // Key-Value pair "Key" "Value"
+        else {
+          const match = line.match(/"([^"]+)"\s+"([^"]*)"/);
+          if (match) {
+            current[match[1]] = match[2];
+          }
         }
       }
-      
-      // Extract WorkshopItemDetails section (has latest_timeupdated)
-      const detailsMatch = content.match(/"WorkshopItemDetails"\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/);
-      if (detailsMatch) {
-        const detailsSection = detailsMatch[1];
-        const modPattern = /"(\d+)"\s*\{([^}]+)\}/g;
-        let match;
-        while ((match = modPattern.exec(detailsSection)) !== null) {
-          const workshopId = match[1];
-          const modData = match[2];
-          
-          const timeMatch = modData.match(/"timeupdated"\s*"(\d+)"/);
-          const latestMatch = modData.match(/"latest_timeupdated"\s*"(\d+)"/);
-          
-          result.modDetails[workshopId] = {
-            timeupdated: timeMatch ? parseInt(timeMatch[1]) : 0,
-            latest_timeupdated: latestMatch ? parseInt(latestMatch[1]) : 0
-          };
+
+      // Navigate structure to find relevant sections
+      // The root usually contains "AppState" or "AppWorkshop"
+      const appState = root.AppState || root.AppWorkshop || root;
+
+      if (appState) {
+        // Extract WorkshopItemsInstalled
+        if (appState.WorkshopItemsInstalled) {
+          for (const [id, data] of Object.entries(appState.WorkshopItemsInstalled)) {
+            // In some VDF formats, the ID is the key, in others it might be indexed
+            if (typeof data === 'object') {
+              result.installedMods[id] = {
+                size: parseInt(data.size || 0),
+                timeupdated: parseInt(data.timeupdated || 0)
+              };
+            }
+          }
+        }
+
+        // Extract WorkshopItemDetails
+        if (appState.WorkshopItemDetails) {
+          for (const [id, data] of Object.entries(appState.WorkshopItemDetails)) {
+            if (typeof data === 'object') {
+              result.modDetails[id] = {
+                timeupdated: parseInt(data.timeupdated || 0),
+                latest_timeupdated: parseInt(data.latest_timeupdated || 0)
+              };
+            }
+          }
         }
       }
     } catch (error) {
@@ -151,6 +197,64 @@ export class ModChecker extends EventEmitter {
     }
     
     return result;
+  }
+
+  // Helper: Try to resolve mod name from disk
+  resolveModNameFromDisk(workshopId, skipCache = false) {
+    // Check cache first (with size limit)
+    if (!skipCache && this.modNameCache.has(workshopId)) {
+      return this.modNameCache.get(workshopId).name;
+    }
+    
+    // Evict oldest entries if cache exceeds limit
+    if (this.modNameCache.size > 500) {
+      const firstKey = this.modNameCache.keys().next().value;
+      this.modNameCache.delete(firstKey);
+    }
+
+    try {
+      if (!this.workshopAcfPath) return null;
+      
+      // ACF path: .../steamapps/workshop/appworkshop_108600.acf
+      // Content path: .../steamapps/workshop/content/108600/<ID>
+      const workshopDir = path.dirname(this.workshopAcfPath);
+      const contentDir = path.join(workshopDir, 'content', '108600', workshopId);
+      
+      if (!fs.existsSync(contentDir)) return null;
+      
+      // Inside workshop folder, there is usually 'mods/ModName/mod.info' 
+      // OR sometimes just 'mods/ModName'
+      // We need to find valid mod folders
+      const modsDir = path.join(contentDir, 'mods');
+      if (fs.existsSync(modsDir)) {
+         const modFolders = fs.readdirSync(modsDir);
+         // Just take the first valid mod found in the package
+         for (const folder of modFolders) {
+            const modInfoPath = path.join(modsDir, folder, 'mod.info');
+            if (fs.existsSync(modInfoPath)) {
+               const content = fs.readFileSync(modInfoPath, 'utf-8');
+               const nameMatch = content.match(/name=(.+)/);
+               if (nameMatch && nameMatch[1]) {
+                   const name = nameMatch[1].trim();
+                   // Update cache
+                   this.modNameCache.set(workshopId, { name, timestamp: Date.now() });
+                   return name;
+               }
+            }
+         }
+         // Fallback: If no mod.info found but folder exists, use folder name
+         if (modFolders.length > 0) {
+           const name = modFolders[0];
+           this.modNameCache.set(workshopId, { name, timestamp: Date.now() });
+           return name;
+         }
+      }
+      
+      return null;
+    } catch (e) {
+      // Ignore errors (permission, missing path)
+      return null;
+    }
   }
 
   // Auto-sync mods from workshop ACF file on startup
@@ -182,27 +286,20 @@ export class ModChecker extends EventEmitter {
       
       // Add all mods to tracking
       let synced = 0;
-      for (const workshopId of workshopIds) {
-        try {
-          const modInfo = parsed.installedMods[workshopId];
-          await addTrackedMod(workshopId, `Workshop Mod ${workshopId}`);
-          
-          // Set the current timestamp so we detect future changes
-          if (modInfo.timeupdated) {
-            const timestamp = new Date(modInfo.timeupdated * 1000).toISOString();
-            await updateModTimestamp(workshopId, timestamp);
-          }
-          synced++;
-        } catch (e) {
-          logger.warn(`Failed to auto-sync mod ${workshopId}: ${e.message}`);
-        }
+      for (const id of workshopIds) {
+        // Try to get name from disk
+        const nameFromDisk = this.resolveModNameFromDisk(id);
+        const name = nameFromDisk || `Workshop Mod ${id}`;
+        
+        await addTrackedMod(id, name);
+        synced++;
       }
       
       if (synced > 0) {
         logger.info(`ModChecker: Auto-synced ${synced} mods from workshop ACF`);
       }
     } catch (error) {
-      logger.warn(`ModChecker: Auto-sync failed: ${error.message}`);
+      logger.error(`ModChecker: Failed to auto-sync mods: ${error.message}`);
     }
   }
 
@@ -216,6 +313,11 @@ export class ModChecker extends EventEmitter {
     if (!fs.existsSync(this.workshopAcfPath)) {
       logger.warn(`ModChecker: Workshop ACF file not found at ${this.workshopAcfPath}`);
       return false;
+    }
+
+    // Clear existing interval to prevent double-start leaks
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
     }
 
     this.intervalId = setInterval(() => this.checkForUpdates(), this.checkInterval);
@@ -468,6 +570,11 @@ export class ModChecker extends EventEmitter {
           // Add to tracking if not already tracked
           if (!trackedMod) {
             await addTrackedMod(workshopId, modName);
+          }
+          
+          // Invalidate name cache as files might change after update
+          if (this.modNameCache.has(workshopId)) {
+            this.modNameCache.delete(workshopId);
           }
         }
       }

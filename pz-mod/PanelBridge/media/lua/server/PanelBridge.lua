@@ -278,6 +278,9 @@ function json.encode(obj)
     elseif t == 'boolean' then
         return obj and 'true' or 'false'
     elseif t == 'number' then
+        -- Handle NaN and Infinity which are not valid JSON
+        if obj ~= obj then return 'null' end -- NaN check
+        if obj == math.huge or obj == -math.huge then return 'null' end
         return tostring(obj)
     elseif t == 'string' then
         return '"' .. escape_str(obj) .. '"'
@@ -1626,15 +1629,24 @@ handlers.setGameTime = function(args)
     end
     
     if args.day ~= nil then
-        gameTime:setDay(tonumber(args.day) or gameTime:getDay())
+        local day = tonumber(args.day)
+        if day then
+            gameTime:setDay(day)
+        end
     end
     
     if args.month ~= nil then
-        gameTime:setMonth(tonumber(args.month) - 1) -- Convert to 0-indexed
+        local month = tonumber(args.month)
+        if month then
+            gameTime:setMonth(month - 1) -- Convert to 0-indexed
+        end
     end
     
     if args.year ~= nil then
-        gameTime:setYear(tonumber(args.year) or gameTime:getYear())
+        local year = tonumber(args.year)
+        if year then
+            gameTime:setYear(year)
+        end
     end
     
     return true, { message = "Game time updated" }
@@ -1723,6 +1735,10 @@ end
 handlers.getAllPlayerDetails = function(args)
     local onlinePlayers = getOnlinePlayers()
     local players = {}
+    
+    if not onlinePlayers then
+        return true, { players = {} }
+    end
     
     for i = 0, onlinePlayers:size() - 1 do
         local player = onlinePlayers:get(i)
@@ -2079,10 +2095,26 @@ handlers.teleportPlayer = function(args)
         return false, nil, "Player not found: " .. username
     end
     
-    -- Use setPosition for server-side teleport
-    player:setX(x)
-    player:setY(y)
-    player:setZ(z)
+    -- Use teleport for proper network sync
+    if player.setPosition then
+        player:setPosition(x, y, z)
+    elseif player.setLx and player.setLy then
+        -- Alternative: set logical position then force network update
+        player:setX(x)
+        player:setY(y)
+        player:setZ(z)
+        player:setLx(x)
+        player:setLy(y)
+        player:setLz(z)
+    else
+        player:setX(x)
+        player:setY(y)
+        player:setZ(z)
+    end
+    -- Force network sync to client
+    if player.sendObjectChange then
+        player:sendObjectChange("teleport")
+    end
     
     return true, { 
         message = "Player teleported",
@@ -2103,11 +2135,15 @@ handlers.sendServerMessage = function(args)
     if sendServerMessage then
         sendServerMessage(message)
     else
-        -- Fallback: send to each player individually
+        -- Fallback: send to each player individually using chat
         local onlinePlayers = getOnlinePlayers()
-        for i = 0, onlinePlayers:size() - 1 do
-            local player = onlinePlayers:get(i)
-            player:Say(message)
+        if onlinePlayers then
+            for i = 0, onlinePlayers:size() - 1 do
+                local player = onlinePlayers:get(i)
+                if player and player.sendPlayerMessage then
+                    player:sendPlayerMessage("Server", message)
+                end
+            end
         end
     end
     
@@ -2253,12 +2289,11 @@ end
 
 -- Force save the world
 handlers.saveWorld = function(args)
-    if triggerEvent then
-        -- Try to trigger server save
-        if getWorld() and getWorld().saveWorld then
-            getWorld():saveWorld()
-            return true, { message = "World save triggered" }
-        end
+    -- Try to trigger server save
+    local world = getWorld()
+    if world and world.saveWorld then
+        world:saveWorld()
+        return true, { message = "World save triggered" }
     end
     
     return false, nil, "Cannot trigger world save from Lua"
@@ -3078,8 +3113,8 @@ handlers.clearZombiesNearPlayer = function(args)
             for i = zombies:size() - 1, 0, -1 do
                 local zombie = zombies:get(i)
                 if zombie then
-                    local zx, zy = zombie:getX(), zombie:getY()
-                    local dist = math.sqrt((zx - px)^2 + (zy - py)^2)
+                    local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
+                    local dist = math.sqrt((zx - px)^2 + (zy - py)^2 + (zz - pz)^2)
                     if dist <= radius then
                         zombie:removeFromWorld()
                         zombie:removeFromSquare()
@@ -3124,25 +3159,34 @@ function PanelBridge.processCommands()
             
             local handler = handlers[cmd.action]
             if handler then
-                -- Wrap execution for timing and error catching
+                -- Wrap execution for timing and error catching with pcall
                 local startTime = getTimestampMs()
-                local success, data, errorMsg = handler(cmd.args or {})
+                local pcallOk, success, data, errorMsg = pcall(handler, cmd.args or {})
                 local duration = getTimestampMs() - startTime
                 
-                if success then
+                if not pcallOk then
+                    -- pcall itself failed - handler threw an unrecoverable error
+                    PanelBridge.stats.commandsFailed = PanelBridge.stats.commandsFailed + 1
+                    local crashMsg = "Handler crashed: " .. tostring(success) -- success contains error when pcall fails
+                    PanelBridge.error("Command crashed: " .. tostring(cmd.action), {
+                        error = crashMsg,
+                        duration = duration .. "ms"
+                    })
+                    PanelBridge.sendResult(cmd.id, false, nil, crashMsg)
+                elseif success then
                     PanelBridge.stats.commandsSucceeded = PanelBridge.stats.commandsSucceeded + 1
                     PanelBridge.debug("Command succeeded: " .. tostring(cmd.action), { 
                         duration = duration .. "ms" 
                     })
+                    PanelBridge.sendResult(cmd.id, success, data, errorMsg)
                 else
                     PanelBridge.stats.commandsFailed = PanelBridge.stats.commandsFailed + 1
                     PanelBridge.warn("Command failed: " .. tostring(cmd.action), { 
                         error = errorMsg,
                         duration = duration .. "ms"
                     })
+                    PanelBridge.sendResult(cmd.id, success, data, errorMsg)
                 end
-                
-                PanelBridge.sendResult(cmd.id, success, data, errorMsg)
             else
                 PanelBridge.stats.commandsFailed = PanelBridge.stats.commandsFailed + 1
                 local errorMsg = "Unknown command: " .. tostring(cmd.action)
@@ -3162,21 +3206,14 @@ function PanelBridge.processCommands()
         end
     end
     
-    -- Cleanup old processed IDs (keep manageable size, remove oldest half)
+    -- Cleanup old processed IDs (keep manageable size)
     local count = 0
     for _ in pairs(PanelBridge.processedIds) do count = count + 1 end
     if count > 100 then
-        -- In Lua, we can't easily keep order, so clear half randomly
-        -- This is acceptable since the main purpose is preventing re-execution
-        -- and commands are processed quickly
-        local removeCount = 0
-        local toRemove = math.floor(count / 2)
-        for id in pairs(PanelBridge.processedIds) do
-            if removeCount >= toRemove then break end
-            PanelBridge.processedIds[id] = nil
-            removeCount = removeCount + 1
-        end
-        PanelBridge.debug("Cleaned up processed IDs", { removed = removeCount })
+        -- Reset entirely - these are UUIDs from already-processed and cleared commands
+        -- Since commands.json is cleared after processing, re-execution risk is minimal
+        PanelBridge.processedIds = {}
+        PanelBridge.debug("Cleared all processed IDs", { previousCount = count })
     end
 end
 
@@ -3184,8 +3221,10 @@ function PanelBridge.updateStatus()
     local ok, err = pcall(function()
         local onlinePlayers = getOnlinePlayers()
         local playerNames = {}
-        for i = 0, onlinePlayers:size() - 1 do
-            table.insert(playerNames, onlinePlayers:get(i):getUsername())
+        if onlinePlayers then
+            for i = 0, onlinePlayers:size() - 1 do
+                table.insert(playerNames, onlinePlayers:get(i):getUsername())
+            end
         end
         
         local status = {

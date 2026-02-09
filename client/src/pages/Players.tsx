@@ -451,15 +451,7 @@ export default function Players() {
 
   const handleSteamIdBan = () => {
     if (!banSteamId) return
-    handleAction('Ban SteamID', async () => {
-      const response = await fetch('/api/rcon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: `banid ${banSteamId} ${steamBanReason ? `-r "${steamBanReason}"` : ''}` })
-      })
-      if (!response.ok) throw new Error('Failed to ban SteamID')
-      return response.json()
-    }, () => {
+    handleAction('Ban SteamID', () => playersApi.banSteamId(banSteamId), () => {
       setSteamIdBanDialogOpen(false)
       setBanSteamId('')
       setSteamBanReason('')

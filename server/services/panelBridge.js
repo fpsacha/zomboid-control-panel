@@ -21,12 +21,14 @@ class PanelBridge extends EventEmitter {
     this.statusInterval = null;
     this.fileWatcher = null;
     this.pendingCommands = new Map(); // id -> { resolve, reject, timeout, timestamp }
-    this.lastResultsCheck = {};
+    this.processedResults = new Map(); // id -> timestamp (for deduplication)
     this.modStatus = null;
     this.previousPlayers = new Set(); // Track previous player list for connect/disconnect detection
     this.lastStatusFileCheck = 0;
     this.consecutiveFailures = 0;
     this.maxConsecutiveFailures = 5;
+    this.watcherRetries = 0;
+    this.maxWatcherRetries = 3;
     this.config = {
       pollIntervalMs: 300,          // Faster polling for results (300ms)
       statusCheckMs: 1000,          // Check status every 1 second
@@ -151,6 +153,12 @@ class PanelBridge extends EventEmitter {
       this.fileWatcher = null;
     }
 
+    // Stop trying if we've failed too many times
+    if (this.watcherRetries >= this.maxWatcherRetries) {
+        logger.warn(`PanelBridge: Gave up on file watcher after ${this.maxWatcherRetries} attempts. Falling back to polling only.`);
+        return;
+    }
+
     try {
       let debounceTimer = null;
       this.fileWatcher = fs.watch(this.bridgePath, { persistent: false }, (eventType, filename) => {
@@ -177,12 +185,32 @@ class PanelBridge extends EventEmitter {
           this.fileWatcher.close();
         } catch (e) { /* ignore */ }
         this.fileWatcher = null;
+        this.watcherRetries++;
+        
+        // Attempt to restart file watcher after delay
+        setTimeout(() => {
+          if (this.isRunning && !this.fileWatcher) {
+            logger.info(`PanelBridge: Attempting to restart file watcher (attempt ${this.watcherRetries}/${this.maxWatcherRetries})...`);
+            this.setupFileWatcher();
+          }
+        }, 5000);
       });
 
       logger.debug('PanelBridge: File watcher active');
+      this.watcherRetries = 0; // Reset retries on successful setup
     } catch (err) {
       // File watching is optional - polling will still work
+      this.watcherRetries++;
       logger.warn(`PanelBridge: Could not setup file watcher: ${err.message}`);
+      
+      // Retry initially a few times even if immediate setup fails
+      if (this.watcherRetries < this.maxWatcherRetries) {
+         setTimeout(() => {
+             if (this.isRunning && !this.fileWatcher) {
+                 this.setupFileWatcher();
+             }
+         }, 5000);
+      }
     }
   }
 
@@ -232,33 +260,11 @@ class PanelBridge extends EventEmitter {
     const commandsFile = this.getCommandsFile();
     const id = uuidv4();
 
-    // Read existing commands (atomic read)
-    let commands = { commands: [] };
-    try {
-      if (fs.existsSync(commandsFile)) {
-        const content = fs.readFileSync(commandsFile, 'utf-8');
-        if (content.trim()) {
-          commands = JSON.parse(content);
-          if (!commands.commands) commands.commands = [];
-        }
-      }
-    } catch (e) {
-      // File might be empty or corrupted, start fresh
-      commands = { commands: [] };
-    }
-
-    // Add new command
-    commands.commands.push({
-      id,
-      action,
-      args,
-      timestamp: Date.now()
-    });
-
-    // Write commands file (atomic write via temp file)
-    const tempFile = commandsFile + '.tmp';
-    fs.writeFileSync(tempFile, JSON.stringify(commands, null, 2));
-    fs.renameSync(tempFile, commandsFile);
+    // Serialize file access to prevent TOCTOU race conditions
+    if (!this._writeQueue) this._writeQueue = Promise.resolve();
+    this._writeQueue = this._writeQueue.then(() => this._appendCommand(commandsFile, id, action, args))
+      .catch(err => logger.error(`PanelBridge write queue error: ${err.message}`));
+    await this._writeQueue;
 
     // Return a promise that resolves when we get the result
     return new Promise((resolve, reject) => {
@@ -275,6 +281,42 @@ class PanelBridge extends EventEmitter {
         timestamp: Date.now()
       });
     });
+  }
+
+  /**
+   * Append a command to the commands file (serialized via _writeQueue)
+   */
+  _appendCommand(commandsFile, id, action, args) {
+    let commands = { commands: [] };
+    try {
+      if (fs.existsSync(commandsFile)) {
+        const content = fs.readFileSync(commandsFile, 'utf-8');
+        if (content.trim()) {
+          commands = JSON.parse(content);
+          if (!commands.commands) commands.commands = [];
+        }
+      }
+    } catch (e) {
+      commands = { commands: [] };
+    }
+
+    commands.commands.push({
+      id,
+      action,
+      args,
+      timestamp: Date.now()
+    });
+
+    const tempFile = commandsFile + '.tmp';
+    fs.writeFileSync(tempFile, JSON.stringify(commands, null, 2));
+    try {
+      fs.renameSync(tempFile, commandsFile);
+    } catch (err) {
+      // If rename fails (file locked), try direct write as fallback
+      logger.warn(`PanelBridge: renameSync failed, using direct write: ${err.message}`);
+      fs.writeFileSync(commandsFile, JSON.stringify(commands, null, 2));
+      try { fs.unlinkSync(tempFile); } catch (_) { /* ignore */ }
+    }
   }
 
   /**
@@ -295,8 +337,8 @@ class PanelBridge extends EventEmitter {
       if (data.results && Array.isArray(data.results)) {
         for (const result of data.results) {
           // Skip already processed results
-          if (this.lastResultsCheck[result.id]) continue;
-          this.lastResultsCheck[result.id] = true;
+          if (this.processedResults.has(result.id)) continue;
+          this.processedResults.set(result.id, Date.now());
 
           // Resolve pending command
           const pending = this.pendingCommands.get(result.id);
@@ -316,13 +358,25 @@ class PanelBridge extends EventEmitter {
         }
       }
 
-      // Cleanup old processed IDs (keep last 100 by removing oldest)
-      const ids = Object.keys(this.lastResultsCheck);
-      if (ids.length > 100) {
-        // Remove oldest half to prevent constant cleanup
-        const toRemove = ids.slice(0, 50);
-        for (const id of toRemove) {
-          delete this.lastResultsCheck[id];
+      // Cleanup old processed IDs (keep last 100)
+      if (this.processedResults.size > 100) {
+          // Map iterates in insertion order, so the first items are the oldest
+          let count = 0;
+          for (const [key, _] of this.processedResults) {
+              this.processedResults.delete(key);
+              count++;
+              if (count >= 50) break; // Remove oldest 50
+          }
+      }
+
+      // Cleanup stale pendingCommands that somehow missed their timeout (Bug #17)
+      const now = Date.now();
+      const maxPendingAge = (this.config.commandTimeoutMs || 30000) * 2;
+      for (const [id, cmd] of this.pendingCommands) {
+        if (now - cmd.timestamp > maxPendingAge) {
+          clearTimeout(cmd.timeout);
+          this.pendingCommands.delete(id);
+          logger.warn(`PanelBridge: Cleaned up stale pending command: ${cmd.action} (age: ${Math.round((now - cmd.timestamp) / 1000)}s)`);
         }
       }
     } catch (e) {

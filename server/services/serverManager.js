@@ -1,6 +1,7 @@
 import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { logger } from '../utils/logger.js';
 import { logServerEvent, getSetting, getActiveServer } from '../database/init.js';
 
@@ -19,10 +20,18 @@ export class ServerManager {
     this.isRunning = false;
     this.startTime = null;
     this.configLoaded = false;
+    this.publicIp = null;
+    this.gamePort = null;
+    this.fetchingIp = false;
   }
 
   // Reload config (called when active server changes)
   async reloadConfig() {
+    // Reset all config to defaults before reloading
+    this.serverPath = process.env.PZ_SERVER_PATH || '';
+    this.serverBat = process.env.PZ_SERVER_BAT || 'StartServer64.bat';
+    this.savePath = process.env.PZ_SAVE_PATH || '';
+    this.serverName = 'servertest';
     this.configLoaded = false;
     await this.loadConfig();
   }
@@ -38,13 +47,16 @@ export class ServerManager {
         let serverDir = activeServer.serverPath || activeServer.installPath;
         
         // If path points to a file (e.g., .bat), extract the directory
-        if (serverDir && (serverDir.endsWith('.bat') || serverDir.endsWith('.sh') || serverDir.endsWith('.exe'))) {
-          // Extract the batch file name before getting directory
-          const batchFileName = path.basename(serverDir);
-          serverDir = path.dirname(serverDir);
-          // Use the specified batch file
-          this.serverBat = batchFileName;
-          logger.debug(`ServerManager: Using batch file from installPath: ${batchFileName}`);
+        if (serverDir) {
+          const serverDirLower = serverDir.toLowerCase();
+          if (serverDirLower.endsWith('.bat') || serverDirLower.endsWith('.sh') || serverDirLower.endsWith('.exe')) {
+            // Extract the batch file name before getting directory
+            const batchFileName = path.basename(serverDir);
+            serverDir = path.dirname(serverDir);
+            // Use the specified batch file
+            this.serverBat = batchFileName;
+            logger.debug(`ServerManager: Using batch file from installPath: ${batchFileName}`);
+          }
         }
         
         if (serverDir) {
@@ -319,6 +331,14 @@ export class ServerManager {
     // Ensure config is loaded before returning status
     await this.loadConfig();
     
+    // Lazy load port and IP
+    if (!this.gamePort) {
+      this.loadGamePort().catch(() => {});
+    }
+    if (!this.publicIp && !this.fetchingIp) {
+      this.fetchPublicIp().catch(() => {});
+    }
+
     const isRunning = await this.checkServerRunning();
     
     // Calculate uptime in seconds (not milliseconds)
@@ -330,9 +350,60 @@ export class ServerManager {
       startTime: this.startTime,
       uptime: uptimeSeconds,
       serverPath: this.serverPath,
-      configured: !!this.serverPath
+      configured: !!this.serverPath,
+      publicIp: this.publicIp,
+      localIp: this.getLocalIp(),
+      port: this.gamePort
     };
   }
+
+  getLocalIp() {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        // Skip internal (i.e. 127.0.0.1) and non-ipv4
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+    return '127.0.0.1';
+  }
+
+  async loadGamePort() {
+    try {
+      const config = await this.getServerConfig();
+      if (config && config.DefaultPort) {
+        this.gamePort = parseInt(config.DefaultPort);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  async fetchPublicIp() {
+    if (this.fetchingIp) return;
+    this.fetchingIp = true;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch('https://api.ipify.org?format=json', { 
+        signal: controller.signal 
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        this.publicIp = data.ip;
+      }
+    } catch (e) {
+      // silent fail
+    } finally {
+      this.fetchingIp = false;
+    }
+  }
+
 
   async getServerConfig() {
     await this.loadConfig();  // Ensure config is loaded
@@ -402,7 +473,13 @@ export class ServerManager {
       throw new Error('Save path not configured');
     }
 
-    const configPath = path.join(this.savePath, 'servertest.ini');
+    // Use dynamic server name (matching getServerConfig logic), fallback to servertest.ini
+    const serverIni = this.serverName ? `${this.serverName}.ini` : 'servertest.ini';
+    let configPath = path.join(this.savePath, serverIni);
+    // If server-named ini doesn't exist, fall back to servertest.ini
+    if (!fs.existsSync(configPath)) {
+      configPath = path.join(this.savePath, 'servertest.ini');
+    }
     
     try {
       // Read existing file to preserve comments and structure

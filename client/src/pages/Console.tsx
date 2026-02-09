@@ -792,7 +792,7 @@ export default function Console() {
               <p className="text-muted-foreground">No commands executed yet. Type a command below.</p>
             ) : (
               liveLog.map((entry, index) => (
-                <div key={index} className="mb-3">
+                <div key={`${entry.timestamp}-${entry.command}`} className="mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-primary">{'>'}</span>
                     <span className="text-blue-400">{entry.command}</span>
@@ -802,7 +802,7 @@ export default function Console() {
                   </div>
                   <div className={`ml-4 ${entry.success ? 'text-green-400' : 'text-red-400'}`}>
                     {entry.response.split('\n').map((line, i) => (
-                      <div key={i}>{line || '\u00A0'}</div>
+                      <div key={`line-${i}`}>{line || '\u00A0'}</div>
                     ))}
                   </div>
                 </div>
@@ -810,8 +810,31 @@ export default function Console() {
             )}
           </div>
 
+          {/* Quick Commands */}
+          <div className="flex flex-wrap gap-2 mt-4">
+             {['players', 'save', 'quit', 'broadcast', 'chopper', 'gunfire'].map(cmd => (
+               <Button
+                 key={cmd}
+                 variant="outline"
+                 size="sm"
+                 className="h-7 text-xs font-mono"
+                 onClick={() => {
+                    const newCommand = cmd === 'broadcast' ? 'servermsg "Message"' : cmd
+                    setCommand(newCommand)
+                    inputRef.current?.focus()
+                    // If broadcast, select the message part for easy editing
+                    if (cmd === 'broadcast') {
+                      setTimeout(() => inputRef.current?.setSelectionRange(11, 18), 10)
+                    }
+                 }}
+               >
+                 {cmd}
+               </Button>
+             ))}
+          </div>
+
           {/* Command Input */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-2">
             <div className="flex-1 relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" aria-hidden="true">{'>'}</span>
               <Input
