@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 
 import { logger, onLog } from './utils/logger.js';
 import { initDatabase, getActiveServer, getAllSettings, getSetting } from './database/init.js';
@@ -357,7 +357,6 @@ app.post('/api/panel/restart', (req, res) => {
   setTimeout(() => {
     if (typeof process.pkg !== 'undefined') {
       // Running as packaged exe — spawn self then exit
-      const { spawn } = require('child_process');
       spawn(process.execPath, [], { detached: true, stdio: 'ignore' }).unref();
     }
     process.exit(0);

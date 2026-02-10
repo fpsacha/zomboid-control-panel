@@ -437,7 +437,7 @@ export default function Dashboard() {
     setSendingChat(true)
     try {
       // Use RCON to broadcast message (servermsg)
-      const safeMessage = quickChatMsg.replace(/"/g, '\\"')
+      const safeMessage = quickChatMsg.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]/g, ' ')
       await rconApi.execute(`servermsg "[Admin] ${safeMessage}"`)
       setQuickChatMsg('')
       toast({

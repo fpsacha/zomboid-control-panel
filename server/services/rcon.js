@@ -564,12 +564,7 @@ export class RconService extends EventEmitter {
     const wasConnected = this.connected;
     
     if (this.client) {
-      try {
-        this.client.disconnect();
-      } catch (e) {
-        // Ignore disconnect errors
-      }
-      this.client = null;
+      this._cleanupClient();
     }
     
     this.connected = false;
@@ -752,7 +747,7 @@ export class RconService extends EventEmitter {
       // Mark as disconnected on connection errors
       if (isConnectionError) {
         this.connected = false;
-        this.client = null;
+        this._cleanupClient();
         
         // Don't try to reconnect during server startup - the startup sequence handles it
         if (this.serverStarting) {
@@ -1169,9 +1164,9 @@ export class RconService extends EventEmitter {
   }
 
   async updateConfig(host, port, password) {
-    this.config.host = host || this.config.host;
-    this.config.port = port || this.config.port;
-    this.config.password = password || this.config.password;
+    this.config.host = host !== undefined ? host : this.config.host;
+    this.config.port = port !== undefined ? port : this.config.port;
+    this.config.password = password !== undefined ? password : this.config.password;
     
     // Reconnect with new config
     if (this.connected) {

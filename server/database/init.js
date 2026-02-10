@@ -354,7 +354,7 @@ export async function clearModUpdates() {
 // Settings
 export async function getSetting(key) {
   const db = await getDb();
-  return db.data.settings[key] || null;
+  return db.data.settings[key] ?? null;
 }
 
 export async function setSetting(key, value) {

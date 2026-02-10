@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from 'react'
 import {
   Settings,
   FileText,
@@ -872,15 +872,19 @@ export default function ServerConfig() {
     return 0
   }, [searchQuery, activeTab, filteredIniSettings, filteredSandboxSettings])
 
-  // Ctrl+S keyboard shortcut
+  // Ctrl+S keyboard shortcut — use refs to avoid stale closure
+  const handleSaveIniRef = useRef(handleSaveIni)
+  const handleSaveSandboxRef = useRef(handleSaveSandbox)
+  useEffect(() => { handleSaveIniRef.current = handleSaveIni }, [handleSaveIni])
+  useEffect(() => { handleSaveSandboxRef.current = handleSaveSandbox }, [handleSaveSandbox])
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         if (activeTab === 'ini' && hasIniChanges) {
-          handleSaveIni()
+          handleSaveIniRef.current()
         } else if (activeTab === 'sandbox' && hasSandboxChanges) {
-          handleSaveSandbox()
+          handleSaveSandboxRef.current()
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {

@@ -342,6 +342,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Invalid RCON port' });
     }
     
+    // Validate serverName against path traversal
+    const serverName = config.serverName || 'servertest';
+    if (!/^[a-zA-Z0-9_-]+$/.test(serverName)) {
+      return res.status(400).json({ error: 'Invalid server name: only letters, numbers, underscores and hyphens allowed' });
+    }
+    
     // Validate server port if provided
     if (config.serverPort) {
       const serverPort = parseInt(config.serverPort, 10);

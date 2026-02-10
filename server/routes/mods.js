@@ -662,14 +662,14 @@ router.post('/write-to-ini', async (req, res) => {
     // Read and update the ini file
     let content = fs.readFileSync(iniPath, 'utf-8');
     
-    // Update or add Mods=
+    // Update or add Mods= (mod IDs like NeatUI_Framework)
     if (content.includes('Mods=')) {
       content = content.replace(/^Mods=.*/m, `Mods=${modIdList}`);
     } else {
       content += `\nMods=${modIdList}`;
     }
     
-    // Update or add WorkshopItems=
+    // Update or add WorkshopItems= (workshop IDs like 3508537032)
     if (content.includes('WorkshopItems=')) {
       content = content.replace(/^WorkshopItems=.*/m, `WorkshopItems=${workshopIdList}`);
     } else {
@@ -972,16 +972,33 @@ async function fetchModIdFromWorkshop(workshopId) {
     }
     
     // Pattern 4: Look for [code] blocks that might contain mod.info content
-    match = description.match(/\[code\][^]*?id\s*=\s*([^\s\n\r\[\]]+)[^]*?\[\/code\]/i);
+    // Use [\s\S] to match newlines
+    match = description.match(/\[code\][\s\S]*?id\s*=\s*([^\s\n\r\[\]]+)[\s\S]*?\[\/code\]/i);
     if (match) {
       logger.info(`Found Mod ID from [code] block: ${match[1]}`);
       return match[1].trim();
     }
+
+    // Pattern 5: "Ids: ModId" (plural)
+    match = description.match(/IDs\s*[:=]\s*([^\s\n\r\[\]<>]+)/i);
+    if (match) {
+       logger.info(`Found Mod ID from "IDs:" pattern: ${match[1]}`);
+       return match[1].trim();
+    }
+
+    // Pattern 6: If specific workshop ID is mentioned near "Mod ID"
+    // Sometimes description has multiple mods, but we want the one for THIS item? 
+    // Usually one workshop item = one mod, but obscure cases exist.
+
+    // Pattern 7: Fallback - Title as Mod ID if looks like ID
+    // Remove spaces, brackets, special chars from title
+    const potentialId = title.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (potentialId.length > 3 && potentialId.length < 30) {
+        logger.info(`Using sanitized title as putative Mod ID: ${potentialId}`);
+        return potentialId;
+    }
     
-    // Pattern 5: Title-based fallback - extract likely mod ID from title
-    // e.g., "Clean UI B42" -> "CleanUIB42" or "Arsenal(26) GunFighter" -> try to find in desc
-    
-    logger.warn(`Could not extract Mod ID from workshop ${workshopId} description`);
+    logger.warn(`Could not extract Mod ID from workshop ${workshopId} description. Title: "${title}"`);
     return null;
   } catch (error) {
     logger.error(`Error fetching mod ID from workshop ${workshopId}: ${error.message}`);
@@ -1015,21 +1032,23 @@ function findMapFoldersFromWorkshop(workshopId, serverPath) {
     const searchPath = fs.existsSync(modsFolder) ? modsFolder : workshopPath;
     
     try {
-      const entries = fs.readdirSync(searchPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        
-        // Check for media/maps folder in this mod
-        const mapsPath = path.join(searchPath, entry.name, 'media', 'maps');
-        if (fs.existsSync(mapsPath)) {
-          // Get the map folder names inside media/maps
-          const mapEntries = fs.readdirSync(mapsPath, { withFileTypes: true });
-          for (const mapEntry of mapEntries) {
-            if (mapEntry.isDirectory()) {
-              mapFolders.push(mapEntry.name);
-              logger.debug(`Found map folder: ${mapEntry.name} in workshop ${workshopId}`);
+      if (fs.existsSync(searchPath)) {
+        const entries = fs.readdirSync(searchPath, { withFileTypes: true });
+        for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            
+            // Check for media/maps folder in this mod
+            const mapsPath = path.join(searchPath, entry.name, 'media', 'maps');
+            if (fs.existsSync(mapsPath)) {
+            // Get the map folder names inside media/maps
+            const mapEntries = fs.readdirSync(mapsPath, { withFileTypes: true });
+            for (const mapEntry of mapEntries) {
+                if (mapEntry.isDirectory()) {
+                mapFolders.push(mapEntry.name);
+                logger.debug(`Found map folder: ${mapEntry.name} in workshop ${workshopId}`);
+                }
             }
-          }
+            }
         }
       }
       
@@ -1056,55 +1075,28 @@ function findMapFoldersFromWorkshop(workshopId, serverPath) {
 
 // Helper function to find ALL mod IDs from workshop folder (returns array)
 function findAllModIdsFromWorkshop(workshopId, serverPath) {
-  const modIds = [];
-  const possiblePaths = getWorkshopPaths(workshopId, serverPath);
-  
-  for (const workshopPath of possiblePaths) {
-    if (!fs.existsSync(workshopPath)) continue;
-    
-    // Look for mod.info or mods folder
-    const modsFolder = path.join(workshopPath, 'mods');
-    const searchPath = fs.existsSync(modsFolder) ? modsFolder : workshopPath;
-    
-    try {
-      const entries = fs.readdirSync(searchPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        
-        // Check for mod.info in this folder
-        const modInfoPath = path.join(searchPath, entry.name, 'mod.info');
-        if (fs.existsSync(modInfoPath)) {
-          const content = fs.readFileSync(modInfoPath, 'utf-8');
-          // Parse mod.info to get the id= field
-          const idMatch = content.match(/^id\s*=\s*(.+)$/m);
-          if (idMatch) {
-            const modId = idMatch[1].trim();
-            if (!modIds.includes(modId)) {
-              modIds.push(modId);
-            }
-          }
-        }
-      }
-      
-      // If we found mods, don't check other paths
-      if (modIds.length > 0) return modIds;
-    } catch (e) {
-      // Continue to next path
-    }
-  }
-  
-  return modIds;
+  const mods = getModDetailsFromWorkshop(workshopId, serverPath);
+  return mods.map(m => m.id);
 }
 
 // Helper function to find mod ID from workshop folder
 function findModIdFromWorkshop(workshopId, serverPath) {
-  // Common locations where workshop mods are stored
+  // Use shared helper to parse details
+  const mods = getModDetailsFromWorkshop(workshopId, serverPath);
+  // Return the first ID found (legacy behavior)
+  return mods.length > 0 ? mods[0].id : null;
+}
+
+// Remove a single mod from server .ini file
+
+// Helper to getting full details of mods inside a workshop item
+function getModDetailsFromWorkshop(workshopId, serverPath) {
+  const mods = [];
   const possiblePaths = getWorkshopPaths(workshopId, serverPath);
   
   for (const workshopPath of possiblePaths) {
     if (!fs.existsSync(workshopPath)) continue;
     
-    // Look for mod.info or mods folder
     const modsFolder = path.join(workshopPath, 'mods');
     const searchPath = fs.existsSync(modsFolder) ? modsFolder : workshopPath;
     
@@ -1113,24 +1105,76 @@ function findModIdFromWorkshop(workshopId, serverPath) {
       for (const entry of entries) {
         if (!entry.isDirectory()) continue;
         
-        // Check for mod.info in this folder
         const modInfoPath = path.join(searchPath, entry.name, 'mod.info');
         if (fs.existsSync(modInfoPath)) {
           const content = fs.readFileSync(modInfoPath, 'utf-8');
-          // Parse mod.info to get the id= field
-          const idMatch = content.match(/^id\s*=\s*(.+)$/m);
-          if (idMatch) {
-            return idMatch[1].trim();
+          const info = {};
+          
+          // Parse mod.info
+          content.split(/\r?\n/).forEach(line => {
+            if (!line || line.startsWith('//')) return;
+            const idx = line.indexOf('=');
+            if (idx !== -1) {
+              const key = line.substring(0, idx).trim();
+              const val = line.substring(idx + 1).trim();
+              info[key] = val;
+            }
+          });
+          
+          if (info.id) {
+            mods.push({
+              id: info.id,
+              name: info.name || info.id,
+              poster: info.poster,
+              icon: info.icon,
+              description: info.description || '',
+              url: info.url,
+              require: info.require ? info.require.split(',').map(s => s.trim()).filter(Boolean) : []
+            });
           }
         }
       }
+      
+      // If we found mods in this path, stop searching other paths
+      if (mods.length > 0) return mods;
     } catch (e) {
-      // Continue to next path
+      logger.debug(`Error scanning path ${searchPath}: ${e.message}`);
     }
   }
   
-  return null;
+  return mods;
 }
+
+// Return available Mod IDs inside a downloaded Workshop Item
+router.post('/inspect-workshop-item', async (req, res) => {
+  try {
+    const { workshopId } = req.body;
+    if (!workshopId) {
+      return res.status(400).json({ error: 'Workshop ID is required' });
+    }
+
+    const serverPath = await getServerPath();
+    if (!serverPath) {
+       return res.status(400).json({ error: 'Server path not configured' });
+    }
+
+    const mods = getModDetailsFromWorkshop(workshopId, serverPath);
+    
+    // Also try to find map folders
+    const mapFolders = findMapFoldersFromWorkshop(workshopId, serverPath);
+
+    res.json({
+      workshopId,
+      found: mods.length > 0 || mapFolders.length > 0,
+      mods,
+      mapFolders,
+      count: mods.length
+    });
+  } catch (error) {
+    logger.error(`Failed to inspect workshop item: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Remove a single mod from server .ini file
 router.post('/remove-from-ini', async (req, res) => {
@@ -1292,31 +1336,61 @@ router.post('/sync-mod-ids', async (req, res) => {
     // For each workshop ID, try to find the corresponding mod ID
     const syncedMods = [];
     const missingMods = [];
-    const newModIds = [...currentModIds];
+    // We'll rebuild the mod list, prioritizing existing ones to preserve order but ensuring coverage
+    const finalModIds = [...currentModIds]; 
     
     for (const workshopId of workshopIds) {
-      // First try local files
-      let modId = findModIdFromWorkshop(workshopId, serverPath);
-      
-      // If not found locally, try Steam Workshop API
-      if (!modId) {
-        modId = await fetchModIdFromWorkshop(workshopId);
-      }
-      
-      if (modId) {
-        if (!newModIds.includes(modId)) {
-          newModIds.push(modId);
-          syncedMods.push({ workshopId, modId, status: 'added' });
+      try {
+        // Get ALL mod IDs for this workshop item
+        // findAllModIdsFromWorkshop uses the new getModDetailsFromWorkshop logic
+        const availableModIds = findAllModIdsFromWorkshop(workshopId, serverPath);
+        
+        if (availableModIds.length > 0) {
+          // Check if ANY of these mod IDs are already in the list
+          const present = availableModIds.filter(id => currentModIds.includes(id));
+          
+          if (present.length > 0) {
+            // At least one mod from this workshop item is enabled. Good.
+            // We assume the user configured it intentionally (e.g. only enabling "GunFighter" but not "GunFighter_Hardcore")
+            syncedMods.push({ workshopId, mods: present, status: 'verified_present' });
+          } else {
+            // None of the mods from this workshop item are in the list.
+            // Add the first one as a default (safe bet for single-mod items)
+            const defaultMod = availableModIds[0];
+            if (!finalModIds.includes(defaultMod)) {
+              finalModIds.push(defaultMod);
+              syncedMods.push({ workshopId, mods: [defaultMod], status: 'added_default' });
+              logger.info(`Auto-added default mod ID '${defaultMod}' for workshop item ${workshopId}`);
+            }
+            
+            // If there are multiple, add a warning or info
+            if (availableModIds.length > 1) {
+              const alternatives = availableModIds.slice(1);
+              syncedMods[syncedMods.length - 1].alternatives = alternatives;
+            }
+          }
         } else {
-          syncedMods.push({ workshopId, modId, status: 'already_exists' });
+          // Not found locally - try Steam API fallback (only gets one ID usually)
+          const fallbackId = await fetchModIdFromWorkshop(workshopId);
+          if (fallbackId) {
+            if (!finalModIds.includes(fallbackId)) {
+              finalModIds.push(fallbackId);
+              syncedMods.push({ workshopId, mods: [fallbackId], status: 'added_from_steam_api' });
+            } else {
+              syncedMods.push({ workshopId, mods: [fallbackId], status: 'verified_present_api' });
+            }
+          } else {
+            missingMods.push(workshopId);
+          }
         }
-      } else {
+      } catch (err) {
+        logger.error(`Error processing workshop ID ${workshopId}: ${err.message}`);
         missingMods.push(workshopId);
       }
     }
     
     // Update Mods= in the ini file
-    const newModList = newModIds.join(';');
+    const newModList = finalModIds.join(';');
     if (content.includes('Mods=')) {
       content = content.replace(/^Mods=.*/m, `Mods=${newModList}`);
     } else {
@@ -1325,22 +1399,123 @@ router.post('/sync-mod-ids', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    const addedCount = syncedMods.filter(m => m.status === 'added').length;
+    const addedCount = syncedMods.filter(m => m.status.startsWith('added')).length;
     
-    logger.info(`Synced mod IDs: ${addedCount} added, ${missingMods.length} missing`);
+    logger.info(`Synced mod IDs: ${addedCount} added, ${missingMods.length} missing downloads`);
     
     res.json({
       success: true,
-      message: `Synced ${addedCount} new mod IDs. ${missingMods.length} mods not yet downloaded.`,
+      message: `Synced configuration. Added ${addedCount} missing mod IDs. ${missingMods.length} items need download.`,
       syncedMods,
       missingMods,
-      totalModIds: newModIds.length,
+      totalModIds: finalModIds.length,
       note: missingMods.length > 0 
-        ? 'Start the server to download missing mods, then sync again.' 
+        ? 'Start server to download missing workshop items.' 
         : undefined
     });
   } catch (error) {
     logger.error(`Failed to sync mod IDs: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Validate mod configuration (check for dependencies and consistency)
+router.get('/validate-config', async (req, res) => {
+  try {
+    const serverConfigPath = await getServerConfigPath();
+    const serverPath = await getServerPath();
+    const serverName = await getServerName();
+    
+    if (!serverConfigPath) {
+      return res.status(400).json({ error: 'Server config path not set' });
+    }
+    
+    // Sanitize serverName
+    const sanitizedServerName = path.basename(serverName);
+    const iniPath = path.join(serverConfigPath, `${sanitizedServerName}.ini`);
+    
+    if (!fs.existsSync(iniPath)) {
+      return res.status(400).json({ error: 'Server config file not found' });
+    }
+    
+    const content = fs.readFileSync(iniPath, 'utf-8');
+    const workshopMatch = content.match(/^WorkshopItems=(.*)$/m);
+    const modsMatch = content.match(/^Mods=(.*)$/m);
+    
+    const workshopIds = workshopMatch ? workshopMatch[1].split(';').filter(Boolean) : [];
+    const modIds = modsMatch ? modsMatch[1].split(';').filter(Boolean) : [];
+    
+    const warnings = [];
+    const errors = [];
+    
+    // 1. Check for Orphaned Mod IDs (Mods in list but no corresponding Workshop Item)
+    // This requires scanning all configured workshop items to see what mods they provide
+    const availableModIds = new Set();
+    const modIdToWorkshopId = new Map();
+    const references = new Map(); // modId -> { require: [] }
+    
+    if (serverPath) {
+        for (const wid of workshopIds) {
+            const details = getModDetailsFromWorkshop(wid, serverPath);
+            for (const mod of details) {
+                availableModIds.add(mod.id);
+                modIdToWorkshopId.set(mod.id, wid);
+                if (mod.require) {
+                    references.set(mod.id, mod.require);
+                }
+            }
+        }
+        
+        // Check if enabled mods exist in enabled workshop items
+        for (const mid of modIds) {
+            if (!availableModIds.has(mid)) {
+                // It might be a default game map/mod, or truly missing
+                // PZ default mods don't come from workshop
+                if (mid !== 'example') { // Filter out common testing strings
+                   warnings.push({
+                       type: 'missing_source',
+                       modId: mid,
+                       message: `Mod ID '${mid}' is enabled but not found in any configured Workshop Item.`
+                   });
+                }
+            }
+        }
+
+        // 2. Check for Missing Dependencies
+        for (const mid of modIds) {
+            const requirements = references.get(mid);
+            if (requirements) {
+                for (const req of requirements) {
+                    if (!modIds.includes(req)) {
+                         // Check if it's a base game mod (unlikely to be missing but possible)
+                         errors.push({
+                             type: 'missing_dependency',
+                             modId: mid,
+                             dependency: req,
+                             message: `Mod '${mid}' requires '${req}' but it is not enabled.`
+                         });
+                    }
+                }
+            }
+        }
+    } else {
+        warnings.push({ type: 'config', message: 'Server path not configured - cannot validate files on disk.' });
+    }
+    
+    res.json({
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        stats: {
+            workshopItems: workshopIds.length,
+            enabledMods: modIds.length,
+            availableMods: availableModIds.size
+        }
+    });
+
+  } catch (error) {
+    logger.error(`Failed to validate config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1382,7 +1557,7 @@ router.post('/presets', async (req, res) => {
     const workshopIds = workshopMatch ? workshopMatch[1].split(';').filter(Boolean) : [];
     const modIds = modsMatch ? modsMatch[1].split(';').filter(Boolean) : [];
     
-    const preset = await createModPreset(name, description, workshopIds, modIds);
+    const preset = await createModPreset(name, description, modIds, workshopIds);
     
     logger.info(`Created mod preset "${name}" with ${workshopIds.length} workshop items and ${modIds.length} mod IDs`);
     res.json({ preset, message: `Preset "${name}" created successfully` });
@@ -1396,14 +1571,13 @@ router.post('/presets', async (req, res) => {
 router.put('/presets/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const presetId = parseInt(id, 10);
-    if (isNaN(presetId)) {
+    if (!id) {
       return res.status(400).json({ error: 'Invalid preset ID' });
     }
     
     const { name, description, workshopIds, modIds } = req.body;
     
-    const preset = await updateModPreset(presetId, { name, description, workshopIds, modIds });
+    const preset = await updateModPreset(id, { name, description, workshopIds, modIds });
     if (!preset) {
       return res.status(404).json({ error: 'Preset not found' });
     }
@@ -1420,12 +1594,11 @@ router.put('/presets/:id', async (req, res) => {
 router.delete('/presets/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const presetId = parseInt(id, 10);
-    if (isNaN(presetId)) {
+    if (!id) {
       return res.status(400).json({ error: 'Invalid preset ID' });
     }
     
-    const deleted = await deleteModPreset(presetId);
+    const deleted = await deleteModPreset(id);
     
     if (!deleted) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -1444,7 +1617,7 @@ router.post('/presets/:id/apply', async (req, res) => {
   try {
     const { id } = req.params;
     const presets = await getModPresets();
-    const preset = presets.find(p => p.id === parseInt(id));
+    const preset = presets.find(p => String(p.id) === String(id));
     
     if (!preset) {
       return res.status(404).json({ error: 'Preset not found' });
@@ -1461,7 +1634,7 @@ router.post('/presets/:id/apply', async (req, res) => {
     let content = fs.readFileSync(iniPath, 'utf-8');
     
     // Update WorkshopItems
-    const workshopLine = `WorkshopItems=${preset.workshopIds.join(';')}`;
+    const workshopLine = `WorkshopItems=${(preset.workshop_ids || []).join(';')}`;
     if (content.includes('WorkshopItems=')) {
       content = content.replace(/^WorkshopItems=.*/m, workshopLine);
     } else {
@@ -1469,7 +1642,7 @@ router.post('/presets/:id/apply', async (req, res) => {
     }
     
     // Update Mods
-    const modsLine = `Mods=${preset.modIds.join(';')}`;
+    const modsLine = `Mods=${(preset.mods || []).join(';')}`;
     if (content.includes('Mods=')) {
       content = content.replace(/^Mods=.*/m, modsLine);
     } else {
@@ -1478,11 +1651,11 @@ router.post('/presets/:id/apply', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Applied mod preset "${preset.name}": ${preset.workshopIds.length} workshop items, ${preset.modIds.length} mod IDs`);
+    logger.info(`Applied mod preset "${preset.name}": ${(preset.workshop_ids || []).length} workshop items, ${(preset.mods || []).length} mod IDs`);
     res.json({ 
       message: `Preset "${preset.name}" applied successfully`,
-      workshopCount: preset.workshopIds.length,
-      modCount: preset.modIds.length
+      workshopCount: (preset.workshop_ids || []).length,
+      modCount: (preset.mods || []).length
     });
   } catch (error) {
     logger.error(`Failed to apply mod preset: ${error.message}`);

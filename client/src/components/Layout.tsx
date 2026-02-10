@@ -187,7 +187,7 @@ export default function Layout({ children }: LayoutProps) {
   // Close mobile menu on route change
   useEffect(() => {
     setMobileMenuOpen(false)
-  }, [children])
+  }, [location.pathname])
 
   // Fetch servers and active server
   useEffect(() => {

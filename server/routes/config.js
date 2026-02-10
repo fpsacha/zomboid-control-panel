@@ -17,7 +17,7 @@ const VALID_SETTINGS_KEYS = [
 ];
 
 const OPTION_NAME_REGEX = /^[a-zA-Z0-9_]{1,64}$/;
-const OPTION_VALUE_REGEX = /^[a-zA-Z0-9_.,-]{0,256}$/;
+const OPTION_VALUE_REGEX = /^[a-zA-Z0-9_.,:;\/ -]{0,256}$/;
 
 function isValidOptionName(name) {
   return typeof name === 'string' && OPTION_NAME_REGEX.test(name);
