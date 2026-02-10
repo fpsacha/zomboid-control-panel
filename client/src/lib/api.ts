@@ -220,6 +220,9 @@ export const serverApi = {
   // Panel info - returns the panel's own network address
   getPanelInfo: () => apiGet('/panel-info') as Promise<{ localIp: string; port: number; url: string }>,
   
+  // Panel restart - restarts the panel process
+  restartPanel: () => apiPost('/panel/restart'),
+  
   // Get available Steam branches
   getBranches: (steamcmdPath?: string) => 
     apiGet(`/server/branches${steamcmdPath ? `?steamcmdPath=${encodeURIComponent(steamcmdPath)}` : ''}`) as Promise<{ branches: SteamBranch[]; source: string; message: string }>,

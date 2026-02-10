@@ -337,14 +337,31 @@ app.get('/api/health', (req, res) => {
 });
 
 // Panel info - returns the panel's own address for remote access
-app.get('/api/panel-info', (req, res) => {
-  const PORT = process.env.PORT || 3001;
+app.get('/api/panel-info', async (req, res) => {
+  const savedPort = await getSetting('panelPort');
+  const PORT = process.env.PORT || savedPort || 3001;
   const localIp = serverManager.getLocalIp();
   res.json({ 
     localIp,
     port: parseInt(PORT, 10),
     url: `http://${localIp}:${PORT}`
   });
+});
+
+// Panel restart endpoint — restarts the panel process (works with exe or node)
+app.post('/api/panel/restart', (req, res) => {
+  logger.info('Panel restart requested via API');
+  res.json({ success: true, message: 'Panel is restarting...' });
+  
+  // Short delay so the response can be sent before exit
+  setTimeout(() => {
+    if (typeof process.pkg !== 'undefined') {
+      // Running as packaged exe — spawn self then exit
+      const { spawn } = require('child_process');
+      spawn(process.execPath, [], { detached: true, stdio: 'ignore' }).unref();
+    }
+    process.exit(0);
+  }, 1000);
 });
 
 // Serve static files in production
@@ -629,7 +646,9 @@ async function start() {
     // Start update checker for server updates
     updateChecker.start();
     
-    const PORT = process.env.PORT || 3001;
+    // Read panel port from DB (saved via Settings UI), fallback to env or 3001
+    const savedPort = await getSetting('panelPort');
+    const PORT = process.env.PORT || savedPort || 3001;
     httpServer.listen(PORT, () => {
       console.log('');
       console.log('  ╔═══════════════════════════════════════════════╗');

@@ -12,7 +12,8 @@ const VALID_SETTINGS_KEYS = [
   'modCheckInterval', 'modAutoRestart', 'modRestartDelay',
   'darkMode', 'autoReconnect', 'reconnectInterval',
   'discordEnabled', 'discordToken', 'discordGuildId', 'discordAdminRole',
-  'autoStartServer'
+  'autoStartServer',
+  'panelPort'
 ];
 
 const OPTION_NAME_REGEX = /^[a-zA-Z0-9_]{1,64}$/;

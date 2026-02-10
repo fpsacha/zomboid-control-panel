@@ -20,7 +20,9 @@ import {
   Trash2,
   HardDrive,
   RotateCcw,
-  Settings2
+  Settings2,
+  Globe,
+  RotateCw
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/PageHeader'
@@ -40,7 +42,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { configApi, panelBridgeApi, backupApi, serversApi, BackupStatus, BackupFile, ServerInstance } from '@/lib/api'
+import { configApi, panelBridgeApi, backupApi, serversApi, serverApi, BackupStatus, BackupFile, ServerInstance } from '@/lib/api'
 import { useSocket } from '@/contexts/SocketContext'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -64,6 +66,9 @@ interface AppSettings {
   darkMode: boolean
   autoReconnect: boolean
   reconnectInterval: string
+  
+  // Panel Settings
+  panelPort: string
 }
 
 export default function Settings() {
@@ -76,12 +81,14 @@ export default function Settings() {
     darkMode: true,
     autoReconnect: true,
     reconnectInterval: '5',
+    panelPort: '3001',
   })
   const [originalSettings, setOriginalSettings] = useState<AppSettings | null>(null)
   const [loading, setLoading] = useState(false)
   const [showSteamApiKey, setShowSteamApiKey] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testingRcon, setTestingRcon] = useState(false)
+  const [restarting, setRestarting] = useState(false)
   const { toast } = useToast()
   
   // Panel Bridge state
@@ -640,7 +647,7 @@ export default function Settings() {
 
   const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     // Validate numeric string fields
-    if (typeof value === 'string' && ['modCheckInterval', 'modRestartDelay', 'reconnectInterval'].includes(key)) {
+    if (typeof value === 'string' && ['modCheckInterval', 'modRestartDelay', 'reconnectInterval', 'panelPort'].includes(key)) {
       // Allow empty string but reject non-numeric values
       if (value !== '' && isNaN(parseInt(value))) {
         return // Don't update with invalid value
@@ -689,6 +696,86 @@ export default function Settings() {
           </Button>
         }
       />
+
+      {/* Panel Settings */}
+      <Card className="card-interactive">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <Globe className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Panel Settings</CardTitle>
+              <CardDescription className="mt-0.5">
+                Configure how the control panel runs
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-w-xs">
+            <Label>Panel Port</Label>
+            <Input
+              type="number"
+              value={settings.panelPort}
+              onChange={(e) => updateSetting('panelPort', e.target.value)}
+              min="1024"
+              max="65535"
+              placeholder="3001"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              The port this panel listens on (default: 3001)
+            </p>
+          </div>
+          {originalSettings && settings.panelPort !== originalSettings.panelPort && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-start gap-3">
+              <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-600 dark:text-amber-400">Restart Required</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Changing the port requires a panel restart to take effect. Save your settings first, then restart.
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                setRestarting(true)
+                try {
+                  await serverApi.restartPanel()
+                  toast({
+                    title: 'Restarting Panel',
+                    description: `Panel is restarting on port ${settings.panelPort}. Reconnecting...`,
+                  })
+                  // Wait then redirect to the (potentially new) port
+                  setTimeout(() => {
+                    const newPort = settings.panelPort || '3001'
+                    const newUrl = `${window.location.protocol}//${window.location.hostname}:${newPort}${window.location.pathname}`
+                    window.location.href = newUrl
+                  }, 3000)
+                } catch {
+                  setRestarting(false)
+                  toast({
+                    title: 'Restart Failed',
+                    description: 'Could not restart the panel. You may need to restart it manually.',
+                    variant: 'destructive',
+                  })
+                }
+              }}
+              disabled={restarting || isDirty}
+              className="gap-2"
+            >
+              {restarting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+              {restarting ? 'Restarting...' : 'Restart Panel'}
+            </Button>
+            {isDirty && (
+              <p className="text-xs text-muted-foreground">Save settings before restarting</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* RCON Settings */}
       <Card className="card-interactive">
