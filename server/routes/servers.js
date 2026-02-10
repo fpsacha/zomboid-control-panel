@@ -117,13 +117,19 @@ router.post('/auto-scan', async (req, res) => {
       return res.status(400).json({ error: 'Scan path is required' });
     }
     
-    if (!fs.existsSync(scanPath)) {
+    // Validate scanPath - resolve to absolute and check for path traversal
+    const resolvedPath = path.resolve(scanPath);
+    if (resolvedPath !== scanPath && !scanPath.startsWith('/') && !scanPath.match(/^[A-Za-z]:/)) {
+      return res.status(400).json({ error: 'Invalid path format' });
+    }
+    
+    if (!fs.existsSync(resolvedPath)) {
       return res.status(400).json({ error: 'Path does not exist' });
     }
     
-    logger.info(`Auto-scanning for PZ servers in: ${scanPath}`);
+    logger.info(`Auto-scanning for PZ servers in: ${resolvedPath}`);
     
-    const results = scanForPzPaths(scanPath, Math.min(maxDepth, 5));
+    const results = scanForPzPaths(resolvedPath, Math.min(maxDepth, 5));
     
     // For each data path, detect the server configs
     const detectedConfigs = [];
@@ -294,12 +300,15 @@ router.get('/active', async (req, res) => {
 // Get a specific server
 router.get('/:id', async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = req.params.id;
+    if (!id) {
       return res.status(400).json({ error: 'Invalid server ID' });
     }
+    // Check if ID looks like a UUID (contains dashes or letters beyond valid decimal digits)
+    const isUUID = /[a-f-]/i.test(id);
+    const serverId = isUUID ? id : parseInt(id, 10);
     
-    const server = await getServer(id);
+    const server = await getServer(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
@@ -316,8 +325,11 @@ router.post('/', async (req, res) => {
   try {
     const config = req.body;
     
-    // Validate required fields
-    const requiredFields = ['name', 'installPath', 'rconHost', 'rconPort', 'rconPassword'];
+    // Validate required fields - installPath not required for remote servers
+    const isRemote = !!config.isRemote;
+    const requiredFields = isRemote 
+      ? ['name', 'rconHost', 'rconPort', 'rconPassword']
+      : ['name', 'installPath', 'rconHost', 'rconPort', 'rconPassword'];
     for (const field of requiredFields) {
       if (!config[field]) {
         return res.status(400).json({ error: `Missing required field: ${field}` });
@@ -341,7 +353,7 @@ router.post('/', async (req, res) => {
     const server = await createServer({
       name: config.name,
       serverName: config.serverName || 'servertest',
-      installPath: config.installPath,
+      installPath: config.installPath || '',
       zomboidDataPath: config.zomboidDataPath || null,
       serverConfigPath: config.serverConfigPath || null,
       branch: config.branch || 'stable',
@@ -352,7 +364,8 @@ router.post('/', async (req, res) => {
       minMemory: parseInt(config.minMemory, 10) || 2048,
       maxMemory: parseInt(config.maxMemory, 10) || 4096,
       useNoSteam: !!config.useNoSteam,
-      useDebug: !!config.useDebug
+      useDebug: !!config.useDebug,
+      isRemote: isRemote
     });
     
     logger.info(`Created new server: ${server.name} (ID: ${server.id})`);
@@ -366,10 +379,13 @@ router.post('/', async (req, res) => {
 // Update a server
 router.put('/:id', async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = req.params.id;
+    if (!id) {
       return res.status(400).json({ error: 'Invalid server ID' });
     }
+    // Check if ID looks like a UUID (contains dashes or letters beyond valid decimal digits)
+    const isUUID = /[a-f-]/i.test(id);
+    const serverId = isUUID ? id : parseInt(id, 10);
     
     const updates = req.body;
     
@@ -407,7 +423,7 @@ router.put('/:id', async (req, res) => {
       updates.useDebug = !!updates.useDebug;
     }
     
-    const server = await updateServer(id, updates);
+    const server = await updateServer(serverId, updates);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
@@ -423,17 +439,20 @@ router.put('/:id', async (req, res) => {
 // Delete a server
 router.delete('/:id', async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = req.params.id;
+    if (!id) {
       return res.status(400).json({ error: 'Invalid server ID' });
     }
+    // Check if ID looks like a UUID (contains dashes or letters beyond valid decimal digits)
+    const isUUID = /[a-f-]/i.test(id);
+    const serverId = isUUID ? id : parseInt(id, 10);
     
-    const success = await deleteServer(id);
+    const success = await deleteServer(serverId);
     if (!success) {
       return res.status(404).json({ error: 'Server not found' });
     }
     
-    logger.info(`Deleted server ID: ${id}`);
+    logger.info(`Deleted server ID: ${serverId}`);
     res.json({ success: true, message: 'Server deleted successfully' });
   } catch (error) {
     logger.error(`Failed to delete server: ${error.message}`);
@@ -444,12 +463,15 @@ router.delete('/:id', async (req, res) => {
 // Set active server
 router.post('/:id/activate', async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = req.params.id;
+    if (!id) {
       return res.status(400).json({ error: 'Invalid server ID' });
     }
+    // Check if ID looks like a UUID (contains dashes or letters beyond valid decimal digits)
+    const isUUID = /[a-f-]/i.test(id);
+    const serverId = isUUID ? id : parseInt(id, 10);
     
-    const server = await setActiveServer(id);
+    const server = await setActiveServer(serverId);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }

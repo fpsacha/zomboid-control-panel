@@ -217,6 +217,9 @@ export const serverApi = {
   save: () => apiPost('/server/save'),
   sendMessage: (message: string) => apiPost('/server/message', { message }),
   
+  // Panel info - returns the panel's own network address
+  getPanelInfo: () => apiGet('/panel-info') as Promise<{ localIp: string; port: number; url: string }>,
+  
   // Get available Steam branches
   getBranches: (steamcmdPath?: string) => 
     apiGet(`/server/branches${steamcmdPath ? `?steamcmdPath=${encodeURIComponent(steamcmdPath)}` : ''}`) as Promise<{ branches: SteamBranch[]; source: string; message: string }>,
@@ -482,7 +485,7 @@ export const discordApi = {
 
 // Server Instance Type
 export interface ServerInstance {
-  id: number
+  id: string | number
   name: string
   serverName: string
   installPath: string
@@ -497,6 +500,7 @@ export interface ServerInstance {
   maxMemory: number
   useNoSteam: boolean
   useDebug: boolean
+  isRemote: boolean
   isActive: boolean
   createdAt: string
 }
@@ -505,14 +509,14 @@ export interface ServerInstance {
 export const serversApi = {
   getAll: () => apiGet('/servers') as Promise<{ servers: ServerInstance[] }>,
   getActive: () => apiGet('/servers/active') as Promise<{ server: ServerInstance }>,
-  get: (id: number) => apiGet(`/servers/${id}`) as Promise<{ server: ServerInstance }>,
+  get: (id: string | number) => apiGet(`/servers/${id}`) as Promise<{ server: ServerInstance }>,
   create: (config: Partial<ServerInstance>) =>
     apiPost('/servers', config) as Promise<{ server: ServerInstance; message: string }>,
-  update: (id: number, updates: Partial<ServerInstance>) =>
+  update: (id: string | number, updates: Partial<ServerInstance>) =>
     apiPut(`/servers/${id}`, updates) as Promise<{ server: ServerInstance; message: string }>,
-  delete: (id: number) =>
+  delete: (id: string | number) =>
     apiDelete(`/servers/${id}`) as Promise<{ success: boolean; message: string }>,
-  activate: (id: number) =>
+  activate: (id: string | number) =>
     apiPost(`/servers/${id}/activate`) as Promise<{ server: ServerInstance; message: string }>,
   steamUpdate: (steamcmdPath: string, installPath: string, branch: string = 'stable') =>
     apiPost('/server/steam-update', { steamcmdPath, installPath, branch, validateFiles: false }) as Promise<{ success: boolean; message: string }>,
@@ -683,8 +687,27 @@ export const panelBridgeApi = {
     } | null
   }>,
 
-  // Auto-configure bridge from active server (uses db settings)
-  autoConfigure: () => apiPost('/panel-bridge/auto-configure'),
+  // Auto-configure bridge from server (uses db settings)
+  // If serverId is provided, use that server; otherwise use active server
+  autoConfigure: (serverId?: string | number) => apiPost('/panel-bridge/auto-configure', { serverId }) as Promise<{
+    success: boolean
+    message?: string
+    bridgePath: string
+    serverName: string
+    source: string
+    hasStatus: boolean
+    searchedPaths: Array<{ path: string; source: string; hasStatus: boolean; hasInit: boolean }>
+    error?: string
+  }>,
+
+  // Scan paths for a specific server ID to preview where bridge would connect
+  scanForServer: (serverId: string | number) => apiGet(`/panel-bridge/scan-server/${serverId}`) as Promise<{
+    success: boolean
+    serverName: string
+    paths: Array<{ path: string; source: string; hasStatus: boolean; hasInit: boolean; exists: boolean }>
+    recommendedPath: string | null
+    error?: string
+  }>,
 
   // Auto-detect bridge path from server name (manual entry)
   autoDetect: (serverName: string, zomboidUserFolder?: string) => 
@@ -845,8 +868,14 @@ export const panelBridgeApi = {
     suggestedInstallPath: string | null
   }>,
 
-  // Auto-install mod to active server's Lua folder
-  installModAuto: () => apiPost('/panel-bridge/install-mod-auto'),
+  // Auto-install mod to server's Lua folder (optionally specify serverId)
+  installModAuto: (serverId?: string | number) => apiPost('/panel-bridge/install-mod-auto', { serverId }) as Promise<{
+    success: boolean
+    message: string
+    path: string
+    serverName: string
+    error?: string
+  }>,
 
   // Install mod to server (manual path - Lua folder)
   installMod: (serverLuaPath: string) => apiPost('/panel-bridge/install-mod', { serverLuaPath }),

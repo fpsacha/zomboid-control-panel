@@ -35,38 +35,42 @@ const defaultData = {
 let db = null;
 
 // Write queue to prevent concurrent write issues with LowDB
-let writeQueue = Promise.resolve();
-let writeQueueLength = 0;
-const MAX_QUEUE_LENGTH = 100;
+let isWriting = false;
+let writePending = false;
 
 /**
  * Queue a write operation to ensure sequential writes to the database.
- * This prevents race conditions where concurrent writes could overwrite each other.
+ * Uses a debounce-like strategy: if a write is in progress, schedule ONE next write.
+ * This collapses rapid updates into fewer disk commits.
  */
 async function queuedWrite(dbInstance) {
-  if (writeQueueLength >= MAX_QUEUE_LENGTH) {
-    console.warn('Database write queue is full, waiting for existing writes to complete');
+  // If we are already writing, just mark that we need another write after this one
+  if (isWriting) {
+     if (writePending) {
+         // Already have a pending write queued up, so resolving this promise essentially
+         // means "your data will be saved eventually".
+         return Promise.resolve();
+     }
+     writePending = true;
+     return Promise.resolve();
   }
-  
-  writeQueueLength++;
-  
-  // Chain the write operation, ensuring errors don't break the queue
-  writeQueue = writeQueue
-    .catch(() => {
-      // Ignore previous errors to keep the chain going
-    })
-    .then(async () => {
-      try {
-        await dbInstance.write();
-      } catch (err) {
-        console.error('Database write error:', err);
-        // Don't rethrow - we want the queue to continue
-      } finally {
-        writeQueueLength--;
+
+  isWriting = true;
+
+  try {
+      await dbInstance.write();
+  } catch (err) {
+      console.error('Database write error:', err);
+  } finally {
+      isWriting = false;
+      // If a write was requested while we were busy, execute it now
+      if (writePending) {
+          writePending = false;
+          // Recursively call to handle the pending write
+          // (not awaited here to prevent stack grow, but technically async)
+          queuedWrite(dbInstance);
       }
-    });
-  
-  return writeQueue;
+  }
 }
 
 export async function getDb() {
@@ -372,7 +376,8 @@ export async function getServers() {
 
 export async function getServer(id) {
   const db = await getDb();
-  return db.data.servers.find(s => s.id === id) || null;
+  // Support both string and numeric IDs with loose comparison
+  return db.data.servers.find(s => String(s.id) === String(id)) || null;
 }
 
 export async function getActiveServer() {
@@ -391,7 +396,7 @@ export async function createServer(serverConfig) {
     id: generateId(db.data.servers),
     name: serverConfig.name || serverConfig.serverName,
     serverName: serverConfig.serverName,
-    installPath: serverConfig.installPath,
+    installPath: serverConfig.installPath || '',
     zomboidDataPath: serverConfig.zomboidDataPath || null,
     serverConfigPath: serverConfig.serverConfigPath || null,
     branch: serverConfig.branch || 'stable',
@@ -403,6 +408,7 @@ export async function createServer(serverConfig) {
     maxMemory: serverConfig.maxMemory || 8,
     useNoSteam: serverConfig.useNoSteam || false,
     useDebug: serverConfig.useDebug || false,
+    isRemote: serverConfig.isRemote || false,
     isActive: isFirst,
     createdAt: new Date().toISOString()
   };
@@ -429,7 +435,8 @@ export async function createServer(serverConfig) {
 
 export async function updateServer(id, updates) {
   const db = await getDb();
-  const index = db.data.servers.findIndex(s => s.id === id);
+  // Support both string and numeric IDs with loose comparison
+  const index = db.data.servers.findIndex(s => String(s.id) === String(id));
   if (index !== -1) {
     db.data.servers[index] = {
       ...db.data.servers[index],
@@ -445,7 +452,8 @@ export async function updateServer(id, updates) {
 
 export async function deleteServer(id) {
   const db = await getDb();
-  const index = db.data.servers.findIndex(s => s.id === id);
+  // Support both string and numeric IDs with loose comparison
+  const index = db.data.servers.findIndex(s => String(s.id) === String(id));
   if (index !== -1) {
     const wasActive = db.data.servers[index].isActive;
     db.data.servers.splice(index, 1);
@@ -463,12 +471,13 @@ export async function deleteServer(id) {
 
 export async function setActiveServer(id) {
   const db = await getDb();
-  const server = db.data.servers.find(s => s.id === id);
+  // Support both string and numeric IDs with loose comparison
+  const server = db.data.servers.find(s => String(s.id) === String(id));
   if (!server) return null;
   
   // Deactivate all, activate selected
   db.data.servers.forEach(s => {
-    s.isActive = s.id === id;
+    s.isActive = String(s.id) === String(id);
   });
   
   // Also update legacy settings for backwards compatibility

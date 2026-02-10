@@ -16,7 +16,10 @@ import {
   CheckCircle,
   RefreshCw,
   ShieldCheck,
-  Info
+  Info,
+  Globe,
+  Monitor,
+  Wifi
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -129,6 +132,7 @@ interface NewServerForm {
   maxMemory: number
   useNoSteam: boolean
   useDebug: boolean
+  isRemote: boolean
 }
 
 const defaultNewServer: NewServerForm = {
@@ -144,7 +148,8 @@ const defaultNewServer: NewServerForm = {
   minMemory: 2048,
   maxMemory: 4096,
   useNoSteam: false,
-  useDebug: false
+  useDebug: false,
+  isRemote: false
 }
 
 export default function Servers() {
@@ -160,6 +165,7 @@ export default function Servers() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [newServer, setNewServer] = useState<NewServerForm>(defaultNewServer)
   const [addingServer, setAddingServer] = useState(false)
+  const [addMode, setAddMode] = useState<'local' | 'remote'>('local')
   
   // Detection state
   const [detecting, setDetecting] = useState(false)
@@ -599,14 +605,30 @@ export default function Servers() {
   }
 
   const handleAddExistingServer = async () => {
-    // Validation - all fields should be auto-detected now
-    if (!selectedServerConfig) {
-      toast({ title: 'Error', description: 'Please detect a server first', variant: 'destructive' })
-      return
-    }
-    if (!newServer.rconPassword.trim()) {
-      toast({ title: 'Error', description: 'RCON password is required. Configure it in your server INI file first.', variant: 'destructive' })
-      return
+    // For remote servers, only need name, rcon credentials
+    if (addMode === 'remote') {
+      if (!newServer.name.trim()) {
+        toast({ title: 'Error', description: 'Server name is required', variant: 'destructive' })
+        return
+      }
+      if (!newServer.rconHost.trim()) {
+        toast({ title: 'Error', description: 'RCON host is required', variant: 'destructive' })
+        return
+      }
+      if (!newServer.rconPassword.trim()) {
+        toast({ title: 'Error', description: 'RCON password is required', variant: 'destructive' })
+        return
+      }
+    } else {
+      // Local server validation
+      if (!selectedServerConfig) {
+        toast({ title: 'Error', description: 'Please detect a server first', variant: 'destructive' })
+        return
+      }
+      if (!newServer.rconPassword.trim()) {
+        toast({ title: 'Error', description: 'RCON password is required. Configure it in your server INI file first.', variant: 'destructive' })
+        return
+      }
     }
 
     setAddingServer(true)
@@ -624,8 +646,9 @@ export default function Servers() {
         minMemory: newServer.minMemory,
         maxMemory: newServer.maxMemory,
         useNoSteam: newServer.useNoSteam,
-        useDebug: newServer.useDebug
-      })
+        useDebug: newServer.useDebug,
+        isRemote: addMode === 'remote'
+      } as Partial<ServerInstance>)
       
       toast({ title: 'Server Added', description: `"${newServer.name}" added to panel` })
       setShowAddDialog(false)
@@ -654,6 +677,7 @@ export default function Servers() {
     setAutoScanResult(null)
     setAutoScanPath('')
     setShowAutoScan(false)
+    setAddMode('local')
   }
 
   if (loading) {
@@ -673,7 +697,10 @@ export default function Servers() {
         icon={<Server className="w-5 h-5 text-primary" />}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+            <Button variant="outline" onClick={() => { setAddMode('remote'); setShowAddDialog(true) }}>
+              <Globe className="w-4 h-4 mr-2" /> Add Remote Server
+            </Button>
+            <Button variant="outline" onClick={() => { setAddMode('local'); setShowAddDialog(true) }}>
               <FolderOpen className="w-4 h-4 mr-2" /> Add Existing Server
             </Button>
             <Button onClick={() => navigate('/server-setup')}>
@@ -719,6 +746,11 @@ export default function Servers() {
                           <Star className="w-3 h-3 mr-1" /> Active
                         </Badge>
                       )}
+                      {server.isRemote && (
+                        <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-500 border-purple-500/30">
+                          <Globe className="w-3 h-3 mr-1" /> Remote
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription className="font-mono text-xs">
                       {server.serverName}
@@ -761,12 +793,14 @@ export default function Servers() {
               
               <CardContent className="space-y-3">
                 <div className="text-sm space-y-1">
+                  {!server.isRemote && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Data Path:</span>
                     <span className="font-mono text-xs truncate max-w-[180px]" title={server.zomboidDataPath || 'Default'}>
                       {server.zomboidDataPath || 'Default'}
                     </span>
                   </div>
+                  )}
                   <div className="flex justify-between text-muted-foreground">
                     <span>RCON:</span>
                     <span className="font-mono text-xs">{server.rconHost}:{server.rconPort}</span>
@@ -775,10 +809,12 @@ export default function Servers() {
                     <span>Game Port:</span>
                     <span className="font-mono text-xs">{server.serverPort}</span>
                   </div>
+                  {!server.isRemote && (
                   <div className="flex justify-between text-muted-foreground">
                     <span>Memory:</span>
                     <span className="font-mono text-xs">{server.minMemory}MB - {server.maxMemory}MB</span>
                   </div>
+                  )}
                 </div>
                 
                 {!server.isActive && (
@@ -805,13 +841,118 @@ export default function Servers() {
       <Dialog open={showAddDialog} onOpenChange={(open) => !open && resetAddDialog()}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Existing Server</DialogTitle>
+            <DialogTitle>{addMode === 'remote' ? 'Add Remote Server' : 'Add Existing Server'}</DialogTitle>
             <DialogDescription>
-              Scan a folder to auto-detect server paths, or enter them manually
+              {addMode === 'remote' 
+                ? 'Connect to a PZ server on another machine via RCON. Only RCON-based features will be available.'
+                : 'Scan a folder to auto-detect server paths, or enter them manually'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          {/* Mode Selector */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => { setAddMode('local'); setNewServer(defaultNewServer); setDetectResult(null); setDetectError(null); setSelectedServerConfig('') }}
+              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                addMode === 'local' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-muted-foreground/30'
+              }`}
+            >
+              <Monitor className={`w-5 h-5 ${addMode === 'local' ? 'text-primary' : 'text-muted-foreground'}`} />
+              <div className="text-left">
+                <p className="text-sm font-medium">Local Server</p>
+                <p className="text-xs text-muted-foreground">Same machine as panel</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { setAddMode('remote'); setNewServer({ ...defaultNewServer, isRemote: true, rconHost: '' }); setDetectResult(null); setDetectError(null); setSelectedServerConfig('') }}
+              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                addMode === 'remote' 
+                  ? 'border-purple-500 bg-purple-500/5' 
+                  : 'border-border hover:border-muted-foreground/30'
+              }`}
+            >
+              <Globe className={`w-5 h-5 ${addMode === 'remote' ? 'text-purple-500' : 'text-muted-foreground'}`} />
+              <div className="text-left">
+                <p className="text-sm font-medium">Remote Server</p>
+                <p className="text-xs text-muted-foreground">RCON only — another machine</p>
+              </div>
+            </button>
+          </div>
+
+          {/* Remote Server Info Banner */}
+          {addMode === 'remote' && (
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+              <Wifi className="w-5 h-5 text-purple-500 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-purple-600 dark:text-purple-400">RCON-Only Connection</p>
+                <p className="text-muted-foreground mt-1">
+                  Features like config editing, mod management, backups, server start/stop, and file operations 
+                  will be unavailable. You'll be able to use the console, manage players, send chat messages, 
+                  control weather/events, and run scheduled commands.
+                </p>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-4 py-2">
+            {addMode === 'remote' ? (
+              /* ========== REMOTE SERVER FORM ========== */
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Server Display Name *</Label>
+                  <Input
+                    value={newServer.name}
+                    onChange={e => setNewServer({ ...newServer, name: e.target.value })}
+                    placeholder="My Remote PZ Server"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>RCON Host / IP *</Label>
+                    <Input
+                      value={newServer.rconHost}
+                      onChange={e => setNewServer({ ...newServer, rconHost: e.target.value })}
+                      placeholder="192.168.1.100 or myserver.com"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">The IP address or hostname of the remote PZ server</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>RCON Port *</Label>
+                    <Input
+                      type="number"
+                      value={newServer.rconPort}
+                      onChange={e => setNewServer({ ...newServer, rconPort: parseInt(e.target.value) || 27015 })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>RCON Password *</Label>
+                  <Input
+                    type="password"
+                    value={newServer.rconPassword}
+                    onChange={e => setNewServer({ ...newServer, rconPassword: e.target.value })}
+                    placeholder="Enter the RCON password set in the server's INI file"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Game Port (optional)</Label>
+                  <Input
+                    type="number"
+                    value={newServer.serverPort}
+                    onChange={e => setNewServer({ ...newServer, serverPort: parseInt(e.target.value) || 16261 })}
+                  />
+                  <p className="text-xs text-muted-foreground">The PZ game port — used for display purposes only</p>
+                </div>
+              </div>
+            ) : (
+              /* ========== LOCAL SERVER FORM ========== */
+              <>
             {/* Auto Scan Section */}
             <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
               <div className="flex items-center justify-between">
@@ -1070,6 +1211,8 @@ export default function Servers() {
                 )}
               </div>
             )}
+            </>
+            )}
           </div>
           
           <DialogFooter>
@@ -1078,7 +1221,7 @@ export default function Servers() {
             </Button>
             <Button 
               onClick={handleAddExistingServer} 
-              disabled={addingServer || !selectedServerConfig || !newServer.rconPassword}
+              disabled={addingServer || (addMode === 'local' ? (!selectedServerConfig || !newServer.rconPassword) : (!newServer.name || !newServer.rconHost || !newServer.rconPassword))}
             >
               {addingServer ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
@@ -1102,6 +1245,14 @@ export default function Servers() {
           
           {editingServer && (
             <div className="space-y-4">
+              {/* Remote server indicator */}
+              {editingServer.isRemote && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                  <Globe className="w-4 h-4 text-purple-500" />
+                  <span className="text-sm font-medium text-purple-600 dark:text-purple-400">Remote Server (RCON Only)</span>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Display Name</Label>
@@ -1119,6 +1270,8 @@ export default function Servers() {
                 </div>
               </div>
               
+              {!editingServer.isRemote && (
+              <>
               <div className="space-y-2">
                 <Label>Install Path</Label>
                 <Input
@@ -1137,6 +1290,8 @@ export default function Servers() {
                   placeholder="Leave empty for default"
                 />
               </div>
+              </>
+              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1175,7 +1330,7 @@ export default function Servers() {
                 />
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className={editingServer.isRemote ? "grid grid-cols-1 gap-4" : "grid grid-cols-3 gap-4"}>
                 <div className="space-y-2">
                   <Label>Game Port</Label>
                   <Input
@@ -1184,6 +1339,8 @@ export default function Servers() {
                     onChange={e => setEditingServer({ ...editingServer, serverPort: parseInt(e.target.value) || 16261 })}
                   />
                 </div>
+                {!editingServer.isRemote && (
+                <>
                 <div className="space-y-2">
                   <Label>Min Memory (GB)</Label>
                   <Input
@@ -1204,6 +1361,8 @@ export default function Servers() {
                     onChange={e => setEditingServer({ ...editingServer, maxMemory: Math.max(1, parseInt(e.target.value) || 4) * 1024 })}
                   />
                 </div>
+                </>
+                )}
               </div>
             </div>
           )}

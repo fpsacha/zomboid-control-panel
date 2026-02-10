@@ -80,8 +80,8 @@ const navSections = [
     icon: FileCog,
     color: 'blue',
     items: [
-      { to: '/server-config', icon: FileCog, label: 'INI Settings' },
-      { to: '/mods', icon: Package, label: 'Workshop Mods' },
+      { to: '/server-config', icon: FileCog, label: 'INI Settings', requiresLocal: true },
+      { to: '/mods', icon: Package, label: 'Workshop Mods', requiresLocal: true },
     ]
   },
   {
@@ -91,8 +91,8 @@ const navSections = [
     color: 'purple',
     items: [
       { to: '/scheduler', icon: Clock, label: 'Scheduled Tasks' },
-      { to: '/backups', icon: Archive, label: 'World Backups' },
-      { to: '/chunks', icon: Map, label: 'Map Cleanup' },
+      { to: '/backups', icon: Archive, label: 'World Backups', requiresLocal: true },
+      { to: '/chunks', icon: Map, label: 'Map Cleanup', requiresLocal: true },
     ]
   },
   {
@@ -534,7 +534,23 @@ export default function Layout({ children }: LayoutProps) {
                       "border-l-[2px] transition-colors",
                       hasActiveChild ? colors.border.replace('/20', '/40') : "border-border/40"
                     )}>
-                      {section.items.map((item) => (
+                      {section.items.map((item) => {
+                        const isDisabledByRemote = !!(item as any).requiresLocal && activeServer?.isRemote
+                        
+                        if (isDisabledByRemote) {
+                          return (
+                            <div
+                              key={item.to}
+                              className="nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] opacity-40 cursor-not-allowed relative"
+                              title="Not available for remote (RCON-only) servers"
+                            >
+                              <item.icon className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+                              <span className="truncate text-muted-foreground/70 line-through decoration-muted-foreground/30">{item.label}</span>
+                            </div>
+                          )
+                        }
+                        
+                        return (
                         <NavLink
                           key={item.to}
                           to={item.to}
@@ -568,7 +584,8 @@ export default function Layout({ children }: LayoutProps) {
                             </>
                           )}
                         </NavLink>
-                      ))}
+                        )
+                      })}
                     </div>
                   </CollapsibleContent>
                 </Collapsible>

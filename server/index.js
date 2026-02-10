@@ -336,6 +336,17 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Panel info - returns the panel's own address for remote access
+app.get('/api/panel-info', (req, res) => {
+  const PORT = process.env.PORT || 3001;
+  const localIp = serverManager.getLocalIp();
+  res.json({ 
+    localIp,
+    port: parseInt(PORT, 10),
+    url: `http://${localIp}:${PORT}`
+  });
+});
+
 // Serve static files in production
 // Detect if running as packaged exe (pkg sets process.pkg)
 const isPackaged = typeof process.pkg !== 'undefined';

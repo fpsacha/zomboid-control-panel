@@ -28,7 +28,8 @@ import {
   ExternalLink,
   Copy,
   Send,
-  Gamepad2
+  Gamepad2,
+  Globe
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
@@ -45,7 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi } from '@/lib/api'
+import { serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi, serversApi, ServerInstance } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
 import { useSocket } from '@/contexts/SocketContext'
 import { EmptyState } from '@/components/EmptyState'
@@ -120,6 +121,8 @@ export default function Dashboard() {
   const [autoStartServer, setAutoStartServer] = useState<boolean>(false)
   const [quickChatMsg, setQuickChatMsg] = useState('')
   const [sendingChat, setSendingChat] = useState(false)
+  const [panelInfo, setPanelInfo] = useState<{ localIp: string; port: number; url: string } | null>(null)
+  const [activeServer, setActiveServer] = useState<ServerInstance | null>(null)
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [confirmAction, setConfirmAction] = useState<{
@@ -249,7 +252,9 @@ export default function Dashboard() {
           fetchBridgeStatus(), 
           fetchPlayerActivity(), 
           fetchPerformanceHistory(), 
-          fetchAutoStartSetting()
+          fetchAutoStartSetting(),
+          serverApi.getPanelInfo().then(setPanelInfo).catch(() => {}),
+          serversApi.getActive().then((d: { server: ServerInstance | null }) => setActiveServer(d.server)).catch(() => {})
         ])
       } catch (error) {
         console.error('Failed to load initial data:', error)
@@ -705,6 +710,44 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Panel Access Address */}
+      {panelInfo && (
+        <Card className="card-interactive overflow-hidden border-primary/20">
+          <div className="h-1.5 bg-gradient-to-r from-primary/60 to-primary/30" />
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Globe className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-muted-foreground mb-1">Panel Address — Access from any device on your network</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-lg font-bold font-mono text-primary truncate">{panelInfo.url}</code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => copyToClipboard(panelInfo.url, 'Panel address')}
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </Button>
+                  <a
+                    href={panelInfo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0"
+                  >
+                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Button>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Server Controls */}
       <Card className="card-interactive">
         <CardHeader className="pb-4">
@@ -722,10 +765,11 @@ export default function Dashboard() {
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={() => handleAction('Start server', serverApi.start)}
-              disabled={status?.running || loading !== null}
+              disabled={status?.running || loading !== null || activeServer?.isRemote}
               variant="success"
               size="lg"
               className="gap-2"
+              title={activeServer?.isRemote ? 'Not available for remote (RCON-only) servers' : undefined}
             >
               {loading === 'Start server' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
               Start Server
@@ -788,10 +832,11 @@ export default function Dashboard() {
             </Button>
             <Button
               onClick={() => handleAction('Create backup', () => backupApi.createBackup({ includeDb: true }))}
-              disabled={loading !== null}
+              disabled={loading !== null || activeServer?.isRemote}
               variant="outline"
               size="lg"
               className="gap-2"
+              title={activeServer?.isRemote ? 'Not available for remote (RCON-only) servers' : undefined}
             >
               <Archive className="w-5 h-5" />
               Backup Now
@@ -810,7 +855,8 @@ export default function Dashboard() {
             )}
           </div>
           
-          {/* Auto-start setting */}
+          {/* Auto-start setting - only for local servers */}
+          {!activeServer?.isRemote && (
           <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
             <Checkbox 
               id="autoStartServer" 
@@ -821,6 +867,7 @@ export default function Dashboard() {
               Auto-start server when panel launches
             </Label>
           </div>
+          )}
         </CardContent>
       </Card>
 
