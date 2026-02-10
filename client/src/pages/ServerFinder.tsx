@@ -570,17 +570,16 @@ export default function ServerFinder() {
                   type="noResults"
                   title="No servers match your filters"
                   description="Try adjusting your search filters or refresh the server list"
-                  action={
-                    <Button variant="link" onClick={() => {
+                  action={{
+                    label: "Clear all filters",
+                    onClick: () => {
                       setSearchQuery('')
                       setHideEmpty(false)
                       setHideFull(false)
                       setHidePrivate(false)
                       setShowVacOnly(false)
-                    }}>
-                      Clear all filters
-                    </Button>
-                  }
+                    }
+                  }}
                 />
               )}
             </div>
