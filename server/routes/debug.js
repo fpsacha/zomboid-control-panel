@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { logger } from '../utils/logger.js';
 import { getDataPaths, setDataPaths } from '../utils/paths.js';
-import { getPerformanceHistory, recordPerformanceSnapshot } from '../database/init.js';
+import { getPerformanceHistory, recordPerformanceSnapshot, getDatabaseStats, createDatabaseBackup, compactDatabase } from '../database/init.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,21 +105,28 @@ router.get('/logs/files', async (req, res) => {
     const paths = getDataPaths();
     const logsDir = paths.logsDir;
     
-    if (!fs.existsSync(logsDir)) {
-      return res.json({ files: [] });
+    try {
+        await fs.promises.access(logsDir);
+    } catch {
+        return res.json({ files: [] });
     }
     
-    const files = fs.readdirSync(logsDir)
+    const fileList = await fs.promises.readdir(logsDir);
+    
+    const files = (await Promise.all(fileList
       .filter(f => f.endsWith('.log'))
-      .map(name => {
-        const filePath = path.join(logsDir, name);
-        const stats = fs.statSync(filePath);
-        return {
-          name,
-          size: stats.size,
-          modified: stats.mtime.toISOString()
-        };
-      })
+      .map(async name => {
+        try {
+            const filePath = path.join(logsDir, name);
+            const stats = await fs.promises.stat(filePath);
+            return {
+            name,
+            size: stats.size,
+            modified: stats.mtime.toISOString()
+            };
+        } catch(e) { return null; }
+      })))
+      .filter(f => f !== null)
       .sort((a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime());
     
     res.json({ files });
@@ -282,6 +289,39 @@ router.post('/performance-snapshot', async (req, res) => {
   }
 });
 
+// Database stats
+router.get('/database', async (req, res) => {
+  try {
+    const stats = await getDatabaseStats();
+    res.json(stats);
+  } catch (error) {
+    logger.error(`Failed to get database stats: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create manual database backup
+router.post('/database/backup', async (req, res) => {
+  try {
+    const result = await createDatabaseBackup();
+    res.json(result);
+  } catch (error) {
+    logger.error(`Failed to create database backup: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Compact database (apply retention policies)
+router.post('/database/compact', async (req, res) => {
+  try {
+    const result = await compactDatabase();
+    res.json(result);
+  } catch (error) {
+    logger.error(`Failed to compact database: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get crash logs (hs_err files from Java crashes)
 router.get('/crash-logs', async (req, res) => {
   try {
@@ -301,27 +341,35 @@ router.get('/crash-logs', async (req, res) => {
     
     for (const dir of crashDirs) {
       try {
-        if (!fs.existsSync(dir)) continue;
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          // Skip if already seen
-          if (seenFiles.has(file)) continue;
-          
-          // Match Java crash dumps and common crash log patterns
-          if (file.startsWith('hs_err_pid') || 
-              (file.includes('crash') && file.endsWith('.log')) ||
-              (file.includes('error') && file.endsWith('.log'))) {
-            const filePath = path.join(dir, file);
-            const stats = fs.statSync(filePath);
-            seenFiles.add(file);
-            crashLogs.push({
-              name: file,
-              path: filePath,
-              size: stats.size,
-              modified: stats.mtime.toISOString()
-            });
-          }
-        }
+        // Check dir exists
+        try { await fs.promises.access(dir); } catch { continue; }
+
+        const files = await fs.promises.readdir(dir);
+        
+        await Promise.all(files.map(async file => {
+            // Skip if already seen
+            if (seenFiles.has(file)) return;
+            
+            // Match Java crash dumps and common crash log patterns
+            if (file.startsWith('hs_err_pid') || 
+                (file.includes('crash') && file.endsWith('.log')) ||
+                (file.includes('error') && file.endsWith('.log'))) {
+                
+                try {
+                    const filePath = path.join(dir, file);
+                    const stats = await fs.promises.stat(filePath);
+                    if (!seenFiles.has(file)) { // Check again after await
+                        seenFiles.add(file);
+                        crashLogs.push({
+                        name: file,
+                        path: filePath,
+                        size: stats.size,
+                        modified: stats.mtime.toISOString()
+                        });
+                    }
+                } catch(e) {}
+            }
+        }));
       } catch (e) {
         // Directory not accessible
       }
@@ -358,15 +406,29 @@ router.get('/crash-logs/:filename', async (req, res) => {
     
     for (const dir of searchDirs) {
       const filePath = path.join(dir, filename);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        // Limit content size
-        const truncated = content.length > 100000;
-        return res.json({ 
-          content: content.slice(0, 100000),
-          truncated,
-          size: content.length
-        });
+      try {
+        await fs.promises.access(filePath);
+        
+        // Read only first 100KB using file handle to prevent OOM on large files
+        const handle = await fs.promises.open(filePath, 'r');
+        try {
+            const stats = await handle.stat();
+            const readSize = Math.min(stats.size, 100000);
+            const buffer = Buffer.alloc(readSize);
+            
+            await handle.read(buffer, 0, readSize, 0);
+            const content = buffer.toString('utf-8');
+            
+            return res.json({ 
+                content,
+                truncated: stats.size > 100000,
+                size: stats.size
+            });
+        } finally {
+            await handle.close();
+        }
+      } catch (e) {
+          // File not found in this dir, try next
       }
     }
     
