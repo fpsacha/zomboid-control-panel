@@ -1,6 +1,0 @@
-{
-  "watch": ["server"],
-  "ignore": ["data/*", "logs/*", "*.json"],
-  "ext": "js,mjs",
-  "exec": "node server/index.js"
-}

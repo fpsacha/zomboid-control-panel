@@ -12,6 +12,14 @@ data/db.json
 # Build outputs
 client/dist/
 dist-exe/
+server.cjs
+
+# Build & deploy scripts (internal tooling)
+build.js
+bundle-server.js
+deploy*.ps1
+release.ps1
+nodemon.json
 
 # Logs
 *.log
@@ -26,7 +34,7 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Release builds (optional - you may want to include these)
+# Release builds
 release/
 
 # Backup files
