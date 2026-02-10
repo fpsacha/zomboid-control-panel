@@ -26,7 +26,9 @@ import {
   Check,
   Filter,
   Bookmark,
-  FolderOpen
+  FolderOpen,
+  X,
+  Undo2
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -80,29 +82,45 @@ type EditorMode = 'structured' | 'raw'
 const IniSettingRow = memo(({ 
   setting, 
   value, 
-  onChange 
+  originalValue,
+  onChange,
+  onReset
 }: { 
   setting: IniSetting; 
-  value: string; 
-  onChange: (key: string, value: string) => void 
+  value: string;
+  originalValue?: string;
+  onChange: (key: string, value: string) => void;
+  onReset?: (key: string) => void;
 }) => {
+  const isModified = originalValue !== undefined && value !== originalValue
+  const isDifferentFromDefault = setting.default !== undefined && String(value) !== String(setting.default)
+
   // Multiline settings
   if (setting.type === 'multiline') {
     return (
-      <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
-        <div>
-          <Label className="text-sm font-medium">{setting.label}</Label>
-          <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+      <div className={`grid gap-2 py-3 border-b last:border-0 pr-4 rounded-md transition-colors ${
+        isModified ? 'bg-orange-500/5 border-l-2 border-l-orange-500 pl-3' : ''
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="text-sm font-medium">{setting.label}</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+          </div>
+          {isModified && onReset && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-orange-500 hover:text-orange-600" onClick={() => onReset(setting.key)}>
+              <Undo2 className="w-3 h-3 mr-1" /> Reset
+            </Button>
+          )}
         </div>
         <Textarea
           value={value}
           onChange={(e) => onChange(setting.key, e.target.value)}
-          className="w-full min-h-[80px] px-3 py-2 text-sm resize-y"
+          className={`w-full min-h-[80px] px-3 py-2 text-sm resize-y ${isModified ? 'border-orange-500/30' : ''}`}
         />
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <code className="bg-muted px-1 rounded">{setting.key}</code>
           {setting.default !== undefined && (
-            <span>Default: {String(setting.default)}</span>
+            <span className={isDifferentFromDefault ? 'text-orange-500' : ''}>Default: {String(setting.default)}</span>
           )}
         </div>
       </div>
@@ -111,118 +129,200 @@ const IniSettingRow = memo(({
 
   // Standard settings
   return (
-    <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
+    <div className={`grid gap-2 py-3 border-b last:border-0 pr-4 rounded-md transition-colors ${
+      isModified ? 'bg-orange-500/5 border-l-2 border-l-orange-500 pl-3' : ''
+    }`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{setting.label}</Label>
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{setting.label}</Label>
+            {isModified && (
+              <Badge variant="outline" className="h-5 text-[10px] bg-orange-500/10 text-orange-500 border-orange-500/30">modified</Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
         </div>
-        <div className="w-48 shrink-0">
-          {setting.type === 'boolean' ? (
-            <Switch
-              checked={String(value).toLowerCase() === 'true'}
-              onCheckedChange={(checked) => onChange(setting.key, checked ? 'true' : 'false')}
-            />
-          ) : setting.type === 'select' && setting.options ? (
-            <Select value={String(value)} onValueChange={(val) => onChange(setting.key, val)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {setting.options.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : setting.type === 'number' ? (
-            <Input
-              type="number"
-              value={value}
-              onChange={(e) => {
-                const val = e.target.value
-                // Allow empty string for clearing
-                if (val === '') {
-                  onChange(setting.key, '')
-                  return
-                }
-                // Validate number (clamp later or just pass through)
-                onChange(setting.key, val)
-              }}
-              min={setting.min}
-              max={setting.max}
-              className="text-right"
-            />
-          ) : (
-            <Input
-              value={String(value)}
-              onChange={(e) => onChange(setting.key, e.target.value)}
-            />
+        <div className="flex items-center gap-2 shrink-0">
+          {isModified && onReset && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-orange-500 hover:text-orange-600" onClick={() => onReset(setting.key)}>
+                    <Undo2 className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset to loaded value</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
+          <div className="w-48">
+            {setting.type === 'boolean' ? (
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-xs text-muted-foreground">{String(value).toLowerCase() === 'true' ? 'On' : 'Off'}</span>
+                <Switch
+                  checked={String(value).toLowerCase() === 'true'}
+                  onCheckedChange={(checked) => onChange(setting.key, checked ? 'true' : 'false')}
+                />
+              </div>
+            ) : setting.type === 'select' && setting.options ? (
+              <Select value={String(value)} onValueChange={(val) => onChange(setting.key, val)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {setting.options.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : setting.type === 'number' ? (
+              <div>
+                <Input
+                  type="number"
+                  value={value}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '') {
+                      onChange(setting.key, '')
+                      return
+                    }
+                    onChange(setting.key, val)
+                  }}
+                  min={setting.min}
+                  max={setting.max}
+                  className={`text-right ${isModified ? 'border-orange-500/30' : ''}`}
+                />
+                {(setting.min !== undefined || setting.max !== undefined) && (
+                  <div className="text-[10px] text-muted-foreground/60 text-right mt-0.5">
+                    {setting.min !== undefined && setting.max !== undefined
+                      ? `${setting.min} – ${setting.max}`
+                      : setting.min !== undefined
+                      ? `min: ${setting.min}`
+                      : `max: ${setting.max}`}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Input
+                value={String(value)}
+                onChange={(e) => onChange(setting.key, e.target.value)}
+                className={isModified ? 'border-orange-500/30' : ''}
+              />
+            )}
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <code className="bg-muted px-1 rounded">{setting.key}</code>
         {setting.default !== undefined && (
-          <span>Default: {String(setting.default)}</span>
+          <span className={isDifferentFromDefault ? 'text-orange-500' : ''}>Default: {String(setting.default)}</span>
         )}
       </div>
     </div>
   )
 }, (prev, next) => {
-  return prev.value === next.value && prev.setting === next.setting
+  return prev.value === next.value && prev.setting === next.setting && prev.originalValue === next.originalValue
 })
 IniSettingRow.displayName = 'IniSettingRow'
 
 const SandboxSettingRow = memo(({ 
   setting, 
   value, 
-  onChange 
+  originalValue,
+  onChange,
+  onReset
 }: { 
   setting: SandboxSetting; 
-  value: any; 
-  onChange: (key: string, value: any) => void 
+  value: any;
+  originalValue?: any;
+  onChange: (key: string, value: any) => void;
+  onReset?: (key: string) => void;
 }) => {
+  const isModified = originalValue !== undefined && JSON.stringify(value) !== JSON.stringify(originalValue)
+  const isDifferentFromDefault = setting.default !== undefined && JSON.stringify(value) !== JSON.stringify(setting.default)
+
   return (
-    <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
+    <div className={`grid gap-2 py-3 border-b last:border-0 pr-4 rounded-md transition-colors ${
+      isModified ? 'bg-orange-500/5 border-l-2 border-l-orange-500 pl-3' : ''
+    }`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <Label className="text-sm font-medium">{setting.label}</Label>
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium">{setting.label}</Label>
+            {isModified && (
+              <Badge variant="outline" className="h-5 text-[10px] bg-orange-500/10 text-orange-500 border-orange-500/30">modified</Badge>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+            <code className="bg-muted px-1 rounded">{setting.key}</code>
+            {setting.default !== undefined && (
+              <span className={isDifferentFromDefault ? 'text-orange-500' : ''}>Default: {String(setting.default)}</span>
+            )}
+          </div>
         </div>
-        <div className="w-48 shrink-0">
-          {setting.type === 'boolean' ? (
-            <Switch
-              checked={Boolean(value)}
-              onCheckedChange={(checked) => onChange(setting.key, checked)}
-            />
-          ) : setting.type === 'select' && setting.options ? (
-            <Select value={String(value || '')} onValueChange={(v) => onChange(setting.key, Number(v))}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {setting.options.map(opt => (
-                  <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              type="number"
-              value={value !== undefined ? String(value) : ''}
-              onChange={(e) => onChange(setting.key, e.target.value)}
-              min={setting.min}
-              max={setting.max}
-              step={setting.max && setting.max <= 1 ? 0.1 : 1}
-              className="text-right"
-            />
+        <div className="flex items-center gap-2 shrink-0">
+          {isModified && onReset && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-orange-500 hover:text-orange-600" onClick={() => onReset(setting.key)}>
+                    <Undo2 className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset to loaded value</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
+          <div className="w-48">
+            {setting.type === 'boolean' ? (
+              <div className="flex items-center gap-2 justify-end">
+                <span className="text-xs text-muted-foreground">{Boolean(value) ? 'On' : 'Off'}</span>
+                <Switch
+                  checked={Boolean(value)}
+                  onCheckedChange={(checked) => onChange(setting.key, checked)}
+                />
+              </div>
+            ) : setting.type === 'select' && setting.options ? (
+              <Select value={String(value || '')} onValueChange={(v) => onChange(setting.key, Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {setting.options.map(opt => (
+                    <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div>
+                <Input
+                  type="number"
+                  value={value !== undefined ? String(value) : ''}
+                  onChange={(e) => onChange(setting.key, e.target.value)}
+                  min={setting.min}
+                  max={setting.max}
+                  step={setting.max && setting.max <= 1 ? 0.1 : 1}
+                  className={`text-right ${isModified ? 'border-orange-500/30' : ''}`}
+                />
+                {(setting.min !== undefined || setting.max !== undefined) && (
+                  <div className="text-[10px] text-muted-foreground/60 text-right mt-0.5">
+                    {setting.min !== undefined && setting.max !== undefined
+                      ? `${setting.min} – ${setting.max}`
+                      : setting.min !== undefined
+                      ? `min: ${setting.min}`
+                      : `max: ${setting.max}`}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
   )
 }, (prev, next) => {
-  return prev.value === next.value && prev.setting === next.setting
+  return prev.value === next.value && prev.setting === next.setting && prev.originalValue === next.originalValue
 })
 SandboxSettingRow.displayName = 'SandboxSettingRow'
 
@@ -709,6 +809,90 @@ export default function ServerConfig() {
     setExpandedCategories(new Set())
   }
 
+  // Reset individual INI setting to original loaded value
+  const resetIniValue = useCallback((key: string) => {
+    if (originalIniSettings[key] !== undefined) {
+      setIniSettings(prev => ({ ...prev, [key]: originalIniSettings[key] }))
+    }
+  }, [originalIniSettings])
+
+  // Reset individual Sandbox setting to original loaded value
+  const resetSandboxValue = useCallback((key: string) => {
+    if (!originalSandboxData || !sandboxData) return
+    // Find the setting in schema to determine section
+    const schemaSetting = SANDBOX_SCHEMA.find(s => s.key === key)
+    if (!schemaSetting) return
+    const section = (schemaSetting.section || 'settings') as keyof SandboxData
+    const originalSection = originalSandboxData[section] as Record<string, any> | undefined
+    if (originalSection && originalSection[key] !== undefined) {
+      setSandboxData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          [section]: {
+            ...(prev[section] as Record<string, any>),
+            [key]: originalSection[key]
+          }
+        }
+      })
+    }
+  }, [originalSandboxData, sandboxData])
+
+  // Count changed INI settings
+  const changedIniCount = useMemo(() => {
+    let count = 0
+    for (const key of Object.keys(iniSettings)) {
+      if (originalIniSettings[key] !== undefined && iniSettings[key] !== originalIniSettings[key]) count++
+    }
+    return count
+  }, [iniSettings, originalIniSettings])
+
+  // Count changed Sandbox settings
+  const changedSandboxCount = useMemo(() => {
+    if (!sandboxData || !originalSandboxData) return 0
+    let count = 0
+    SANDBOX_SCHEMA.forEach(setting => {
+      const section = (setting.section || 'settings') as keyof SandboxData
+      const curr = (sandboxData[section] as Record<string, any>)?.[setting.key]
+      const orig = (originalSandboxData[section] as Record<string, any>)?.[setting.key]
+      if (JSON.stringify(curr) !== JSON.stringify(orig)) count++
+    })
+    return count
+  }, [sandboxData, originalSandboxData])
+
+  // Search results count
+  const searchResultsCount = useMemo(() => {
+    if (!searchQuery) return 0
+    if (activeTab === 'ini') {
+      return Object.values(filteredIniSettings).reduce((acc, settings) => acc + settings.length, 0)
+    }
+    if (activeTab === 'sandbox') {
+      return Object.values(filteredSandboxSettings).reduce((acc, settings) => acc + settings.length, 0)
+    }
+    return 0
+  }, [searchQuery, activeTab, filteredIniSettings, filteredSandboxSettings])
+
+  // Ctrl+S keyboard shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        if (activeTab === 'ini' && hasIniChanges) {
+          handleSaveIni()
+        } else if (activeTab === 'sandbox' && hasSandboxChanges) {
+          handleSaveSandbox()
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault()
+        const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search settings"]')
+        searchInput?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeTab, hasIniChanges, hasSandboxChanges])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -787,7 +971,7 @@ export default function ServerConfig() {
         </div>
 
         {/* Stats Cards */}
-        <div className="relative grid grid-cols-4 gap-4 mt-6 stagger-in">
+        <div className="relative grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 stagger-in">
           <div className="p-4 rounded-lg bg-background/60 backdrop-blur-sm border">
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold text-blue-500">{iniSettingsCount}</div>
@@ -856,10 +1040,15 @@ export default function ServerConfig() {
               className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
               onClick={() => setSearchQuery('')}
             >
-              <AlertCircle className="w-4 h-4" />
+              <X className="w-4 h-4" />
             </Button>
           )}
         </div>
+        {searchQuery && (activeTab === 'ini' || activeTab === 'sandbox') && (
+          <Badge variant="secondary" className="text-xs">
+            {searchResultsCount} result{searchResultsCount !== 1 ? 's' : ''}
+          </Badge>
+        )}
         
         {/* View Controls */}
         <div className="flex items-center gap-2">
@@ -921,6 +1110,11 @@ export default function ServerConfig() {
           <TabsTrigger value="ini" className="flex items-center gap-2 data-[state=active]:bg-blue-500/10 data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-500 rounded-none">
             <Settings className="w-4 h-4" />
             <span className="font-medium">Server Settings</span>
+            {changedIniCount > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-500 border-orange-500/30">
+                {changedIniCount}
+              </Badge>
+            )}
             {hasIniChanges && activeTab !== 'ini' && (
               <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" title="Unsaved changes" />
             )}
@@ -933,6 +1127,11 @@ export default function ServerConfig() {
           <TabsTrigger value="sandbox" className="flex items-center gap-2 data-[state=active]:bg-green-500/10 data-[state=active]:text-green-600 data-[state=active]:border-b-2 data-[state=active]:border-green-500 rounded-none">
             <FileText className="w-4 h-4" />
             <span className="font-medium">Sandbox</span>
+            {changedSandboxCount > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/10 text-orange-500 border-orange-500/30">
+                {changedSandboxCount}
+              </Badge>
+            )}
             {hasSandboxChanges && activeTab !== 'sandbox' && (
               <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" title="Unsaved changes" />
             )}
@@ -1029,12 +1228,12 @@ export default function ServerConfig() {
                   <textarea
                     value={rawContent}
                     onChange={(e) => setRawContent(e.target.value)}
-                    className="w-full h-[800px] font-mono text-sm p-4 rounded-md border border-input bg-background resize-y"
+                    className="w-full h-[calc(100vh-380px)] min-h-[400px] font-mono text-sm p-4 rounded-md border border-input bg-background resize-y"
                     spellCheck={false}
                   />
                 </div>
               ) : (
-                <ScrollArea className="h-[800px] pr-4">
+                <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px] pr-4">
                   {INI_CATEGORIES.map(category => {
                     const settings = filteredIniSettings[category.id] || []
                     if (settings.length === 0) return null
@@ -1070,7 +1269,9 @@ export default function ServerConfig() {
                                 key={setting.key} 
                                 setting={setting} 
                                 value={iniSettings[setting.key] || ''} 
-                                onChange={updateIniValue} 
+                                originalValue={originalIniSettings[setting.key]}
+                                onChange={updateIniValue}
+                                onReset={resetIniValue}
                               />
                             ))}
                           </div>
@@ -1153,12 +1354,12 @@ export default function ServerConfig() {
                   <textarea
                     value={rawContent}
                     onChange={(e) => setRawContent(e.target.value)}
-                    className="w-full h-[800px] font-mono text-sm p-4 rounded-md border border-input bg-background resize-y"
+                    className="w-full h-[calc(100vh-380px)] min-h-[400px] font-mono text-sm p-4 rounded-md border border-input bg-background resize-y"
                     spellCheck={false}
                   />
                 </div>
               ) : (
-                <ScrollArea className="h-[800px] pr-4">
+                <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px] pr-4">
                   {SANDBOX_CATEGORIES.map(category => {
                     const settings = filteredSandboxSettings[category.id] || []
                     if (settings.length === 0) return null
@@ -1194,7 +1395,9 @@ export default function ServerConfig() {
                                 key={setting.key} 
                                 setting={setting} 
                                 value={(sandboxData?.[(setting.section || 'settings') as keyof SandboxData] as Record<string, any>)?.[setting.key]}
+                                originalValue={(originalSandboxData?.[(setting.section || 'settings') as keyof SandboxData] as Record<string, any>)?.[setting.key]}
                                 onChange={updateSandboxValue}
+                                onReset={resetSandboxValue}
                               />
                             ))}
                           </div>
