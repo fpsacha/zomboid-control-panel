@@ -13,10 +13,12 @@ import {
   Loader2
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -47,6 +49,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import { schedulerApi, rconApi, ScheduleHistoryEntry } from '@/lib/api'
+import { EmptyState } from '@/components/EmptyState'
 
 interface ScheduledTask {
   id: number
@@ -81,6 +84,13 @@ export default function Scheduler() {
   const [newTaskCron, setNewTaskCron] = useState('')
   const [newTaskCommand, setNewTaskCommand] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  
+  // Simple Scheduler State
+  const [scheduleMode, setScheduleMode] = useState<'simple' | 'advanced'>('simple')
+  const [simpleIntervalType, setSimpleIntervalType] = useState<'hourly' | 'daily' | 'interval'>('daily')
+  const [simpleHour, setSimpleHour] = useState('06')
+  const [simpleMinute, setSimpleMinute] = useState('00')
+  const [simpleHoursInterval, setSimpleHoursInterval] = useState('4')
 
   // Restart form
   const [restartMinutes, setRestartMinutes] = useState(5)
@@ -115,7 +125,20 @@ export default function Scheduler() {
   }
 
   const handleCreateTask = async () => {
-    if (!newTaskName || !newTaskCron || !newTaskCommand) {
+    let cronToUse = newTaskCron
+    
+    // Calculate cron if in simple mode
+    if (scheduleMode === 'simple') {
+      if (simpleIntervalType === 'daily') {
+        cronToUse = `${parseInt(simpleMinute)} ${parseInt(simpleHour)} * * *`
+      } else if (simpleIntervalType === 'hourly') {
+        cronToUse = `0 * * * *`
+      } else if (simpleIntervalType === 'interval') {
+         cronToUse = `0 */${parseInt(simpleHoursInterval)} * * *`
+      }
+    }
+
+    if (!newTaskName || !cronToUse || !newTaskCommand) {
       toast({
         title: 'Error',
         description: 'Please fill in all fields',
@@ -125,10 +148,10 @@ export default function Scheduler() {
     }
 
     // Validate cron expression
-    if (!isValidCron(newTaskCron)) {
+    if (!isValidCron(cronToUse)) {
       toast({
         title: 'Invalid Schedule',
-        description: 'Please enter a valid cron expression (e.g., "0 */2 * * *")',
+        description: `Invalid cron expression: ${cronToUse}`,
         variant: 'destructive',
       })
       return
@@ -136,7 +159,7 @@ export default function Scheduler() {
 
     setLoading(true)
     try {
-      await schedulerApi.createTask(newTaskName, newTaskCron, newTaskCommand)
+      await schedulerApi.createTask(newTaskName, cronToUse, newTaskCommand)
       toast({
         title: 'Success',
         description: 'Task created successfully',
@@ -325,20 +348,22 @@ export default function Scheduler() {
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Scheduler</h1>
-          <p className="text-muted-foreground">Automate server tasks and restarts</p>
-        </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+    <div className="space-y-6 page-transition">
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <PageHeader
+          title="Scheduler"
+          description="Automate server tasks and restarts"
+          icon={<Clock className="w-5 h-5" />}
+          actions={
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Task
+              </Button>
+            </DialogTrigger>
+          }
+        />
+        <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Scheduled Task</DialogTitle>
               <DialogDescription>
@@ -355,28 +380,110 @@ export default function Scheduler() {
                 />
               </div>
               <div>
-                <Label>Schedule</Label>
-                <Select onValueChange={(value) => setNewTaskCron(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a preset or enter custom..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((preset) => (
-                      <SelectItem key={preset.cron} value={preset.cron}>
-                        {preset.name} ({preset.cron})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  className="mt-2"
-                  value={newTaskCron}
-                  onChange={(e) => setNewTaskCron(e.target.value)}
-                  placeholder="Or enter custom cron: 0 */2 * * *"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Format: minute hour day month weekday
-                </p>
+                <Label className="mb-2 block">Schedule Type</Label>
+                <Tabs value={scheduleMode} onValueChange={(v: any) => setScheduleMode(v)} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="simple">Simple Builder</TabsTrigger>
+                    <TabsTrigger value="advanced">Advanced (Cron)</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="simple" className="space-y-4 pt-4 border rounded-md p-4 mt-0 border-t-0 rounded-t-none">
+                    <div className="space-y-2">
+                      <Label>Frequency</Label>
+                      <Select value={simpleIntervalType} onValueChange={(v: any) => setSimpleIntervalType(v)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hourly">Every Hour (at minute 0)</SelectItem>
+                          <SelectItem value="interval">Every X Hours</SelectItem>
+                          <SelectItem value="daily">Daily at Specific Time</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {simpleIntervalType === 'daily' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Hour (0-23)</Label>
+                          <Input 
+                            type="number" 
+                            min={0} 
+                            max={23} 
+                            value={simpleHour} 
+                            onChange={e => setSimpleHour(e.target.value)} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Minute (0-59)</Label>
+                          <Input 
+                            type="number" 
+                            min={0} 
+                            max={59} 
+                            value={simpleMinute} 
+                            onChange={e => setSimpleMinute(e.target.value)} 
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {simpleIntervalType === 'interval' && (
+                      <div className="space-y-2">
+                        <Label>Every X Hours</Label>
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          max={23} 
+                          value={simpleHoursInterval} 
+                          onChange={e => setSimpleHoursInterval(e.target.value)} 
+                          placeholder="e.g. 4 for every 4 hours"
+                        />
+                      </div>
+                    )}
+                    
+                    <div className="bg-muted p-3 rounded text-xs flex items-center justify-between">
+                      <span className="text-muted-foreground">Generated Cron:</span>
+                      <code className="font-mono bg-background px-2 py-1 rounded border">
+                        {
+                           simpleIntervalType === 'daily' ? `${parseInt(simpleMinute || '0')} ${parseInt(simpleHour || '0')} * * *` :
+                           simpleIntervalType === 'hourly' ? `0 * * * *` :
+                           `0 */${parseInt(simpleHoursInterval || '1')} * * *`
+                        }
+                      </code>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="advanced" className="space-y-3 pt-4 border rounded-md p-4 mt-0 border-t-0 rounded-t-none">
+                    <div className="space-y-2">
+                      <Label>Load Preset</Label>
+                      <Select onValueChange={(value) => setNewTaskCron(value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a preset..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {presets.map((preset) => (
+                            <SelectItem key={preset.cron} value={preset.cron}>
+                              {preset.name} ({preset.cron})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Custom Expression</Label>
+                      <Input
+                        value={newTaskCron}
+                        onChange={(e) => setNewTaskCron(e.target.value)}
+                        placeholder="e.g., 0 */2 * * *"
+                        className="font-mono"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Format: minute hour day month weekday
+                    </p>
+                  </TabsContent>
+                </Tabs>
               </div>
               <div>
                 <Label>Command</Label>
@@ -406,8 +513,7 @@ export default function Scheduler() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -594,13 +700,7 @@ export default function Scheduler() {
         <CardContent>
           <ScrollArea className="h-[400px]">
             {tasks.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No scheduled tasks</p>
-                <p className="text-sm text-muted-foreground">
-                  Create a task to automate server commands
-                </p>
-              </div>
+              <EmptyState type="noSchedule" title="No scheduled tasks" description="Create a task to automate server commands" />
             ) : (
               <div className="space-y-3">
                 {tasks.map((task) => (

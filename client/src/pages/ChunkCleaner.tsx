@@ -14,6 +14,7 @@ import {
   FileBox
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -542,14 +543,13 @@ export default function ChunkCleaner() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-4">
+      <div className="space-y-4 page-transition">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Chunk Cleaner</h1>
-            <p className="text-sm text-muted-foreground">Reset map areas to regenerate loot and buildings</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Chunk Cleaner"
+          description="Reset map areas to regenerate loot and buildings"
+          icon={<Map className="w-5 h-5" />}
+        />
 
         {/* Warning */}
         <div className="p-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10 flex items-start gap-3">

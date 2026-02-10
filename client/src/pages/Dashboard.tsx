@@ -23,11 +23,17 @@ import {
   Skull,
   Sword,
   ShieldAlert,
-  Clock
+  Clock,
+  MessageSquare, // Added import
+  ExternalLink,
+  Copy,
+  Send,
+  Gamepad2
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/use-toast'
 import {
   AlertDialog,
@@ -42,8 +48,10 @@ import {
 import { serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
 import { useSocket } from '@/contexts/SocketContext'
+import { EmptyState } from '@/components/EmptyState'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { PageHeader } from '@/components/PageHeader'
 
 interface PlayerActivity {
   id: number
@@ -71,6 +79,9 @@ interface ServerStatus {
   uptime: number
   serverPath: string
   configured: boolean
+  publicIp?: string
+  localIp?: string
+  port?: number
   rcon: {
     host: string
     port: number
@@ -89,17 +100,27 @@ interface PerformancePoint {
   memoryMB: number
 }
 
+interface ChatPreviewMsg {
+    author: string
+    message: string
+    timestamp: Date
+}
+
 export default function Dashboard() {
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null)
   const [playerActivity, setPlayerActivity] = useState<PlayerActivity[]>([])
   const [performanceHistory, setPerformanceHistory] = useState<PerformancePoint[]>([])
+  const [chatPreview, setChatPreview] = useState<ChatPreviewMsg[]>([]) // New State
   const [loading, setLoading] = useState<string | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [autoStartServer, setAutoStartServer] = useState<boolean>(false)
+  const [quickChatMsg, setQuickChatMsg] = useState('')
+  const [sendingChat, setSendingChat] = useState(false)
+
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [confirmAction, setConfirmAction] = useState<{
     title: string
@@ -109,6 +130,23 @@ export default function Dashboard() {
   } | null>(null)
   const { toast } = useToast()
   const socket = useSocket()
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({
+        title: "Copied!",
+        description: `${label} copied to clipboard`,
+        duration: 2000,
+      })
+    } catch {
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy to clipboard",
+        variant: "destructive",
+      })
+    }
+  }
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -205,7 +243,14 @@ export default function Dashboard() {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        await Promise.all([fetchStatus(), fetchPlayers(), fetchBridgeStatus(), fetchPlayerActivity(), fetchPerformanceHistory(), fetchAutoStartSetting()])
+        await Promise.all([
+          fetchStatus(), 
+          fetchPlayers(), 
+          fetchBridgeStatus(), 
+          fetchPlayerActivity(), 
+          fetchPerformanceHistory(), 
+          fetchAutoStartSetting()
+        ])
       } catch (error) {
         console.error('Failed to load initial data:', error)
       } finally {
@@ -281,16 +326,29 @@ export default function Dashboard() {
         }))
       }
 
+      const handleChat = (data: any) => {
+        setChatPreview(prev => {
+            const next = [...prev, {
+                author: data.author,
+                message: data.message,
+                timestamp: new Date(data.timestamp || Date.now())
+            }];
+            return next.slice(-5);
+        });
+      }
+
       socket.on('server:status', handleServerStatus)
       socket.on('players:update', handlePlayersUpdate)
       socket.on('activeServerChanged', handleActiveServerChanged)
       socket.on('panelBridge:modStatus', handleBridgeModStatus)
+      socket.on('chat:message', handleChat)
 
       return () => {
         socket.off('server:status', handleServerStatus)
         socket.off('players:update', handlePlayersUpdate)
         socket.off('activeServerChanged', handleActiveServerChanged)
         socket.off('panelBridge:modStatus', handleBridgeModStatus)
+        socket.off('chat:message', handleChat)
       }
     }
   }, [socket, fetchStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity, fetchPerformanceHistory])
@@ -369,6 +427,30 @@ export default function Dashboard() {
     await handleAction('Connect RCON', () => rconApi.connect())
   }
 
+  const handleQuickChat = async () => {
+    if (!quickChatMsg.trim()) return
+    setSendingChat(true)
+    try {
+      // Use RCON to broadcast message (servermsg)
+      const safeMessage = quickChatMsg.replace(/"/g, '\\"')
+      await rconApi.execute(`servermsg "[Admin] ${safeMessage}"`)
+      setQuickChatMsg('')
+      toast({
+        title: 'Sent',
+        description: 'Message sent to server',
+        duration: 2000
+      })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to send message',
+        variant: 'destructive',
+      })
+    } finally {
+      setSendingChat(false)
+    }
+  }
+
   if (initialLoading) {
     return (
       <div className="space-y-8 page-transition">
@@ -391,23 +473,23 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 page-transition">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-lg text-muted-foreground">Monitor and control your Project Zomboid server</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {lastUpdated && (
-            <span className="text-xs text-muted-foreground">
-              Updated {lastUpdated.toLocaleTimeString()}
-            </span>
-          )}
-          <Button variant="outline" size="sm" onClick={fetchStatus} disabled={loading !== null}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Monitor and control your Project Zomboid server"
+        actions={
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground">
+                Updated {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+            <Button variant="outline" size="sm" onClick={fetchStatus} disabled={loading !== null}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {/* Error Banner */}
       {fetchError && (
@@ -442,7 +524,7 @@ export default function Dashboard() {
       )}
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-in">
         {/* Server Status */}
         <Card className="card-interactive overflow-hidden">
           <div className={`h-1.5 ${status?.running ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : 'bg-gradient-to-r from-red-500 to-red-400'}`} />
@@ -453,7 +535,7 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mb-3">
               <div className="relative">
                 <div className={`w-4 h-4 rounded-full ${status?.running ? 'status-online' : 'status-offline'}`} />
               </div>
@@ -468,6 +550,71 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+
+            {(status?.publicIp || status?.localIp || status?.port) && (
+              <div className="pt-3 border-t border-border/50 grid grid-cols-1 gap-2">
+                {status.publicIp && (
+                  <div className="flex items-center justify-between gap-2 text-sm bg-muted/40 px-2 py-1.5 rounded-md">
+                    <span className="text-xs text-muted-foreground font-medium shrink-0 w-16">Public IP</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(status.publicIp!, "Public IP"); }}
+                      className="flex-1 flex items-center justify-end gap-2 hover:text-primary transition-colors font-mono text-right"
+                      title="Click to copy"
+                    >
+                      <span className="truncate">{status.publicIp}</span>
+                      <Copy className="w-3 h-3 opacity-50 shrink-0" />
+                    </button>
+                    {status.port && (
+                      <a 
+                         href={`steam://connect/${status.publicIp}:${status.port}`}
+                         onClick={(e) => e.stopPropagation()}
+                         className="p-1 hover:bg-muted rounded text-primary hover:text-primary/80"
+                         title="Connect with Steam"
+                      >
+                         <Gamepad2 className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                )}
+                {status.localIp && (
+                  <div className="flex items-center justify-between gap-2 text-sm bg-muted/40 px-2 py-1.5 rounded-md">
+                    <span className="text-xs text-muted-foreground font-medium shrink-0 w-16">Local IP</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(status.localIp!, "Local IP"); }}
+                      className="flex-1 flex items-center justify-end gap-2 hover:text-primary transition-colors font-mono text-right"
+                      title="Click to copy"
+                    >
+                      <span className="truncate">{status.localIp}</span>
+                      <Copy className="w-3 h-3 opacity-50 shrink-0" />
+                    </button>
+                    {status.port && (
+                      <a 
+                         href={`steam://connect/${status.localIp}:${status.port}`}
+                         onClick={(e) => e.stopPropagation()}
+                         className="p-1 hover:bg-muted rounded text-primary hover:text-primary/80"
+                         title="Connect with Steam"
+                      >
+                         <Gamepad2 className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                )}
+                {status.port && (
+                  <div className="flex items-center justify-between gap-2 text-sm bg-muted/40 px-2 py-1.5 rounded-md">
+                    <span className="text-xs text-muted-foreground font-medium shrink-0 w-16">Port</span>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); copyToClipboard(status.port!.toString(), "Port"); }}
+                      className="flex-1 flex items-center justify-end gap-2 hover:text-primary transition-colors font-mono text-right"
+                      title="Click to copy"
+                    >
+                      {status.port}
+                      <Copy className="w-3 h-3 opacity-50 shrink-0" />
+                    </button>
+                    <div className="w-6" /> {/* Spacer alignment */}
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -746,9 +893,11 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Events Timeline */}
-      <Card className="card-interactive">
-        <CardHeader className="pb-4">
+      {/* Events & Chat Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Events Timeline */}
+        <Card className="card-interactive h-full">
+          <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Clock className="w-5 h-5 text-primary" />
@@ -761,7 +910,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {playerActivity.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No recent events</p>
+            <EmptyState type="noData" title="No recent events" description="Events will appear here as players connect and interact" compact />
           ) : (
             <div className="space-y-2">
               {playerActivity.map((activity) => {
@@ -811,6 +960,62 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Live Chat Preview */}
+      <Card className="card-interactive h-full flex flex-col">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Live Chat</CardTitle>
+                <CardDescription className="mt-0.5">Recent messages</CardDescription>
+              </div>
+            </div>
+            <Link to="/chat">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <ExternalLink className="w-4 h-4 text-muted-foreground" />
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 min-h-[200px] flex flex-col justify-end">
+          {chatPreview.length === 0 ? (
+            <EmptyState type="noMessages" title="No recent messages" description="Chat messages will appear here" compact />
+          ) : (
+            <div className="space-y-3">
+              {chatPreview.map((msg, i) => (
+                <div key={i} className="flex gap-3 text-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <span className="font-semibold text-primary whitespace-nowrap">{msg.author}:</span>
+                  <span className="text-foreground/90 break-words">{msg.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="pt-4 border-t px-4 py-3 bg-muted/20">
+          <div className="flex w-full items-center gap-2">
+            <Input 
+              placeholder="Send message..." 
+              value={quickChatMsg} 
+              onChange={(e) => setQuickChatMsg(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleQuickChat()}
+              className="h-9 bg-background font-medium"
+            />
+            <Button 
+              size="icon" 
+              className="h-9 w-9 shrink-0" 
+              onClick={handleQuickChat}
+              disabled={sendingChat || !quickChatMsg.trim()}
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+      </div>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>

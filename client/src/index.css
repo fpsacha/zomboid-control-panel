@@ -471,6 +471,11 @@
   * {
     @apply border-border;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+  
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -478,9 +483,12 @@
     -moz-osx-font-smoothing: grayscale;
   }
   
-  /* Smooth transitions on color scheme change */
-  * {
-    transition-property: color, background-color, border-color;
+  /* Scoped transitions — only on interactive elements, not every DOM node */
+  a, button, input, textarea, select, label,
+  [role="button"], [role="tab"], [role="menuitem"],
+  .card, .badge, [data-slot="card"],
+  nav, aside {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
     transition-duration: 150ms;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -564,18 +572,25 @@
 /* Modern card hover effects */
 .card-interactive {
   @apply transition-all duration-200;
+  will-change: transform, box-shadow;
 }
 
 .card-interactive:hover {
   @apply border-primary/30;
   box-shadow: 0 4px 20px -4px rgba(0,0,0,0.3), 0 0 0 1px hsl(var(--primary) / 0.1);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+}
+
+.card-interactive:active {
+  transform: translateY(0);
+  transition-duration: 75ms;
 }
 
 /* Glass morphism effect for modals and overlays */
 .glass {
-  backdrop-filter: blur(12px) saturate(180%);
-  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(16px) saturate(180%);
+  background: hsl(var(--background) / 0.75);
+  border: 1px solid hsl(var(--border) / 0.5);
 }
 
 /* Improved focus states for accessibility */
@@ -583,12 +598,40 @@
   @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
 }
 
-/* Smooth page transitions */
-.page-transition {
-  animation: fadeIn 0.2s ease-out;
+/* ==============================================
+   MICRO-INTERACTIONS & POLISH
+   ============================================== */
+
+/* Button press effect */
+button:not(:disabled):active {
+  transform: scale(0.97);
+  transition-duration: 75ms;
 }
 
-@keyframes fadeIn {
+/* Row hover effect for lists/tables */
+.row-hover {
+  @apply transition-colors duration-150;
+}
+
+.row-hover:hover {
+  @apply bg-accent/50;
+}
+
+/* Stagger animation for lists */
+.stagger-in > * {
+  animation: staggerFadeIn 0.3s ease-out both;
+}
+
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 50ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 100ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 150ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 200ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 250ms; }
+.stagger-in > *:nth-child(7) { animation-delay: 300ms; }
+.stagger-in > *:nth-child(8) { animation-delay: 350ms; }
+
+@keyframes staggerFadeIn {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -597,6 +640,302 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Empty state icon float animation */
+.empty-state-icon {
+  animation: emptyStateFloat 3s ease-in-out infinite;
+}
+
+@keyframes emptyStateFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* Shimmer loading effect for skeleton */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.08) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Success flash animation */
+.flash-success {
+  animation: flashSuccess 0.5s ease-out;
+}
+
+@keyframes flashSuccess {
+  0% { box-shadow: 0 0 0 0 hsl(142 70% 50% / 0.4); }
+  50% { box-shadow: 0 0 0 6px hsl(142 70% 50% / 0.1); }
+  100% { box-shadow: 0 0 0 0 hsl(142 70% 50% / 0); }
+}
+
+/* Glow pulse on important elements */
+.glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 4px hsl(var(--primary) / 0.2); }
+  50% { box-shadow: 0 0 16px hsl(var(--primary) / 0.4); }
+}
+
+/* Tooltip-like popover enter */
+[data-state="open"][data-side] {
+  animation: popoverEnter 0.15s ease-out;
+}
+
+@keyframes popoverEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Scale-in animation for dialogs */
+[role="dialog"][data-state="open"] {
+  animation: dialogEnter 0.2s ease-out;
+}
+
+@keyframes dialogEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Progress bar animation */
+.progress-animate {
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Badge count bounce */
+.badge-bounce {
+  animation: badgeBounce 0.3s ease-out;
+}
+
+@keyframes badgeBounce {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* Slide-in from right for panels/drawers */
+.slide-in-right {
+  animation: slideInRight 0.25s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Number counter tick effect */
+.number-tick {
+  display: inline-block;
+  transition: transform 0.2s ease-out;
+}
+
+.number-tick.updated {
+  animation: numberTick 0.3s ease-out;
+}
+
+@keyframes numberTick {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-4px); }
+  100% { transform: translateY(0); }
+}
+
+/* Toast / notification slide-in from top-right */
+[data-sonner-toaster] [data-sonner-toast] {
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Custom text selection */
+::selection {
+  background: hsl(var(--primary) / 0.3);
+  color: hsl(var(--foreground));
+}
+
+/* Enhanced focus-visible for keyboard navigation */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+/* Smooth scroll for content containers */
+.scroll-smooth {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+
+/* Subtle hover for table rows */
+tr:hover td {
+  background: hsl(var(--muted) / 0.3);
+  transition: background 0.15s ease;
+}
+
+/* Switch toggle animation */
+[role="switch"] {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[role="switch"][data-state="checked"] {
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.3);
+}
+
+/* Tab indicator slide */
+[role="tab"][data-state="active"] {
+  position: relative;
+}
+
+[role="tab"][data-state="active"]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: hsl(var(--primary));
+  animation: tabIndicator 0.2s ease-out;
+}
+
+@keyframes tabIndicator {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Skeleton pulse override - smoother than default */
+[data-slot="skeleton"] {
+  animation: skeletonPulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* Tooltip animation */
+[role="tooltip"] {
+  animation: tooltipEnter 0.15s ease-out;
+}
+
+@keyframes tooltipEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ==============================================
+   NAVIGATION MENU STYLING
+   ============================================== */
+
+/* Section collapse/expand animation */
+.nav-section-content {
+  animation: nav-section-enter 0.2s ease-out;
+}
+
+@keyframes nav-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Active nav indicator bar glow */
+.theme-clean .nav-item-active {
+  background: linear-gradient(90deg,
+    hsl(175 85% 45% / 0.08) 0%,
+    transparent 100%
+  );
+}
+
+.theme-survival .nav-item-active {
+  background: linear-gradient(90deg,
+    hsl(85 65% 35% / 0.1) 0%,
+    transparent 100%
+  );
+}
+
+/* Nav scroll area — thinner scrollbar */
+.nav-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav-scroll::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  border: none;
+}
+
+/* Smooth page transitions */
+.page-transition {
+  animation: pageEnter 0.3s ease-out;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade-in only (no vertical shift) */
+.fade-in {
+  animation: fadeInOnly 0.2s ease-out;
+}
+
+@keyframes fadeInOnly {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Stats card number styling */

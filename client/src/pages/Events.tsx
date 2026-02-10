@@ -42,6 +42,7 @@ import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { rconApi, playersApi, panelBridgeApi } from '@/lib/api'
 import { Link } from 'react-router-dom'
+import { PageHeader } from '@/components/PageHeader'
 
 interface Player {
   name: string
@@ -319,16 +320,17 @@ export default function Events() {
 
   return (
     <div className="space-y-8 page-transition">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Events</h1>
-          <p className="text-muted-foreground text-base sm:text-lg">Trigger in-game events and world effects</p>
-        </div>
-        <Button variant="outline" onClick={fetchPlayers} className="gap-2">
-          <RefreshCw className="w-4 h-4" />
-          Refresh Players
-        </Button>
-      </div>
+      <PageHeader
+        title="Events"
+        description="Trigger in-game events and world effects"
+        icon={<Zap className="w-5 h-5 text-primary" />}
+        actions={
+          <Button variant="outline" onClick={fetchPlayers} className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Refresh Players
+          </Button>
+        }
+      />
 
       {/* Target Selection */}
       <Card className="card-interactive">
@@ -392,7 +394,7 @@ export default function Events() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 stagger-in">
         {/* Weather Controls */}
         <Card className="card-interactive">
           <CardHeader className="pb-4">

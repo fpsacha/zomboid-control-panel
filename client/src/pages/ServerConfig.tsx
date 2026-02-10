@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import {
   Settings,
   FileText,
@@ -31,6 +31,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -61,6 +62,7 @@ import {
 } from '@/components/ui/tooltip'
 // DropdownMenu imports available if needed
 import { serverFilesApi, SpawnPointsByProfession, SpawnRegion, SandboxData, ConfigTemplate } from '@/lib/api'
+import { EmptyState } from '@/components/EmptyState'
 import {
   INI_SCHEMA,
   INI_CATEGORIES,
@@ -72,6 +74,157 @@ import {
 } from '@/lib/serverConfigSchema'
 
 type EditorMode = 'structured' | 'raw'
+
+// --- Optimized Row Components ---
+
+const IniSettingRow = memo(({ 
+  setting, 
+  value, 
+  onChange 
+}: { 
+  setting: IniSetting; 
+  value: string; 
+  onChange: (key: string, value: string) => void 
+}) => {
+  // Multiline settings
+  if (setting.type === 'multiline') {
+    return (
+      <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
+        <div>
+          <Label className="text-sm font-medium">{setting.label}</Label>
+          <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+        </div>
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(setting.key, e.target.value)}
+          className="w-full min-h-[80px] px-3 py-2 text-sm resize-y"
+        />
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <code className="bg-muted px-1 rounded">{setting.key}</code>
+          {setting.default !== undefined && (
+            <span>Default: {String(setting.default)}</span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Standard settings
+  return (
+    <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{setting.label}</Label>
+          <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
+        </div>
+        <div className="w-48 shrink-0">
+          {setting.type === 'boolean' ? (
+            <Switch
+              checked={String(value).toLowerCase() === 'true'}
+              onCheckedChange={(checked) => onChange(setting.key, checked ? 'true' : 'false')}
+            />
+          ) : setting.type === 'select' && setting.options ? (
+            <Select value={String(value)} onValueChange={(val) => onChange(setting.key, val)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {setting.options.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : setting.type === 'number' ? (
+            <Input
+              type="number"
+              value={value}
+              onChange={(e) => {
+                const val = e.target.value
+                // Allow empty string for clearing
+                if (val === '') {
+                  onChange(setting.key, '')
+                  return
+                }
+                // Validate number (clamp later or just pass through)
+                onChange(setting.key, val)
+              }}
+              min={setting.min}
+              max={setting.max}
+              className="text-right"
+            />
+          ) : (
+            <Input
+              value={String(value)}
+              onChange={(e) => onChange(setting.key, e.target.value)}
+            />
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <code className="bg-muted px-1 rounded">{setting.key}</code>
+        {setting.default !== undefined && (
+          <span>Default: {String(setting.default)}</span>
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  return prev.value === next.value && prev.setting === next.setting
+})
+IniSettingRow.displayName = 'IniSettingRow'
+
+const SandboxSettingRow = memo(({ 
+  setting, 
+  value, 
+  onChange 
+}: { 
+  setting: SandboxSetting; 
+  value: any; 
+  onChange: (key: string, value: any) => void 
+}) => {
+  return (
+    <div className="grid gap-2 py-3 border-b last:border-0 pr-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <Label className="text-sm font-medium">{setting.label}</Label>
+          <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
+        </div>
+        <div className="w-48 shrink-0">
+          {setting.type === 'boolean' ? (
+            <Switch
+              checked={Boolean(value)}
+              onCheckedChange={(checked) => onChange(setting.key, checked)}
+            />
+          ) : setting.type === 'select' && setting.options ? (
+            <Select value={String(value || '')} onValueChange={(v) => onChange(setting.key, Number(v))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {setting.options.map(opt => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              type="number"
+              value={value !== undefined ? String(value) : ''}
+              onChange={(e) => onChange(setting.key, e.target.value)}
+              min={setting.min}
+              max={setting.max}
+              step={setting.max && setting.max <= 1 ? 0.1 : 1}
+              className="text-right"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  return prev.value === next.value && prev.setting === next.setting
+})
+SandboxSettingRow.displayName = 'SandboxSettingRow'
 
 export default function ServerConfig() {
   const [activeTab, setActiveTab] = useState('ini')
@@ -249,8 +402,16 @@ export default function ServerConfig() {
         await serverFilesApi.saveIni(iniSettings)
         setOriginalIniSettings({ ...iniSettings })
       }
-      await serverFilesApi.saveAndReload()
-      toast({ title: 'Saved', description: 'Server settings saved. Backup created automatically.' })
+      
+      // Try to reload via RCON, but don't fail if RCON is not connected
+      try {
+        await serverFilesApi.saveAndReload()
+        toast({ title: 'Saved & Reloaded', description: 'Server settings saved and reloaded.' })
+      } catch {
+        // File was saved, but RCON reload failed - that's okay
+        toast({ title: 'Saved', description: 'Settings saved. Restart server to apply changes.' })
+      }
+      
       if (editorMode === 'raw') {
         loadData() // Refresh structured data
       }
@@ -272,11 +433,39 @@ export default function ServerConfig() {
         await serverFilesApi.saveRaw('sandbox', rawContent)
         setOriginalRawContent(rawContent)
       } else if (sandboxData) {
-        await serverFilesApi.saveSandbox(sandboxData)
-        setOriginalSandboxData(JSON.parse(JSON.stringify(sandboxData)))
+        // Create a deep copy to sanitize numbers
+        const cleanData = JSON.parse(JSON.stringify(sandboxData)) as SandboxData
+        
+        // Ensure numbers are actually numbers (not strings from input keys)
+        SANDBOX_SCHEMA.forEach(setting => {
+          if (setting.type === 'number') {
+            const section = (setting.section || 'settings') as keyof SandboxData
+            if (cleanData[section]) {
+              const sectionData = cleanData[section] as Record<string, any>
+              const raw = sectionData[setting.key]
+              if (typeof raw === 'string') {
+                const num = parseFloat(raw)
+                sectionData[setting.key] = isNaN(num) ? (Number(setting.default) || 0) : num
+              }
+            }
+          }
+        })
+        
+        await serverFilesApi.saveSandbox(cleanData)
+        // Update local state to match sanitized data
+        setSandboxData(cleanData)
+        setOriginalSandboxData(cleanData)
       }
-      await serverFilesApi.saveAndReload()
-      toast({ title: 'Saved', description: 'Sandbox settings saved. Backup created automatically.' })
+      
+      // Try to reload via RCON, but don't fail if RCON is not connected
+      try {
+        await serverFilesApi.saveAndReload()
+        toast({ title: 'Saved & Reloaded', description: 'Sandbox settings saved and reloaded.' })
+      } catch {
+        // File was saved, but RCON reload failed - that's okay
+        toast({ title: 'Saved', description: 'Settings saved. Restart server to apply changes.' })
+      }
+      
       if (editorMode === 'raw') {
         loadData()
       }
@@ -488,160 +677,36 @@ export default function ServerConfig() {
     }
   }
 
-  // Render INI setting input
-  const renderIniSetting = (setting: IniSetting) => {
-    const value = iniSettings[setting.key] ?? setting.default ?? ''
+  // Optimized update handlers
+  const updateIniValue = useCallback((key: string, value: string) => {
+    setIniSettings(prev => ({ ...prev, [key]: value }))
+  }, [])
 
-    const updateValue = (newValue: string) => {
-      setIniSettings(prev => ({ ...prev, [setting.key]: newValue }))
-    }
+  const updateSandboxValue = useCallback((key: string, value: any) => {
+    setSandboxData(prev => {
+      if (!prev) return prev
+      // Determine section - this requires us to know the section, but we only have the key
+      // We can scan the schema to find the section, or rely on the passed section prop if we had one
+      // Since SandboxSettingRow doesn't know the section, we need to find it
+      // OPTIMIZATION: In a real app we'd pass section to the row, or map keys to sections
+      
+      const category = SANDBOX_SCHEMA.find(s => s.key === key)?.section || 'settings'
+      
+      const sectionData = { ...(prev[category as keyof SandboxData] as Record<string, unknown> || {}) }
+      sectionData[key] = value
+      return { ...prev, [category]: sectionData } as SandboxData
+    })
+  }, [])
 
-    // Multiline settings get full width layout
-    if (setting.type === 'multiline') {
-      return (
-        <div key={setting.key} className="grid gap-2 py-3 border-b last:border-0">
-          <div>
-            <Label className="text-sm font-medium">{setting.label}</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
-          </div>
-          <textarea
-            value={String(value)}
-            onChange={(e) => updateValue(e.target.value)}
-            className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background resize-y"
-          />
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <code className="bg-muted px-1 rounded">{setting.key}</code>
-            {setting.default !== undefined && (
-              <span>Default: {String(setting.default)}</span>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div key={setting.key} className="grid gap-2 py-3 border-b last:border-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <Label className="text-sm font-medium">{setting.label}</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
-          </div>
-          <div className="w-48 shrink-0">
-            {setting.type === 'boolean' ? (
-              <Switch
-                checked={String(value).toLowerCase() === 'true'}
-                onCheckedChange={(checked) => updateValue(checked ? 'true' : 'false')}
-              />
-            ) : setting.type === 'select' && setting.options ? (
-              <Select value={String(value)} onValueChange={updateValue}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {setting.options.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : setting.type === 'number' ? (
-              <Input
-                type="number"
-                value={value}
-                onChange={(e) => {
-                  const val = e.target.value
-                  // Allow empty string for clearing
-                  if (val === '') {
-                    updateValue('')
-                    return
-                  }
-                  // Validate number
-                  const num = parseFloat(val)
-                  if (!isNaN(num)) {
-                    // Clamp to min/max if defined
-                    const clamped = setting.min !== undefined && num < setting.min ? String(setting.min) :
-                                   setting.max !== undefined && num > setting.max ? String(setting.max) : val
-                    updateValue(clamped)
-                  }
-                }}
-                min={setting.min}
-                max={setting.max}
-                className="text-right"
-              />
-            ) : (
-              <Input
-                value={String(value)}
-                onChange={(e) => updateValue(e.target.value)}
-              />
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <code className="bg-muted px-1 rounded">{setting.key}</code>
-          {setting.default !== undefined && (
-            <span>Default: {String(setting.default)}</span>
-          )}
-        </div>
-      </div>
-    )
+  const expandAll = () => {
+    const all = activeTab === 'ini' 
+      ? INI_CATEGORIES.map(c => c.id) 
+      : SANDBOX_CATEGORIES.map(c => c.id)
+    setExpandedCategories(new Set(all))
   }
 
-  // Render Sandbox setting input
-  const renderSandboxSetting = (setting: SandboxSetting) => {
-    const section = setting.section || 'settings'
-    const data = sandboxData?.[section as keyof SandboxData]
-    const value = (typeof data === 'object' && data !== null)
-      ? (data as Record<string, unknown>)[setting.key]
-      : setting.default
-
-    const updateValue = (newValue: number | boolean) => {
-      if (!sandboxData) return
-      setSandboxData(prev => {
-        if (!prev) return prev
-        const sectionData = { ...(prev[section as keyof SandboxData] as Record<string, unknown> || {}) }
-        sectionData[setting.key] = newValue
-        return { ...prev, [section]: sectionData } as SandboxData
-      })
-    }
-
-    return (
-      <div key={setting.key} className="grid gap-2 py-3 border-b last:border-0">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <Label className="text-sm font-medium">{setting.label}</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
-          </div>
-          <div className="w-48 shrink-0">
-            {setting.type === 'boolean' ? (
-              <Switch
-                checked={Boolean(value)}
-                onCheckedChange={(checked) => updateValue(checked)}
-              />
-            ) : setting.type === 'select' && setting.options ? (
-              <Select value={String(value || '')} onValueChange={(v) => updateValue(Number(v))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {setting.options.map(opt => (
-                    <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                type="number"
-                value={value !== undefined ? String(value) : ''}
-                onChange={(e) => updateValue(parseFloat(e.target.value) || 0)}
-                min={setting.min}
-                max={setting.max}
-                step={setting.max && setting.max <= 1 ? 0.1 : 1}
-                className="text-right"
-              />
-            )}
-          </div>
-        </div>
-      </div>
-    )
+  const collapseAll = () => {
+    setExpandedCategories(new Set())
   }
 
   if (loading) {
@@ -659,7 +724,7 @@ export default function ServerConfig() {
   const professionsCount = Object.keys(spawnPoints).length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-transition">
       {/* Header with gradient */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-fuchsia-500/10 border p-6">
         <div className="absolute inset-0 bg-grid-white/5" />
@@ -722,7 +787,7 @@ export default function ServerConfig() {
         </div>
 
         {/* Stats Cards */}
-        <div className="relative grid grid-cols-4 gap-4 mt-6">
+        <div className="relative grid grid-cols-4 gap-4 mt-6 stagger-in">
           <div className="p-4 rounded-lg bg-background/60 backdrop-blur-sm border">
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold text-blue-500">{iniSettingsCount}</div>
@@ -775,7 +840,7 @@ export default function ServerConfig() {
       </div>
 
       {/* Search and Editor Mode */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -795,32 +860,47 @@ export default function ServerConfig() {
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
-          <Button
-            variant={editorMode === 'structured' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setEditorMode('structured')}
-            className="gap-1.5"
-          >
-            <FormInput className="w-4 h-4" /> Structured
-          </Button>
-          <Button
-            variant={editorMode === 'raw' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setEditorMode('raw')
-              // Load raw content for current tab
-              const typeMap: Record<string, 'ini' | 'sandbox' | 'spawnpoints' | 'spawnregions'> = {
-                ini: 'ini',
-                sandbox: 'sandbox',
-                spawnpoints: 'spawnpoints',
-                spawnregions: 'spawnregions'
-              }
-              loadRawContent(typeMap[activeTab] || 'ini')
-            }}
-          >
-            <Code className="w-4 h-4 mr-1" /> Raw
-          </Button>
+        
+        {/* View Controls */}
+        <div className="flex items-center gap-2">
+          {editorMode === 'structured' && (activeTab === 'ini' || activeTab === 'sandbox') && (
+            <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
+              <Button variant="ghost" size="sm" onClick={expandAll} className="h-7 text-xs">
+                <ChevronDown className="w-3 h-3 mr-1" /> Expand
+              </Button>
+              <Button variant="ghost" size="sm" onClick={collapseAll} className="h-7 text-xs">
+                <ChevronRight className="w-3 h-3 mr-1" /> Collapse
+              </Button>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-1 border rounded-lg p-1 bg-muted/30">
+            <Button
+              variant={editorMode === 'structured' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setEditorMode('structured')}
+              className="gap-1.5"
+            >
+              <FormInput className="w-4 h-4" /> Structured
+            </Button>
+            <Button
+              variant={editorMode === 'raw' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setEditorMode('raw')
+                // Load raw content for current tab
+                const typeMap: Record<string, 'ini' | 'sandbox' | 'spawnpoints' | 'spawnregions'> = {
+                  ini: 'ini',
+                  sandbox: 'sandbox',
+                  spawnpoints: 'spawnpoints',
+                  spawnregions: 'spawnregions'
+                }
+                loadRawContent(typeMap[activeTab] || 'ini')
+              }}
+            >
+              <Code className="w-4 h-4 mr-1" /> Raw
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -985,7 +1065,14 @@ export default function ServerConfig() {
                         </button>
                         {isExpanded && (
                           <div className="mt-3 pl-4 border-l-2 border-blue-500/30 ml-4 space-y-1">
-                            {settings.map(renderIniSetting)}
+                            {settings.map(setting => (
+                              <IniSettingRow 
+                                key={setting.key} 
+                                setting={setting} 
+                                value={iniSettings[setting.key] || ''} 
+                                onChange={updateIniValue} 
+                              />
+                            ))}
                           </div>
                         )}
                       </div>
@@ -1102,7 +1189,14 @@ export default function ServerConfig() {
                         </button>
                         {isExpanded && (
                           <div className="mt-3 pl-4 border-l-2 border-green-500/30 ml-4 space-y-1">
-                            {settings.map(renderSandboxSetting)}
+                            {settings.map(setting => (
+                              <SandboxSettingRow 
+                                key={setting.key} 
+                                setting={setting} 
+                                value={(sandboxData?.[(setting.section || 'settings') as keyof SandboxData] as Record<string, any>)?.[setting.key]}
+                                onChange={updateSandboxValue}
+                              />
+                            ))}
                           </div>
                         )}
                       </div>
@@ -1278,10 +1372,7 @@ export default function ServerConfig() {
                   </div>
                   
                   {spawnRegions.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p>No spawn regions found in file.</p>
-                      <p className="text-xs mt-2">Try switching to Raw mode to view the file contents.</p>
-                    </div>
+                    <EmptyState type="noData" title="No spawn regions found" description="Try switching to Raw mode to view the file contents" compact />
                   ) : (
                     <div className="space-y-2">
                       {spawnRegions.map((region, index) => (
@@ -1374,11 +1465,7 @@ export default function ServerConfig() {
           
           <ScrollArea className="h-[400px]">
             {backups.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <RotateCcw className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>No backups available yet.</p>
-                <p className="text-xs mt-1">Backups are created automatically when you save any config file.</p>
-              </div>
+              <EmptyState type="noData" title="No backups available yet" description="Backups are created automatically when you save any config file" compact />
             ) : (
               <div className="space-y-2">
                 {backups
@@ -1498,11 +1585,7 @@ export default function ServerConfig() {
           
           <ScrollArea className="h-[400px]">
             {templates.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Bookmark className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>No templates saved yet.</p>
-                <p className="text-xs mt-1">Click "Save Current as Template" to create your first template.</p>
-              </div>
+              <EmptyState type="noData" title="No templates saved yet" description="Click 'Save Current as Template' to create your first template" compact />
             ) : (
               <div className="space-y-3">
                 {templates.map((template) => (

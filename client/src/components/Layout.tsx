@@ -14,7 +14,6 @@ import {
   MessageSquare,
   Layers,
   ChevronDown,
-  ChevronRight,
   FileCog,
   Palette,
   Menu,
@@ -51,14 +50,15 @@ import {
 } from "@/components/ui/alert"
 
 // Standalone top-level nav item (not collapsible)
-const dashboardItem = { to: '/', icon: LayoutDashboard, label: '📊 Dashboard' }
+const dashboardItem = { to: '/', icon: LayoutDashboard, label: 'Dashboard' }
 
 // Navigation sections with collapsible groups
 const navSections = [
   {
     id: 'active',
-    label: '🎮 Live',
+    label: 'Live',
     icon: Terminal,
+    color: 'emerald',
     items: [
       { to: '/console', icon: Terminal, label: 'Server Console' },
       { to: '/players', icon: Users, label: 'Online Players' },
@@ -67,16 +67,18 @@ const navSections = [
   },
   {
     id: 'world',
-    label: '🌍 World',
+    label: 'World',
     icon: Zap,
+    color: 'amber',
     items: [
       { to: '/events', icon: Zap, label: 'Events & Weather' },
     ]
   },
   {
     id: 'config',
-    label: '📦 Config',
+    label: 'Config',
     icon: FileCog,
+    color: 'blue',
     items: [
       { to: '/server-config', icon: FileCog, label: 'INI Settings' },
       { to: '/mods', icon: Package, label: 'Workshop Mods' },
@@ -84,8 +86,9 @@ const navSections = [
   },
   {
     id: 'maintenance',
-    label: '🔧 Maintain',
+    label: 'Maintain',
     icon: Clock,
+    color: 'purple',
     items: [
       { to: '/scheduler', icon: Clock, label: 'Scheduled Tasks' },
       { to: '/backups', icon: Archive, label: 'World Backups' },
@@ -94,8 +97,9 @@ const navSections = [
   },
   {
     id: 'servers',
-    label: '🖥️ Servers',
+    label: 'Servers',
     icon: Server,
+    color: 'cyan',
     items: [
       { to: '/servers', icon: Layers, label: 'My Servers' },
       { to: '/server-setup', icon: Download, label: 'Steam Installer' },
@@ -104,8 +108,9 @@ const navSections = [
   },
   {
     id: 'system',
-    label: '⚙️ Panel',
+    label: 'Settings & Tools',
     icon: Settings,
+    color: 'slate',
     items: [
       { to: '/discord', icon: MessageSquare, label: 'Discord' },
       { to: '/settings', icon: Settings, label: 'Panel Settings' },
@@ -113,6 +118,16 @@ const navSections = [
     ]
   },
 ]
+
+// Color maps for section accent dots/icons
+const sectionColors: Record<string, { dot: string; icon: string; bg: string; border: string; activeBg: string }> = {
+  emerald: { dot: 'bg-emerald-500', icon: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', activeBg: 'bg-emerald-500/5' },
+  amber:   { dot: 'bg-amber-500',   icon: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   activeBg: 'bg-amber-500/5' },
+  blue:    { dot: 'bg-blue-500',    icon: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    activeBg: 'bg-blue-500/5' },
+  purple:  { dot: 'bg-violet-500',  icon: 'text-violet-400',  bg: 'bg-violet-500/10',  border: 'border-violet-500/20',  activeBg: 'bg-violet-500/5' },
+  cyan:    { dot: 'bg-cyan-500',    icon: 'text-cyan-400',    bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    activeBg: 'bg-cyan-500/5' },
+  slate:   { dot: 'bg-slate-400',   icon: 'text-slate-400',   bg: 'bg-slate-500/10',   border: 'border-slate-500/20',   activeBg: 'bg-slate-500/5' },
+}
 
 interface LayoutProps {
   children: React.ReactNode
@@ -437,79 +452,128 @@ export default function Layout({ children }: LayoutProps) {
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-2">
+        <nav className="flex-1 px-3 py-4 overflow-y-auto nav-scroll">
+          <div className="space-y-1">
             {/* Dashboard - standalone item */}
             <NavLink
               to={dashboardItem.to}
               onClick={() => setMobileMenuOpen(false)}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
+                  'nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group relative',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    ? 'nav-item-active bg-primary/12 text-foreground font-semibold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                 )
               }
             >
-              <dashboardItem.icon className="w-5 h-5" />
-              {dashboardItem.label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-primary" />
+                  )}
+                  <span className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
+                    isActive ? "bg-primary/15" : "bg-muted/50 group-hover:bg-muted"
+                  )}>
+                    <dashboardItem.icon className={cn("w-[18px] h-[18px]", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                  </span>
+                  <span>{dashboardItem.label}</span>
+                </>
+              )}
             </NavLink>
 
+            {/* Section divider */}
+            <div className="pt-2" />
+
             {/* Collapsible sections */}
-            {navSections.map((section) => (
-              <Collapsible
-                key={section.id}
-                open={openSections.has(section.id)}
-                onOpenChange={() => toggleSection(section.id)}
-              >
-                <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 text-xs font-semibold uppercase tracking-wider text-primary/70 hover:text-primary hover:bg-primary/5 rounded-lg transition-colors group">
-                  <div className="flex items-center gap-2">
-                    <section.icon className="w-4 h-4 text-primary/50 group-hover:text-primary" />
-                    {section.label}
-                  </div>
-                  {openSections.has(section.id) ? (
-                    <ChevronDown className="w-4 h-4 transition-transform" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 transition-transform" />
-                  )}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-1 space-y-1 ml-3 pl-3 border-l border-primary/15">
-                  {section.items.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          'flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group relative',
-                          isActive
-                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                            : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground hover:translate-x-1'
-                        )
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <item.icon className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" />
-                          {item.label}
-                          {item.to === '/players' && playerCount > 0 && (
-                            <span className={cn(
-                              "ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors",
-                              isActive 
-                                ? "bg-white/20 text-white" 
-                                : "bg-primary/10 text-primary"
-                            )}>
-                              {playerCount}
-                            </span>
-                          )}
-                        </>
+            {navSections.map((section) => {
+              const colors = sectionColors[section.color] || sectionColors.slate
+              const isOpen = openSections.has(section.id)
+              const hasActiveChild = section.items.some(item => location.pathname === item.to)
+
+              return (
+                <Collapsible
+                  key={section.id}
+                  open={isOpen}
+                  onOpenChange={() => toggleSection(section.id)}
+                >
+                  <CollapsibleTrigger className={cn(
+                    "flex items-center justify-between w-full px-3 py-2 rounded-lg transition-all duration-200 group",
+                    isOpen ? "mb-0.5" : "",
+                    hasActiveChild && !isOpen ? colors.activeBg : "hover:bg-muted/30"
+                  )}>
+                    <div className="flex items-center gap-2.5">
+                      <span className={cn(
+                        "flex items-center justify-center w-6 h-6 rounded-md transition-colors",
+                        isOpen ? cn(colors.bg, colors.border, "border") : "bg-transparent"
+                      )}>
+                        <section.icon className={cn(
+                          "w-3.5 h-3.5 transition-colors",
+                          isOpen || hasActiveChild ? colors.icon : "text-muted-foreground/60 group-hover:text-muted-foreground"
+                        )} />
+                      </span>
+                      <span className={cn(
+                        "text-xs font-semibold uppercase tracking-widest transition-colors",
+                        isOpen || hasActiveChild ? "text-foreground/80" : "text-muted-foreground/60 group-hover:text-muted-foreground"
+                      )}>
+                        {section.label}
+                      </span>
+                      {hasActiveChild && !isOpen && (
+                        <span className={cn("w-1.5 h-1.5 rounded-full", colors.dot)} />
                       )}
-                    </NavLink>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-            ))}
+                    </div>
+                    <ChevronDown className={cn(
+                      "w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-200",
+                      isOpen ? "" : "-rotate-90"
+                    )} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="nav-section-content overflow-hidden">
+                    <div className={cn(
+                      "ml-[18px] pl-3 space-y-0.5 py-0.5",
+                      "border-l-[2px] transition-colors",
+                      hasActiveChild ? colors.border.replace('/20', '/40') : "border-border/40"
+                    )}>
+                      {section.items.map((item) => (
+                        <NavLink
+                          key={item.to}
+                          to={item.to}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className={({ isActive }) =>
+                            cn(
+                              'nav-item flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all duration-200 group relative',
+                              isActive
+                                ? 'nav-item-active bg-primary/10 text-foreground font-medium'
+                                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                            )
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <item.icon className={cn(
+                                "w-4 h-4 transition-all duration-200 shrink-0",
+                                isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
+                              )} />
+                              <span className="truncate">{item.label}</span>
+                              {item.to === '/players' && playerCount > 0 && (
+                                <span className={cn(
+                                  "ml-auto text-[10px] font-bold min-w-[20px] text-center px-1.5 py-0.5 rounded-full transition-colors",
+                                  isActive 
+                                    ? "bg-primary/20 text-primary" 
+                                    : "bg-emerald-500/10 text-emerald-400"
+                                )}>
+                                  {playerCount}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            })}
           </div>
         </nav>
 

@@ -28,6 +28,7 @@ import {
   GripVertical
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -54,6 +55,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { useToast } from '@/components/ui/use-toast'
 import { modsApi } from '@/lib/api'
+import { EmptyState } from '@/components/EmptyState'
 
 interface TrackedMod {
   id: number
@@ -158,6 +160,8 @@ export default function Mods() {
   const [draggedModIndex, setDraggedModIndex] = useState<number | null>(null)  
   // Expand/collapse states
   const [showMapsExpanded, setShowMapsExpanded] = useState(false)
+  const [showWorkshopIdsExpanded, setShowWorkshopIdsExpanded] = useState(false)
+  const [showModIdsExpanded, setShowModIdsExpanded] = useState(false)
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   
@@ -226,8 +230,8 @@ export default function Mods() {
     
     // Check for workshop items without corresponding mod IDs
     // This is normal for mods not yet downloaded, so just info level
-    const workshopCount = iniConfig.workshopIds.length
-    const modIdCount = iniConfig.modIds.length
+    const workshopCount = iniConfig.workshopIds?.length || 0
+    const modIdCount = iniConfig.modIds?.length || 0
     if (workshopCount > 0 && modIdCount === 0) {
       conflicts.push({
         type: 'missing_modid',
@@ -318,10 +322,20 @@ export default function Mods() {
     }
   }, [])
   
-  // Initial data fetch
+  // Initial data fetch + auto sync from server
   useEffect(() => {
-    fetchData()
-    fetchPresets()
+    const initializeData = async () => {
+      // First sync from server silently to ensure mod list is up to date
+      try {
+        await modsApi.syncFromServer()
+      } catch (error) {
+        console.error('Auto-sync from server failed:', error)
+      }
+      // Then fetch all data
+      fetchData()
+      fetchPresets()
+    }
+    initializeData()
   }, [fetchData, fetchPresets])
   
   const handleSavePreset = async () => {
@@ -1104,14 +1118,13 @@ export default function Mods() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-4">
+      <div className="space-y-4 page-transition">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Mod Manager</h1>
-            <p className="text-sm text-muted-foreground">Track, update, and configure Steam Workshop mods</p>
-          </div>
-        </div>
+        <PageHeader
+          title="Mod Manager"
+          description="Track, update, and configure Steam Workshop mods"
+          icon={<Package className="w-5 h-5" />}
+        />
 
         {/* Quick Stats Bar */}
         <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg flex-wrap">
@@ -1764,15 +1777,11 @@ export default function Mods() {
               <CardContent className="p-0">
                 <ScrollArea className="h-[500px]">
                   {filteredMods.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <Package className="w-12 h-12 text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        {searchQuery ? 'No mods match your search' : 'No mods tracked'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Add mods manually or sync from server configuration
-                      </p>
-                    </div>
+                    <EmptyState
+                      type={searchQuery ? 'noResults' : 'noMods'}
+                      title={searchQuery ? 'No mods match your search' : 'No mods tracked'}
+                      description={searchQuery ? 'Try a different search term' : 'Add mods manually or sync from server configuration'}
+                    />
                   ) : (
                     <div className="divide-y">
                       {filteredMods.map((mod) => (
@@ -1814,14 +1823,20 @@ export default function Mods() {
                           
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => openWorkshopPage(mod.workshop_id)}
+                              <a 
+                                href={`https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.workshop_id}`} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="inline-flex"
                               >
-                                <ExternalLink className="w-4 h-4" />
-                              </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-blue-500"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                              </a>
                             </TooltipTrigger>
                             <TooltipContent>Open Workshop Page</TooltipContent>
                           </Tooltip>
@@ -1865,7 +1880,7 @@ export default function Mods() {
                 {iniConfig?.configured ? (
                   <>
                     {/* Summary Stats */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4 stagger-in">
                       <div className="text-center p-3 rounded-lg bg-muted/50">
                         <div className="text-2xl font-bold">{iniConfig.totalMods}</div>
                         <div className="text-xs text-muted-foreground">Mods</div>
@@ -1955,6 +1970,58 @@ export default function Mods() {
                               {map}
                             </Badge>
                           ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Workshop IDs List */}
+                    <div>
+                      <button
+                        onClick={() => setShowWorkshopIdsExpanded(!showWorkshopIdsExpanded)}
+                        className="flex items-center gap-2 text-sm font-medium mb-2 hover:text-primary transition-colors"
+                      >
+                        {showWorkshopIdsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <Package className="w-4 h-4" />
+                        WorkshopItems= ({iniConfig.workshopIds?.length || 0})
+                      </button>
+                      {showWorkshopIdsExpanded && (
+                        <div className="ml-6 space-y-2">
+                          <div className="flex flex-wrap gap-1">
+                            {iniConfig.workshopIds?.map((id, i) => (
+                              <Badge key={i} variant="outline" className="text-xs font-mono">
+                                {id}
+                              </Badge>
+                            ))}
+                          </div>
+                          <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded font-mono break-all">
+                            WorkshopItems={iniConfig.workshopIds?.join(';') || ''}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mod IDs List */}
+                    <div>
+                      <button
+                        onClick={() => setShowModIdsExpanded(!showModIdsExpanded)}
+                        className="flex items-center gap-2 text-sm font-medium mb-2 hover:text-primary transition-colors"
+                      >
+                        {showModIdsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <FileText className="w-4 h-4" />
+                        Mods= ({iniConfig.modIds?.length || 0})
+                      </button>
+                      {showModIdsExpanded && (
+                        <div className="ml-6 space-y-2">
+                          <div className="flex flex-wrap gap-1">
+                            {iniConfig.modIds?.map((id, i) => (
+                              <Badge key={i} variant="outline" className="text-xs font-mono">
+                                {id}
+                              </Badge>
+                            ))}
+                          </div>
+                          <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded font-mono break-all">
+                            Mods={iniConfig.modIds?.join(';') || ''}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2056,7 +2123,10 @@ export default function Mods() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => copyToClipboard(iniConfig.modIds.join(';'), 'mods')}
+                        onClick={() => {
+                          const text = orderedModIds.length > 0 ? orderedModIds.join(';') : (iniConfig?.modIds?.join(';') || '');
+                          if (text) copyToClipboard(text, 'mods');
+                        }}
                       >
                         {copiedField === 'mods' ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
                         Copy Mods=
@@ -2064,7 +2134,10 @@ export default function Mods() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => copyToClipboard(iniConfig.workshopIds.join(';'), 'workshop')}
+                        onClick={() => {
+                          const text = iniConfig?.workshopIds?.join(';') || '';
+                          if (text) copyToClipboard(text, 'workshop');
+                        }}
                       >
                         {copiedField === 'workshop' ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
                         Copy WorkshopItems=
@@ -2166,7 +2239,7 @@ export default function Mods() {
                         </div>
                         {iniConfig?.configured && (
                           <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded">
-                            This will save {iniConfig.workshopIds.length} workshop items and {iniConfig.modIds.length} mod IDs.
+                            This will save {iniConfig.workshopIds?.length || 0} workshop items and {iniConfig.modIds?.length || 0} mod IDs.
                           </div>
                         )}
                       </div>
@@ -2204,7 +2277,7 @@ export default function Mods() {
                         <div className="flex-1 min-w-0">
                           <div className="font-medium">{preset.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            {preset.workshopIds.length} mods • {preset.description || 'No description'}
+                            {preset.workshopIds?.length || 0} mods • {preset.description || 'No description'}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Saved {new Date(preset.created_at).toLocaleDateString()}

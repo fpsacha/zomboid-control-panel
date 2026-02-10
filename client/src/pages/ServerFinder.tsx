@@ -20,6 +20,7 @@ import {
   ChevronsRight,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
+import { EmptyState } from '@/components/EmptyState'
 import {
   Select,
   SelectContent,
@@ -312,30 +314,29 @@ export default function ServerFinder() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-transition">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Server Finder</h1>
-          <p className="text-muted-foreground">
-            Browse Project Zomboid multiplayer servers
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => fetchServers(false)} disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
+      <PageHeader
+        title="Server Finder"
+        description="Browse Project Zomboid multiplayer servers"
+        icon={<Globe className="w-5 h-5" />}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => fetchServers(false)} disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              {cached ? 'Cached' : 'Refresh'}
+            </Button>
+            <Button onClick={() => fetchServers(true)} disabled={loading}>
               <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            {cached ? 'Cached' : 'Refresh'}
-          </Button>
-          <Button onClick={() => fetchServers(true)} disabled={loading}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Force Refresh
-          </Button>
-        </div>
-      </div>
+              Force Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {/* API Key Warning */}
       {!apiKeyConfigured && !loading && (
@@ -358,7 +359,7 @@ export default function ServerFinder() {
       )}
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4 stagger-in">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Servers</CardTitle>
@@ -561,27 +562,26 @@ export default function ServerFinder() {
               <span className="ml-3 text-muted-foreground">Loading servers...</span>
             </div>
           ) : filteredServers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
+            <div className="text-center py-12">
               {servers.length === 0 ? (
-                <>
-                  <Server className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No servers found</p>
-                  <p className="text-sm">Make sure your Steam API key is configured</p>
-                </>
+                <EmptyState type="noResults" title="No servers found" description="Make sure your Steam API key is configured" />
               ) : (
-                <>
-                  <Filter className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No servers match your filters</p>
-                  <Button variant="link" onClick={() => {
-                    setSearchQuery('')
-                    setHideEmpty(false)
-                    setHideFull(false)
-                    setHidePrivate(false)
-                    setShowVacOnly(false)
-                  }}>
-                    Clear all filters
-                  </Button>
-                </>
+                <EmptyState
+                  type="noResults"
+                  title="No servers match your filters"
+                  description="Try adjusting your search filters or refresh the server list"
+                  action={
+                    <Button variant="link" onClick={() => {
+                      setSearchQuery('')
+                      setHideEmpty(false)
+                      setHideFull(false)
+                      setHidePrivate(false)
+                      setShowVacOnly(false)
+                    }}>
+                      Clear all filters
+                    </Button>
+                  }
+                />
               )}
             </div>
           ) : (

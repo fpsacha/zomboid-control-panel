@@ -13,13 +13,15 @@ import {
   Bell
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
-import { panelBridgeApi, playersApi } from '@/lib/api'
+import { panelBridgeApi, playersApi, rconApi } from '@/lib/api'
 import { useSocket } from '@/contexts/SocketContext'
+import { EmptyState } from '@/components/EmptyState'
 
 interface ChatMessage {
   id: string
@@ -98,10 +100,36 @@ export default function Chat() {
         setBridgeConnected(data.modConnected && data.isRunning)
       }
 
+      const handleSocketMessage = (data: any) => {
+        setChatHistory(prev => {
+             // Deduplication: Check if we have a message with same content/author in last 2 seconds
+             // This prevents echoing our own messages if we optimistically added them
+             const recent = prev.slice(-5);
+             const isDuplicate = recent.some(m => 
+                 m.message === data.message && 
+                 m.author === data.author &&
+                 Math.abs(new Date(m.timestamp).getTime() - new Date(data.timestamp).getTime()) < 2000
+             );
+             if (isDuplicate) return prev;
+
+             const newMessage: ChatMessage = {
+                id: data.id || Date.now().toString(),
+                type: 'general',
+                author: data.author,
+                message: data.message,
+                timestamp: new Date(data.timestamp || Date.now())
+             };
+
+             return [...prev, newMessage].slice(-200);
+        });
+      }
+
       socket.on('panelbridge:status', handleBridgeStatus)
+      socket.on('chat:message', handleSocketMessage)
 
       return () => {
         socket.off('panelbridge:status', handleBridgeStatus)
+        socket.off('chat:message', handleSocketMessage)
       }
     }
   }, [socket])
@@ -124,33 +152,50 @@ export default function Chat() {
       let result
       let channelLabel = getChannelLabel(channel)
 
-      switch (channel) {
-        case 'server':
-          // Regular server message (appears to all)
-          result = await panelBridgeApi.sendToServerChat(message, false)
-          break
-        case 'alert':
-          // Alert style message (more prominent, appears to all)
-          result = await panelBridgeApi.sendToServerChat(message, true)
-          channelLabel = 'Alert'
-          break
-        case 'admin':
-          // Admin-only message
-          result = await panelBridgeApi.sendToAdminChat(message)
-          break
-        case 'general':
-          // General chat with custom author
-          result = await panelBridgeApi.sendToGeneralChat(message, authorName)
-          channelLabel = `${authorName}`
-          break
+      if (bridgeConnected) {
+        // Use powerful Mod API if available
+        switch (channel) {
+            case 'server':
+            result = await panelBridgeApi.sendToServerChat(message, false)
+            break
+            case 'alert':
+            result = await panelBridgeApi.sendToServerChat(message, true)
+            channelLabel = 'Alert'
+            break
+            case 'admin':
+            result = await panelBridgeApi.sendToAdminChat(message)
+            break
+            case 'general':
+            result = await panelBridgeApi.sendToGeneralChat(message, authorName)
+            channelLabel = `${authorName}`
+            break
+        }
+      } else {
+        // Fallback to RCON
+        // RCON works best for 'server' broadcasts.
+        // For general/admin, we just use servermsg with prefix
+        const safeMessage = message.replace(/"/g, '\\"');
+        
+        switch (channel) {
+            case 'server':
+            case 'alert':
+                result = await rconApi.execute(`servermsg "${safeMessage}"`)
+                break;
+            default:
+                // Prepend author or context since we can't truly impersonate via RCON easily
+                const prefix = channel === 'admin' ? '[Admin]' : `[${authorName}]`;
+                result = await rconApi.execute(`servermsg "${prefix} ${safeMessage}"`)
+                break;
+        }
       }
 
       if (result?.success) {
         // Add to local chat history (keep last 200 messages)
+        // With LogTailer, this might duplicate if we are fast enough, but our dedup logic should handle it
         setChatHistory(prev => [...prev, {
           id: Date.now().toString(),
           type: channel,
-          author: channel === 'general' ? authorName : undefined,
+          author: channel === 'general' ? authorName : 'Server',
           message: message,
           timestamp: new Date()
         }].slice(-200))
@@ -209,26 +254,27 @@ export default function Chat() {
 
   return (
     <div className="space-y-6 page-transition">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">In-Game Chat</h1>
-          <p className="text-muted-foreground text-base sm:text-lg">Send messages to players via PanelBridge</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${bridgeConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-            {bridgeLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            )}
-            <span className="text-sm font-medium">{bridgeConnected ? 'Bridge Connected' : 'Bridge Offline'}</span>
+      <PageHeader
+        title="In-Game Chat"
+        description="Send messages to players via PanelBridge"
+        icon={<MessagesSquare className="w-5 h-5" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${bridgeConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+              {bridgeLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <div className={`w-2 h-2 rounded-full ${bridgeConnected ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              )}
+              <span className="text-sm font-medium">{bridgeConnected ? 'Bridge Connected' : 'Bridge Offline'}</span>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => { fetchPlayers(); checkBridgeStatus() }} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={() => { fetchPlayers(); checkBridgeStatus() }} className="gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Bridge Warning */}
       {!bridgeConnected && !bridgeLoading && (
@@ -265,11 +311,7 @@ export default function Chat() {
               <ScrollArea className="flex-1 px-4">
                 <div className="py-4 space-y-3">
                   {chatHistory.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                      <MessagesSquare className="w-12 h-12 mb-3 opacity-50" />
-                      <p className="font-medium">No messages yet</p>
-                      <p className="text-sm">Send a message to get started</p>
-                    </div>
+                    <EmptyState type="noMessages" title="No messages yet" description="Send a message to get started" compact />
                   ) : (
                     chatHistory.map((msg) => (
                       <div

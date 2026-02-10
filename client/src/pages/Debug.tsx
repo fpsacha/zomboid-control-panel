@@ -55,6 +55,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
 import { SocketContext } from '@/contexts/SocketContext'
+import { PageHeader } from '@/components/PageHeader'
 
 interface LogEntry {
   id: string
@@ -565,14 +566,12 @@ export default function Debug() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Bug className="w-8 h-8" />
-          Debug & Logs
-        </h1>
-        <p className="text-muted-foreground">View system information, service health, and application logs</p>
-      </div>
+    <div className="space-y-6 page-transition">
+      <PageHeader
+        title="Debug & Logs"
+        description="View system information, service health, and application logs"
+        icon={<Bug className="w-5 h-5 text-primary" />}
+      />
 
       <Tabs defaultValue="logs" className="space-y-4">
         <TabsList>

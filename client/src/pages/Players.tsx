@@ -76,7 +76,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
+import { EmptyState } from '@/components/EmptyState'
 import { playersApi } from '@/lib/api'
+import { PageHeader } from '@/components/PageHeader'
 
 interface Player {
   name: string
@@ -555,26 +557,27 @@ export default function Players() {
   return (
     <div className="space-y-6 page-transition">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Players</h1>
-          <p className="text-muted-foreground">Manage connected players and their permissions</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {lastRefresh && (
-            <span className="text-xs text-muted-foreground">
-              Updated {lastRefresh.toLocaleTimeString()}
-            </span>
-          )}
-          <Button onClick={fetchPlayers} variant="outline" size="sm" className="gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Players"
+        description="Manage connected players and their permissions"
+        icon={<Users className="w-5 h-5 text-primary" />}
+        actions={
+          <div className="flex items-center gap-2">
+            {lastRefresh && (
+              <span className="text-xs text-muted-foreground">
+                Updated {lastRefresh.toLocaleTimeString()}
+              </span>
+            )}
+            <Button onClick={fetchPlayers} variant="outline" size="sm" className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
+        }
+      />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 stagger-in">
         <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -662,15 +665,9 @@ export default function Players() {
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : players.length === 0 ? (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-muted-foreground">No players online</p>
-                </div>
+                <EmptyState type="noPlayers" title="No players online" description="Players will appear here when they join the server" compact />
               ) : filteredPlayers.length === 0 ? (
-                <div className="text-center py-8">
-                  <Search className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                  <p className="text-muted-foreground">No matches for "{playerSearchFilter}"</p>
-                </div>
+                <EmptyState type="noResults" title={`No matches for "${playerSearchFilter}"`} description="Try a different search term" compact />
               ) : (
                 <div className="space-y-1">
                   {filteredPlayers.map((player) => {

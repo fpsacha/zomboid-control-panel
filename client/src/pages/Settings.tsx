@@ -14,15 +14,16 @@ import {
   Zap,
   CheckCircle2,
   XCircle,
-  Search,
   Download,
   RefreshCw,
   Archive,
   Trash2,
   HardDrive,
-  RotateCcw
+  RotateCcw,
+  Settings2
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,9 +40,16 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/components/ui/use-toast'
-import { configApi, panelBridgeApi, backupApi, BackupStatus, BackupFile } from '@/lib/api'
+import { configApi, panelBridgeApi, backupApi, serversApi, BackupStatus, BackupFile, ServerInstance } from '@/lib/api'
 import { useSocket } from '@/contexts/SocketContext'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface AppSettings {
   // Mod Checker Settings
@@ -116,11 +124,12 @@ export default function Settings() {
       zomboidDataPath: string
     } | null
   } | null>(null)
-  const [bridgeServerName, setBridgeServerName] = useState('')
-  const [bridgeManualPath, setBridgeManualPath] = useState('')
   const [bridgeLoading, setBridgeLoading] = useState(false)
   const [bridgeError, setBridgeError] = useState<string | null>(null)
-  const [serverModsPath, setServerModsPath] = useState('')
+  
+  // Server list for install dropdown
+  const [servers, setServers] = useState<ServerInstance[]>([])
+  const [selectedInstallServerId, setSelectedInstallServerId] = useState<string>('')
   const [installingMod, setInstallingMod] = useState(false)
   
   // Backup state
@@ -240,6 +249,51 @@ export default function Settings() {
       console.error('Failed to fetch bridge status:', error)
     }
   }, [])
+  
+  // Fetch servers list for install dropdown
+  const fetchServers = useCallback(async () => {
+    try {
+      const data = await serversApi.getAll()
+      setServers(data.servers || [])
+      // Auto-select active server
+      const activeServer = data.servers?.find((s) => s.isActive)
+      if (activeServer && !selectedInstallServerId) {
+        setSelectedInstallServerId(String(activeServer.id))
+      }
+    } catch (error) {
+      console.error('Failed to fetch servers:', error)
+    }
+  }, [selectedInstallServerId])
+  
+  // Install PanelBridge mod to selected server
+  const handleInstallMod = async () => {
+    if (!selectedInstallServerId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a server to install to',
+        variant: 'destructive',
+      })
+      return
+    }
+    
+    setInstallingMod(true)
+    try {
+      const result = await panelBridgeApi.installModAuto(selectedInstallServerId)
+      toast({
+        title: 'Success',
+        description: `PanelBridge.lua installed to ${result.serverName || 'server'}`,
+        variant: 'success' as const,
+      })
+    } catch (error) {
+      toast({
+        title: 'Installation Failed',
+        description: error instanceof Error ? error.message : 'Failed to install mod',
+        variant: 'destructive',
+      })
+    } finally {
+      setInstallingMod(false)
+    }
+  }
 
   // Use ref for bridge polling interval to avoid recreation issues
   const bridgeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -252,6 +306,7 @@ export default function Settings() {
 
   useEffect(() => {
     fetchBridgeStatus()
+    fetchServers()
     
     // Use recursive setTimeout for adaptive interval based on current status
     let timeoutId: ReturnType<typeof setTimeout> | null = null
@@ -514,33 +569,7 @@ export default function Settings() {
     }
   }, [socket]) // Only depend on socket, use ref for fetchBridgeStatus
 
-  const handleAutoDetect = async () => {
-    if (!bridgeServerName.trim()) {
-      setBridgeError('Please enter your server name')
-      return
-    }
-    setBridgeLoading(true)
-    setBridgeError(null)
-    try {
-      const result = await panelBridgeApi.autoDetect(bridgeServerName.trim())
-      if (result.success) {
-        toast({
-          title: 'Bridge Path Detected',
-          description: `Found bridge path at: ${result.bridgePath}`,
-          variant: 'success' as const,
-        })
-        await fetchBridgeStatus()
-      } else {
-        setBridgeError(result.error || 'Failed to detect path')
-      }
-    } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : 'Failed to auto-detect')
-    } finally {
-      setBridgeLoading(false)
-    }
-  }
-
-  // Auto-configure from active server settings
+  // Auto-configure from active server settings (one-click setup)
   const handleAutoConfigure = async () => {
     setBridgeLoading(true)
     setBridgeError(null)
@@ -558,95 +587,6 @@ export default function Settings() {
       }
     } catch (error) {
       setBridgeError(error instanceof Error ? error.message : 'Failed to auto-configure')
-    } finally {
-      setBridgeLoading(false)
-    }
-  }
-
-  // Auto-install mod to active server
-  const handleInstallModAuto = async () => {
-    setInstallingMod(true)
-    try {
-      const result = await panelBridgeApi.installModAuto()
-      if (result.success) {
-        toast({
-          title: 'Mod Installed',
-          description: result.message || `PanelBridge.lua installed to server`,
-          variant: 'success' as const,
-        })
-      } else {
-        throw new Error(result.error)
-      }
-    } catch (error) {
-      toast({
-        title: 'Installation Failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      })
-    } finally {
-      setInstallingMod(false)
-    }
-  }
-
-  const handleManualConfigure = async () => {
-    if (!bridgeManualPath.trim()) {
-      setBridgeError('Please enter a path')
-      return
-    }
-    setBridgeLoading(true)
-    setBridgeError(null)
-    try {
-      const result = await panelBridgeApi.configure(bridgeManualPath.trim())
-      if (result.success) {
-        toast({
-          title: 'Bridge Configured',
-          description: 'Panel Bridge path has been configured',
-          variant: 'success' as const,
-        })
-        await fetchBridgeStatus()
-      } else {
-        setBridgeError(result.error || 'Failed to configure')
-      }
-    } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : 'Failed to configure')
-    } finally {
-      setBridgeLoading(false)
-    }
-  }
-
-  const handleStartBridge = async () => {
-    setBridgeLoading(true)
-    try {
-      // If not configured, try to auto-configure first
-      if (!bridgeStatus?.configured) {
-        try {
-          await panelBridgeApi.autoConfigure()
-          await fetchBridgeStatus()
-        } catch (configError) {
-          // If auto-configure fails, show error and stop
-          toast({
-            title: 'Auto-Configure Failed',
-            description: 'Please use "Auto-Configure from Active Server" first or configure manually.',
-            variant: 'destructive',
-          })
-          setBridgeLoading(false)
-          return
-        }
-      }
-      
-      await panelBridgeApi.start()
-      toast({
-        title: 'Bridge Started',
-        description: 'Panel Bridge is now running',
-        variant: 'success' as const,
-      })
-      await fetchBridgeStatus()
-    } catch (error) {
-      toast({
-        title: 'Failed to Start',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      })
     } finally {
       setBridgeLoading(false)
     }
@@ -670,38 +610,6 @@ export default function Settings() {
       })
     } finally {
       setBridgeLoading(false)
-    }
-  }
-
-  const handleInstallMod = async () => {
-    if (!serverModsPath.trim()) {
-      toast({
-        title: 'Path Required',
-        description: 'Please enter your server mods path',
-        variant: 'destructive',
-      })
-      return
-    }
-    setInstallingMod(true)
-    try {
-      const result = await panelBridgeApi.installMod(serverModsPath.trim())
-      if (result.success) {
-        toast({
-          title: 'Mod Installed',
-          description: `PanelBridge mod has been installed to ${result.path}`,
-          variant: 'success' as const,
-        })
-      } else {
-        throw new Error(result.error)
-      }
-    } catch (error) {
-      toast({
-        title: 'Installation Failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      })
-    } finally {
-      setInstallingMod(false)
     }
   }
 
@@ -770,16 +678,17 @@ export default function Settings() {
         </div>
       )}
       
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Settings</h1>
-          <p className="text-muted-foreground text-base sm:text-lg">Configure the server management panel</p>
-        </div>
-        <Button onClick={handleSave} disabled={saving || !isDirty} size="lg" className="w-full sm:w-auto gap-2">
-          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-          {saving ? 'Saving...' : isDirty ? 'Save Settings' : 'Saved'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Configure the server management panel"
+        icon={<Settings2 className="w-5 h-5" />}
+        actions={
+          <Button onClick={handleSave} disabled={saving || !isDirty} size="lg" className="w-full sm:w-auto gap-2">
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            {saving ? 'Saving...' : isDirty ? 'Save Settings' : 'Saved'}
+          </Button>
+        }
+      />
 
       {/* RCON Settings */}
       <Card className="card-interactive">
@@ -841,9 +750,9 @@ export default function Settings() {
               <Zap className="w-5 h-5 text-purple-500" />
             </div>
             <div className="flex-1">
-              <CardTitle className="text-lg">Panel Bridge (Advanced)</CardTitle>
+              <CardTitle className="text-lg">Panel Bridge</CardTitle>
               <CardDescription className="mt-0.5">
-                Enable advanced features like weather control by connecting directly to your server
+                Enables weather control and advanced features
               </CardDescription>
             </div>
             {bridgeStatus && (
@@ -868,8 +777,8 @@ export default function Settings() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Status Display */}
+        <CardContent className="space-y-4">
+          {/* Status Display - when connected */}
           {bridgeStatus?.modConnected && bridgeStatus.modStatus && (
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
               <div className="flex items-center gap-3 mb-3">
@@ -894,254 +803,129 @@ export default function Settings() {
             </div>
           )}
 
-          {/* Step 1: Auto-detect or Manual Config */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">1</div>
-              <h3 className="font-semibold">Configure Bridge Path</h3>
-            </div>
-            
-            <div className="pl-8 space-y-4">
-              {/* Quick Auto-Configure from active server */}
-              <div className="space-y-2">
-                <Label className="text-base">Quick Setup (Recommended)</Label>
+          {/* Not running - show auto-setup button */}
+          {!bridgeStatus?.isRunning && (
+            <div className="p-4 bg-muted rounded-xl space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Panel Bridge connects your panel to the game server for advanced features like weather control.
+              </p>
+              <div className="flex flex-wrap gap-3">
                 <Button 
-                  onClick={handleAutoConfigure} 
+                  onClick={() => handleAutoConfigure()} 
                   disabled={bridgeLoading}
                   className="gap-2"
                 >
                   {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  Auto-Configure from Active Server
+                  Auto Setup
                 </Button>
-                <p className="text-sm text-muted-foreground">
-                  Automatically detects the bridge path from your configured server settings
+                <p className="text-xs text-muted-foreground self-center">
+                  Automatically configures and starts the bridge for your active server
                 </p>
               </div>
+            </div>
+          )}
 
-              {/* Manual server name entry */}
-              <div className="space-y-2">
-                <Label className="text-base">Or Enter Server Name</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={bridgeServerName}
-                    onChange={(e) => setBridgeServerName(e.target.value)}
-                    placeholder="Your server name (e.g., servertest)"
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={handleAutoDetect} 
-                    disabled={bridgeLoading || !bridgeServerName.trim()}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                    Detect
-                  </Button>
-                </div>
+          {/* Waiting for mod */}
+          {bridgeStatus?.isRunning && !bridgeStatus?.modConnected && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">
+                <Cloud className="w-4 h-4" />
+                Waiting for PZ mod to respond...
               </div>
-
-              {/* Manual path */}
-              <div className="space-y-2">
-                <Label className="text-base">Or Manual Path</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={bridgeManualPath}
-                    onChange={(e) => setBridgeManualPath(e.target.value)}
-                    placeholder="E:\PZ\Server_files\Saves\Multiplayer\servername"
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={handleManualConfigure} 
-                    disabled={bridgeLoading || !bridgeManualPath.trim()}
-                    variant="outline"
-                  >
-                    Set
-                  </Button>
-                </div>
-              </div>
-
-              {bridgeError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                  {bridgeError}
-                </div>
-              )}
-
+              <p className="text-sm text-muted-foreground">
+                Make sure your PZ server is running. The bridge will connect automatically when the mod starts.
+              </p>
               {bridgeStatus?.bridgePath && (
-                <div className="p-3 bg-muted rounded-lg text-sm">
-                  <span className="text-muted-foreground">Current path:</span>{' '}
-                  <code className="text-xs bg-background px-1 rounded">{bridgeStatus.bridgePath}</code>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Step 2: Install Mod */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">2</div>
-              <h3 className="font-semibold">Install PanelBridge.lua</h3>
-            </div>
-            
-            <div className="pl-8 space-y-4">
-              {/* Auto-install to active server */}
-              <div className="space-y-2">
-                <Label className="text-base">Quick Install (Recommended)</Label>
-                <Button 
-                  onClick={handleInstallModAuto} 
-                  disabled={installingMod}
-                  className="gap-2"
-                >
-                  {installingMod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Install to Active Server
-                </Button>
-                <p className="text-sm text-muted-foreground">
-                  Copies PanelBridge.lua to your server's <code className="bg-muted px-1 rounded">media/lua/server/</code> folder
+                <p className="text-xs text-muted-foreground">
+                  Watching: <code className="bg-background px-1 rounded">{bridgeStatus.bridgePath}</code>
                 </p>
-              </div>
-
-              {/* Manual path entry */}
-              <div className="space-y-2">
-                <Label className="text-base">Or Manual Lua Folder Path</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={serverModsPath}
-                    onChange={(e) => setServerModsPath(e.target.value)}
-                    placeholder="E:\PZ\Server_Data\DoomerZ_B42\media\lua\server"
-                    className="flex-1"
-                  />
-                  <Button 
-                    onClick={handleInstallMod} 
-                    disabled={installingMod || !serverModsPath.trim()}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    {installingMod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    Install
-                  </Button>
-                </div>
-              </div>
-
-              <div className="p-4 bg-muted rounded-lg text-sm">
-                <p className="font-medium mb-2">After installing:</p>
-                <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Restart your PZ server</li>
-                  <li>The mod will automatically connect (no Mods= line needed for server-side Lua)</li>
-                </ol>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 3: Start/Stop Bridge */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">3</div>
-              <h3 className="font-semibold">Control Bridge</h3>
-            </div>
-            
-            <div className="pl-8 flex flex-wrap gap-3">
-              {bridgeStatus?.isRunning ? (
-                <Button 
-                  onClick={handleStopBridge} 
-                  disabled={bridgeLoading}
-                  variant="destructive"
-                  className="gap-2"
-                >
-                  {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                  Stop Bridge
-                </Button>
-              ) : (
-                <Button 
-                  onClick={handleStartBridge} 
-                  disabled={bridgeLoading}
-                  className="gap-2"
-                >
-                  {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  Start Bridge
-                </Button>
               )}
+            </div>
+          )}
+
+          {/* Error display */}
+          {bridgeError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 dark:text-red-400 text-sm">
+              {bridgeError}
+            </div>
+          )}
+
+          {/* Control buttons when running */}
+          {bridgeStatus?.isRunning && (
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                onClick={handleStopBridge} 
+                disabled={bridgeLoading}
+                variant="outline"
+                size="sm"
+                className="gap-2"
+              >
+                {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Stop
+              </Button>
               <Button 
                 onClick={handlePingMod}
                 variant="outline"
+                size="sm"
                 className="gap-2"
-                disabled={!bridgeStatus?.isRunning}
+                disabled={!bridgeStatus?.modConnected}
               >
                 <RefreshCw className="w-4 h-4" />
-                Test Connection
-              </Button>
-              <Button 
-                onClick={async () => {
-                  setBridgeLoading(true)
-                  try {
-                    await panelBridgeApi.refresh()
-                    await fetchBridgeStatus()
-                    toast({
-                      title: 'Bridge Refreshed',
-                      description: 'Bridge state has been reset and restarted',
-                    })
-                  } catch (error) {
-                    console.error('Failed to refresh bridge:', error)
-                  } finally {
-                    setBridgeLoading(false)
-                  }
-                }}
-                variant="outline"
-                className="gap-2"
-                disabled={!bridgeStatus?.bridgePath || bridgeLoading}
-              >
-                {bridgeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                Force Refresh
+                Test
               </Button>
               <Button 
                 onClick={fetchBridgeStatus}
                 variant="ghost"
+                size="sm"
                 className="gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
-                Refresh Status
+                Refresh
               </Button>
             </div>
-            
-            {/* Diagnostic info when waiting for mod */}
-            {bridgeStatus?.isRunning && !bridgeStatus?.modConnected && bridgeStatus?.statusFile && (
-              <div className="pl-8 mt-4">
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm space-y-2">
-                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-medium">
-                    <Cloud className="w-4 h-4" />
-                    Waiting for mod to respond...
-                  </div>
-                  <div className="text-muted-foreground space-y-1">
-                    <p>Status file: {bridgeStatus.statusFile.exists ? 'Found' : 'Not found'}</p>
-                    {bridgeStatus.statusFile.exists && (
-                      <>
-                        <p>Last update: {bridgeStatus.statusFile.ageSeconds}s ago</p>
-                        <p>File size: {bridgeStatus.statusFile.size} bytes</p>
-                      </>
-                    )}
-                    {(bridgeStatus.consecutiveFailures ?? 0) > 0 && (
-                      <p className="text-amber-600">Check failures: {bridgeStatus.consecutiveFailures}</p>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Make sure the PZ server is running with PanelBridge.lua installed. The mod updates status every 5 seconds.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Info box */}
           <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-lg text-sm">
             <p className="font-medium text-purple-600 dark:text-purple-400 mb-2">
-              What is Panel Bridge?
-            </p>
-            <p className="text-muted-foreground mb-2">
-              Panel Bridge enables advanced features that aren't possible through RCON, like:
+              How it works
             </p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>Weather control (blizzards, tropical storms, fog, snow)</li>
-              <li>Real-time player monitoring</li>
-              <li>Advanced server commands</li>
+              <li>Install PanelBridge.lua to your server using the button below</li>
+              <li>The bridge auto-connects when you start your PZ server</li>
+              <li>Enables weather control, real-time monitoring, and more</li>
             </ul>
+          </div>
+          
+          {/* Install Mod Section */}
+          <div className="p-4 bg-muted rounded-xl space-y-3">
+            <p className="text-sm font-medium">Install PanelBridge.lua</p>
+            <div className="flex flex-wrap gap-3 items-center">
+              <Select value={selectedInstallServerId} onValueChange={setSelectedInstallServerId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select server..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {servers.map((server) => (
+                    <SelectItem key={String(server.id)} value={String(server.id)}>
+                      {server.name} {server.isActive ? '(Active)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleInstallMod}
+                disabled={installingMod || !selectedInstallServerId}
+                className="gap-2"
+                variant="outline"
+              >
+                {installingMod ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Install Mod
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Copies PanelBridge.lua to <code className="bg-background px-1 rounded">media/lua/server/</code> in the selected server's install folder
+            </p>
           </div>
         </CardContent>
       </Card>

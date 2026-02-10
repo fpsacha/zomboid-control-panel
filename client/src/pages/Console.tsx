@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/use-toast'
 import { rconApi, configApi, serverApi } from '@/lib/api'
 import { useSocket } from '@/contexts/SocketContext'
+import { EmptyState } from '@/components/EmptyState'
+import { PageHeader } from '@/components/PageHeader'
 
 interface CommandEntry {
   id: number
@@ -438,13 +440,12 @@ export default function Console() {
   ]
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Console</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Server console output and RCON commands</p>
-        </div>
-      </div>
+    <div className="space-y-4 sm:space-y-6 page-transition">
+      <PageHeader
+        title="Console"
+        description="Server console output and RCON commands"
+        icon={<TerminalIcon className="w-5 h-5 text-primary" />}
+      />
 
       <Tabs defaultValue="server-log" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -523,9 +524,7 @@ export default function Console() {
             <CardContent>
               {!serverLogExists ? (
                 <div className="bg-black/50 rounded-lg p-4 h-[500px] flex items-center justify-center">
-                  <p className="text-muted-foreground">
-                    Server console log not found. Make sure the server is running.
-                  </p>
+                  <EmptyState type="serverOffline" title="Server console log not found" description="Make sure the server is running" compact />
                 </div>
               ) : (
                 <div

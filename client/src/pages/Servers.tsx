@@ -15,7 +15,8 @@ import {
   AlertCircle,
   CheckCircle,
   RefreshCw,
-  ShieldCheck
+  ShieldCheck,
+  Info
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -49,6 +50,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -58,6 +64,7 @@ import {
 import { serversApi, ServerInstance, configApi, serverApi } from '@/lib/api'
 import { SocketContext } from '@/contexts/SocketContext'
 import { useNavigate } from 'react-router-dom'
+import { PageHeader } from '@/components/PageHeader'
 
 interface DetectedServerConfig {
   dataPath: string
@@ -145,7 +152,9 @@ export default function Servers() {
   const [loading, setLoading] = useState(true)
   const [editingServer, setEditingServer] = useState<ServerInstance | null>(null)
   const [deleteServer, setDeleteServer] = useState<ServerInstance | null>(null)
-  const [activating, setActivating] = useState<number | null>(null)
+  const [deleteFiles, setDeleteFiles] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [activating, setActivating] = useState<string | number | null>(null)
   
   // Add server dialog
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -462,10 +471,35 @@ export default function Servers() {
   const handleDeleteServer = async () => {
     if (!deleteServer) return
     
+    setDeleting(true)
     try {
+      // If deleteFiles is checked and server has an installPath, delete the files first
+      if (deleteFiles && deleteServer.installPath) {
+        try {
+          await fetch('/api/server/delete-files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: deleteServer.installPath })
+          })
+        } catch {
+          // Continue with panel removal even if file deletion fails
+          toast({ 
+            title: 'Warning', 
+            description: 'Could not delete server files, but removing from panel.',
+            variant: 'destructive'
+          })
+        }
+      }
+      
       await serversApi.delete(deleteServer.id)
-      toast({ title: 'Deleted', description: `Server "${deleteServer.name}" removed from panel` })
+      toast({ 
+        title: 'Deleted', 
+        description: deleteFiles 
+          ? `Server "${deleteServer.name}" and its files have been deleted`
+          : `Server "${deleteServer.name}" removed from panel`
+      })
       setDeleteServer(null)
+      setDeleteFiles(false)
       fetchServers()
     } catch (error) {
       toast({ 
@@ -473,6 +507,8 @@ export default function Servers() {
         description: error instanceof Error ? error.message : 'Failed to delete server',
         variant: 'destructive'
       })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -629,24 +665,23 @@ export default function Servers() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 page-transition">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Managed Servers</h1>
-          <p className="text-muted-foreground">
-            Manage multiple Project Zomboid servers from one panel
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowAddDialog(true)}>
-            <FolderOpen className="w-4 h-4 mr-2" /> Add Existing Server
-          </Button>
-          <Button onClick={() => navigate('/server-setup')}>
-            <Download className="w-4 h-4 mr-2" /> Install New Server
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Managed Servers"
+        description="Manage multiple Project Zomboid servers from one panel"
+        icon={<Server className="w-5 h-5 text-primary" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+              <FolderOpen className="w-4 h-4 mr-2" /> Add Existing Server
+            </Button>
+            <Button onClick={() => navigate('/server-setup')}>
+              <Download className="w-4 h-4 mr-2" /> Install New Server
+            </Button>
+          </div>
+        }
+      />
 
       {/* Server Grid */}
       {servers.length === 0 ? (
@@ -668,7 +703,7 @@ export default function Servers() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 stagger-in">
           {servers.map(server => (
             <Card 
               key={server.id} 
@@ -1105,7 +1140,17 @@ export default function Servers() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>RCON Host</Label>
+                  <Label className="flex items-center gap-1.5">
+                    RCON Host
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-[200px]">
+                        <p className="text-xs">Leave as 127.0.0.1 if the panel runs on the same machine as the game server</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </Label>
                   <Input
                     value={editingServer.rconHost}
                     onChange={e => setEditingServer({ ...editingServer, rconHost: e.target.value })}
@@ -1175,18 +1220,49 @@ export default function Servers() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteServer} onOpenChange={() => setDeleteServer(null)}>
+      <AlertDialog open={!!deleteServer} onOpenChange={(open) => { if (!open) { setDeleteServer(null); setDeleteFiles(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Server from Panel?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove "{deleteServer?.name}" from the panel. The actual server files will NOT be deleted - you can add it back later.
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>This will remove "{deleteServer?.name}" from the panel management.</p>
+                
+                {deleteServer?.installPath && (
+                  <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/50">
+                    <input
+                      type="checkbox"
+                      id="deleteFiles"
+                      checked={deleteFiles}
+                      onChange={(e) => setDeleteFiles(e.target.checked)}
+                      className="mt-1"
+                    />
+                    <label htmlFor="deleteFiles" className="text-sm cursor-pointer">
+                      <span className="font-medium text-destructive">Also delete server files</span>
+                      <p className="text-muted-foreground mt-1">
+                        This will permanently delete all files in:<br />
+                        <code className="text-xs bg-background px-1 rounded">{deleteServer?.installPath}</code>
+                      </p>
+                    </label>
+                  </div>
+                )}
+                
+                {!deleteFiles && (
+                  <p className="text-sm text-muted-foreground">
+                    Server files will NOT be deleted - you can add this server back later.
+                  </p>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteServer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Remove
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteServer} 
+              disabled={deleting}
+              className={deleteFiles ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+            >
+              {deleting ? 'Removing...' : deleteFiles ? 'Delete Everything' : 'Remove from Panel'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

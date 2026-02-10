@@ -42,6 +42,8 @@ import { useToast } from '@/components/ui/use-toast'
 import { useSocket } from '@/contexts/SocketContext'
 import { backupApi, BackupStatus, BackupFile } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { PageHeader } from '@/components/PageHeader'
+import { EmptyState } from '@/components/EmptyState'
 
 interface BackupProgress {
   phase: 'preparing' | 'archiving' | 'finalizing' | 'complete' | 'error'
@@ -387,36 +389,32 @@ export default function Backups() {
   const allSelected = backups.length > 0 && selectedBackups.size === backups.length
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 page-transition">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Archive className="w-8 h-8 text-cyan-500" />
-            World Backups
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Create, restore, and manage your server world backups
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSettings(!showSettings)}
-            className="gap-2"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </Button>
-          <Button variant="outline" size="sm" onClick={refreshAll} disabled={loading}>
-            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="World Backups"
+        description="Create, restore, and manage your server world backups"
+        icon={<Archive className="w-5 h-5 text-primary" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(!showSettings)}
+              className="gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </Button>
+            <Button variant="outline" size="sm" onClick={refreshAll} disabled={loading}>
+              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+            </Button>
+          </div>
+        }
+      />
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-in">
         <Card className="card-interactive">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -660,11 +658,7 @@ export default function Backups() {
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : backups.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Archive className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No backups yet</p>
-              <p className="text-sm">Create your first backup using the button above</p>
-            </div>
+            <EmptyState type="noData" title="No backups found" description="Create a backup to protect your server data" />
           ) : (
             <div className="space-y-2">
               {/* Select All Header */}

@@ -26,7 +26,8 @@ import { SocketContext, ConnectionStatus, ConnectionStatusContext } from './cont
 import { ThemeProvider } from './contexts/ThemeContext'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useToast } from './components/ui/use-toast'
-import { Loader2 } from 'lucide-react'
+import { PageSkeleton } from './components/PageSkeleton'
+import { ScrollToTop } from './components/ScrollToTop'
 
 // Lazy load larger pages for code splitting
 const Players = lazy(() => import('./pages/Players'))
@@ -45,13 +46,9 @@ const Events = lazy(() => import('./pages/Events'))
 const Chat = lazy(() => import('./pages/Chat'))
 const Backups = lazy(() => import('./pages/Backups'))
 
-// Loading fallback component
+// Loading fallback — shows a skeleton layout instead of a plain spinner
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-    </div>
-  )
+  return <PageSkeleton variant="default" />
 }
 
 function AppContent() {
@@ -167,6 +164,7 @@ function AppContent() {
     <ConnectionStatusContext.Provider value={connectionStatus}>
       <SocketContext.Provider value={socket}>
         <Layout>
+          <ScrollToTop />
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<DashboardErrorBoundary><Dashboard /></DashboardErrorBoundary>} />

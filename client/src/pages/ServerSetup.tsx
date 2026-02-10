@@ -36,6 +36,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import { SocketContext } from '@/contexts/SocketContext'
 import { Slider } from '@/components/ui/slider'
+import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import {
@@ -74,6 +75,15 @@ function generatePassword(length = 12): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return result
+}
+
+// Format bytes to human readable size
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
 }
 
 export default function ServerSetup() {
@@ -116,6 +126,7 @@ export default function ServerSetup() {
   const [installing, setInstalling] = useState(false)
   const [logs, setLogs] = useState<InstallLog[]>([])
   const [installComplete, setInstallComplete] = useState(false)
+  const [installProgress, setInstallProgress] = useState<{ percent: number; downloaded: string; total: string; status: string } | null>(null)
   
   // SteamCMD auto-download state
   const [downloadingSteamCmd, setDownloadingSteamCmd] = useState(false)
@@ -177,8 +188,10 @@ export default function ServerSetup() {
           setZomboidDataPath(settings.zomboidDataPath)
           setUseCustomDataPath(true)
         }
-        if (settings.minMemory) setMinMemory(settings.minMemory)
-        if (settings.maxMemory) setMaxMemory(settings.maxMemory)
+        // Memory is stored in MB, convert to GB for display
+        // Clamp to reasonable values (2-16 GB) to match slider range
+        if (settings.minMemory) setMinMemory(Math.min(16, Math.max(2, Math.round(settings.minMemory / 1024) || 4)))
+        if (settings.maxMemory) setMaxMemory(Math.min(16, Math.max(2, Math.round(settings.maxMemory / 1024) || 8)))
         if (settings.serverPort) setServerPort(settings.serverPort)
       } catch (error) {
         console.error('Failed to load settings:', error)
@@ -221,27 +234,63 @@ export default function ServerSetup() {
     if (!socket) return
 
     const handleInstallLog = (data: { type: 'stdout' | 'stderr'; text: string }) => {
-      setLogs(prev => [...prev, { type: data.type, message: data.text.trim(), timestamp: new Date() }])
+      const text = data.text.trim()
+      setLogs(prev => [...prev, { type: data.type, message: text, timestamp: new Date() }])
+      
+      // Parse SteamCMD progress: "Update state (0x61) downloading, progress: 50.00 (1234567890 / 2469135780)"
+      const progressMatch = text.match(/progress:\s*([\d.]+)\s*\(([\d,]+)\s*\/\s*([\d,]+)\)/)
+      if (progressMatch) {
+        const percent = parseFloat(progressMatch[1])
+        const downloaded = formatBytes(parseInt(progressMatch[2].replace(/,/g, '')))
+        const total = formatBytes(parseInt(progressMatch[3].replace(/,/g, '')))
+        setInstallProgress({ percent, downloaded, total, status: 'Downloading...' })
+      }
+      // Parse validation: "Validating files... 50%"
+      const validateMatch = text.match(/[Vv]alidat\w*[^\d]*(\d+)%/)
+      if (validateMatch) {
+        setInstallProgress({ percent: parseInt(validateMatch[1]), downloaded: '', total: '', status: 'Validating files...' })
+      }
+      // Parse update state
+      if (text.includes('Update state') && text.includes('verifying')) {
+        setInstallProgress(prev => prev ? { ...prev, status: 'Verifying installation...' } : null)
+      }
+      if (text.includes('Success!') || text.includes('fully installed')) {
+        setInstallProgress({ percent: 100, downloaded: '', total: '', status: 'Complete!' })
+      }
     }
 
-    const handleInstallComplete = async (data: { success: boolean; message: string }) => {
+    const handleInstallComplete = async (data: { 
+      success: boolean; 
+      message: string; 
+      installPath?: string;
+      serverName?: string;
+      zomboidDataPath?: string;
+      serverConfigPath?: string;
+      rconPort?: number;
+      rconPassword?: string;
+      serverPort?: number;
+      minMemory?: number;
+      maxMemory?: number;
+    }) => {
       setInstalling(false)
       setInstallComplete(data.success)
       if (data.success) {
         setLogs(prev => [...prev, { type: 'success', message: data.message, timestamp: new Date() }])
         
         try {
+          // Use data from server response which has computed paths
           await serversApi.create({
-            name: serverName,
-            serverName: serverName,
-            installPath: installPath,
-            zomboidDataPath: useCustomDataPath ? zomboidDataPath : null,
+            name: data.serverName || serverName,
+            serverName: data.serverName || serverName,
+            installPath: data.installPath || installPath,
+            zomboidDataPath: data.zomboidDataPath || null,
+            serverConfigPath: data.serverConfigPath || null,
             rconHost: '127.0.0.1',
-            rconPort: rconPort,
-            rconPassword: rconPassword,
-            serverPort: serverPort,
-            minMemory: minMemory * 1024,
-            maxMemory: maxMemory * 1024,
+            rconPort: data.rconPort || rconPort,
+            rconPassword: data.rconPassword || rconPassword,
+            serverPort: data.serverPort || serverPort,
+            minMemory: (data.minMemory || minMemory) * 1024,
+            maxMemory: (data.maxMemory || maxMemory) * 1024,
             useNoSteam: useNoSteam,
             useDebug: useDebug,
           })
@@ -350,8 +399,13 @@ export default function ServerSetup() {
   }
 
   const handleInstall = async () => {
+    if (!adminPassword) {
+      toast({ title: 'Error', description: 'Admin password is required for new server installations', variant: 'destructive' })
+      return
+    }
     setInstalling(true)
     setLogs([])
+    setInstallProgress(null)
     addLog('info', 'Starting installation...')
 
     try {
@@ -389,6 +443,10 @@ export default function ServerSetup() {
   }
 
   const handleQuickSetup = async () => {
+    if (!adminPassword) {
+      toast({ title: 'Error', description: 'Admin password is required for new server setup', variant: 'destructive' })
+      return
+    }
     setInstalling(true)
     setLogs([])
     addLog('info', 'Creating server configuration...')
@@ -418,17 +476,19 @@ export default function ServerSetup() {
         addLog('success', 'Server configuration created successfully!')
         
         try {
+          // Use data from server response which has computed paths
           await serversApi.create({
-            name: serverName,
-            serverName: serverName,
-            installPath: installPath,
-            zomboidDataPath: useCustomDataPath ? zomboidDataPath : null,
+            name: data.serverName || serverName,
+            serverName: data.serverName || serverName,
+            installPath: data.installPath || installPath,
+            zomboidDataPath: data.zomboidDataPath || null,
+            serverConfigPath: data.serverConfigPath || null,
             rconHost: '127.0.0.1',
-            rconPort: rconPort,
-            rconPassword: rconPassword,
-            serverPort: serverPort,
-            minMemory: minMemory * 1024,
-            maxMemory: maxMemory * 1024,
+            rconPort: data.rconPort || rconPort,
+            rconPassword: data.rconPassword || rconPassword,
+            serverPort: data.serverPort || serverPort,
+            minMemory: (data.minMemory || minMemory) * 1024,
+            maxMemory: (data.maxMemory || maxMemory) * 1024,
             useNoSteam: useNoSteam,
             useDebug: useDebug,
           })
@@ -1009,7 +1069,7 @@ export default function ServerSetup() {
                   if (val > maxMemory) setMaxMemory(val)
                 }}
                 min={2}
-                max={32}
+                max={16}
                 step={1}
               />
             </div>
@@ -1026,7 +1086,7 @@ export default function ServerSetup() {
                   if (val < minMemory) setMinMemory(val)
                 }}
                 min={2}
-                max={32}
+                max={16}
                 step={1}
               />
             </div>
@@ -1057,13 +1117,13 @@ export default function ServerSetup() {
               </div>
 
               <div className="space-y-2">
-                <Label>Admin Password</Label>
+                <Label>Admin Password <span className="text-red-500">*</span></Label>
                 <div className="relative">
                   <Input
                     type={showAdminPassword ? 'text' : 'password'}
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Optional"
+                    placeholder="Required for first run"
                     className="pr-10"
                   />
                   <Button
@@ -1187,6 +1247,24 @@ export default function ServerSetup() {
         )}
       </Button>
 
+      {/* Installation Progress Bar */}
+      {installing && installProgress && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{installProgress.status}</span>
+            <span className="font-mono">
+              {installProgress.percent.toFixed(0)}%
+              {installProgress.downloaded && installProgress.total && (
+                <span className="text-muted-foreground ml-2">
+                  ({installProgress.downloaded} / {installProgress.total})
+                </span>
+              )}
+            </span>
+          </div>
+          <Progress value={installProgress.percent} className="h-2" />
+        </div>
+      )}
+
       {/* Installation Log */}
       {logs.length > 0 && (
         <div className="space-y-2">
@@ -1220,6 +1298,19 @@ export default function ServerSetup() {
             <div className="flex items-center gap-2 text-green-500">
               <CheckCircle className="w-5 h-5" />
               <span className="font-medium">Installation Complete!</span>
+            </div>
+            
+            {/* First-run setup notice */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm">
+              <p className="font-medium flex items-center gap-2 text-amber-500">
+                <Info className="w-4 h-4" />
+                First Run Required
+              </p>
+              <p className="text-muted-foreground mt-1">
+                The server needs to start once to generate its configuration files. 
+                It will create the server settings, world data, and admin credentials.
+                This first startup may take a minute.
+              </p>
             </div>
             
             <div className="flex gap-3">
@@ -1440,7 +1531,7 @@ export default function ServerSetup() {
                     if (val > maxMemory) setMaxMemory(val)
                   }}
                   min={2}
-                  max={32}
+                  max={16}
                   step={1}
                 />
               </div>
@@ -1457,7 +1548,7 @@ export default function ServerSetup() {
                     if (val < minMemory) setMinMemory(val)
                   }}
                   min={2}
-                  max={32}
+                  max={16}
                   step={1}
                 />
               </div>
@@ -1508,12 +1599,12 @@ export default function ServerSetup() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Admin Password</Label>
+                  <Label>Admin Password <span className="text-red-500">*</span></Label>
                   <Input
                     type="password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Optional"
+                    placeholder="Required for first run"
                   />
                 </div>
               </div>
@@ -1688,7 +1779,7 @@ export default function ServerSetup() {
   const isLastStep = currentStep === totalSteps
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 page-transition">
       {/* Header */}
       <div className="text-center">
         <h1 className="text-3xl font-bold">

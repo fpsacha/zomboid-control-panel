@@ -25,6 +25,7 @@ import {
   Server,
   Bell
 } from 'lucide-react'
+import { PageHeader } from '@/components/PageHeader'
 
 interface DiscordStatus {
   running: boolean
@@ -278,37 +279,33 @@ export default function Discord() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 page-transition">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <MessageSquare className="w-7 h-7" />
-            Discord Bot
-          </h1>
-          <p className="text-muted-foreground">
-            Configure Discord integration for server management commands
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={status?.running ? 'default' : 'secondary'}>
-            {status?.running ? (
-              <>
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Running
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-3 h-3 mr-1" />
-                Stopped
-              </>
-            )}
-          </Badge>
-          <Button variant="outline" size="icon" onClick={loadData}>
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Discord Bot"
+        description="Configure Discord integration for server management commands"
+        icon={<MessageSquare className="w-5 h-5" />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant={status?.running ? 'default' : 'secondary'}>
+              {status?.running ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Running
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  Stopped
+                </>
+              )}
+            </Badge>
+            <Button variant="outline" size="icon" onClick={loadData}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+        }
+      />
 
       {/* Status Message */}
       {message && (
