@@ -10,7 +10,8 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 import { logPlayerAction, recordPlayerSession } from '../database/init.js';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Bridge');
 
 class PanelBridge extends EventEmitter {
   constructor() {
@@ -61,7 +62,7 @@ class PanelBridge extends EventEmitter {
       fs.mkdirSync(this.bridgePath, { recursive: true });
     }
 
-    logger.debug(`PanelBridge: Configured path: ${this.bridgePath}`);
+    log.debug(`Configured path: ${this.bridgePath}`);
     this.emit('configured', { path: this.bridgePath });
     
     return this.bridgePath;
@@ -115,7 +116,7 @@ class PanelBridge extends EventEmitter {
     }
 
     if (this.isRunning) {
-      logger.debug('PanelBridge: Already running');
+      log.debug('Already running');
       return;
     }
 
@@ -136,7 +137,7 @@ class PanelBridge extends EventEmitter {
     this.checkModStatus();
 
     this.isRunning = true;
-    logger.info(`PanelBridge: Started - watching ${this.bridgePath}`);
+    log.info(`Started - watching ${this.bridgePath}`);
     this.emit('started');
   }
 
@@ -155,7 +156,7 @@ class PanelBridge extends EventEmitter {
 
     // Stop trying if we've failed too many times
     if (this.watcherRetries >= this.maxWatcherRetries) {
-        logger.warn(`PanelBridge: Gave up on file watcher after ${this.maxWatcherRetries} attempts. Falling back to polling only.`);
+        log.warn(`Gave up on file watcher after ${this.maxWatcherRetries} attempts. Falling back to polling only.`);
         return;
     }
 
@@ -172,14 +173,14 @@ class PanelBridge extends EventEmitter {
               this.pollResults();
             }
           } catch (e) {
-            logger.debug(`PanelBridge: File change handler error: ${e.message}`);
+            log.debug(`File change handler error: ${e.message}`);
           }
           debounceTimer = null;
         }, this.config.fileWatchDebounceMs);
       });
 
       this.fileWatcher.on('error', (err) => {
-        logger.warn(`PanelBridge: File watcher error: ${err.message}`);
+        log.warn(`File watcher error: ${err.message}`);
         // Try to recover by closing and nullifying
         try {
           this.fileWatcher.close();
@@ -190,18 +191,18 @@ class PanelBridge extends EventEmitter {
         // Attempt to restart file watcher after delay
         setTimeout(() => {
           if (this.isRunning && !this.fileWatcher) {
-            logger.info(`PanelBridge: Attempting to restart file watcher (attempt ${this.watcherRetries}/${this.maxWatcherRetries})...`);
+            log.info(`Attempting to restart file watcher (attempt ${this.watcherRetries}/${this.maxWatcherRetries})...`);
             this.setupFileWatcher();
           }
         }, 5000);
       });
 
-      logger.debug('PanelBridge: File watcher active');
+      log.debug('File watcher active');
       this.watcherRetries = 0; // Reset retries on successful setup
     } catch (err) {
       // File watching is optional - polling will still work
       this.watcherRetries++;
-      logger.warn(`PanelBridge: Could not setup file watcher: ${err.message}`);
+      log.warn(`Could not setup file watcher: ${err.message}`);
       
       // Retry initially a few times even if immediate setup fails
       if (this.watcherRetries < this.maxWatcherRetries) {
@@ -239,7 +240,7 @@ class PanelBridge extends EventEmitter {
     this.pendingCommands.clear();
 
     this.isRunning = false;
-    logger.info('PanelBridge: Stopped');
+    log.info('Stopped');
     this.emit('stopped');
   }
 
@@ -263,7 +264,7 @@ class PanelBridge extends EventEmitter {
     // Serialize file access to prevent TOCTOU race conditions
     if (!this._writeQueue) this._writeQueue = Promise.resolve();
     this._writeQueue = this._writeQueue.then(() => this._appendCommand(commandsFile, id, action, args))
-      .catch(err => logger.error(`PanelBridge write queue error: ${err.message}`));
+      .catch(err => log.error(`PanelBridge write queue error: ${err.message}`));
     await this._writeQueue;
 
     // Return a promise that resolves when we get the result
@@ -313,7 +314,7 @@ class PanelBridge extends EventEmitter {
       fs.renameSync(tempFile, commandsFile);
     } catch (err) {
       // If rename fails (file locked), try direct write as fallback
-      logger.warn(`PanelBridge: renameSync failed, using direct write: ${err.message}`);
+      log.warn(`renameSync failed, using direct write: ${err.message}`);
       fs.writeFileSync(commandsFile, JSON.stringify(commands, null, 2));
       try { fs.unlinkSync(tempFile); } catch (_) { /* ignore */ }
     }
@@ -376,7 +377,7 @@ class PanelBridge extends EventEmitter {
         if (now - cmd.timestamp > maxPendingAge) {
           clearTimeout(cmd.timeout);
           this.pendingCommands.delete(id);
-          logger.warn(`PanelBridge: Cleaned up stale pending command: ${cmd.action} (age: ${Math.round((now - cmd.timestamp) / 1000)}s)`);
+          log.warn(`Cleaned up stale pending command: ${cmd.action} (age: ${Math.round((now - cmd.timestamp) / 1000)}s)`);
         }
       }
     } catch (e) {
@@ -456,7 +457,7 @@ class PanelBridge extends EventEmitter {
         this.emit('modStatus', status);
         
         if (status.alive) {
-          logger.debug(`PanelBridge: Mod connected (age: ${Math.round(age / 1000)}s)`);
+          log.debug(`Mod connected (age: ${Math.round(age / 1000)}s)`);
         }
       }
     } catch (e) {
@@ -472,7 +473,7 @@ class PanelBridge extends EventEmitter {
     
     // Only log occasionally to avoid spam
     if (this.consecutiveFailures === 1 || this.consecutiveFailures % 10 === 0) {
-      logger.debug(`PanelBridge: Status check failed (${this.consecutiveFailures}x): ${reason}`);
+      log.debug(`Status check failed (${this.consecutiveFailures}x): ${reason}`);
     }
     
     // Update mod status to disconnected after several failures
@@ -489,7 +490,7 @@ class PanelBridge extends EventEmitter {
         players: []
       };
       this.emit('modStatus', this.modStatus);
-      logger.warn(`PanelBridge: Mod marked as disconnected after ${this.consecutiveFailures} failures`);
+      log.warn(`Mod marked as disconnected after ${this.consecutiveFailures} failures`);
     } else if (!this.modStatus) {
       this.modStatus = { alive: false, waiting: true, version: null, playerCount: undefined, players: [] };
     }

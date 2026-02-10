@@ -1,7 +1,8 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Servers');
 import {
   getServers,
   getServer,
@@ -127,7 +128,7 @@ router.post('/auto-scan', async (req, res) => {
       return res.status(400).json({ error: 'Path does not exist' });
     }
     
-    logger.info(`Auto-scanning for PZ servers in: ${resolvedPath}`);
+    log.info(`Auto-scanning for PZ servers in: ${resolvedPath}`);
     
     const results = scanForPzPaths(resolvedPath, Math.min(maxDepth, 5));
     
@@ -171,12 +172,12 @@ router.post('/auto-scan', async (req, res) => {
             matchedInstallPath: matchingBat ? matchingBat.folder : null
           });
         } catch (err) {
-          logger.warn(`Failed to parse ${iniFile}: ${err.message}`);
+          log.warn(`Failed to parse ${iniFile}: ${err.message}`);
         }
       }
     }
     
-    logger.info(`Found ${results.installPaths.length} install paths, ${results.dataPaths.length} data paths, ${detectedConfigs.length} server configs, ${results.customBatFiles.length} custom bat files`);
+    log.info(`Found ${results.installPaths.length} install paths, ${results.dataPaths.length} data paths, ${detectedConfigs.length} server configs, ${results.customBatFiles.length} custom bat files`);
     
     res.json({
       scanPath,
@@ -187,7 +188,7 @@ router.post('/auto-scan', async (req, res) => {
     });
     
   } catch (error) {
-    logger.error(`Failed to auto-scan: ${error.message}`);
+    log.error(`Failed to auto-scan: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -251,7 +252,7 @@ router.post('/detect', async (req, res) => {
             hasRcon: !!settings.RCONPassword
           });
         } catch (err) {
-          logger.warn(`Failed to parse ${iniFile}: ${err.message}`);
+          log.warn(`Failed to parse ${iniFile}: ${err.message}`);
         }
       }
     }
@@ -267,7 +268,7 @@ router.post('/detect', async (req, res) => {
     });
     
   } catch (error) {
-    logger.error(`Failed to detect server: ${error.message}`);
+    log.error(`Failed to detect server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -278,7 +279,7 @@ router.get('/', async (req, res) => {
     const servers = await getServers();
     res.json({ servers });
   } catch (error) {
-    logger.error(`Failed to get servers: ${error.message}`);
+    log.error(`Failed to get servers: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -292,7 +293,7 @@ router.get('/active', async (req, res) => {
     }
     res.json({ server });
   } catch (error) {
-    logger.error(`Failed to get active server: ${error.message}`);
+    log.error(`Failed to get active server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -315,7 +316,7 @@ router.get('/:id', async (req, res) => {
     
     res.json({ server });
   } catch (error) {
-    logger.error(`Failed to get server: ${error.message}`);
+    log.error(`Failed to get server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -374,10 +375,10 @@ router.post('/', async (req, res) => {
       isRemote: isRemote
     });
     
-    logger.info(`Created new server: ${server.name} (ID: ${server.id})`);
+    log.info(`Created new server: ${server.name} (ID: ${server.id})`);
     res.status(201).json({ server, message: 'Server created successfully' });
   } catch (error) {
-    logger.error(`Failed to create server: ${error.message}`);
+    log.error(`Failed to create server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -434,10 +435,10 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Server not found' });
     }
     
-    logger.info(`Updated server: ${server.name} (ID: ${server.id})`);
+    log.info(`Updated server: ${server.name} (ID: ${server.id})`);
     res.json({ server, message: 'Server updated successfully' });
   } catch (error) {
-    logger.error(`Failed to update server: ${error.message}`);
+    log.error(`Failed to update server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -458,10 +459,10 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Server not found' });
     }
     
-    logger.info(`Deleted server ID: ${serverId}`);
+    log.info(`Deleted server ID: ${serverId}`);
     res.json({ success: true, message: 'Server deleted successfully' });
   } catch (error) {
-    logger.error(`Failed to delete server: ${error.message}`);
+    log.error(`Failed to delete server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -490,7 +491,7 @@ router.post('/:id/activate', async (req, res) => {
     // Reload ServerManager config for new active server
     if (serverManager && serverManager.reloadConfig) {
       await serverManager.reloadConfig();
-      logger.info(`ServerManager reloaded config for server: ${server.name}`);
+      log.info(`ServerManager reloaded config for server: ${server.name}`);
     }
     
     // Disconnect current RCON if connected
@@ -503,9 +504,9 @@ router.post('/:id/activate', async (req, res) => {
       try {
         await rconService.reloadConfig();
         await rconService.connect();
-        logger.info(`RCON reconnected for server: ${server.name}`);
+        log.info(`RCON reconnected for server: ${server.name}`);
       } catch (rconErr) {
-        logger.warn(`Failed to connect RCON for new server: ${rconErr.message}`);
+        log.warn(`Failed to connect RCON for new server: ${rconErr.message}`);
       }
     }
     
@@ -514,10 +515,10 @@ router.post('/:id/activate', async (req, res) => {
       io.emit('activeServerChanged', { server });
     }
     
-    logger.info(`Activated server: ${server.name} (ID: ${server.id})`);
+    log.info(`Activated server: ${server.name} (ID: ${server.id})`);
     res.json({ server, message: `Now managing: ${server.name}` });
   } catch (error) {
-    logger.error(`Failed to activate server: ${error.message}`);
+    log.error(`Failed to activate server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

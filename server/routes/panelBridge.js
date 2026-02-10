@@ -7,9 +7,10 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import bridge from '../services/panelBridge.js';
-import { getActiveServer, getAllSettings } from '../database/init.js';
+import { getActiveServer, getServer, getAllSettings } from '../database/init.js';
 
 // ES Module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -45,22 +46,33 @@ router.get('/status', async (req, res) => {
   });
 });
 
-// Auto-configure bridge from active server settings
+// Auto-configure bridge from server settings (optionally specify serverId)
 router.post('/auto-configure', async (req, res) => {
   try {
-    const activeServer = await getActiveServer();
-    if (!activeServer) {
-      return res.status(400).json({ error: 'No active server configured. Please configure a server first.' });
+    const { serverId } = req.body;
+    
+    // Get specified server or active server
+    let targetServer;
+    if (serverId) {
+      targetServer = await getServer(serverId);
+      if (!targetServer) {
+        return res.status(400).json({ error: `Server with ID ${serverId} not found.` });
+      }
+    } else {
+      targetServer = await getActiveServer();
+      if (!targetServer) {
+        return res.status(400).json({ error: 'No active server configured. Please configure a server first.' });
+      }
     }
     
-    const serverName = activeServer.serverName || activeServer.name;
+    const serverName = targetServer.serverName || targetServer.name;
     if (!serverName) {
       return res.status(400).json({ error: 'Server name not configured.' });
     }
     
     // The PanelBridge mod writes to: {RuntimeDataPath}/Lua/panelbridge/{serverName}/
     // For dedicated servers, the runtime data folder is often separate from the install folder
-    // Pattern: Server_Data/DoomerZ_B42 (install) + Server_files_B42 (runtime data)
+    // Pattern: Server_Data/DoomerZ_B42 (install) + Server_files_B42 (runtime data via -cachedir)
     const possiblePaths = [];
     const searchedLocations = [];
     
@@ -74,7 +86,10 @@ router.post('/auto-configure', async (req, res) => {
     };
     
     // Helper to add path with metadata
-    const addPath = (p, source) => {
+    const addPath = (p, source, priority = 10) => {
+      // Avoid duplicates
+      if (possiblePaths.some(pp => pp.path === p)) return;
+      
       const statusFile = path.join(p, 'status.json');
       const initFile = path.join(p, '.init');
       const hasStatus = fs.existsSync(statusFile);
@@ -85,58 +100,58 @@ router.post('/auto-configure', async (req, res) => {
         source,
         hasStatus,
         hasInit,
-        exists: hasStatus || hasInit || fs.existsSync(p)
+        exists: hasStatus || hasInit || fs.existsSync(p),
+        priority
       });
       searchedLocations.push({ path: p, source, hasStatus, hasInit });
     };
     
-    if (activeServer.installPath) {
-      // Get the parent directory (e.g., E:\PZ\)
-      const parentDir = path.dirname(activeServer.installPath);
-      
-      // PRIORITY 1: Look for Server_files* folders at the parent level (runtime data location)
+    // PRIORITY 1: zomboidDataPath is where -cachedir points - this is where the mod WRITES status.json
+    // This should be checked first since it's explicitly configured for the server
+    if (targetServer.zomboidDataPath) {
+      addPath(path.join(targetServer.zomboidDataPath, 'Lua', 'panelbridge', serverName), 'zomboidDataPath/Lua (cachedir)', 1);
+    }
+    
+    // PRIORITY 2: Look for Server_files* folders at the parent level (runtime data location)
+    // This is where -cachedir typically points for dedicated servers with separate data folders
+    if (targetServer.installPath) {
+      const parentDir = path.dirname(targetServer.installPath);
       const parentContents = safeReadDir(parentDir);
       for (const item of parentContents) {
         // Match Server_files* patterns (e.g., Server_files_B42, Server_files_B42_Beta1)
         if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
           const luaPath = path.join(parentDir, item, 'Lua', 'panelbridge', serverName);
-          addPath(luaPath, `parent/${item}/Lua`);
+          addPath(luaPath, `${item}/Lua`, 2);
         }
       }
       
-      // PRIORITY 2: Also check grandparent directory (for nested setups)
+      // PRIORITY 3: Also check grandparent directory (for nested setups)
       const grandParentDir = path.dirname(parentDir);
       if (grandParentDir !== parentDir) {
         const grandParentContents = safeReadDir(grandParentDir);
         for (const item of grandParentContents) {
           if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
             const luaPath = path.join(grandParentDir, item, 'Lua', 'panelbridge', serverName);
-            addPath(luaPath, `grandparent/${item}/Lua`);
+            addPath(luaPath, `${item}/Lua`, 3);
           }
         }
       }
       
-      // PRIORITY 3: Lua folder directly in install path (some setups)
-      addPath(path.join(activeServer.installPath, 'Lua', 'panelbridge', serverName), 'installPath/Lua');
-      
-      // PRIORITY 4: Check for Lua folder at parent level
-      addPath(path.join(parentDir, 'Lua', 'panelbridge', serverName), 'parent/Lua');
+      // PRIORITY 4: Lua folder directly in install path (fallback)
+      addPath(path.join(targetServer.installPath, 'Lua', 'panelbridge', serverName), 'installPath/Lua', 4);
     }
     
-    // Check zomboidDataPath if set
-    if (activeServer.zomboidDataPath) {
-      addPath(path.join(activeServer.zomboidDataPath, 'Lua', 'panelbridge', serverName), 'zomboidDataPath/Lua');
-      
-      // Also check parent of zomboidDataPath for Server_files
-      const dataParent = path.dirname(activeServer.zomboidDataPath);
-      const dataParentContents = safeReadDir(dataParent);
-      for (const item of dataParentContents) {
-        if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
-          const luaPath = path.join(dataParent, item, 'Lua', 'panelbridge', serverName);
-          addPath(luaPath, `zomboidDataPath_parent/${item}/Lua`);
-        }
-      }
-    }
+    // Sort by priority, then by whether it has status.json
+    possiblePaths.sort((a, b) => {
+      // Status.json paths are highest priority
+      if (a.hasStatus && !b.hasStatus) return -1;
+      if (!a.hasStatus && b.hasStatus) return 1;
+      // Then .init files
+      if (a.hasInit && !b.hasInit) return -1;
+      if (!a.hasInit && b.hasInit) return 1;
+      // Then by configured priority
+      return a.priority - b.priority;
+    });
     
     // Find first path that has actual status.json (best match)
     let foundPath = possiblePaths.find(p => p.hasStatus);
@@ -146,13 +161,14 @@ router.post('/auto-configure', async (req, res) => {
       foundPath = possiblePaths.find(p => p.hasInit);
     }
     
-    // Fall back to first Server_files path that exists or can be created
+    // Fall back to path that already exists
     if (!foundPath) {
-      foundPath = possiblePaths.find(p => p.source.includes('Server_files'));
+      foundPath = possiblePaths.find(p => p.exists);
     }
     
-    // Last resort: any path
+    // Fall back to first path by priority (expected location - don't create it)
     if (!foundPath && possiblePaths.length > 0) {
+      possiblePaths.sort((a, b) => a.priority - b.priority);
       foundPath = possiblePaths[0];
     }
     
@@ -163,26 +179,171 @@ router.post('/auto-configure', async (req, res) => {
       });
     }
     
-    // Create the directory if it doesn't exist
-    if (!fs.existsSync(foundPath.path)) {
-      fs.mkdirSync(foundPath.path, { recursive: true });
-    }
+    // DON'T create the directory - the PZ mod will create it when it runs
+    // Just configure the bridge to watch this path
     
     // Configure and start bridge - foundPath IS the complete panelbridge folder
     const bridgePath = bridge.configure(foundPath.path, true); // true = direct path
     bridge.start();
     
+    // Also auto-install the PanelBridge mod if not already present
+    let modInstalled = false;
+    try {
+      const serverInstallDir = targetServer.serverPath || targetServer.installPath;
+      if (serverInstallDir) {
+        const installDir = serverInstallDir.endsWith('.bat') || serverInstallDir.endsWith('.sh') || serverInstallDir.endsWith('.exe')
+          ? path.dirname(serverInstallDir)
+          : serverInstallDir;
+        
+        const destLuaFile = path.join(installDir, 'media', 'lua', 'server', 'PanelBridge.lua');
+        
+        // Check if mod already exists
+        if (!fs.existsSync(destLuaFile)) {
+          // Find source mod
+          const possibleModPaths = [
+            path.join(process.cwd(), 'pz-mod', 'PanelBridge'),
+            path.join(path.dirname(process.execPath), 'pz-mod', 'PanelBridge'),
+            path.join(__dirname, '..', '..', 'pz-mod', 'PanelBridge'),
+          ];
+          
+          for (const modPath of possibleModPaths) {
+            const sourceLuaFile = path.join(modPath, 'media', 'lua', 'server', 'PanelBridge.lua');
+            if (fs.existsSync(sourceLuaFile)) {
+              // Create destination directory
+              fs.mkdirSync(path.dirname(destLuaFile), { recursive: true });
+              fs.copyFileSync(sourceLuaFile, destLuaFile);
+              modInstalled = true;
+              break;
+            }
+          }
+        } else {
+          modInstalled = true; // Already installed
+        }
+      }
+    } catch (modError) {
+      // Non-fatal - mod install is optional
+      console.warn('Auto-install mod failed:', modError.message);
+    }
+    
     res.json({ 
       success: true, 
-      message: 'Bridge auto-configured from active server', 
+      message: `Bridge auto-configured from server: ${targetServer.name}`, 
       bridgePath: foundPath.path,
       serverName,
       source: foundPath.source,
       hasStatus: foundPath.hasStatus,
+      modInstalled,
       searchedPaths: searchedLocations
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Scan for bridge paths for a specific server (preview before applying)
+router.get('/scan-server/:serverId', async (req, res) => {
+  try {
+    const { serverId } = req.params;
+    const targetServer = await getServer(serverId);
+    
+    if (!targetServer) {
+      return res.status(404).json({ success: false, error: `Server with ID ${serverId} not found.` });
+    }
+    
+    const serverName = targetServer.serverName || targetServer.name;
+    if (!serverName) {
+      return res.status(400).json({ success: false, error: 'Server name not configured.' });
+    }
+    
+    const possiblePaths = [];
+    
+    // Helper to safely read directory contents
+    const safeReadDir = (dirPath) => {
+      try {
+        return fs.existsSync(dirPath) ? fs.readdirSync(dirPath) : [];
+      } catch (e) {
+        return [];
+      }
+    };
+    
+    // Helper to add path with metadata
+    const addPath = (p, source, priority = 10) => {
+      if (possiblePaths.some(pp => pp.path === p)) return;
+      
+      const statusFile = path.join(p, 'status.json');
+      const initFile = path.join(p, '.init');
+      const hasStatus = fs.existsSync(statusFile);
+      const hasInit = fs.existsSync(initFile);
+      
+      possiblePaths.push({
+        path: p,
+        source,
+        hasStatus,
+        hasInit,
+        exists: hasStatus || hasInit || fs.existsSync(p),
+        priority
+      });
+    };
+    
+    // Check default Zomboid user folder (B42 without -cachedir)
+    const defaultZomboidPath = path.join(os.homedir(), 'Zomboid', 'Lua', 'panelbridge', serverName);
+    addPath(defaultZomboidPath, 'default Zomboid folder', 0);
+    
+    if (targetServer.installPath) {
+      const parentDir = path.dirname(targetServer.installPath);
+      
+      // Server_files folders at parent level
+      const parentContents = safeReadDir(parentDir);
+      for (const item of parentContents) {
+        if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
+          const luaPath = path.join(parentDir, item, 'Lua', 'panelbridge', serverName);
+          addPath(luaPath, `${item}`, 1);
+        }
+      }
+      
+      // Grandparent
+      const grandParentDir = path.dirname(parentDir);
+      if (grandParentDir !== parentDir) {
+        const grandParentContents = safeReadDir(grandParentDir);
+        for (const item of grandParentContents) {
+          if (item.startsWith('Server_files') || item.match(/Server.*files/i)) {
+            const luaPath = path.join(grandParentDir, item, 'Lua', 'panelbridge', serverName);
+            addPath(luaPath, `${item} (grandparent)`, 2);
+          }
+        }
+      }
+      
+      addPath(path.join(targetServer.installPath, 'Lua', 'panelbridge', serverName), 'installPath/Lua', 3);
+      addPath(path.join(parentDir, 'Lua', 'panelbridge', serverName), 'parent/Lua', 4);
+    }
+    
+    if (targetServer.zomboidDataPath) {
+      addPath(path.join(targetServer.zomboidDataPath, 'Lua', 'panelbridge', serverName), 'zomboidDataPath', 1);
+    }
+    
+    // Sort by priority
+    possiblePaths.sort((a, b) => {
+      if (a.hasStatus && !b.hasStatus) return -1;
+      if (!a.hasStatus && b.hasStatus) return 1;
+      if (a.hasInit && !b.hasInit) return -1;
+      if (!a.hasInit && b.hasInit) return 1;
+      return a.priority - b.priority;
+    });
+    
+    const recommendedPath = possiblePaths.find(p => p.hasStatus) || 
+                            possiblePaths.find(p => p.hasInit) ||
+                            possiblePaths[0] || null;
+    
+    res.json({
+      success: true,
+      serverName,
+      serverId: targetServer.id,
+      paths: possiblePaths,
+      recommendedPath: recommendedPath?.path || null,
+      recommendedSource: recommendedPath?.source || null
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -855,16 +1016,27 @@ router.get('/mod-path', async (req, res) => {
   });
 });
 
-// Auto-install mod to active server's Lua folder
+// Auto-install mod to server's Lua folder (optionally specify serverId)
 router.post('/install-mod-auto', async (req, res) => {
   try {
-    const activeServer = await getActiveServer();
-    if (!activeServer) {
-      return res.status(400).json({ error: 'No active server configured.' });
+    const { serverId } = req.body;
+    
+    // Get specified server or active server
+    let targetServer;
+    if (serverId) {
+      targetServer = await getServer(serverId);
+      if (!targetServer) {
+        return res.status(400).json({ error: `Server with ID ${serverId} not found.` });
+      }
+    } else {
+      targetServer = await getActiveServer();
+      if (!targetServer) {
+        return res.status(400).json({ error: 'No active server configured.' });
+      }
     }
     
     // Use serverPath if available, otherwise extract directory from installPath
-    let serverInstallDir = activeServer.serverPath || activeServer.installPath;
+    let serverInstallDir = targetServer.serverPath || targetServer.installPath;
     if (!serverInstallDir) {
       return res.status(400).json({ error: 'Server install path not configured.' });
     }
@@ -914,7 +1086,7 @@ router.post('/install-mod-auto', async (req, res) => {
       success: true, 
       message: 'PanelBridge.lua installed to server Lua folder', 
       path: destLuaFile,
-      serverName: activeServer.serverName || activeServer.name
+      serverName: targetServer.serverName || targetServer.name
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

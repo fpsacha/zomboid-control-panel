@@ -1,7 +1,8 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Chunks');
 import { getSetting, getActiveServer } from '../database/init.js';
 
 const router = express.Router();
@@ -34,21 +35,23 @@ router.get('/saves', async (req, res) => {
       return res.json({ saves: [] });
     }
     
-    const saves = fs.readdirSync(savesPath, { withFileTypes: true })
+    const entries = await fs.promises.readdir(savesPath, { withFileTypes: true });
+    
+    const saves = await Promise.all(entries
       .filter(d => d.isDirectory())
-      .map(d => {
+      .map(async d => {
         const savePath = path.join(savesPath, d.name);
-        const stats = fs.statSync(savePath);
+        const stats = await fs.promises.stat(savePath);
         
         // Count chunk files (uses recursive count for B42's subdirectory structure)
         let chunkCount = 0;
         const mapPath = path.join(savePath, 'map');
         if (fs.existsSync(mapPath)) {
-          chunkCount = countFiles(mapPath);
+          chunkCount = await countFiles(mapPath);
         }
         
         // Get save size
-        const size = getDirSize(savePath);
+        const size = await getDirSize(savePath);
         
         return {
           name: d.name,
@@ -58,11 +61,11 @@ router.get('/saves', async (req, res) => {
           size,
           sizeFormatted: formatBytes(size)
         };
-      });
+      }));
     
     res.json({ saves });
   } catch (error) {
-    logger.error(`Failed to get saves: ${error.message}`);
+    log.error(`Failed to get saves: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -97,80 +100,95 @@ router.get('/chunks/:saveName', async (req, res) => {
     
     // B42 uses subdirectory structure: map/{X}/{Y}.bin
     // First try the new B42 directory-based structure
-    const mapContents = fs.readdirSync(mapPath, { withFileTypes: true });
+    const mapContents = await fs.promises.readdir(mapPath, { withFileTypes: true });
     const xDirs = mapContents.filter(d => d.isDirectory() && /^\d+$/.test(d.name));
     
     // Limit maximum chunks to prevent memory issues with very large maps
     const MAX_CHUNKS = 50000;
-    let chunkLimitReached = false;
     
     if (xDirs.length > 0) {
       // B42 structure: map/{X}/{Y}.bin
+      // Use sequential for-of loop to avoid overwhelming FS with parallel requests
       for (const xDir of xDirs) {
-        if (chunks.length >= MAX_CHUNKS) {
-          chunkLimitReached = true;
-          break;
-        }
+        if (chunks.length >= MAX_CHUNKS) break;
         
         const x = parseInt(xDir.name, 10);
         const xPath = path.join(mapPath, xDir.name);
         
         try {
-          const yFiles = fs.readdirSync(xPath).filter(f => f.endsWith('.bin'));
-          for (const yFile of yFiles) {
-            if (chunks.length >= MAX_CHUNKS) {
-              chunkLimitReached = true;
-              break;
-            }
-            
-            const yMatch = yFile.match(/^(\d+)\.bin$/);
-            if (yMatch) {
-              const y = parseInt(yMatch[1], 10);
-              const filePath = path.join(xPath, yFile);
-              const stats = fs.statSync(filePath);
-              
-              chunks.push({
-                file: `${x}/${yFile}`,
-                x,
-                y,
-                size: stats.size,
-                modified: stats.mtime
-              });
-              
-              minX = Math.min(minX, x);
-              maxX = Math.max(maxX, x);
-              minY = Math.min(minY, y);
-              maxY = Math.max(maxY, y);
-            }
+          // Read Y files in this X directory
+          const yFiles = await fs.promises.readdir(xPath);
+          
+          // Filter and process files in parallel for this directory
+          // (Batch size usually reasonable for one directory)
+          const filePromises = yFiles
+            .filter(f => f.endsWith('.bin'))
+            .map(async yFile => {
+               if (chunks.length >= MAX_CHUNKS) return null; // Soft limit check
+               
+               const yMatch = yFile.match(/^(\d+)\.bin$/);
+               if (!yMatch) return null;
+
+               const y = parseInt(yMatch[1], 10);
+               const filePath = path.join(xPath, yFile);
+               
+               try {
+                 const stats = await fs.promises.stat(filePath);
+                 return {
+                    file: `${x}/${yFile}`,
+                    x,
+                    y,
+                    size: stats.size,
+                    modified: stats.mtime
+                 };
+               } catch (e) { return null; }
+            });
+
+          const results = await Promise.all(filePromises);
+          
+          for (const chunk of results) {
+               if (chunk && chunks.length < MAX_CHUNKS) {
+                   chunks.push(chunk);
+                   minX = Math.min(minX, chunk.x);
+                   maxX = Math.max(maxX, chunk.x);
+                   minY = Math.min(minY, chunk.y);
+                   maxY = Math.max(maxY, chunk.y);
+               }
           }
+
         } catch (err) {
-          logger.warn(`Error reading chunk directory ${xPath}: ${err.message}`);
+          log.warn(`Error reading chunk directory ${xPath}: ${err.message}`);
         }
       }
     } else {
       // Legacy flat file structure: map_X_Y.bin or X_Y.bin
       const files = mapContents.filter(f => f.isFile() && f.name.endsWith('.bin')).map(f => f.name);
       
-      for (const file of files) {
+      const legacyPromises = files.map(async file => {
         // Common formats: map_X_Y.bin, chunkdata_X_Y.bin, X_Y.bin
         const match = file.match(/(?:map_|chunkdata_|chunk_)?(\d+)_(\d+)(?:_\d+)?\.bin$/i);
         if (match) {
-          const x = parseInt(match[1], 10);
-          const y = parseInt(match[2], 10);
-          const stats = fs.statSync(path.join(mapPath, file));
-          
-          chunks.push({
-            file,
-            x,
-            y,
-            size: stats.size,
-            modified: stats.mtime
-          });
-          
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
+          try {
+              const x = parseInt(match[1], 10);
+              const y = parseInt(match[2], 10);
+              const stats = await fs.promises.stat(path.join(mapPath, file));
+              
+              return {
+                file, x, y, size: stats.size, modified: stats.mtime
+              };
+          } catch(e) { return null; }
+        }
+        return null;
+      });
+
+      const legacyResults = await Promise.all(legacyPromises);
+      for (const res of legacyResults) {
+        if (res) {
+            chunks.push(res);
+            minX = Math.min(minX, res.x);
+            maxX = Math.max(maxX, res.x);
+            minY = Math.min(minY, res.y);
+            maxY = Math.max(maxY, res.y);
         }
       }
     }
@@ -178,31 +196,40 @@ router.get('/chunks/:saveName', async (req, res) => {
     // Also check chunkdata folder for B42
     const chunkDataPath = path.join(savePath, 'chunkdata');
     if (fs.existsSync(chunkDataPath)) {
-      const chunkDataFiles = fs.readdirSync(chunkDataPath).filter(f => f.endsWith('.bin'));
-      for (const file of chunkDataFiles) {
+      // Create a Set for O(1) lookup of existing chunks to prevent O(N^2) complexity
+      const existingCoords = new Set(chunks.map(c => `${c.x},${c.y}`));
+
+      const chunkDataFiles = await fs.promises.readdir(chunkDataPath);
+      const validFiles = chunkDataFiles.filter(f => f.endsWith('.bin'));
+
+      const chunkDataPromises = validFiles.map(async file => {
         const match = file.match(/(\d+)_(\d+)(?:_\d+)?\.bin$/i);
         if (match) {
           const x = parseInt(match[1], 10);
           const y = parseInt(match[2], 10);
           
           // Check if we already have this chunk from map folder
-          if (!chunks.find(c => c.x === x && c.y === y)) {
-            const stats = fs.statSync(path.join(chunkDataPath, file));
-            chunks.push({
-              file,
-              x,
-              y,
-              size: stats.size,
-              modified: stats.mtime,
-              source: 'chunkdata'
-            });
-            
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
+          if (!existingCoords.has(`${x},${y}`)) {
+            try {
+                const stats = await fs.promises.stat(path.join(chunkDataPath, file));
+                return {
+                  file, x, y, size: stats.size, modified: stats.mtime, source: 'chunkdata'
+                };
+            } catch(e) { return null; }
           }
         }
+        return null;
+      });
+
+      const chunkDataResults = await Promise.all(chunkDataPromises);
+      for(const res of chunkDataResults) {
+          if (res) {
+            chunks.push(res);
+            minX = Math.min(minX, res.x);
+            maxX = Math.max(maxX, res.x);
+            minY = Math.min(minY, res.y);
+            maxY = Math.max(maxY, res.y);
+          }
       }
     }
     
@@ -218,7 +245,7 @@ router.get('/chunks/:saveName', async (req, res) => {
       maxChunks: MAX_CHUNKS
     });
   } catch (error) {
-    logger.error(`Failed to get chunks: ${error.message}`);
+    log.error(`Failed to get chunks: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -266,67 +293,89 @@ router.post('/delete-chunks', async (req, res) => {
     // Create backup if requested
     if (createBackup) {
       const backupPath = path.join(zomboidDataPath, 'backups', `${saveName}_chunks_${Date.now()}`);
-      fs.mkdirSync(backupPath, { recursive: true });
+      await fs.promises.mkdir(backupPath, { recursive: true });
       
       // Backup only the chunks we're about to delete
-      for (const chunk of chunks) {
-        const mapFile = path.join(savePath, 'map', chunk.file);
-        if (fs.existsSync(mapFile)) {
-          // Handle B42's subdirectory structure (e.g., "1000/1208.bin" -> "map_1000_1208.bin")
-          const backupName = `map_${chunk.file.replace(/[/\\]/g, '_')}`;
-          fs.copyFileSync(mapFile, path.join(backupPath, backupName));
+      // Do this in parallel but with error handling
+      await Promise.all(chunks.map(async chunk => {
+        try {
+            const mapFile = path.join(savePath, 'map', chunk.file);
+            // Use try/catch for existence check + copy to avoid race conditions
+            try {
+                // Handle B42's subdirectory structure (e.g., "1000/1208.bin" -> "map_1000_1208.bin")
+                const backupName = `map_${chunk.file.replace(/[/\\]/g, '_')}`;
+                await fs.promises.copyFile(mapFile, path.join(backupPath, backupName), fs.constants.COPYFILE_EXCL);
+            } catch (e) {
+                // Ignore ENOENT (file not found), effectively "if exists"
+                if (e.code !== 'ENOENT') throw e;
+            }
+            
+            // Also backup from chunkdata if exists
+            if (chunk.source === 'chunkdata') {
+              const chunkDataFile = path.join(savePath, 'chunkdata', chunk.file);
+              try {
+                  const backupName = `chunkdata_${chunk.file.replace(/[/\\]/g, '_')}`;
+                  await fs.promises.copyFile(chunkDataFile, path.join(backupPath, backupName), fs.constants.COPYFILE_EXCL);
+              } catch (e) {
+                  if (e.code !== 'ENOENT') throw e;
+              }
+            }
+        } catch (e) {
+            log.warn(`Failed to backup chunk ${chunk.file}: ${e.message}`);
         }
-        
-        // Also backup from chunkdata if exists
-        if (chunk.source === 'chunkdata') {
-          const chunkDataFile = path.join(savePath, 'chunkdata', chunk.file);
-          if (fs.existsSync(chunkDataFile)) {
-            const backupName = `chunkdata_${chunk.file.replace(/[/\\]/g, '_')}`;
-            fs.copyFileSync(chunkDataFile, path.join(backupPath, backupName));
-          }
-        }
-      }
+      }));
       
-      logger.info(`Created chunk backup at ${backupPath}`);
+      log.info(`Created chunk backup at ${backupPath}`);
     }
     
     // Delete chunks
     let deleted = 0;
     let errors = [];
     
-    for (const chunk of chunks) {
+    // Process deletions in parallel
+    const deleteResults = await Promise.all(chunks.map(async chunk => {
+      let wasDeleted = false;
+      const chunkErrors = [];
+      
       try {
         // Delete from map folder
         const mapFile = path.join(savePath, 'map', chunk.file);
-        if (fs.existsSync(mapFile)) {
-          fs.unlinkSync(mapFile);
-          deleted++;
+        try {
+            await fs.promises.unlink(mapFile);
+            wasDeleted = true;
+        } catch (e) {
+            // Ignore if file doesn't exist
+            if (e.code !== 'ENOENT') chunkErrors.push(e.message);
         }
         
         // Related data folders use flat file naming: prefix_X_Y.bin
         // Unlike map/ which uses B42's subdirectory structure (X/Y.bin)
         const chunkDataFile = path.join(savePath, 'chunkdata', `chunkdata_${chunk.x}_${chunk.y}.bin`);
-        if (fs.existsSync(chunkDataFile)) {
-          fs.unlinkSync(chunkDataFile);
-        }
+        try { await fs.promises.unlink(chunkDataFile); } catch (e) {}
         
         // isoregiondata uses datachunk_X_Y.bin format
         const isoFile = path.join(savePath, 'isoregiondata', `datachunk_${chunk.x}_${chunk.y}.bin`);
-        if (fs.existsSync(isoFile)) {
-          fs.unlinkSync(isoFile);
-        }
+        try { await fs.promises.unlink(isoFile); } catch (e) {}
         
         // zpop uses zpop_X_Y.bin format
         const zpopFile = path.join(savePath, 'zpop', `zpop_${chunk.x}_${chunk.y}.bin`);
-        if (fs.existsSync(zpopFile)) {
-          fs.unlinkSync(zpopFile);
-        }
+        try { await fs.promises.unlink(zpopFile); } catch (e) {}
+        
+        return { success: true, wasDeleted };
       } catch (err) {
-        errors.push({ file: chunk.file, error: err.message });
+        return { success: false, error: err.message, file: chunk.file };
       }
+    }));
+
+    for (const res of deleteResults) {
+        if (res.success) {
+            if (res.wasDeleted) deleted++;
+        } else {
+            errors.push(`${res.file}: ${res.error}`);
+        }
     }
     
-    logger.info(`Deleted ${deleted} chunks from save ${saveName}`);
+    log.info(`Deleted ${deleted} chunks from save ${saveName}`);
     
     res.json({
       success: true,
@@ -335,7 +384,7 @@ router.post('/delete-chunks', async (req, res) => {
       backupCreated: createBackup
     });
   } catch (error) {
-    logger.error(`Failed to delete chunks: ${error.message}`);
+    log.error(`Failed to delete chunks: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -375,18 +424,23 @@ router.post('/delete-region', async (req, res) => {
     
     // Get all chunks - handle both B42 directory structure and legacy flat files
     const chunksToDelete = [];
-    const mapContents = fs.readdirSync(mapPath, { withFileTypes: true });
+    const mapContents = await fs.promises.readdir(mapPath, { withFileTypes: true });
     const xDirs = mapContents.filter(d => d.isDirectory() && /^\d+$/.test(d.name));
     
     if (xDirs.length > 0) {
       // B42 structure: map/{X}/{Y}.bin
-      for (const xDir of xDirs) {
+      await Promise.all(xDirs.map(async xDir => {
         const x = parseInt(xDir.name, 10);
+        // Quick AABB check: if entire X row is out of X bounds, skip it
+        if (!invert && (x < minX || x > maxX)) return;
+        
         const xPath = path.join(mapPath, xDir.name);
         
         try {
-          const yFiles = fs.readdirSync(xPath).filter(f => f.endsWith('.bin'));
-          for (const yFile of yFiles) {
+          const yFiles = await fs.promises.readdir(xPath);
+          const binFiles = yFiles.filter(f => f.endsWith('.bin'));
+          
+          for (const yFile of binFiles) {
             const yMatch = yFile.match(/^(\d+)\.bin$/);
             if (yMatch) {
               const y = parseInt(yMatch[1], 10);
@@ -400,9 +454,9 @@ router.post('/delete-region', async (req, res) => {
             }
           }
         } catch (err) {
-          logger.warn(`Error reading chunk directory ${xPath}: ${err.message}`);
+          log.warn(`Error reading chunk directory ${xPath}: ${err.message}`);
         }
-      }
+      }));
     } else {
       // Legacy flat file structure
       const files = mapContents.filter(f => f.isFile() && f.name.endsWith('.bin')).map(f => f.name);
@@ -430,53 +484,58 @@ router.post('/delete-region', async (req, res) => {
     // Create backup if requested
     if (createBackup) {
       const backupPath = path.join(zomboidDataPath, 'backups', `${saveName}_region_${Date.now()}`);
-      fs.mkdirSync(backupPath, { recursive: true });
+      await fs.promises.mkdir(backupPath, { recursive: true });
       
-      for (const chunk of chunksToDelete) {
+      // Parallel backup
+      await Promise.all(chunksToDelete.map(async chunk => {
         const srcFile = path.join(mapPath, chunk.file);
-        if (fs.existsSync(srcFile)) {
-          // Handle B42's subdirectory structure (e.g., "1000/1208.bin" -> "map_1000_1208.bin")
-          const backupName = `map_${chunk.file.replace(/[/\\]/g, '_')}`;
-          fs.copyFileSync(srcFile, path.join(backupPath, backupName));
+        try {
+             const backupName = `map_${chunk.file.replace(/[/\\]/g, '_')}`;
+             await fs.promises.copyFile(srcFile, path.join(backupPath, backupName));
+        } catch (e) {
+            // Ignore missing files or errors
         }
-      }
+      }));
       
       // Save region info
-      fs.writeFileSync(
+      await fs.promises.writeFile(
         path.join(backupPath, 'region_info.json'),
         JSON.stringify({ minX, maxX, minY, maxY, invert, chunksDeleted: chunksToDelete.length }, null, 2)
       );
       
-      logger.info(`Created region backup at ${backupPath}`);
+      log.info(`Created region backup at ${backupPath}`);
     }
     
     // Delete chunks
     let deleted = 0;
-    for (const chunk of chunksToDelete) {
+    
+    await Promise.all(chunksToDelete.map(async chunk => {
       try {
-        fs.unlinkSync(path.join(mapPath, chunk.file));
+        await fs.promises.unlink(path.join(mapPath, chunk.file));
+        // Atomic increment? JS is single threaded event loop, so yes this is safe.
+        // But `deleted` is a simple var captured in closure.
+        // It's safe in Node.js main thread.
         deleted++;
         
         // Related data folders use flat file naming with specific prefixes
-        // Unlike map/ which uses B42's subdirectory structure (X/Y.bin)
         const relatedFiles = [
           { folder: 'chunkdata', file: `chunkdata_${chunk.x}_${chunk.y}.bin` },
           { folder: 'isoregiondata', file: `datachunk_${chunk.x}_${chunk.y}.bin` },
           { folder: 'zpop', file: `zpop_${chunk.x}_${chunk.y}.bin` }
         ];
         
-        for (const { folder, file } of relatedFiles) {
-          const relatedPath = path.join(savePath, folder, file);
-          if (fs.existsSync(relatedPath)) {
-            fs.unlinkSync(relatedPath);
-          }
-        }
+        await Promise.all(relatedFiles.map(async ({ folder, file }) => {
+            try {
+                const relatedPath = path.join(savePath, folder, file);
+                await fs.promises.unlink(relatedPath);
+            } catch(e) {}
+        }));
       } catch (err) {
-        logger.warn(`Failed to delete chunk ${chunk.file}: ${err.message}`);
+        log.warn(`Failed to delete chunk ${chunk.file}: ${err.message}`);
       }
-    }
+    }));
     
-    logger.info(`Deleted ${deleted} chunks in region [${minX},${minY}]-[${maxX},${maxY}] from ${saveName}`);
+    log.info(`Deleted ${deleted} chunks in region [${minX},${minY}]-[${maxX},${maxY}] from ${saveName}`);
     
     res.json({
       success: true,
@@ -485,7 +544,7 @@ router.post('/delete-region', async (req, res) => {
       inverted: invert
     });
   } catch (error) {
-    logger.error(`Failed to delete region: ${error.message}`);
+    log.error(`Failed to delete region: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -515,7 +574,7 @@ router.get('/stats/:saveName', async (req, res) => {
     
     const stats = {
       saveName,
-      totalSize: getDirSize(savePath),
+      totalSize: await getDirSize(savePath), // Now awaited
       folders: {}
     };
     
@@ -523,65 +582,78 @@ router.get('/stats/:saveName', async (req, res) => {
     
     for (const folder of folders) {
       const folderPath = path.join(savePath, folder);
-      if (fs.existsSync(folderPath)) {
-        const fileCount = countFiles(folderPath);
-        const size = getDirSize(folderPath);
-        stats.folders[folder] = {
-          fileCount,
-          size,
-          sizeFormatted: formatBytes(size)
-        };
-      }
+      try {
+        if (fs.existsSync(folderPath)) {
+            const fileCount = await countFiles(folderPath);
+            const size = await getDirSize(folderPath);
+            stats.folders[folder] = {
+            fileCount,
+            size,
+            sizeFormatted: formatBytes(size)
+            };
+        }
+      } catch (e) {}
     }
     
     // Players count
     const playersDb = path.join(savePath, 'players.db');
     if (fs.existsSync(playersDb)) {
-      stats.playersDbSize = fs.statSync(playersDb).size;
+      try {
+        const s = await fs.promises.stat(playersDb);
+        stats.playersDbSize = s.size;
+      } catch (e) {}
     }
     
     // Vehicles db
     const vehiclesDb = path.join(savePath, 'vehicles.db');
     if (fs.existsSync(vehiclesDb)) {
-      stats.vehiclesDbSize = fs.statSync(vehiclesDb).size;
+      try {
+        const s = await fs.promises.stat(vehiclesDb);
+        stats.vehiclesDbSize = s.size;
+      } catch (e) {}
     }
     
     stats.totalSizeFormatted = formatBytes(stats.totalSize);
     
     res.json(stats);
   } catch (error) {
-    logger.error(`Failed to get save stats: ${error.message}`);
+    log.error(`Failed to get save stats: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
 
 // Helper functions
-function getDirSize(dirPath) {
-  let size = 0;
+async function getDirSize(dirPath) {
+  let totalSize = 0;
   try {
-    const files = fs.readdirSync(dirPath, { withFileTypes: true });
+    const files = await fs.promises.readdir(dirPath, { withFileTypes: true });
+    
     for (const file of files) {
       const filePath = path.join(dirPath, file.name);
       if (file.isDirectory()) {
-        size += getDirSize(filePath);
+         totalSize += await getDirSize(filePath);
       } else {
-        size += fs.statSync(filePath).size;
+         // Optimization: We could just ignore stat failures
+         try {
+           const stats = await fs.promises.stat(filePath);
+           totalSize += stats.size;
+         } catch (e) {}
       }
     }
   } catch (err) {
-    // Ignore errors
+    // Ignore errors (permission denied, etc)
   }
-  return size;
+  return totalSize;
 }
 
 // Count files recursively (handles B42's subdirectory structure)
-function countFiles(dirPath) {
+async function countFiles(dirPath) {
   let count = 0;
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        count += countFiles(path.join(dirPath, entry.name));
+        count += await countFiles(path.join(dirPath, entry.name));
       } else {
         count++;
       }

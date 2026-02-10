@@ -1,6 +1,7 @@
 import express from 'express';
 import dgram from 'dgram';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Finder');
 import { getSetting } from '../database/init.js';
 
 const router = express.Router();
@@ -263,7 +264,7 @@ async function getServersFromSteamAPI(apiKey, useCache = true) {
 
   // Check cache
   if (useCache && serverCache.data && (Date.now() - serverCache.timestamp) < serverCache.ttl) {
-    logger.debug(`Returning ${serverCache.data.length} servers from cache`);
+    log.debug(`Returning ${serverCache.data.length} servers from cache`);
     return serverCache.data;
   }
 
@@ -281,13 +282,13 @@ async function getServersFromSteamAPI(apiKey, useCache = true) {
       const url = `https://api.steampowered.com/IGameServersService/GetServerList/v1/?key=${apiKey}&filter=${encodeURIComponent(filter)}&limit=10000`;
       const response = await fetch(url);
       if (!response.ok) {
-        logger.warn(`Steam API request failed for filter ${filter}: ${response.status}`);
+        log.warn(`Steam API request failed for filter ${filter}: ${response.status}`);
         return [];
       }
       const data = await response.json();
       return data.response?.servers || [];
     } catch (error) {
-      logger.warn(`Steam API request failed for filter ${filter}:`, error.message);
+      log.warn(`Steam API request failed for filter ${filter}:`, error.message);
       return [];
     }
   };
@@ -304,7 +305,7 @@ async function getServersFromSteamAPI(apiKey, useCache = true) {
     }
   }
   
-  logger.info(`Steam API returned ${allServers.size} unique servers`);
+  log.info(`Steam API returned ${allServers.size} unique servers`);
   
   // Update cache
   const serverArray = Array.from(allServers.values());
@@ -373,9 +374,9 @@ router.get('/', async (req, res) => {
           };
         });
         
-        logger.info(`Found ${servers.length} PZ servers via Steam API`);
+        log.info(`Found ${servers.length} PZ servers via Steam API`);
       } catch (apiError) {
-        logger.warn('Steam API failed, trying master server query:', apiError.message);
+        log.warn('Steam API failed, trying master server query:', apiError.message);
         source = 'master_server';
       }
     }
@@ -404,13 +405,13 @@ router.get('/', async (req, res) => {
             
             if (servers.length > 0) break;
           } catch (e) {
-            logger.warn(`Master server ${master.host} query failed:`, e.message);
+            log.warn(`Master server ${master.host} query failed:`, e.message);
           }
         }
         
-        logger.info(`Found ${servers.length} PZ servers via master server`);
+        log.info(`Found ${servers.length} PZ servers via master server`);
       } catch (masterError) {
-        logger.error('Master server query failed:', masterError.message);
+        log.error('Master server query failed:', masterError.message);
       }
     }
 
@@ -434,7 +435,7 @@ router.get('/', async (req, res) => {
       apiKeyConfigured,
     });
   } catch (error) {
-    logger.error('Failed to get server list:', error);
+    log.error('Failed to get server list:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -479,7 +480,7 @@ router.get('/query', async (req, res) => {
       server: info,
     });
   } catch (error) {
-    logger.error('Failed to query server:', error);
+    log.error('Failed to query server:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -565,7 +566,7 @@ router.get('/debug', async (req, res) => {
       fieldNames: servers.length > 0 ? Object.keys(servers[0]) : [],
     });
   } catch (error) {
-    logger.error('Debug endpoint error:', error);
+    log.error('Debug endpoint error:', error);
     res.status(500).json({ error: error.message });
   }
 });

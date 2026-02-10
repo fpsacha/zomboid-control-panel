@@ -3,7 +3,8 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Debug');
 import { getDataPaths, setDataPaths } from '../utils/paths.js';
 import { getPerformanceHistory, recordPerformanceSnapshot, getDatabaseStats, createDatabaseBackup, compactDatabase } from '../database/init.js';
 
@@ -54,7 +55,7 @@ router.get('/ram', async (req, res) => {
       recommendedMax
     });
   } catch (error) {
-    logger.error(`Failed to get RAM info: ${error.message}`);
+    log.error(`Failed to get RAM info: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -80,7 +81,7 @@ router.get('/system', async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error(`Failed to get system info: ${error.message}`);
+    log.error(`Failed to get system info: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -94,7 +95,7 @@ router.get('/logs', async (req, res) => {
       total: logBuffer.length
     });
   } catch (error) {
-    logger.error(`Failed to get logs: ${error.message}`);
+    log.error(`Failed to get logs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -131,7 +132,7 @@ router.get('/logs/files', async (req, res) => {
     
     res.json({ files });
   } catch (error) {
-    logger.error(`Failed to list log files: ${error.message}`);
+    log.error(`Failed to list log files: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -152,7 +153,7 @@ router.get('/logs/download', async (req, res) => {
     const readStream = fs.createReadStream(logsPath);
     readStream.pipe(res);
   } catch (error) {
-    logger.error(`Failed to download logs: ${error.message}`);
+    log.error(`Failed to download logs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -180,7 +181,7 @@ router.get('/logs/download/:filename', async (req, res) => {
     const readStream = fs.createReadStream(logsPath);
     readStream.pipe(res);
   } catch (error) {
-    logger.error(`Failed to download log file: ${error.message}`);
+    log.error(`Failed to download log file: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -207,7 +208,7 @@ router.post('/paths', async (req, res) => {
     const result = await setDataPaths({ dataDir, logsDir }, moveFiles !== false);
     
     if (result.success) {
-      logger.info(`Data paths updated - Data: ${result.paths.dataDir}, Logs: ${result.paths.logsDir}`);
+      log.info(`Data paths updated - Data: ${result.paths.dataDir}, Logs: ${result.paths.logsDir}`);
       res.json({
         success: true,
         message: 'Paths updated successfully. Restart the application to apply changes.',
@@ -219,7 +220,7 @@ router.post('/paths', async (req, res) => {
       res.status(400).json({ error: result.error });
     }
   } catch (error) {
-    logger.error(`Failed to update paths: ${error.message}`);
+    log.error(`Failed to update paths: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -266,7 +267,7 @@ router.get('/performance-history', async (req, res) => {
     const history = await getPerformanceHistory(limit);
     res.json({ history });
   } catch (error) {
-    logger.error(`Failed to get performance history: ${error.message}`);
+    log.error(`Failed to get performance history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -284,7 +285,7 @@ router.post('/performance-snapshot', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    logger.error(`Failed to record performance snapshot: ${error.message}`);
+    log.error(`Failed to record performance snapshot: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -295,7 +296,7 @@ router.get('/database', async (req, res) => {
     const stats = await getDatabaseStats();
     res.json(stats);
   } catch (error) {
-    logger.error(`Failed to get database stats: ${error.message}`);
+    log.error(`Failed to get database stats: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -306,7 +307,7 @@ router.post('/database/backup', async (req, res) => {
     const result = await createDatabaseBackup();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to create database backup: ${error.message}`);
+    log.error(`Failed to create database backup: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -317,7 +318,7 @@ router.post('/database/compact', async (req, res) => {
     const result = await compactDatabase();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to compact database: ${error.message}`);
+    log.error(`Failed to compact database: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -380,7 +381,7 @@ router.get('/crash-logs', async (req, res) => {
     
     res.json({ crashLogs: crashLogs.slice(0, 20) });
   } catch (error) {
-    logger.error(`Failed to get crash logs: ${error.message}`);
+    log.error(`Failed to get crash logs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -434,7 +435,7 @@ router.get('/crash-logs/:filename', async (req, res) => {
     
     res.status(404).json({ error: 'Crash log not found' });
   } catch (error) {
-    logger.error(`Failed to read crash log: ${error.message}`);
+    log.error(`Failed to read crash log: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

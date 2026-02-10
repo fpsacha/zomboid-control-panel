@@ -2,7 +2,8 @@ import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Server');
 import { logServerEvent, getSetting, getActiveServer } from '../database/init.js';
 
 // Helper function to escape regex special characters
@@ -55,13 +56,13 @@ export class ServerManager {
             serverDir = path.dirname(serverDir);
             // Use the specified batch file
             this.serverBat = batchFileName;
-            logger.debug(`ServerManager: Using batch file from installPath: ${batchFileName}`);
+            log.debug(`Using batch file from installPath: ${batchFileName}`);
           }
         }
         
         if (serverDir) {
           this.serverPath = serverDir;
-          logger.debug(`ServerManager: Loaded serverPath: ${serverDir}`);
+          log.debug(`Loaded serverPath: ${serverDir}`);
         }
         
         if (activeServer.serverName) {
@@ -83,7 +84,7 @@ export class ServerManager {
           this.savePath = activeServer.zomboidDataPath;
         }
         this.configLoaded = true;
-        logger.debug(`ServerManager: Loaded config from active server: ${activeServer.name}`);
+        log.debug(`Loaded config from active server: ${activeServer.name}`);
         return;
       }
       
@@ -94,7 +95,7 @@ export class ServerManager {
       
       if (dbServerPath) {
         this.serverPath = dbServerPath;
-        logger.debug(`ServerManager: Loaded serverPath from database: ${dbServerPath}`);
+        log.debug(`Loaded serverPath from database: ${dbServerPath}`);
       }
       if (dbServerName) {
         this.serverName = dbServerName;
@@ -106,7 +107,7 @@ export class ServerManager {
       }
       this.configLoaded = true;
     } catch (error) {
-      logger.debug(`Could not load server config from database: ${error.message}`);
+      log.debug(`Could not load server config from database: ${error.message}`);
     }
   }
 
@@ -118,7 +119,7 @@ export class ServerManager {
       
       // Set a timeout to prevent hanging if PowerShell is slow
       const timeout = setTimeout(() => {
-        logger.warn('checkServerRunning: PowerShell timed out, assuming server is not running');
+        log.warn('checkServerRunning: PowerShell timed out, assuming server is not running');
         resolve(false);
       }, 10000); // 10 second timeout
       
@@ -181,7 +182,7 @@ export class ServerManager {
     return new Promise((resolve, reject) => {
       try {
         // Start the server process
-        logger.info('Starting server process');
+        log.info('Starting server process');
         
         this.serverProcess = spawn('cmd.exe', ['/c', this.serverBat], {
           cwd: this.serverPath,
@@ -191,7 +192,7 @@ export class ServerManager {
         
         // Handle spawn errors (e.g., invalid path, permissions)
         this.serverProcess.on('error', (error) => {
-          logger.error(`Server process error: ${error.message}`);
+          log.error(`Server process error: ${error.message}`);
           this.isRunning = false;
           this.serverProcess = null;
         });
@@ -201,11 +202,11 @@ export class ServerManager {
         this.startTime = new Date();
         
         logServerEvent('server_start', 'Server started via manager');
-        logger.info('Server start command executed');
+        log.info('Server start command executed');
         
         resolve({ success: true, message: 'Server start command executed' });
       } catch (error) {
-        logger.error(`Failed to start server: ${error.message}`);
+        log.error(`Failed to start server: ${error.message}`);
         reject(error);
       }
     });
@@ -215,7 +216,7 @@ export class ServerManager {
     if (graceful) {
       // This should be done via RCON 'quit' command
       // This method is for force stopping
-      logger.info('Graceful stop requested - use RCON quit command');
+      log.info('Graceful stop requested - use RCON quit command');
       return { success: true, message: 'Use RCON quit command for graceful shutdown' };
     }
 
@@ -244,7 +245,7 @@ export class ServerManager {
           this.startTime = null;
           
           logServerEvent('server_stop', 'Server force stopped');
-          logger.info('Server force stopped');
+          log.info('Server force stopped');
           
           resolve({ success: true, message: 'Server stopped' });
         });
@@ -262,7 +263,7 @@ export class ServerManager {
             this.sleep(5000).then(() => { throw new Error('RCON timeout'); })
           ]);
         } catch (e) {
-          logger.warn(`Failed to send restart warning: ${e.message}`);
+          log.warn(`Failed to send restart warning: ${e.message}`);
         }
       };
 
@@ -288,7 +289,7 @@ export class ServerManager {
           this.sleep(10000).then(() => { throw new Error('Save timeout'); })
         ]);
       } catch (e) {
-        logger.warn(`Save before restart failed: ${e.message}`);
+        log.warn(`Save before restart failed: ${e.message}`);
       }
       await this.sleep(3000);
 
@@ -299,7 +300,7 @@ export class ServerManager {
           this.sleep(10000).then(() => { throw new Error('Quit timeout'); })
         ]);
       } catch (e) {
-        logger.warn(`RCON quit failed, will force stop: ${e.message}`);
+        log.warn(`RCON quit failed, will force stop: ${e.message}`);
       }
       await this.sleep(10000);
 
@@ -322,7 +323,7 @@ export class ServerManager {
       logServerEvent('server_restart', 'Server restarted');
       return { success: true, message: 'Server restarted successfully' };
     } catch (error) {
-      logger.error(`Restart failed: ${error.message}`);
+      log.error(`Restart failed: ${error.message}`);
       throw error;
     }
   }
@@ -417,21 +418,21 @@ export class ServerManager {
     const serverNameIniPath = path.join(serverConfigDir, `${this.serverName}.ini`);
     
     if (fs.existsSync(serverNameIniPath)) {
-      logger.debug(`ServerManager: Reading config from ${serverNameIniPath}`);
+      log.debug(`Reading config from ${serverNameIniPath}`);
       return this.parseIniFile(serverNameIniPath);
     }
     
     // Fallback: try old path directly in savePath (for backwards compatibility)
     const configPath = path.join(this.savePath, `${this.serverName}.ini`);
     if (fs.existsSync(configPath)) {
-      logger.debug(`ServerManager: Reading config from fallback ${configPath}`);
+      log.debug(`Reading config from fallback ${configPath}`);
       return this.parseIniFile(configPath);
     }
     
     // Legacy fallback: servertest.ini
     const legacyPath = path.join(this.savePath, 'servertest.ini');
     if (fs.existsSync(legacyPath)) {
-      logger.debug(`ServerManager: Reading config from legacy ${legacyPath}`);
+      log.debug(`Reading config from legacy ${legacyPath}`);
       return this.parseIniFile(legacyPath);
     }
     
@@ -441,7 +442,7 @@ export class ServerManager {
       return this.parseIniFile(altPath);
     }
     
-    logger.warn(`ServerManager: No config file found. Tried: ${serverNameIniPath}, ${configPath}, ${legacyPath}`);
+    log.warn(`No config file found. Tried: ${serverNameIniPath}, ${configPath}, ${legacyPath}`);
     return null;
   }
 
@@ -463,7 +464,7 @@ export class ServerManager {
 
       return config;
     } catch (error) {
-      logger.error(`Failed to parse config file: ${error.message}`);
+      log.error(`Failed to parse config file: ${error.message}`);
       return null;
     }
   }
@@ -492,7 +493,7 @@ export class ServerManager {
       for (const [key, value] of Object.entries(config)) {
         // Validate key is a valid identifier (alphanumeric and underscore only)
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-          logger.warn(`Invalid config key skipped: ${key}`);
+          log.warn(`Invalid config key skipped: ${key}`);
           continue;
         }
         const escapedKey = escapeRegExp(key);
@@ -505,10 +506,10 @@ export class ServerManager {
       }
 
       fs.writeFileSync(configPath, content, 'utf-8');
-      logger.info('Server config saved');
+      log.info('Server config saved');
       return { success: true };
     } catch (error) {
-      logger.error(`Failed to save config: ${error.message}`);
+      log.error(`Failed to save config: ${error.message}`);
       throw error;
     }
   }
@@ -533,7 +534,7 @@ export class ServerManager {
         workshopId: workshopIds[index] || null
       }));
     } catch (error) {
-      logger.error(`Failed to get mod list: ${error.message}`);
+      log.error(`Failed to get mod list: ${error.message}`);
       return [];
     }
   }

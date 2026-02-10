@@ -1,6 +1,7 @@
 import express from 'express';
 import cron from 'node-cron';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Scheduler');
 import { 
   getScheduledTasks, 
   createScheduledTask, 
@@ -19,7 +20,7 @@ router.get('/status', async (req, res) => {
     const status = scheduler.getStatus();
     res.json(status);
   } catch (error) {
-    logger.error(`Failed to get scheduler status: ${error.message}`);
+    log.error(`Failed to get scheduler status: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -30,7 +31,7 @@ router.get('/tasks', async (req, res) => {
     const tasks = await getScheduledTasks();
     res.json({ tasks });
   } catch (error) {
-    logger.error(`Failed to get scheduled tasks: ${error.message}`);
+    log.error(`Failed to get scheduled tasks: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -83,7 +84,7 @@ router.post('/tasks', async (req, res) => {
     
     res.json({ success: true, task });
   } catch (error) {
-    logger.error(`Failed to create scheduled task: ${error.message}`);
+    log.error(`Failed to create scheduled task: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -122,7 +123,7 @@ router.put('/tasks/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Task updated' });
   } catch (error) {
-    logger.error(`Failed to update scheduled task: ${error.message}`);
+    log.error(`Failed to update scheduled task: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -143,7 +144,7 @@ router.delete('/tasks/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Task deleted' });
   } catch (error) {
-    logger.error(`Failed to delete scheduled task: ${error.message}`);
+    log.error(`Failed to delete scheduled task: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -164,12 +165,12 @@ router.post('/restart-now', async (req, res) => {
     
     // Run restart in background, passing warningMinutes directly
     scheduler.performRestart(parsedWarningMinutes).catch(err => {
-      logger.error(`Restart failed: ${err.message}`);
+      log.error(`Restart failed: ${err.message}`);
     });
     
     res.json({ success: true, message: 'Restart initiated' });
   } catch (error) {
-    logger.error(`Failed to trigger restart: ${error.message}`);
+    log.error(`Failed to trigger restart: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -201,7 +202,7 @@ router.get('/history', async (req, res) => {
     const history = await getScheduleHistory(limit, taskId);
     res.json({ history });
   } catch (error) {
-    logger.error(`Failed to get schedule history: ${error.message}`);
+    log.error(`Failed to get schedule history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -212,7 +213,7 @@ router.delete('/history', async (req, res) => {
     await clearScheduleHistory();
     res.json({ success: true, message: 'History cleared' });
   } catch (error) {
-    logger.error(`Failed to clear schedule history: ${error.message}`);
+    log.error(`Failed to clear schedule history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

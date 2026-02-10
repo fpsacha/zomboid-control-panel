@@ -1,7 +1,8 @@
 import RconPackage from 'rcon-srcds';
 import { EventEmitter } from 'events';
 import net from 'net';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('RCON');
 import { logCommand, getSetting, getActiveServer } from '../database/init.js';
 
 // Handle the nested default export from rcon-srcds
@@ -73,7 +74,7 @@ export class RconService extends EventEmitter {
     if (value) {
       this.serverStartingTimeout = setTimeout(() => {
         if (this.serverStarting) {
-          logger.warn('RCON: serverStarting flag was stuck for 5 minutes, clearing it');
+          log.warn('serverStarting flag was stuck for 5 minutes, clearing it');
           this.serverStarting = false;
         }
       }, 5 * 60 * 1000); // 5 minutes
@@ -92,7 +93,7 @@ export class RconService extends EventEmitter {
     this.autoReconnectInterval = setInterval(async () => {
       // Skip if server is starting - startup sequence handles connections
       if (this.serverStarting) {
-        logger.debug('RCON auto-reconnect: Skipping - server is starting');
+        log.debug('Skipping - server is starting');
         return;
       }
       
@@ -103,7 +104,7 @@ export class RconService extends EventEmitter {
       
       // Skip if any connection attempt is already in progress
       if (this.connecting || this.reconnecting) {
-        logger.debug('RCON auto-reconnect: Skipping - connection already in progress');
+        log.debug('Skipping - connection already in progress');
         return;
       }
       
@@ -112,20 +113,20 @@ export class RconService extends EventEmitter {
         try {
           const isRunning = await this.serverManager.checkServerRunning();
           if (isRunning) {
-            logger.info('RCON auto-reconnect: Server is running, attempting connection...');
+            log.info('Server is running, attempting connection...');
             try {
               const result = await this.connect();
               if (result) {
-                logger.info('RCON auto-reconnect: Successfully connected!');
+                log.info('Successfully connected!');
               }
             } catch (e) {
-              logger.warn(`RCON auto-reconnect: Connection failed, retrying in ${this.currentReconnectDelay}ms: ${e.message}`);
+              log.warn(`Connection failed, retrying in ${this.currentReconnectDelay}ms: ${e.message}`);
               // Using updated backoff delay for the next interval would require complex restructuring of setInterval
               // Instead, we trust the internal backoff of execute() retries and keep this loop simple
             }
           }
         } catch (e) {
-          logger.debug(`RCON auto-reconnect: Server check error: ${e.message}`);
+          log.debug(`Server check error: ${e.message}`);
         }
       }
     }, this.autoReconnectDelay);
@@ -133,7 +134,7 @@ export class RconService extends EventEmitter {
     // Start health check interval to detect stale connections
     this.startHealthCheck();
     
-    logger.info('RCON auto-reconnect enabled (60s interval)');
+    log.info('auto-reconnect enabled (60s interval)');
   }
 
   // Start periodic health checks to detect dead connections
@@ -158,28 +159,28 @@ export class RconService extends EventEmitter {
         
         if (result.healthy) {
           this.consecutiveHealthFailures = 0;
-          logger.debug('RCON health check: OK');
+          log.debug('health check: OK');
         } else {
           this.consecutiveHealthFailures++;
-          logger.warn(`RCON health check failed (${this.consecutiveHealthFailures}/${this.maxHealthFailures}): ${result.reason}`);
+          log.warn(`health check failed (${this.consecutiveHealthFailures}/${this.maxHealthFailures}): ${result.reason}`);
           
           if (this.consecutiveHealthFailures >= this.maxHealthFailures) {
-            logger.error('RCON health check: Too many failures, forcing disconnect');
+            log.error('health check: Too many failures, forcing disconnect');
             this.forceResetConnectionState();
           }
         }
       } catch (e) {
         this.consecutiveHealthFailures++;
-        logger.warn(`RCON health check error (${this.consecutiveHealthFailures}/${this.maxHealthFailures}): ${e.message}`);
+        log.warn(`health check error (${this.consecutiveHealthFailures}/${this.maxHealthFailures}): ${e.message}`);
         
         if (this.consecutiveHealthFailures >= this.maxHealthFailures) {
-          logger.error('RCON health check: Too many errors, forcing disconnect');
+          log.error('health check: Too many errors, forcing disconnect');
           this.forceResetConnectionState();
         }
       }
     }, this.healthCheckDelay);
     
-    logger.info('RCON health check enabled (60s interval)');
+    log.info('health check enabled (60s interval)');
   }
 
   // Stop periodic health checks
@@ -196,7 +197,7 @@ export class RconService extends EventEmitter {
     if (this.autoReconnectInterval) {
       clearInterval(this.autoReconnectInterval);
       this.autoReconnectInterval = null;
-      logger.info('RCON auto-reconnect disabled');
+      log.info('auto-reconnect disabled');
     }
     this.stopHealthCheck();
   }
@@ -211,7 +212,7 @@ export class RconService extends EventEmitter {
         this.config.password = activeServer.rconPassword;
         this.config.host = activeServer.rconHost || '127.0.0.1';
         this.config.port = parseInt(activeServer.rconPort) || 27015;
-        logger.info('RCON config loaded from active server');
+        log.info('config loaded from active server');
         this.configLoaded = true;
         return;
       }
@@ -223,7 +224,7 @@ export class RconService extends EventEmitter {
       
       if (dbPassword) {
         this.config.password = dbPassword;
-        logger.info('RCON password loaded from legacy settings');
+        log.info('password loaded from legacy settings');
       }
       if (dbPort) {
         this.config.port = parseInt(dbPort);
@@ -233,7 +234,7 @@ export class RconService extends EventEmitter {
       }
       this.configLoaded = true;
     } catch (error) {
-      logger.debug(`Could not load RCON config from database: ${error.message}`);
+      log.debug(`Could not load RCON config from database: ${error.message}`);
     }
   }
 
@@ -253,7 +254,7 @@ export class RconService extends EventEmitter {
     // Increment version to invalidate any in-flight connection attempts
     this.connectionVersion++;
     const version = this.connectionVersion;
-    logger.info(`RCON: Force resetting connection state (version ${version})`);
+    log.info(`Force resetting connection state (version ${version})`);
     
     this.connecting = false;
     this.connectPromise = null;
@@ -276,7 +277,7 @@ export class RconService extends EventEmitter {
     // Clean up main client
     this._cleanupClient();
     
-    logger.info(`RCON: Connection state forcibly reset (ready for new attempt)`);
+    log.info(`Connection state forcibly reset (ready for new attempt)`);
     this.emit('disconnected');
   }
 
@@ -402,7 +403,7 @@ export class RconService extends EventEmitter {
     
     // Check if version changed (connection was force reset)
     if (this.connectionVersion !== startVersion) {
-      logger.info('RCON: Connection attempt cancelled (force reset occurred)');
+      log.info('Connection attempt cancelled (force reset occurred)');
       return false;
     }
     
@@ -423,14 +424,14 @@ export class RconService extends EventEmitter {
         const isServerRunning = await Promise.race([checkPromise, timeoutPromise]);
         clearTimeout(timeoutId);
         if (!isServerRunning) {
-          logger.debug('RCON: Skipping connection - server is not running');
+          log.debug('Skipping connection - server is not running');
           this.connected = false;
           return false;
         }
       } catch (error) {
         clearTimeout(timeoutId);
         // On timeout or error, proceed with connection attempt anyway
-        logger.debug(`RCON: Server check failed (${error.message}), attempting connection anyway...`);
+        log.debug(`Server check failed (${error.message}), attempting connection anyway...`);
       }
     }
 
@@ -439,19 +440,19 @@ export class RconService extends EventEmitter {
     try {
       const isOpen = await this.checkPortOpen(this.config.host, this.config.port);
       if (!isOpen) {
-        logger.debug(`RCON: Skipping connection - Port ${this.config.host}:${this.config.port} is not listening yet`);
+        log.debug(`Skipping connection - Port ${this.config.host}:${this.config.port} is not listening yet`);
         // We consider this a "soft" failure - don't increment failure counters too aggressively?
         // Actually, returning false here just means "try again later" in auto-reconnect loop
         return false;
       }
     } catch (e) {
-      logger.debug(`RCON: Port check error: ${e.message}`);
+      log.debug(`Port check error: ${e.message}`);
       return false;
     }
     
     // Check if version changed again
     if (this.connectionVersion !== startVersion) {
-      logger.info('RCON: Connection attempt cancelled (force reset occurred)');
+      log.info('Connection attempt cancelled (force reset occurred)');
       return false;
     }
     
@@ -476,7 +477,7 @@ export class RconService extends EventEmitter {
         this.client = null;
       }
       
-      logger.info(`RCON: Creating new client for ${this.config.host}:${this.config.port} (version ${startVersion})`);
+      log.info(`Creating new client for ${this.config.host}:${this.config.port} (version ${startVersion})`);
       
       const newClient = new Rcon({
         host: this.config.host,
@@ -498,7 +499,7 @@ export class RconService extends EventEmitter {
       this.pendingClients.add(newClient);
       this.client = newClient;
 
-      logger.info('RCON: Calling authenticate()...');
+      log.info('Calling authenticate()...');
       
       // Wrap authenticate() with a timeout to prevent hanging forever
       let authTimeoutId;
@@ -517,7 +518,7 @@ export class RconService extends EventEmitter {
       
       // Check if version changed during authenticate (which can hang)
       if (this.connectionVersion !== startVersion) {
-        logger.info('RCON: Connection succeeded but version changed - discarding stale connection');
+        log.info('Connection succeeded but version changed - discarding stale connection');
         this._cleanupClient(newClient);
         return false;
       }
@@ -528,7 +529,7 @@ export class RconService extends EventEmitter {
       this.reconnectAttempts = 0;
       this.consecutiveHealthFailures = 0;
       this.currentReconnectDelay = this.baseReconnectDelay; // Reset backoff on success
-      logger.info(`RCON connected to ${this.config.host}:${this.config.port}`);
+      log.info(`connected to ${this.config.host}:${this.config.port}`);
       // Emit connected event for other services (like PanelBridge) to react
       this.emit('connected');
       return true;
@@ -551,9 +552,9 @@ export class RconService extends EventEmitter {
         this.lastConnectionErrorLog = now;
         // Use warn for expected errors (server offline), error for unexpected
         if (error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT') || error.message.includes('timed out')) {
-          logger.warn(`RCON connection failed (server may be offline): ${error.message}`);
+          log.warn(`connection failed (server may be offline): ${error.message}`);
         } else {
-          logger.error(`RCON connection failed: ${error.message}`);
+          log.error(`connection failed: ${error.message}`);
         }
       }
       throw error;
@@ -571,7 +572,7 @@ export class RconService extends EventEmitter {
     this.lastSuccessfulCommand = null;
     
     if (wasConnected) {
-      logger.info('RCON disconnected');
+      log.info('disconnected');
       // Emit disconnected event
       this.emit('disconnected');
     }
@@ -580,25 +581,25 @@ export class RconService extends EventEmitter {
   async reconnect() {
     // Don't attempt reconnect during server startup - the startup sequence handles it
     if (this.serverStarting) {
-      logger.debug('RCON reconnect: Skipping - server is starting');
+      log.debug('reconnect: Skipping - server is starting');
       return false;
     }
     
     // If already connected, no need to reconnect
     if (this.connected) {
-      logger.debug('RCON reconnect: Already connected');
+      log.debug('reconnect: Already connected');
       return true;
     }
     
     // If a reconnection is already in progress, wait for it instead of starting a new one
     if (this.reconnecting && this.reconnectPromise) {
-      logger.debug('RCON reconnect: Already in progress, waiting for existing attempt...');
+      log.debug('reconnect: Already in progress, waiting for existing attempt...');
       return this.reconnectPromise;
     }
     
     // If a connection is in progress, wait for it
     if (this.connecting && this.connectPromise) {
-      logger.debug('RCON reconnect: Connection in progress, waiting...');
+      log.debug('reconnect: Connection in progress, waiting...');
       try {
         return await this.connectPromise;
       } catch (e) {
@@ -628,13 +629,13 @@ export class RconService extends EventEmitter {
     while (this.reconnectAttempts < this.maxReconnectAttempts) {
       // Check if force reset happened - abort immediately
       if (this.connectionVersion !== startVersion) {
-        logger.debug('RCON reconnect: Version changed (force reset), aborting');
+        log.debug('reconnect: Version changed (force reset), aborting');
         this.reconnectAttempts = 0;
         return false;
       }
       
       this.reconnectAttempts++;
-      logger.info(`RCON reconnecting... Attempt ${this.reconnectAttempts}`);
+      log.info(`reconnecting... Attempt ${this.reconnectAttempts}`);
       
       // Exponential backoff with cap: 5s, 10s, 15s, 20s, 25s, then stay at 30s
       const delay = Math.min(this.baseReconnectDelay * this.reconnectAttempts, 30000);
@@ -642,21 +643,21 @@ export class RconService extends EventEmitter {
       
       // Check again after delay
       if (this.connectionVersion !== startVersion) {
-        logger.debug('RCON reconnect: Version changed (force reset), aborting');
+        log.debug('reconnect: Version changed (force reset), aborting');
         this.reconnectAttempts = 0;
         return false;
       }
       
       // Check if server startup began while we were waiting
       if (this.serverStarting) {
-        logger.debug('RCON reconnect: Server starting, aborting reconnect loop');
+        log.debug('reconnect: Server starting, aborting reconnect loop');
         this.reconnectAttempts = 0;
         return false;
       }
       
       // If already connected (by another path), we're done
       if (this.connected) {
-        logger.debug('RCON reconnect: Already connected, stopping');
+        log.debug('reconnect: Already connected, stopping');
         this.reconnectAttempts = 0;
         return true;
       }
@@ -666,21 +667,21 @@ export class RconService extends EventEmitter {
         if (result) {
           // Reset attempts on successful reconnection
           this.reconnectAttempts = 0;
-          logger.info('RCON reconnected successfully');
+          log.info('reconnected successfully');
           return true;
         }
         // If connect returns false (server not running), don't retry
-        logger.debug('RCON reconnect: Server not running, stopping attempts');
+        log.debug('reconnect: Server not running, stopping attempts');
         this.reconnectAttempts = 0;
         return false;
       } catch (error) {
         // Connection failed, will retry in next loop iteration
-        logger.debug(`RCON reconnect attempt ${this.reconnectAttempts} failed: ${error.message}`);
+        log.debug(`reconnect attempt ${this.reconnectAttempts} failed: ${error.message}`);
       }
     }
     
     // Max attempts reached
-    logger.warn(`RCON reconnect: Max attempts (${this.maxReconnectAttempts}) reached, giving up. Auto-reconnect will retry later.`);
+    log.warn(`reconnect: Max attempts (${this.maxReconnectAttempts}) reached, giving up. Auto-reconnect will retry later.`);
     this.reconnectAttempts = 0;
     return false;
   }
@@ -701,7 +702,7 @@ export class RconService extends EventEmitter {
         }
       }
 
-      logger.debug(`RCON executing: ${command}`);
+      log.debug(`executing: ${command}`);
       
       // Execute with timeout
       let timeoutId;
@@ -721,7 +722,7 @@ export class RconService extends EventEmitter {
         logCommand(command, response, true);
       }
       
-      logger.debug(`RCON response: ${response}`);
+      log.debug(`response: ${response}`);
       return { success: true, response: response || 'Command executed successfully' };
     } catch (error) {
       const errorMsg = error.message || 'Unknown error';
@@ -739,9 +740,9 @@ export class RconService extends EventEmitter {
       
       // Use debug for connection-related failures to avoid log spam
       if (isConnectionError || isServerOffline) {
-        logger.debug(`RCON command skipped (${isServerOffline ? 'server offline' : 'connection error'}): ${command}`);
+        log.debug(`command skipped (${isServerOffline ? 'server offline' : 'connection error'}): ${command}`);
       } else {
-        logger.warn(`RCON command failed: ${errorMsg}`);
+        log.warn(`command failed: ${errorMsg}`);
       }
       
       // Mark as disconnected on connection errors
@@ -1141,7 +1142,7 @@ export class RconService extends EventEmitter {
       // Connection is dead, mark as disconnected
       this.connected = false;
       this.client = null;
-      logger.warn(`RCON health check failed: ${error.message}`);
+      log.warn(`health check failed: ${error.message}`);
       this.emit('disconnected');
       return { healthy: false, reason: error.message };
     }

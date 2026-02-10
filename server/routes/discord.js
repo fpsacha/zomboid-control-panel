@@ -1,5 +1,6 @@
 import express from 'express';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Discord');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/status', async (req, res) => {
     const status = discordBot.getStatus();
     res.json(status);
   } catch (error) {
-    logger.error(`Failed to get Discord bot status: ${error.message}`);
+    log.error(`Failed to get Discord bot status: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -41,7 +42,7 @@ router.get('/config', async (req, res) => {
       channelId: discordBot.channelId
     });
   } catch (error) {
-    logger.error(`Failed to get Discord config: ${error.message}`);
+    log.error(`Failed to get Discord config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -79,7 +80,7 @@ router.put('/config', async (req, res) => {
       message: 'Discord bot configuration updated' 
     });
   } catch (error) {
-    logger.error(`Failed to update Discord config: ${error.message}`);
+    log.error(`Failed to update Discord config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -104,7 +105,7 @@ router.post('/start', async (req, res) => {
       res.status(400).json({ error: 'Failed to start bot - check configuration' });
     }
   } catch (error) {
-    logger.error(`Failed to start Discord bot: ${error.message}`);
+    log.error(`Failed to start Discord bot: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -124,7 +125,7 @@ router.post('/stop', async (req, res) => {
     await discordBot.stop();
     res.json({ success: true, message: 'Discord bot stopped' });
   } catch (error) {
-    logger.error(`Failed to stop Discord bot: ${error.message}`);
+    log.error(`Failed to stop Discord bot: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -160,7 +161,7 @@ router.post('/test', async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error(`Discord test failed: ${error.message}`);
+    log.error(`Discord test failed: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -177,7 +178,7 @@ router.post('/test-message', async (req, res) => {
     await discordBot.sendNotification('🧪 **Test message** from PZ Server Manager');
     res.json({ success: true, message: 'Test message sent' });
   } catch (error) {
-    logger.error(`Failed to send test message: ${error.message}`);
+    log.error(`Failed to send test message: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -206,7 +207,7 @@ router.get('/webhook-events', async (req, res) => {
     
     res.json({ events });
   } catch (error) {
-    logger.error(`Failed to get webhook events: ${error.message}`);
+    log.error(`Failed to get webhook events: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -229,7 +230,7 @@ router.put('/webhook-events', async (req, res) => {
     
     res.json({ success: true, message: 'Webhook events updated' });
   } catch (error) {
-    logger.error(`Failed to update webhook events: ${error.message}`);
+    log.error(`Failed to update webhook events: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

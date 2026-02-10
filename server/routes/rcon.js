@@ -1,5 +1,6 @@
 import express from 'express';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:RCON');
 import { getCommandHistory } from '../database/init.js';
 import { PZ_COMMANDS } from '../utils/commands.js';
 
@@ -28,7 +29,7 @@ router.post('/execute', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`RCON execute failed: ${error.message}`);
+    log.error(`RCON execute failed: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -61,7 +62,7 @@ router.post('/connect', async (req, res) => {
       res.status(503).json({ success: false, error: 'Could not connect to RCON. Is the server running and RCON enabled?' });
     }
   } catch (error) {
-    logger.error(`RCON connect failed: ${error.message}`);
+    log.error(`RCON connect failed: ${error.message}`);
     const rconService = req.app.get('rconService');
     const friendlyError = rconService.getUserFriendlyError(error.message);
     res.status(500).json({ success: false, error: friendlyError });
@@ -101,7 +102,7 @@ router.get('/history', async (req, res) => {
     const history = await getCommandHistory(limit);
     res.json({ history });
   } catch (error) {
-    logger.error(`Failed to get command history: ${error.message}`);
+    log.error(`Failed to get command history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

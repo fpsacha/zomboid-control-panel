@@ -1,7 +1,8 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Backup');
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ router.get('/status', async (req, res) => {
     const status = await backupService.getStatus();
     res.json(status);
   } catch (error) {
-    logger.error(`Failed to get backup status: ${error.message}`);
+    log.error(`Failed to get backup status: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -24,7 +25,7 @@ router.get('/info', async (req, res) => {
     const info = backupService.getBackupContentsInfo();
     res.json(info);
   } catch (error) {
-    logger.error(`Failed to get backup info: ${error.message}`);
+    log.error(`Failed to get backup info: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -36,7 +37,7 @@ router.get('/list', async (req, res) => {
     const backups = await backupService.listBackups();
     res.json({ backups });
   } catch (error) {
-    logger.error(`Failed to list backups: ${error.message}`);
+    log.error(`Failed to list backups: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -56,7 +57,7 @@ router.post('/settings', async (req, res) => {
     
     res.json({ success: true, settings });
   } catch (error) {
-    logger.error(`Failed to update backup settings: ${error.message}`);
+    log.error(`Failed to update backup settings: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -76,7 +77,7 @@ router.post('/create', async (req, res) => {
       res.status(400).json(result);
     }
   } catch (error) {
-    logger.error(`Failed to create backup: ${error.message}`);
+    log.error(`Failed to create backup: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -93,7 +94,7 @@ router.delete('/:name', async (req, res) => {
       res.status(400).json(result);
     }
   } catch (error) {
-    logger.error(`Failed to delete backup: ${error.message}`);
+    log.error(`Failed to delete backup: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -122,7 +123,7 @@ router.get('/download/:name', async (req, res) => {
     
     res.download(backupPath, safeName);
   } catch (error) {
-    logger.error(`Failed to download backup: ${error.message}`);
+    log.error(`Failed to download backup: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -156,7 +157,7 @@ router.post('/restore/:name', async (req, res) => {
       res.status(400).json(result);
     }
   } catch (error) {
-    logger.error(`Failed to restore backup: ${error.message}`);
+    log.error(`Failed to restore backup: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -175,7 +176,7 @@ router.post('/delete-older-than', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to delete old backups: ${error.message}`);
+    log.error(`Failed to delete old backups: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,19 +1,44 @@
 import { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Discord');
 import { getSetting, setSetting } from '../database/init.js';
 
 export class DiscordBot {
-  constructor(rconService, serverManager, scheduler) {
+  constructor(rconService, serverManager, scheduler, logTailer = null) {
     this.client = null;
     this.rconService = rconService;
     this.serverManager = serverManager;
     this.scheduler = scheduler;
+    this.logTailer = logTailer;
     this.token = null;
     this.guildId = null;
     this.adminRoleId = null;
     this.channelId = null;
     this.isRunning = false;
     this.webhookEvents = {};
+    
+    // Setup Chat Bridge listener
+    if (this.logTailer) {
+        this.logTailer.on('chatMessage', (data) => this.handleGameChat(data));
+    }
+  }
+
+  async handleGameChat(data) {
+      // Don't echo back if the bot is not running or channel not set
+      if (!this.isRunning || !this.channelId || !this.client) return;
+      
+      try {
+          // Find channel
+          const channel = await this.client.channels.fetch(this.channelId);
+          if (channel && channel.isTextBased()) {
+              // Send as embed or plain text? Plain text is more chat-like.
+              // Avoid pinging everyone
+              const cleanMessage = data.message.replace(/@everyone/g, '(everyone)').replace(/@here/g, '(here)');
+              await channel.send(`**<${data.author}>** ${cleanMessage}`);
+          }
+      } catch (e) {
+          log.warn(`Failed to bridge chat: ${e.message}`);
+      }
   }
 
   async loadConfig() {
@@ -151,14 +176,14 @@ export class DiscordBot {
     const commands = this.getCommands().map(cmd => cmd.toJSON());
 
     try {
-      logger.info('Registering Discord slash commands...');
+      log.info('Registering Discord slash commands...');
       await rest.put(
         Routes.applicationGuildCommands(this.client.user.id, this.guildId),
         { body: commands }
       );
-      logger.info(`Registered ${commands.length} Discord commands`);
+      log.info(`Registered ${commands.length} Discord commands`);
     } catch (error) {
-      logger.error(`Failed to register Discord commands: ${error.message}`);
+      log.error(`Failed to register Discord commands: ${error.message}`);
       throw error;
     }
   }
@@ -225,7 +250,7 @@ export class DiscordBot {
           await interaction.reply({ content: 'Unknown command', ephemeral: true });
       }
     } catch (error) {
-      logger.error(`Discord command error: ${error.message}`);
+      log.error(`command error: ${error.message}`);
       const content = `❌ Error: ${error.message}`;
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({ content, ephemeral: true });
@@ -363,7 +388,7 @@ export class DiscordBot {
     try {
       await this.scheduler.performRestart(minutes);
     } catch (error) {
-      logger.error(`Discord restart failed: ${error.message}`);
+      log.error(`restart failed: ${error.message}`);
       await this.sendNotification(`❌ **Server restart failed:** ${error.message}`);
     }
   }
@@ -438,7 +463,7 @@ export class DiscordBot {
         await channel.send(message);
       }
     } catch (error) {
-      logger.error(`Failed to send Discord notification: ${error.message}`);
+      log.error(`Failed to send Discord notification: ${error.message}`);
     }
   }
 
@@ -446,7 +471,7 @@ export class DiscordBot {
     await this.loadConfig();
     
     if (!this.token) {
-      logger.info('Discord bot not configured (no token)');
+      log.info('bot not configured (no token)');
       return false;
     }
 
@@ -455,32 +480,60 @@ export class DiscordBot {
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.GuildMembers, // Required for role checks
+        GatewayIntentBits.MessageContent // Required for reading chat messages
       ]
     });
 
     this.client.once('ready', async () => {
-      logger.info(`Discord bot logged in as ${this.client.user.tag}`);
+      log.info(`bot logged in as ${this.client.user.tag}`);
       await this.registerCommands();
       this.isRunning = true;
+    });
+
+    // Two-way Chat Bridge: Discord -> Server
+    this.client.on('messageCreate', async (message) => {
+        // Ignore stats from bots (including self) or if bot is stopped
+        if (!this.isRunning || !this.channelId || message.author.bot) return;
+
+        // Check if message is in the bridge channel
+        if (message.channelId === this.channelId) {
+            try {
+                // Check if RCON is connected
+                if (this.rconService && this.rconService.connected) {
+                    const user = message.author.username;
+                    // Sanitize content: remove newlines and double quotes to prevent command injection/formatting issues
+                    let content = message.content;
+                    if (!content) return; // Ignore empty messages (images etc)
+
+                    const safeContent = content.replace(/"/g, "'").replace(/[\r\n]+/g, " ");
+                    
+                    // Broadcast to server
+                    // Format: [Discord] User: Message
+                    await this.rconService.serverMessage(`[Discord] ${user}: ${safeContent}`);
+                }
+            } catch (e) {
+                log.warn(`Failed to bridge message to server: ${e.message}`);
+            }
+        }
     });
 
     this.client.on('interactionCreate', async (interaction) => {
       try {
         await this.handleInteraction(interaction);
       } catch (error) {
-        logger.error(`Discord interaction handler error: ${error.message}`);
+        log.error(`interaction handler error: ${error.message}`);
       }
     });
 
     this.client.on('error', (error) => {
-      logger.error(`Discord client error: ${error.message}`);
+      log.error(`client error: ${error.message}`);
     });
 
     try {
       await this.client.login(this.token);
       return true;
     } catch (error) {
-      logger.error(`Failed to start Discord bot: ${error.message}`);
+      log.error(`Failed to start Discord bot: ${error.message}`);
       return false;
     }
   }
@@ -490,7 +543,7 @@ export class DiscordBot {
       await this.client.destroy();
       this.client = null;
       this.isRunning = false;
-      logger.info('Discord bot stopped');
+      log.info('bot stopped');
     }
   }
 

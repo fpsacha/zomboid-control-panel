@@ -1,5 +1,6 @@
 import express from 'express';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Config');
 import { getAllSettings, setSetting } from '../database/init.js';
 
 const router = express.Router();
@@ -35,7 +36,7 @@ router.get('/', async (req, res) => {
     const config = await serverManager.getServerConfig();
     res.json({ config });
   } catch (error) {
-    logger.error(`Failed to get config: ${error.message}`);
+    log.error(`Failed to get config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -53,7 +54,7 @@ router.put('/', async (req, res) => {
     await serverManager.saveServerConfig(config);
     res.json({ success: true, message: 'Configuration saved' });
   } catch (error) {
-    logger.error(`Failed to save config: ${error.message}`);
+    log.error(`Failed to save config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -65,7 +66,7 @@ router.post('/reload', async (req, res) => {
     const result = await rconService.reloadOptions();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to reload options: ${error.message}`);
+    log.error(`Failed to reload options: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,7 +78,7 @@ router.get('/options', async (req, res) => {
     const result = await rconService.showOptions();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to get options: ${error.message}`);
+    log.error(`Failed to get options: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -104,7 +105,7 @@ router.post('/option', async (req, res) => {
     const result = await rconService.changeOption(name, value);
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to change option: ${error.message}`);
+    log.error(`Failed to change option: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -115,7 +116,7 @@ router.get('/app-settings', async (req, res) => {
     const settings = await getAllSettings();
     res.json({ settings });
   } catch (error) {
-    logger.error(`Failed to get app settings: ${error.message}`);
+    log.error(`Failed to get app settings: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -132,7 +133,7 @@ router.put('/app-settings', async (req, res) => {
     // Only allow valid setting keys to prevent prototype pollution
     for (const [key, value] of Object.entries(settings)) {
       if (!VALID_SETTINGS_KEYS.includes(key)) {
-        logger.warn(`Invalid setting key rejected: ${key}`);
+        log.warn(`Invalid setting key rejected: ${key}`);
         continue;
       }
       await setSetting(key, value);
@@ -151,7 +152,7 @@ router.put('/app-settings', async (req, res) => {
     
     res.json({ success: true, message: 'Settings saved' });
   } catch (error) {
-    logger.error(`Failed to save app settings: ${error.message}`);
+    log.error(`Failed to save app settings: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -179,7 +180,7 @@ router.put('/paths', async (req, res) => {
     
     res.json({ success: true, message: 'Paths updated' });
   } catch (error) {
-    logger.error(`Failed to update paths: ${error.message}`);
+    log.error(`Failed to update paths: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -231,7 +232,7 @@ router.put('/rcon', async (req, res) => {
     
     res.json({ success: true, message: 'RCON configuration updated' });
   } catch (error) {
-    logger.error(`Failed to update RCON config: ${error.message}`);
+    log.error(`Failed to update RCON config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -269,7 +270,7 @@ router.post('/test-rcon', async (req, res) => {
       });
     }
   } catch (error) {
-    logger.error(`RCON test failed: ${error.message}`);
+    log.error(`RCON test failed: ${error.message}`);
     res.status(500).json({ 
       success: false, 
       error: error.message,

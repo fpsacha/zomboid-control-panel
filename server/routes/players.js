@@ -1,5 +1,6 @@
 import express from 'express';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Players');
 import { 
   logPlayerAction, 
   getPlayerLogs,
@@ -44,7 +45,7 @@ router.get('/activity', async (req, res) => {
     const logs = await getPlayerLogs(player || null, parseInt(limit, 10));
     res.json({ success: true, logs });
   } catch (error) {
-    logger.error(`Failed to get player activity logs: ${error.message}`);
+    log.error(`Failed to get player activity logs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -62,7 +63,7 @@ router.get('/', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to get players: ${error.message}`);
+    log.error(`Failed to get players: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -90,7 +91,7 @@ router.post('/kick', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to kick player: ${error.message}`);
+    log.error(`Failed to kick player: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -118,7 +119,7 @@ router.post('/ban', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to ban player: ${error.message}`);
+    log.error(`Failed to ban player: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -142,7 +143,7 @@ router.post('/unban', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to unban player: ${error.message}`);
+    log.error(`Failed to unban player: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -170,7 +171,7 @@ router.post('/access-level', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to set access level: ${error.message}`);
+    log.error(`Failed to set access level: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -194,7 +195,7 @@ router.post('/whitelist/add', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add to whitelist: ${error.message}`);
+    log.error(`Failed to add to whitelist: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -218,7 +219,7 @@ router.post('/whitelist/remove', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to remove from whitelist: ${error.message}`);
+    log.error(`Failed to remove from whitelist: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -250,7 +251,7 @@ router.post('/teleport', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to teleport: ${error.message}`);
+    log.error(`Failed to teleport: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -284,7 +285,7 @@ router.post('/add-item', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add item: ${error.message}`);
+    log.error(`Failed to add item: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -316,7 +317,7 @@ router.post('/add-xp', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add XP: ${error.message}`);
+    log.error(`Failed to add XP: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -346,7 +347,7 @@ router.post('/add-vehicle', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to spawn vehicle: ${error.message}`);
+    log.error(`Failed to spawn vehicle: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -368,7 +369,7 @@ router.post('/godmode', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to set godmode: ${error.message}`);
+    log.error(`Failed to set godmode: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -390,7 +391,7 @@ router.post('/invisible', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to set invisible: ${error.message}`);
+    log.error(`Failed to set invisible: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -412,7 +413,7 @@ router.post('/noclip', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to set noclip: ${error.message}`);
+    log.error(`Failed to set noclip: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -452,7 +453,7 @@ router.post('/banid', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to ban SteamID: ${error.message}`);
+    log.error(`Failed to ban SteamID: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -476,7 +477,7 @@ router.post('/unbanid', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to unban SteamID: ${error.message}`);
+    log.error(`Failed to unban SteamID: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -500,7 +501,7 @@ router.post('/voiceban', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to set voice ban: ${error.message}`);
+    log.error(`Failed to set voice ban: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -529,7 +530,7 @@ router.post('/adduser', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add user: ${error.message}`);
+    log.error(`Failed to add user: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -542,7 +543,7 @@ router.post('/whitelist/addall', async (req, res) => {
     
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add all to whitelist: ${error.message}`);
+    log.error(`Failed to add all to whitelist: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -557,7 +558,7 @@ router.get('/notes', async (req, res) => {
     const notes = await getPlayerNotes();
     res.json({ success: true, notes });
   } catch (error) {
-    logger.error(`Failed to get player notes: ${error.message}`);
+    log.error(`Failed to get player notes: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -568,7 +569,7 @@ router.get('/notes/:playerName', async (req, res) => {
     const note = await getPlayerNote(req.params.playerName);
     res.json({ success: true, note });
   } catch (error) {
-    logger.error(`Failed to get player note: ${error.message}`);
+    log.error(`Failed to get player note: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -599,7 +600,7 @@ router.post('/notes', async (req, res) => {
     const result = await upsertPlayerNote(playerName, note, tags);
     res.json({ success: true, note: result });
   } catch (error) {
-    logger.error(`Failed to save player note: ${error.message}`);
+    log.error(`Failed to save player note: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -610,7 +611,7 @@ router.delete('/notes/:playerName', async (req, res) => {
     const success = await deletePlayerNote(req.params.playerName);
     res.json({ success });
   } catch (error) {
-    logger.error(`Failed to delete player note: ${error.message}`);
+    log.error(`Failed to delete player note: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -625,7 +626,7 @@ router.get('/stats', async (req, res) => {
     const stats = await getPlayerStats();
     res.json({ success: true, stats });
   } catch (error) {
-    logger.error(`Failed to get player stats: ${error.message}`);
+    log.error(`Failed to get player stats: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -636,7 +637,7 @@ router.get('/stats/:playerName', async (req, res) => {
     const stat = await getPlayerStat(req.params.playerName);
     res.json({ success: true, stat });
   } catch (error) {
-    logger.error(`Failed to get player stat: ${error.message}`);
+    log.error(`Failed to get player stat: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

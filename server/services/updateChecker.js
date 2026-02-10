@@ -1,7 +1,8 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Updates');
 import { getSetting, setSetting } from '../database/init.js';
 
 /**
@@ -37,7 +38,7 @@ export class UpdateChecker {
       this.checkForUpdates();
     }, this.intervalMs);
 
-    logger.info(`UpdateChecker started (checking every ${this.intervalMs / 60000} minutes)`);
+    log.info(`started (checking every ${this.intervalMs / 60000} minutes)`);
   }
 
   /**
@@ -48,7 +49,7 @@ export class UpdateChecker {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
-    logger.info('UpdateChecker stopped');
+    log.info('stopped');
   }
 
   /**
@@ -69,7 +70,7 @@ export class UpdateChecker {
       }, this.intervalMs);
     }
     
-    logger.info(`UpdateChecker interval set to ${minutes} minutes`);
+    log.info(`interval set to ${minutes} minutes`);
   }
 
   /**
@@ -78,12 +79,14 @@ export class UpdateChecker {
   async getInstalledBuildInfo(serverPath) {
     const manifestPath = path.join(serverPath, 'steamapps', 'appmanifest_380870.acf');
     
-    if (!fs.existsSync(manifestPath)) {
-      return null;
+    try {
+       await fs.promises.access(manifestPath);
+    } catch (e) {
+       return null;
     }
 
     try {
-      const content = fs.readFileSync(manifestPath, 'utf8');
+      const content = await fs.promises.readFile(manifestPath, 'utf8');
       
       const buildIdMatch = content.match(/"buildid"\s+"(\d+)"/);
       const betaKeyMatch = content.match(/"BetaKey"\s+"([^"]+)"/);
@@ -95,7 +98,7 @@ export class UpdateChecker {
         lastUpdated: lastUpdatedMatch ? new Date(parseInt(lastUpdatedMatch[1]) * 1000).toISOString() : null
       };
     } catch (err) {
-      logger.error(`Failed to read appmanifest: ${err.message}`);
+      log.error(`Failed to read appmanifest: ${err.message}`);
       return null;
     }
   }
@@ -104,13 +107,15 @@ export class UpdateChecker {
    * Get latest build info from Steam for a specific branch
    */
   async getLatestBuildInfo(steamcmdPath, branch = 'public') {
-    return new Promise((resolve, reject) => {
-      const steamcmdExe = path.join(steamcmdPath, 'steamcmd.exe');
+    const steamcmdExe = path.join(steamcmdPath, 'steamcmd.exe');
       
-      if (!fs.existsSync(steamcmdExe)) {
-        return reject(new Error('SteamCMD not found'));
-      }
+    try {
+        await fs.promises.access(steamcmdExe);
+    } catch(e) {
+        throw new Error('SteamCMD not found');
+    }
 
+    return new Promise((resolve, reject) => {
       const args = [
         '+login', 'anonymous',
         '+app_info_update', '1',
@@ -192,7 +197,7 @@ export class UpdateChecker {
         description: descMatch ? descMatch[1] : null
       };
     } catch (err) {
-      logger.error(`Failed to parse Steam output: ${err.message}`);
+      log.error(`Failed to parse Steam output: ${err.message}`);
       return null;
     }
   }
@@ -204,10 +209,10 @@ export class UpdateChecker {
     if (this.isChecking) {
       // Add staleness check - if check has been running for more than 2 minutes, reset
       if (this.checkStartTime && Date.now() - this.checkStartTime > 120000) {
-        logger.warn('UpdateChecker: Previous update check appears stuck, resetting');
+        log.warn('UpdateChecker: Previous update check appears stuck, resetting');
         this.isChecking = false;
       } else {
-        logger.debug('Update check already in progress, skipping');
+        log.debug('Update check already in progress, skipping');
         return this.updateAvailable;
       }
     }
@@ -221,7 +226,7 @@ export class UpdateChecker {
       const serverPath = await getSetting('serverPath');
 
       if (!steamcmdPath || !serverPath) {
-        logger.debug('UpdateChecker: steamcmdPath or serverPath not configured');
+        log.debug('UpdateChecker: steamcmdPath or serverPath not configured');
         this.isChecking = false;
         return null;
       }
@@ -229,7 +234,7 @@ export class UpdateChecker {
       // Get installed build info
       const installed = await this.getInstalledBuildInfo(serverPath);
       if (!installed || !installed.buildId) {
-        logger.debug('UpdateChecker: Could not determine installed build');
+        log.debug('UpdateChecker: Could not determine installed build');
         this.isChecking = false;
         return null;
       }
@@ -237,7 +242,7 @@ export class UpdateChecker {
       // Get latest build info from Steam
       const latest = await this.getLatestBuildInfo(steamcmdPath, installed.branch);
       if (!latest || !latest.buildId) {
-        logger.debug('UpdateChecker: Could not get latest build info from Steam');
+        log.debug('UpdateChecker: Could not get latest build info from Steam');
         this.isChecking = false;
         return null;
       }
@@ -250,7 +255,7 @@ export class UpdateChecker {
       
       // Guard against NaN from invalid build IDs
       if (isNaN(installedBuild) || isNaN(latestBuild)) {
-        logger.warn('UpdateChecker: Invalid build ID format');
+        log.warn('UpdateChecker: Invalid build ID format');
         this.isChecking = false;
         return null;
       }
@@ -276,14 +281,14 @@ export class UpdateChecker {
       this.updateAvailable = updateInfo;
 
       if (updateInfo.updateAvailable) {
-        logger.info(`Server update available! Installed: ${installed.buildId}, Latest: ${latest.buildId} (${installed.branch} branch)`);
+        log.info(`Server update available! Installed: ${installed.buildId}, Latest: ${latest.buildId} (${installed.branch} branch)`);
         
         if (!wasAvailable || forceEmit) {
           // Emit to all connected clients
           this.io.emit('server:updateAvailable', updateInfo);
         }
       } else {
-        logger.debug(`Server is up to date (build ${installed.buildId}, ${installed.branch} branch)`);
+        log.debug(`Server is up to date (build ${installed.buildId}, ${installed.branch} branch)`);
         
         if (forceEmit) {
           this.io.emit('server:updateCheck', updateInfo);
@@ -293,7 +298,7 @@ export class UpdateChecker {
       return updateInfo;
 
     } catch (err) {
-      logger.error(`Update check failed: ${err.message}`);
+      log.error(`Update check failed: ${err.message}`);
       this.isChecking = false;
       return null;
     } finally {

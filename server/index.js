@@ -8,7 +8,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { exec, spawn } from 'child_process';
 
-import { logger, onLog } from './utils/logger.js';
+import { logger, onLog, createLogger, logSection, logBlank } from './utils/logger.js';
+const log = createLogger('Panel');
 import { initDatabase, getActiveServer, getAllSettings, getSetting } from './database/init.js';
 import { RconService } from './services/rcon.js';
 import { ServerManager } from './services/serverManager.js';
@@ -21,12 +22,12 @@ import { LogTailer } from './services/logTailer.js';
 
 // Global error handlers to prevent app crashes
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught Exception:', error);
+  log.error('Uncaught Exception:', error);
   // Don't exit - keep the app running
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  log.error('Unhandled Rejection at:', promise, 'reason:', reason);
   // Don't exit - keep the app running
 });
 
@@ -37,7 +38,7 @@ async function gracefulShutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
   
-  logger.info(`Received ${signal}, shutting down gracefully...`);
+  log.info(`Received ${signal}, shutting down gracefully...`);
   
   try {
     // Stop player polling
@@ -78,17 +79,17 @@ async function gracefulShutdown(signal) {
     
     // Close HTTP server
     httpServer.close(() => {
-      logger.info('HTTP server closed');
+      log.info('HTTP server closed');
       process.exit(0);
     });
     
     // Force exit after 10 seconds if graceful shutdown hangs
     setTimeout(() => {
-      logger.warn('Graceful shutdown timed out, forcing exit');
+      log.warn('Graceful shutdown timed out, forcing exit');
       process.exit(1);
     }, 10000);
   } catch (error) {
-    logger.error('Error during shutdown:', error);
+    log.error('Error during shutdown:', error);
     process.exit(1);
   }
 }
@@ -248,31 +249,31 @@ async function findPanelBridgePath() {
  */
 async function tryStartPanelBridge(trigger = 'unknown') {
   if (panelBridge.isRunning) {
-    logger.debug(`PanelBridge: Already running (trigger: ${trigger})`);
+    log.debug(`Already running (trigger: ${trigger})`);
     return true;
   }
   
   const result = await findPanelBridgePath();
   
   if (result.error) {
-    logger.debug(`PanelBridge: ${result.error} (trigger: ${trigger})`);
+    log.debug(`${result.error} (trigger: ${trigger})`);
     return false;
   }
   
   try {
     panelBridge.configure(result.path, true);
     panelBridge.start();
-    logger.info(`PanelBridge: Started from ${result.source} (trigger: ${trigger})`);
+    log.info(`Started from ${result.source} (trigger: ${trigger})`);
     return true;
   } catch (error) {
-    logger.warn(`PanelBridge: Failed to start - ${error.message}`);
+    log.warn(`Failed to start - ${error.message}`);
     return false;
   }
 }
 
 // Auto-start PanelBridge when RCON connects (secondary trigger)
 rconService.on('connected', async () => {
-  logger.info('RCON connected - checking PanelBridge...');
+  log.info('RCON connected - checking PanelBridge...');
   await tryStartPanelBridge('rcon-connected');
 });
 
@@ -281,7 +282,7 @@ rconService.on('disconnected', () => {
   // Uncomment if you want bridge to stop when server stops:
   // if (panelBridge.isRunning) {
   //   panelBridge.stop();
-  //   logger.info('[PanelBridge] Stopped due to RCON disconnect');
+  //   log.info('[PanelBridge] Stopped due to RCON disconnect');
   // }
 });
 
@@ -350,7 +351,7 @@ app.get('/api/panel-info', async (req, res) => {
 
 // Panel restart endpoint — restarts the panel process (works with exe or node)
 app.post('/api/panel/restart', (req, res) => {
-  logger.info('Panel restart requested via API');
+  log.info('Panel restart requested via API');
   res.json({ success: true, message: 'Panel is restarting...' });
   
   // Short delay so the response can be sent before exit
@@ -376,7 +377,7 @@ if (isPackaged) {
   clientDistPath = path.join(__dirname, '../client/dist');
 }
 
-logger.info(`Serving client from: ${clientDistPath}`);
+log.debug(`Serving client from: ${clientDistPath}`);
 app.use(express.static(clientDistPath));
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api')) {
@@ -388,10 +389,10 @@ app.get('*', (req, res) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  logger.info(`Client connected: ${socket.id}`);
+  log.debug(`Client connected: ${socket.id}`);
   
   socket.on('disconnect', () => {
-    logger.info(`Client disconnected: ${socket.id}`);
+    log.debug(`Client disconnected: ${socket.id}`);
   });
   
   // Subscribe to server status updates
@@ -445,32 +446,36 @@ function startPlayerPolling() {
           lastPlayerList = result.players;
           // Broadcast to all clients in the 'players' room
           io.to('players').emit('players:update', result.players);
-          logger.debug(`Player list updated: ${result.players.length} players online`);
+          log.debug(`Player list updated: ${result.players.length} players online`);
         }
       }
     } catch (error) {
       // Silently ignore polling errors to avoid log spam
-      logger.debug(`Player polling error: ${error.message}`);
+      log.debug(`Player polling error: ${error.message}`);
     }
   }, 5000);
   
-  logger.info('Server-side player polling started (5s interval)');
+  log.info('Server-side player polling started (5s interval)');
 }
 
 function stopPlayerPolling() {
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
     playerPollingInterval = null;
-    logger.info('Server-side player polling stopped');
+    log.info('Server-side player polling stopped');
   }
 }
 
 // Initialize and start server
 async function start() {
   try {
-    // Initialize database
+    // ── Database ──
+    logSection('Database');
     await initDatabase();
-    logger.info('Database initialized');
+    log.info('Database ready');
+
+    // ── Services ──
+    logSection('Services');
 
     // Initialize log tailer
     await logTailer.init();
@@ -490,24 +495,24 @@ async function start() {
     await scheduler.init();
     
     // Initialize mod checker with scheduler, serverManager, and socket.io
-    // Pass io so it can emit real-time events for mod updates
     await modChecker.init(scheduler, serverManager, io);
     
-    // Start mod checker if workshop ACF file is found (detects mod updates locally)
+    // Start mod checker if workshop ACF file is found
     if (modChecker.workshopAcfPath) {
       modChecker.start();
-      logger.info('Mod checker started - using local Steam Workshop cache');
     } else {
-      logger.info('Mod checker: Workshop ACF file not found - ensure server install path is configured');
+      log.info('Mod checker: Workshop ACF not found — configure server install path');
     }
     
     // Initialize Discord bot
     await discordBot.loadConfig();
     if (discordBot.token && discordBot.guildId) {
       await discordBot.start();
-      logger.info('Discord bot started');
     }
     
+    // ── Server Detection ──
+    logSection('Server Detection');
+
     // Check if PZ server is already running and auto-configure services
     // Run this in the background so it doesn't block server startup
     (async () => {
@@ -519,7 +524,7 @@ async function start() {
         // This works even if RCON isn't connected yet
         const bridgeStarted = await tryStartPanelBridge('startup');
         if (bridgeStarted) {
-          logger.info('PanelBridge started on startup (found active bridge files)');
+          log.info('PanelBridge started on startup (found active bridge files)');
         }
         
         // STEP 2: Check if PZ server is running and connect RCON
@@ -530,7 +535,7 @@ async function start() {
         ]);
         
         if (isRunning) {
-          logger.info('PZ server detected running - connecting RCON...');
+          log.info('PZ server detected running - connecting RCON...');
           
           // Try to connect RCON with retries
           let connected = false;
@@ -543,11 +548,11 @@ async function start() {
               
               if (rconService.connected) {
                 connected = true;
-                logger.info(`RCON connected on attempt ${attempt}`);
+                log.info(`RCON connected on attempt ${attempt}`);
                 break;
               }
             } catch (e) {
-              logger.debug(`RCON connection attempt ${attempt} failed: ${e.message}`);
+              log.debug(`RCON connection attempt ${attempt} failed: ${e.message}`);
               if (attempt < 3) {
                 await new Promise(r => setTimeout(r, 5000)); // Wait 5s before retry
               }
@@ -555,15 +560,15 @@ async function start() {
           }
           
           if (!connected) {
-            logger.warn('RCON connection failed after 3 attempts - auto-reconnect will keep trying');
+            log.warn('RCON connection failed after 3 attempts - auto-reconnect will keep trying');
           }
         } else {
-          logger.info('PZ server not detected running on startup');
+          log.info('PZ server not detected running on startup');
           
           // Check if auto-start is enabled
           const autoStartServer = await getSetting('autoStartServer');
           if (autoStartServer === true || autoStartServer === 'true') {
-            logger.info('Auto-start is enabled - starting PZ server...');
+            log.info('Auto-start is enabled - starting PZ server...');
             
             // Set flag to prevent auto-reconnect from interfering
             rconService.setServerStarting(true);
@@ -571,11 +576,11 @@ async function start() {
             try {
               const startResult = await serverManager.startServer();
               if (startResult.success) {
-                logger.info('PZ server auto-started successfully');
+                log.info('PZ server auto-started successfully');
                 
                 // Wait for server to fully start before connecting RCON
                 // Monitor the TCP port instead of hard waiting
-                logger.info('PZ server auto-started - Monitoring RCON port...');
+                log.info('PZ server auto-started - Monitoring RCON port...');
                 
                 await rconService.loadConfig(); // Ensure clean config
                 const rconHost = rconService.config.host || '127.0.0.1';
@@ -591,14 +596,14 @@ async function start() {
                   if (!portOpen) {
                     // Log every 30s
                     if (i % 6 === 0) {
-                      logger.debug(`Auto-start: Waiting for RCON port ${rconHost}:${rconPort}...`);
+                      log.debug(`Auto-start: Waiting for RCON port ${rconHost}:${rconPort}...`);
                     }
                     await new Promise(r => setTimeout(r, 5000));
                     continue;
                   }
                   
                   // Port is open, try to connect
-                  logger.info(`RCON port open! Attempting connection...`);
+                  log.info(`RCON port open! Attempting connection...`);
                   
                   try {
                     await Promise.race([
@@ -607,24 +612,24 @@ async function start() {
                     ]);
                     
                     if (rconService.connected) {
-                      logger.info('RCON connected successfully after auto-start');
+                      log.info('RCON connected successfully after auto-start');
                       connected = true;
                       break;
                     } else {
                         // Port open but auth/handshake failed
-                        logger.debug('RCON port open but connection failed, retrying in 5s...');
+                        log.debug('RCON port open but connection failed, retrying in 5s...');
                         await new Promise(r => setTimeout(r, 5000));
                     }
                   } catch (e) {
-                    logger.debug(`Auto-start RCON connection failed: ${e.message}`);
+                    log.debug(`Auto-start RCON connection failed: ${e.message}`);
                     await new Promise(r => setTimeout(r, 5000));
                   }
                 }
               } else {
-                logger.error('Failed to auto-start PZ server:', startResult.error);
+                log.error('Failed to auto-start PZ server:', startResult.error);
               }
             } catch (e) {
-              logger.error('Error during auto-start:', e.message);
+              log.error('Error during auto-start:', e.message);
             } finally {
               // Clear the flag so auto-reconnect can resume normally
               rconService.setServerStarting(false);
@@ -635,7 +640,7 @@ async function start() {
           // The bridge will detect the mod isn't responding via status timestamp
         }
       } catch (e) {
-        logger.debug(`Startup initialization: ${e.message}`);
+        log.debug(`Startup initialization: ${e.message}`);
       }
     })();
     
@@ -649,6 +654,7 @@ async function start() {
     const savedPort = await getSetting('panelPort');
     const PORT = process.env.PORT || savedPort || 3001;
     httpServer.listen(PORT, () => {
+      logSection('Ready');
       console.log('');
       console.log('  ╔═══════════════════════════════════════════════╗');
       console.log('  ║         Zomboid Control Panel                 ║');
@@ -662,12 +668,12 @@ async function start() {
       if (typeof process.pkg !== 'undefined') {
         const url = `http://localhost:${PORT}`;
         exec(`start "" "${url}"`, (err) => {
-          if (err) logger.error('Failed to open browser:', err);
+          if (err) log.error('Failed to open browser:', err);
         });
       }
     });
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    log.error('Failed to start server:', error);
     process.exit(1);
   }
 }

@@ -1,4 +1,5 @@
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Mods');
 import { getTrackedMods, updateModTimestamp, logServerEvent, getSetting, setSetting, addTrackedMod, getActiveServer } from '../database/init.js';
 import fs from 'fs';
 import path from 'path';
@@ -58,11 +59,11 @@ export class ModChecker extends EventEmitter {
           this.onUpdateCallback = async (updatedMods) => {
             await this.handleModUpdate(updatedMods);
           };
-          logger.info('Auto-restart on mod update restored from settings');
+          log.info('Auto-restart on mod update restored from settings');
         }
       }
     } catch (error) {
-      logger.warn(`Failed to restore mod checker settings: ${error.message}`);
+      log.warn(`Failed to restore mod checker settings: ${error.message}`);
     }
     
     // Auto-sync mods from workshop ACF file
@@ -76,7 +77,7 @@ export class ModChecker extends EventEmitter {
       const manualPath = await getSetting('modWorkshopAcfPath');
       if (manualPath && fs.existsSync(manualPath)) {
           this.workshopAcfPath = manualPath;
-          logger.info(`ModChecker: Using configured workshop ACF: ${manualPath}`);
+          log.info(`Using configured workshop ACF: ${manualPath}`);
           return manualPath;
       }
 
@@ -88,7 +89,7 @@ export class ModChecker extends EventEmitter {
       }
       
       if (!installPath) {
-        logger.debug('ModChecker: Server install path not configured');
+        log.debug('Server install path not configured');
         return null;
       }
       
@@ -97,7 +98,7 @@ export class ModChecker extends EventEmitter {
       
       if (fs.existsSync(acfPath)) {
         this.workshopAcfPath = acfPath;
-        logger.info(`ModChecker: Found workshop ACF at ${acfPath}`);
+        log.info(`Found workshop ACF at ${acfPath}`);
         return acfPath;
       }
 
@@ -105,14 +106,14 @@ export class ModChecker extends EventEmitter {
       const acfPathUp = path.join(installPath, '..', 'steamapps', 'workshop', 'appworkshop_108600.acf');
       if (fs.existsSync(acfPathUp)) {
           this.workshopAcfPath = acfPathUp;
-          logger.info(`ModChecker: Found workshop ACF at parent: ${acfPathUp}`);
+          log.info(`Found workshop ACF at parent: ${acfPathUp}`);
           return acfPathUp;
       }
       
-      logger.debug(`ModChecker: Workshop ACF not found at ${acfPath}`);
+      log.debug(`Workshop ACF not found at ${acfPath}`);
       return null;
     } catch (error) {
-      logger.warn(`ModChecker: Failed to find workshop ACF: ${error.message}`);
+      log.warn(`Failed to find workshop ACF: ${error.message}`);
       return null;
     }
   }
@@ -193,7 +194,7 @@ export class ModChecker extends EventEmitter {
         }
       }
     } catch (error) {
-      logger.error(`ModChecker: Failed to parse ACF file: ${error.message}`);
+      log.error(`Failed to parse ACF file: ${error.message}`);
     }
     
     return result;
@@ -261,7 +262,7 @@ export class ModChecker extends EventEmitter {
   async autoSyncModsOnStartup() {
     try {
       if (!this.workshopAcfPath || !fs.existsSync(this.workshopAcfPath)) {
-        logger.debug('ModChecker: No workshop ACF file, skipping auto-sync');
+        log.debug('No workshop ACF file, skipping auto-sync');
         return;
       }
       
@@ -269,7 +270,7 @@ export class ModChecker extends EventEmitter {
       
       // Only auto-sync if no mods are tracked
       if (trackedMods.length > 0) {
-        logger.debug(`ModChecker: ${trackedMods.length} mods already tracked, skipping auto-sync`);
+        log.debug(`${trackedMods.length} mods already tracked, skipping auto-sync`);
         return;
       }
       
@@ -280,7 +281,7 @@ export class ModChecker extends EventEmitter {
       const workshopIds = Object.keys(parsed.installedMods);
       
       if (workshopIds.length === 0) {
-        logger.debug('ModChecker: No mods found in workshop ACF');
+        log.debug('No mods found in workshop ACF');
         return;
       }
       
@@ -296,22 +297,22 @@ export class ModChecker extends EventEmitter {
       }
       
       if (synced > 0) {
-        logger.info(`ModChecker: Auto-synced ${synced} mods from workshop ACF`);
+        log.info(`Auto-synced ${synced} mods from workshop ACF`);
       }
     } catch (error) {
-      logger.error(`ModChecker: Failed to auto-sync mods: ${error.message}`);
+      log.error(`Failed to auto-sync mods: ${error.message}`);
     }
   }
 
   start() {
     // Check if we have the workshop ACF file
     if (!this.workshopAcfPath) {
-      logger.warn('ModChecker: Workshop ACF file not configured - mod update checking disabled. Configure server install path first.');
+      log.warn('Workshop ACF file not configured - mod update checking disabled. Configure server install path first.');
       return false;
     }
     
     if (!fs.existsSync(this.workshopAcfPath)) {
-      logger.warn(`ModChecker: Workshop ACF file not found at ${this.workshopAcfPath}`);
+      log.warn(`Workshop ACF file not found at ${this.workshopAcfPath}`);
       return false;
     }
 
@@ -321,7 +322,7 @@ export class ModChecker extends EventEmitter {
     }
 
     this.intervalId = setInterval(() => this.checkForUpdates(), this.checkInterval);
-    logger.info(`Mod checker started - checking every ${Math.round(this.checkInterval / 1000)}s`);
+    log.info(`Mod checker started - checking every ${Math.round(this.checkInterval / 1000)}s`);
     
     // Run initial check
     this.checkForUpdates();
@@ -332,7 +333,7 @@ export class ModChecker extends EventEmitter {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      logger.info('Mod checker stopped');
+      log.info('Mod checker stopped');
     }
     if (this.playerCheckInterval) {
       clearInterval(this.playerCheckInterval);
@@ -371,7 +372,7 @@ export class ModChecker extends EventEmitter {
       }
     }
     
-    logger.info(`Mod restart options updated: warning=${this.restartWarningMinutes}min, delayIfPlayers=${this.delayIfPlayersOnline}, maxDelay=${this.maxDelayMinutes}min`);
+    log.info(`Mod restart options updated: warning=${this.restartWarningMinutes}min, delayIfPlayers=${this.delayIfPlayersOnline}, maxDelay=${this.maxDelayMinutes}min`);
   }
 
   // Handle mod update detection
@@ -390,7 +391,7 @@ export class ModChecker extends EventEmitter {
     this.emit('update_detected', updatedMods);
     
     if (!this.scheduler) {
-      logger.warn('ModChecker: Scheduler not available, cannot trigger restart');
+      log.warn('Scheduler not available, cannot trigger restart');
       return;
     }
     
@@ -400,7 +401,7 @@ export class ModChecker extends EventEmitter {
         const playerCount = await this.getOnlinePlayerCount();
         
         if (playerCount > 0) {
-          logger.info(`ModChecker: ${playerCount} players online, delaying restart (max ${this.maxDelayMinutes} min)`);
+          log.info(`${playerCount} players online, delaying restart (max ${this.maxDelayMinutes} min)`);
           await this.scheduler.rconService?.serverMessage(
             `🔧 Mod updates detected! Restart pending - waiting for players to leave (max ${this.maxDelayMinutes} min).`
           );
@@ -418,7 +419,7 @@ export class ModChecker extends EventEmitter {
           return;
         }
       } catch (error) {
-        logger.warn(`ModChecker: Failed to check player count: ${error.message}`);
+        log.warn(`Failed to check player count: ${error.message}`);
       }
     }
     
@@ -436,7 +437,7 @@ export class ModChecker extends EventEmitter {
         return result.players.length;
       }
     } catch (error) {
-      logger.debug(`Failed to get player count: ${error.message}`);
+      log.debug(`Failed to get player count: ${error.message}`);
     }
     return 0;
   }
@@ -456,7 +457,7 @@ export class ModChecker extends EventEmitter {
       
       // Check if max delay exceeded
       if (elapsed >= maxWaitMs) {
-        logger.info('ModChecker: Max delay exceeded, forcing restart');
+        log.info('Max delay exceeded, forcing restart');
         clearInterval(this.playerCheckInterval);
         this.playerCheckInterval = null;
         this.pendingRestart = false;
@@ -468,21 +469,21 @@ export class ModChecker extends EventEmitter {
       const playerCount = await this.getOnlinePlayerCount();
       
       if (playerCount === 0) {
-        logger.info('ModChecker: No players online, triggering restart');
+        log.info('No players online, triggering restart');
         clearInterval(this.playerCheckInterval);
         this.playerCheckInterval = null;
         this.pendingRestart = false;
         await this.triggerModRestart(updatedMods);
       } else {
         const remainingMin = Math.round((maxWaitMs - elapsed) / 60000);
-        logger.debug(`ModChecker: ${playerCount} players still online, ${remainingMin} min remaining`);
+        log.debug(`${playerCount} players still online, ${remainingMin} min remaining`);
       }
     }, 30000); // Check every 30 seconds
   }
 
   // Trigger the actual restart
   async triggerModRestart(updatedMods) {
-    logger.info(`ModChecker: Triggering restart for ${updatedMods.length} updated mod(s)`);
+    log.info(`Triggering restart for ${updatedMods.length} updated mod(s)`);
     
     const modNames = updatedMods.map(m => m.name).join(', ');
     
@@ -508,7 +509,7 @@ export class ModChecker extends EventEmitter {
         this.io.emit('mods:restart_complete', { mods: updatedMods });
       }
     } catch (error) {
-      logger.error(`ModChecker: Restart failed: ${error.message}`);
+      log.error(`Restart failed: ${error.message}`);
       if (this.io) {
         this.io.emit('mods:restart_failed', { error: error.message });
       }
@@ -525,7 +526,7 @@ export class ModChecker extends EventEmitter {
       }
       
       if (!this.workshopAcfPath || !fs.existsSync(this.workshopAcfPath)) {
-        logger.warn('ModChecker: Workshop ACF file not found - cannot check for updates');
+        log.warn('Workshop ACF file not found - cannot check for updates');
         return { updated: false, mods: [], error: 'Workshop ACF file not found' };
       }
       
@@ -535,9 +536,9 @@ export class ModChecker extends EventEmitter {
       
       const modCount = Object.keys(parsed.modDetails).length;
       if (modCount > 0) {
-        logger.info(`Checking ${modCount} workshop mods for updates...`);
+        log.info(`Checking ${modCount} workshop mods for updates...`);
       } else {
-        logger.debug('No workshop mods to check for updates');
+        log.debug('No workshop mods to check for updates');
       }
       
       const updatedMods = [];
@@ -558,7 +559,7 @@ export class ModChecker extends EventEmitter {
           const trackedMod = trackedMap.get(workshopId);
           const modName = trackedMod?.name || `Workshop Mod ${workshopId}`;
           
-          logger.info(`Mod update available: ${modName} (${workshopId}) - local: ${timeupdated}, latest: ${latest_timeupdated}`);
+          log.info(`Mod update available: ${modName} (${workshopId}) - local: ${timeupdated}, latest: ${latest_timeupdated}`);
           
           updatedMods.push({
             workshopId,
@@ -583,7 +584,7 @@ export class ModChecker extends EventEmitter {
       this.modsNeedingUpdate = updatedMods;
 
       if (updatedMods.length > 0) {
-        logger.info(`${updatedMods.length} mod(s) have updates available`);
+        log.info(`${updatedMods.length} mod(s) have updates available`);
         await logServerEvent('mod_update_detected', JSON.stringify(updatedMods.map(m => m.name)));
         
         // Emit socket event
@@ -598,16 +599,16 @@ export class ModChecker extends EventEmitter {
           try {
             await this.onUpdateCallback(updatedMods);
           } catch (callbackError) {
-            logger.error(`Mod update callback failed: ${callbackError.message}`);
+            log.error(`Mod update callback failed: ${callbackError.message}`);
           }
         }
       } else {
-        logger.debug('No mod updates available');
+        log.debug('No mod updates available');
       }
 
       return { updated: updatedMods.length > 0, mods: updatedMods };
     } catch (error) {
-      logger.error(`Mod update check failed: ${error.message}`);
+      log.error(`Mod update check failed: ${error.message}`);
       return { updated: false, mods: [], error: error.message };
     }
   }
@@ -635,7 +636,7 @@ export class ModChecker extends EventEmitter {
       
       return result;
     } catch (error) {
-      logger.error(`Failed to read workshop ACF: ${error.message}`);
+      log.error(`Failed to read workshop ACF: ${error.message}`);
       return {};
     }
   }
@@ -706,7 +707,7 @@ export class ModChecker extends EventEmitter {
       this.playerCheckInterval = null;
     }
     this.pendingRestart = false;
-    logger.info('ModChecker: Pending restart cancelled');
+    log.info('Pending restart cancelled');
     
     if (this.io) {
       this.io.emit('mods:restart_cancelled', {});

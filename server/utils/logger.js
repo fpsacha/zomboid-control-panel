@@ -44,24 +44,41 @@ class CallbackTransport extends winston.Transport {
   }
 }
 
-// Shared printf format for all transports
-const printfFormat = winston.format.printf(({ level, message, timestamp, stack }) => {
-  return `${timestamp} [${level.toUpperCase()}]: ${stack || message}`;
+// ── Level indicators ──
+const levelIcons = {
+  error: '✖',
+  warn:  '⚠',
+  info:  '●',
+  debug: '·',
+};
+
+// ── Console format (compact, colored, human-friendly) ──
+const consolePrintf = winston.format.printf(({ level, message, timestamp, stack, source }) => {
+  const time = timestamp;                       // HH:mm:ss only
+  const icon = levelIcons[level] || '•';
+  const tag  = source ? `[${source}]` : '';
+  const msg  = stack || message;
+  // e.g.  12:34:56 ● [RCON] Connected on attempt 1
+  return `${time} ${icon} ${tag}${tag ? ' ' : ''}${msg}`;
 });
 
-// Format for console (with colors)
 const consoleFormat = winston.format.combine(
-  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.timestamp({ format: 'HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   winston.format.colorize(),
-  printfFormat
+  consolePrintf
 );
 
-// Format for file transports (no colors)
+// ── File format (full timestamp, structured, no colors) ──
+const filePrintf = winston.format.printf(({ level, message, timestamp, stack, source }) => {
+  const tag = source ? `[${source}] ` : '';
+  return `${timestamp} [${level.toUpperCase()}] ${tag}${stack || message}`;
+});
+
 const fileFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
-  printfFormat
+  filePrintf
 );
 
 export const logger = winston.createLogger({
@@ -88,3 +105,28 @@ export const logger = winston.createLogger({
     new CallbackTransport()
   ]
 });
+
+/**
+ * Create a tagged child logger for a specific component.
+ * Usage:  const log = createLogger('RCON');
+ *         log.info('Connected');  → "12:34:56 ● [RCON] Connected"
+ */
+export function createLogger(source) {
+  return logger.child({ source });
+}
+
+/**
+ * Print a blank line to console (visual spacer).
+ */
+export function logBlank() {
+  console.log('');
+}
+
+/**
+ * Print a section header to console for grouping startup phases.
+ * e.g.  ─── Services ────────────────────────
+ */
+export function logSection(title) {
+  const line = '─'.repeat(Math.max(0, 44 - title.length));
+  console.log(`\n  ─── ${title} ${line}`);
+}

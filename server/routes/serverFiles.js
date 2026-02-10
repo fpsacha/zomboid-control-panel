@@ -1,7 +1,8 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Files');
 import { getActiveServer, getAllSettings } from '../database/init.js';
 
 const router = express.Router();
@@ -61,35 +62,46 @@ async function createBackup(filename) {
   const backupDir = await getBackupPath();
   const filePath = path.join(configPath, filename);
   
-  if (!fs.existsSync(filePath)) {
+  try {
+    // Check file existence asynchronously
+    try {
+      await fs.promises.access(filePath);
+    } catch {
+      return null;
+    }
+    
+    // Ensure backup directory exists
+    await fs.promises.mkdir(backupDir, { recursive: true });
+    
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backupName = `${filename}.${timestamp}.bak`;
+    const backupPath = path.join(backupDir, backupName);
+    
+    // Async copy
+    await fs.promises.copyFile(filePath, backupPath);
+    log.info(`Created backup: ${backupName}`);
+    
+    // Cleanup old backups asynchronously
+    const files = await fs.promises.readdir(backupDir);
+    const backups = files
+      .filter(f => f.startsWith(filename + '.') && f.endsWith('.bak'))
+      .sort()
+      .reverse();
+    
+    if (backups.length > 10) {
+      const filesToDelete = backups.slice(10);
+      await Promise.all(filesToDelete.map(old => 
+        fs.promises.unlink(path.join(backupDir, old)).catch(e => 
+          log.warn(`Failed to delete old backup ${old}: ${e.message}`)
+        )
+      ));
+    }
+    
+    return backupName;
+  } catch (error) {
+    log.error(`Backup creation failed: ${error.message}`);
     return null;
   }
-  
-  // Ensure backup directory exists
-  if (!fs.existsSync(backupDir)) {
-    fs.mkdirSync(backupDir, { recursive: true });
-  }
-  
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupName = `${filename}.${timestamp}.bak`;
-  const backupPath = path.join(backupDir, backupName);
-  
-  fs.copyFileSync(filePath, backupPath);
-  logger.info(`Created backup: ${backupName}`);
-  
-  // Keep only last 10 backups per file
-  const backups = fs.readdirSync(backupDir)
-    .filter(f => f.startsWith(filename + '.') && f.endsWith('.bak'))
-    .sort()
-    .reverse();
-  
-  if (backups.length > 10) {
-    for (const old of backups.slice(10)) {
-      fs.unlinkSync(path.join(backupDir, old));
-    }
-  }
-  
-  return backupName;
 }
 
 // Parse INI file to object
@@ -229,7 +241,7 @@ function parseSandboxVars(content) {
     nestedBlocks.forEach(parseNestedBlock);
     
   } catch (error) {
-    logger.error('Failed to parse SandboxVars:', error);
+    log.error('Failed to parse SandboxVars:', error);
   }
   
   return result;
@@ -242,7 +254,7 @@ function modifySandboxValue(originalContent, key, newValue, nestedBlock = null) 
   
   // Validate key is a valid identifier (alphanumeric and underscore only)
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-    logger.warn(`Invalid sandbox key skipped: ${key}`);
+    log.warn(`Invalid sandbox key skipped: ${key}`);
     return content;
   }
   
@@ -411,7 +423,7 @@ function parseSpawnPoints(content) {
       }
     }
   } catch (error) {
-    logger.error('Failed to parse spawn points:', error);
+    log.error('Failed to parse spawn points:', error);
   }
   
   return professions;
@@ -464,7 +476,7 @@ function parseSpawnRegions(content) {
       }
     }
   } catch (error) {
-    logger.error('Failed to parse spawn regions:', error);
+    log.error('Failed to parse spawn regions:', error);
   }
   
   return regions;
@@ -512,7 +524,7 @@ router.get('/paths', async (req, res) => {
     
     res.json({ configPath, serverName, files, exists });
   } catch (error) {
-    logger.error('Failed to get paths:', error);
+    log.error('Failed to get paths:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -533,7 +545,7 @@ router.get('/ini', async (req, res) => {
     
     res.json({ settings: parsed, path: filePath });
   } catch (error) {
-    logger.error('Failed to read INI:', error);
+    log.error('Failed to read INI:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -560,10 +572,10 @@ router.put('/ini', async (req, res) => {
     const newContent = toIni(settings, originalContent);
     fs.writeFileSync(filePath, newContent, 'utf-8');
     
-    logger.info('Saved INI file');
+    log.info('Saved INI file');
     res.json({ success: true, message: 'Settings saved' });
   } catch (error) {
-    logger.error('Failed to save INI:', error);
+    log.error('Failed to save INI:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -584,7 +596,7 @@ router.get('/sandbox', async (req, res) => {
     
     res.json({ sandbox: parsed, path: filePath });
   } catch (error) {
-    logger.error('Failed to read SandboxVars:', error);
+    log.error('Failed to read SandboxVars:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -612,10 +624,10 @@ router.put('/sandbox', async (req, res) => {
     
     fs.writeFileSync(filePath, newContent, 'utf-8');
     
-    logger.info('Saved SandboxVars file');
+    log.info('Saved SandboxVars file');
     res.json({ success: true, message: 'Sandbox settings saved' });
   } catch (error) {
-    logger.error('Failed to save SandboxVars:', error);
+    log.error('Failed to save SandboxVars:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -636,7 +648,7 @@ router.get('/spawnpoints', async (req, res) => {
     
     res.json({ spawnpoints: points, path: filePath });
   } catch (error) {
-    logger.error('Failed to read spawn points:', error);
+    log.error('Failed to read spawn points:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -660,10 +672,10 @@ router.put('/spawnpoints', async (req, res) => {
     const newContent = toSpawnPoints(spawnpoints, serverName);
     fs.writeFileSync(filePath, newContent, 'utf-8');
     
-    logger.info('Saved spawn points file');
+    log.info('Saved spawn points file');
     res.json({ success: true, message: 'Spawn points saved' });
   } catch (error) {
-    logger.error('Failed to save spawn points:', error);
+    log.error('Failed to save spawn points:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -684,7 +696,7 @@ router.get('/spawnregions', async (req, res) => {
     
     res.json({ spawnregions: regions, path: filePath });
   } catch (error) {
-    logger.error('Failed to read spawn regions:', error);
+    log.error('Failed to read spawn regions:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -708,10 +720,10 @@ router.put('/spawnregions', async (req, res) => {
     const newContent = toSpawnRegions(spawnregions, serverName);
     fs.writeFileSync(filePath, newContent, 'utf-8');
     
-    logger.info('Saved spawn regions file');
+    log.info('Saved spawn regions file');
     res.json({ success: true, message: 'Spawn regions saved' });
   } catch (error) {
-    logger.error('Failed to save spawn regions:', error);
+    log.error('Failed to save spawn regions:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -743,7 +755,7 @@ router.get('/raw/:type', async (req, res) => {
     const content = fs.readFileSync(filePath, 'utf-8');
     res.json({ content, path: filePath, filename: fileMap[type] });
   } catch (error) {
-    logger.error('Failed to read raw file:', error);
+    log.error('Failed to read raw file:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -779,10 +791,10 @@ router.put('/raw/:type', async (req, res) => {
     
     fs.writeFileSync(filePath, content, 'utf-8');
     
-    logger.info(`Saved raw file: ${fileMap[type]}`);
+    log.info(`Saved raw file: ${fileMap[type]}`);
     res.json({ success: true, message: 'File saved' });
   } catch (error) {
-    logger.error('Failed to save raw file:', error);
+    log.error('Failed to save raw file:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -796,16 +808,20 @@ router.get('/backups', async (req, res) => {
       return res.json({ backups: [] });
     }
     
-    const files = fs.readdirSync(backupDir)
+    const fileList = await fs.promises.readdir(backupDir);
+    const files = (await Promise.all(fileList
       .filter(f => f.endsWith('.bak'))
-      .map(filename => {
-        const stats = fs.statSync(path.join(backupDir, filename));
-        return {
-          filename,
-          size: stats.size,
-          created: stats.birthtime
-        };
-      })
+      .map(async filename => {
+        try {
+          const stats = await fs.promises.stat(path.join(backupDir, filename));
+          return {
+            filename,
+            size: stats.size,
+            created: stats.birthtime
+          };
+        } catch (e) { return null; }
+      })))
+      .filter(f => f !== null)
       .sort((a, b) => {
         // Handle invalid dates gracefully
         const dateA = new Date(a.created);
@@ -817,7 +833,7 @@ router.get('/backups', async (req, res) => {
     
     res.json({ backups: files, path: backupDir });
   } catch (error) {
-    logger.error('Failed to list backups:', error);
+    log.error('Failed to list backups:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -859,12 +875,12 @@ router.post('/restore/:filename', async (req, res) => {
       await createBackup(originalName);
     }
     
-    fs.copyFileSync(backupPath, targetPath);
+    await fs.promises.copyFile(backupPath, targetPath);
     
-    logger.info(`Restored from backup: ${filename} -> ${originalName}`);
+    log.info(`Restored from backup: ${filename} -> ${originalName}`);
     res.json({ success: true, message: `Restored ${originalName} from backup` });
   } catch (error) {
-    logger.error('Failed to restore backup:', error);
+    log.error('Failed to restore backup:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -881,7 +897,7 @@ router.post('/save-and-reload', async (req, res) => {
     const result = await rconService.reloadOptions();
     res.json({ success: true, message: 'Options reloaded', result });
   } catch (error) {
-    logger.error('Failed to reload options:', error);
+    log.error('Failed to reload options:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -930,7 +946,7 @@ router.get('/templates', async (req, res) => {
     
     res.json({ templates: files });
   } catch (error) {
-    logger.error('Failed to list templates:', error);
+    log.error('Failed to list templates:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -954,7 +970,7 @@ router.get('/templates/:id', async (req, res) => {
     const content = JSON.parse(fs.readFileSync(templateFile, 'utf-8'));
     res.json(content);
   } catch (error) {
-    logger.error('Failed to get template:', error);
+    log.error('Failed to get template:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1011,7 +1027,7 @@ router.post('/templates', async (req, res) => {
     }
     
     fs.writeFileSync(templateFile, JSON.stringify(template, null, 2));
-    logger.info(`Created template: ${name} (${safeId})`);
+    log.info(`Created template: ${name} (${safeId})`);
     
     res.json({ 
       success: true, 
@@ -1020,7 +1036,7 @@ router.post('/templates', async (req, res) => {
       message: `Template "${name}" saved successfully`
     });
   } catch (error) {
-    logger.error('Failed to save template:', error);
+    log.error('Failed to save template:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1059,7 +1075,7 @@ router.post('/templates/:id/apply', async (req, res) => {
       // Write the template INI
       fs.writeFileSync(iniPath, template.iniRaw);
       applied.push('INI');
-      logger.info(`Applied INI from template: ${template.name}`);
+      log.info(`Applied INI from template: ${template.name}`);
     }
     
     // Apply Sandbox settings
@@ -1072,7 +1088,7 @@ router.post('/templates/:id/apply', async (req, res) => {
       // Write the template sandbox
       fs.writeFileSync(sandboxPath, template.sandboxRaw);
       applied.push('Sandbox');
-      logger.info(`Applied Sandbox from template: ${template.name}`);
+      log.info(`Applied Sandbox from template: ${template.name}`);
     }
     
     if (applied.length === 0) {
@@ -1085,7 +1101,7 @@ router.post('/templates/:id/apply', async (req, res) => {
       message: `Applied ${applied.join(' and ')} settings from "${template.name}"`
     });
   } catch (error) {
-    logger.error('Failed to apply template:', error);
+    log.error('Failed to apply template:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1118,7 +1134,7 @@ router.put('/templates/:id', async (req, res) => {
     
     res.json({ success: true, message: 'Template updated' });
   } catch (error) {
-    logger.error('Failed to update template:', error);
+    log.error('Failed to update template:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1140,11 +1156,11 @@ router.delete('/templates/:id', async (req, res) => {
     }
     
     fs.unlinkSync(templateFile);
-    logger.info(`Deleted template: ${req.params.id}`);
+    log.info(`Deleted template: ${req.params.id}`);
     
     res.json({ success: true, message: 'Template deleted' });
   } catch (error) {
-    logger.error('Failed to delete template:', error);
+    log.error('Failed to delete template:', error);
     res.status(500).json({ error: error.message });
   }
 });

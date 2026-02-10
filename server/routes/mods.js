@@ -1,7 +1,8 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('API:Mods');
 import { getTrackedMods, addTrackedMod, removeTrackedMod, clearModUpdates, getSetting, getActiveServer, getModPresets, createModPreset, updateModPreset, deleteModPreset } from '../database/init.js';
 
 const router = express.Router();
@@ -69,7 +70,7 @@ router.get('/status', async (req, res) => {
     const status = await modChecker.getStatus();
     res.json(status);
   } catch (error) {
-    logger.error(`Failed to get mod checker status: ${error.message}`);
+    log.error(`Failed to get mod checker status: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -80,7 +81,7 @@ router.get('/tracked', async (req, res) => {
     const mods = await getTrackedMods();
     res.json({ mods });
   } catch (error) {
-    logger.error(`Failed to get tracked mods: ${error.message}`);
+    log.error(`Failed to get tracked mods: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -105,7 +106,7 @@ router.post('/track', async (req, res) => {
     const result = await modChecker.addModToTrack(String(workshopId));
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to add mod to track: ${error.message}`);
+    log.error(`Failed to add mod to track: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -123,7 +124,7 @@ router.delete('/track/:workshopId', async (req, res) => {
     await removeTrackedMod(workshopId);
     res.json({ success: true, message: 'Mod removed from tracking' });
   } catch (error) {
-    logger.error(`Failed to remove tracked mod: ${error.message}`);
+    log.error(`Failed to remove tracked mod: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -137,7 +138,7 @@ router.post('/check-updates', async (req, res) => {
     const result = await modChecker.checkForUpdates();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to check for updates: ${error.message}`);
+    log.error(`Failed to check for updates: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -149,7 +150,7 @@ router.get('/server-mods', async (req, res) => {
     const mods = await serverManager.getModList();
     res.json({ mods });
   } catch (error) {
-    logger.error(`Failed to get server mods: ${error.message}`);
+    log.error(`Failed to get server mods: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -161,7 +162,7 @@ router.get('/check-rcon', async (req, res) => {
     const result = await rconService.checkModsNeedUpdate();
     res.json(result);
   } catch (error) {
-    logger.error(`Failed to check mods via RCON: ${error.message}`);
+    log.error(`Failed to check mods via RCON: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -175,7 +176,7 @@ router.post('/start', async (req, res) => {
     modChecker.start();
     res.json({ success: true, message: 'Mod checker started' });
   } catch (error) {
-    logger.error(`Failed to start mod checker: ${error.message}`);
+    log.error(`Failed to start mod checker: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -189,7 +190,7 @@ router.post('/stop', async (req, res) => {
     modChecker.stop();
     res.json({ success: true, message: 'Mod checker stopped' });
   } catch (error) {
-    logger.error(`Failed to stop mod checker: ${error.message}`);
+    log.error(`Failed to stop mod checker: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -209,7 +210,7 @@ router.put('/interval', async (req, res) => {
     modChecker.setCheckInterval(intervalMs);
     res.json({ success: true, message: `Check interval set to ${intervalMs}ms` });
   } catch (error) {
-    logger.error(`Failed to set check interval: ${error.message}`);
+    log.error(`Failed to set check interval: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -232,7 +233,7 @@ router.post('/auto-restart', async (req, res) => {
     
     res.json({ success: true, autoRestart: enabled });
   } catch (error) {
-    logger.error(`Failed to configure auto-restart: ${error.message}`);
+    log.error(`Failed to configure auto-restart: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -263,7 +264,7 @@ router.put('/restart-options', async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error(`Failed to set restart options: ${error.message}`);
+    log.error(`Failed to set restart options: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -285,7 +286,7 @@ router.get('/workshop-status', async (req, res) => {
         : 'Workshop ACF file not found - ensure server install path is correct'
     });
   } catch (error) {
-    logger.error(`Failed to get workshop status: ${error.message}`);
+    log.error(`Failed to get workshop status: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -303,7 +304,7 @@ router.post('/cancel-pending-restart', async (req, res) => {
     modChecker.cancelPendingRestart();
     res.json({ success: true, message: 'Pending restart cancelled' });
   } catch (error) {
-    logger.error(`Failed to cancel pending restart: ${error.message}`);
+    log.error(`Failed to cancel pending restart: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -316,7 +317,7 @@ router.post('/sync-from-server', async (req, res) => {
     const serverName = await getServerName();
     
     if (!serverConfigPath) {
-      logger.warn('sync-from-server: Server config path not set');
+      log.warn('sync-from-server: Server config path not set');
       return res.json({ 
         success: false, 
         message: 'Server config path not set. Please configure the server first.',
@@ -331,10 +332,10 @@ router.post('/sync-from-server', async (req, res) => {
     }
     
     const iniPath = path.join(serverConfigPath, `${sanitizedServerName}.ini`);
-    logger.info(`sync-from-server: Looking for config at ${iniPath}`);
+    log.info(`sync-from-server: Looking for config at ${iniPath}`);
     
     if (!fs.existsSync(iniPath)) {
-      logger.warn(`sync-from-server: Config file not found at ${iniPath}`);
+      log.warn(`sync-from-server: Config file not found at ${iniPath}`);
       return res.json({ 
         success: false, 
         message: `Server config not found at ${iniPath}. Start the server once first.`,
@@ -350,7 +351,7 @@ router.post('/sync-from-server', async (req, res) => {
     const modIds = modsMatch?.[1]?.split(';').filter(Boolean) || [];
     const workshopIds = workshopMatch?.[1]?.split(';').filter(Boolean) || [];
     
-    logger.info(`sync-from-server: Found ${modIds.length} mod IDs and ${workshopIds.length} workshop IDs`);
+    log.info(`sync-from-server: Found ${modIds.length} mod IDs and ${workshopIds.length} workshop IDs`);
     
     if (workshopIds.length === 0) {
       return res.json({ 
@@ -369,7 +370,7 @@ router.post('/sync-from-server', async (req, res) => {
         await addTrackedMod(workshopId, modName);
         synced++;
       } catch (e) {
-        logger.warn(`Failed to sync mod ${workshopIds[i]}: ${e.message}`);
+        log.warn(`Failed to sync mod ${workshopIds[i]}: ${e.message}`);
       }
     }
     
@@ -380,7 +381,7 @@ router.post('/sync-from-server', async (req, res) => {
       iniPath
     });
   } catch (error) {
-    logger.error(`Failed to sync mods from server: ${error.message}`);
+    log.error(`Failed to sync mods from server: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -391,7 +392,7 @@ router.post('/clear-updates', async (req, res) => {
     await clearModUpdates();
     res.json({ success: true, message: 'Update flags cleared' });
   } catch (error) {
-    logger.error(`Failed to clear mod updates: ${error.message}`);
+    log.error(`Failed to clear mod updates: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -417,7 +418,7 @@ router.post('/import-collection', async (req, res) => {
       return res.status(400).json({ error: 'Invalid collection ID' });
     }
     
-    logger.info(`Fetching collection details for ID: ${collectionId}`);
+    log.info(`Fetching collection details for ID: ${collectionId}`);
     
     // Use Steam API to get collection details
     const collectionResponse = await fetch('https://api.steampowered.com/ISteamRemoteStorage/GetCollectionDetails/v1/', {
@@ -484,7 +485,7 @@ router.post('/import-collection', async (req, res) => {
         isMap: m.tags?.some(t => t.tag?.toLowerCase() === 'map' || t.tag?.toLowerCase() === 'maps') || false
       }));
     
-    logger.info(`Found ${mods.length} mods in collection ${collectionId}`);
+    log.info(`Found ${mods.length} mods in collection ${collectionId}`);
     
     res.json({
       success: true,
@@ -493,7 +494,7 @@ router.post('/import-collection', async (req, res) => {
       mods
     });
   } catch (error) {
-    logger.error(`Failed to import collection: ${error.message}`);
+    log.error(`Failed to import collection: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -537,7 +538,7 @@ router.post('/get-mod-info', async (req, res) => {
       timeCreated: modInfo.time_created
     });
   } catch (error) {
-    logger.error(`Failed to get mod info: ${error.message}`);
+    log.error(`Failed to get mod info: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -593,7 +594,7 @@ router.post('/write-to-ini', async (req, res) => {
           if (detectedId) {
             modId = detectedId;
             autoDetectedCount++;
-            logger.info(`Auto-detected mod ID from local files: ${detectedId} for workshop ${m.workshopId}`);
+            log.info(`Auto-detected mod ID from local files: ${detectedId} for workshop ${m.workshopId}`);
           }
         }
         // If still numeric, try fetching from Steam Workshop page
@@ -602,7 +603,7 @@ router.post('/write-to-ini', async (req, res) => {
           if (steamModId) {
             modId = steamModId;
             autoDetectedCount++;
-            logger.info(`Auto-detected mod ID from Steam Workshop: ${steamModId} for workshop ${m.workshopId}`);
+            log.info(`Auto-detected mod ID from Steam Workshop: ${steamModId} for workshop ${m.workshopId}`);
           }
         }
       }
@@ -614,7 +615,7 @@ router.post('/write-to-ini', async (req, res) => {
           if (detectedId) {
             modId = detectedId;
             autoDetectedCount++;
-            logger.info(`Auto-detected mod ID from local files: ${detectedId} for workshop ${m.workshopId}`);
+            log.info(`Auto-detected mod ID from local files: ${detectedId} for workshop ${m.workshopId}`);
           }
         }
         // If still no modId, try fetching from Steam Workshop page
@@ -623,7 +624,7 @@ router.post('/write-to-ini', async (req, res) => {
           if (steamModId) {
             modId = steamModId;
             autoDetectedCount++;
-            logger.info(`Auto-detected mod ID from Steam Workshop: ${steamModId} for workshop ${m.workshopId}`);
+            log.info(`Auto-detected mod ID from Steam Workshop: ${steamModId} for workshop ${m.workshopId}`);
           }
         }
       }
@@ -646,7 +647,7 @@ router.post('/write-to-ini', async (req, res) => {
         for (const folder of modMapFolders) {
           if (!detectedMapFolders.includes(folder)) {
             detectedMapFolders.push(folder);
-            logger.info(`Auto-detected map folder: ${folder} from workshop ${workshopIdStr}`);
+            log.info(`Auto-detected map folder: ${folder} from workshop ${workshopIdStr}`);
           }
         }
       }
@@ -687,7 +688,7 @@ router.post('/write-to-ini', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Wrote ${mods.length} mods to ${iniPath} (${autoDetectedCount} mod IDs auto-detected, ${detectedMapFolders.length} map folders)`);
+    log.info(`Wrote ${mods.length} mods to ${iniPath} (${autoDetectedCount} mod IDs auto-detected, ${detectedMapFolders.length} map folders)`);
     
     res.json({
       success: true,
@@ -701,7 +702,7 @@ router.post('/write-to-ini', async (req, res) => {
       mapFolders: detectedMapFolders
     });
   } catch (error) {
-    logger.error(`Failed to write mods to ini: ${error.message}`);
+    log.error(`Failed to write mods to ini: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -754,7 +755,7 @@ router.get('/current-config', async (req, res) => {
       iniPath
     });
   } catch (error) {
-    logger.error(`Failed to get current mod config: ${error.message}`);
+    log.error(`Failed to get current mod config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -827,7 +828,7 @@ router.post('/add-to-ini', async (req, res) => {
         detectedModId = findModIdFromWorkshop(String(workshopId), serverPath);
         if (detectedModId) {
           detectionSource = 'local-files';
-          logger.info(`Auto-detected mod ID from local files: ${detectedModId} for workshop ${workshopId}`);
+          log.info(`Auto-detected mod ID from local files: ${detectedModId} for workshop ${workshopId}`);
         }
       }
       
@@ -836,7 +837,7 @@ router.post('/add-to-ini', async (req, res) => {
         detectedModId = await fetchModIdFromWorkshop(String(workshopId));
         if (detectedModId) {
           detectionSource = 'steam-workshop';
-          logger.info(`Auto-detected mod ID from Steam Workshop: ${detectedModId} for workshop ${workshopId}`);
+          log.info(`Auto-detected mod ID from Steam Workshop: ${detectedModId} for workshop ${workshopId}`);
         }
       }
     }
@@ -883,7 +884,7 @@ router.post('/add-to-ini', async (req, res) => {
             // Insert at the beginning (before main map)
             currentMaps.unshift(folder);
             addedMapFolders.push(folder);
-            logger.info(`Added map folder: ${folder} for workshop ${workshopId}`);
+            log.info(`Added map folder: ${folder} for workshop ${workshopId}`);
           }
         }
         
@@ -899,7 +900,7 @@ router.post('/add-to-ini', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Added mod ${workshopId} to ${iniPath}${addedMapFolders.length > 0 ? ` with map folders: ${addedMapFolders.join(', ')}` : ''}`);
+    log.info(`Added mod ${workshopId} to ${iniPath}${addedMapFolders.length > 0 ? ` with map folders: ${addedMapFolders.join(', ')}` : ''}`);
     
     res.json({
       success: true,
@@ -915,7 +916,7 @@ router.post('/add-to-ini', async (req, res) => {
       note: detectedModId ? undefined : 'Mod ID could not be auto-detected. You may need to add it manually or use "Sync Mod IDs" after the mod is downloaded.'
     });
   } catch (error) {
-    logger.error(`Failed to add mod to ini: ${error.message}`);
+    log.error(`Failed to add mod to ini: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -934,7 +935,7 @@ async function fetchModIdFromWorkshop(workshopId) {
     });
     
     if (!response.ok) {
-      logger.warn(`Steam API returned ${response.status} for workshop ${workshopId}`);
+      log.warn(`Steam API returned ${response.status} for workshop ${workshopId}`);
       return null;
     }
     
@@ -942,7 +943,7 @@ async function fetchModIdFromWorkshop(workshopId) {
     const modInfo = data.response?.publishedfiledetails?.[0];
     
     if (!modInfo || modInfo.result !== 1) {
-      logger.warn(`Mod not found for workshop ${workshopId}`);
+      log.warn(`Mod not found for workshop ${workshopId}`);
       return null;
     }
     
@@ -953,21 +954,21 @@ async function fetchModIdFromWorkshop(workshopId) {
     // Pattern 1: "Mod ID: SomeName" or "ModID: SomeName"
     let match = description.match(/Mod\s*ID\s*[:=]\s*([^\s\n\r\[\]<>]+)/i);
     if (match) {
-      logger.info(`Found Mod ID from "Mod ID:" pattern: ${match[1]}`);
+      log.info(`Found Mod ID from "Mod ID:" pattern: ${match[1]}`);
       return match[1].trim();
     }
     
     // Pattern 2: "id=SomeName" (common in description)
     match = description.match(/\bid\s*=\s*([^\s\n\r\[\]<>]+)/i);
     if (match) {
-      logger.info(`Found Mod ID from "id=" pattern: ${match[1]}`);
+      log.info(`Found Mod ID from "id=" pattern: ${match[1]}`);
       return match[1].trim();
     }
     
     // Pattern 3: Workshop ID matches a pattern like "Mod: ModName"
     match = description.match(/\bMod\s*:\s*([A-Za-z0-9_-]+)/i);
     if (match && match[1].length > 3) {
-      logger.info(`Found Mod ID from "Mod:" pattern: ${match[1]}`);
+      log.info(`Found Mod ID from "Mod:" pattern: ${match[1]}`);
       return match[1].trim();
     }
     
@@ -975,14 +976,14 @@ async function fetchModIdFromWorkshop(workshopId) {
     // Use [\s\S] to match newlines
     match = description.match(/\[code\][\s\S]*?id\s*=\s*([^\s\n\r\[\]]+)[\s\S]*?\[\/code\]/i);
     if (match) {
-      logger.info(`Found Mod ID from [code] block: ${match[1]}`);
+      log.info(`Found Mod ID from [code] block: ${match[1]}`);
       return match[1].trim();
     }
 
     // Pattern 5: "Ids: ModId" (plural)
     match = description.match(/IDs\s*[:=]\s*([^\s\n\r\[\]<>]+)/i);
     if (match) {
-       logger.info(`Found Mod ID from "IDs:" pattern: ${match[1]}`);
+       log.info(`Found Mod ID from "IDs:" pattern: ${match[1]}`);
        return match[1].trim();
     }
 
@@ -994,14 +995,14 @@ async function fetchModIdFromWorkshop(workshopId) {
     // Remove spaces, brackets, special chars from title
     const potentialId = title.replace(/[^a-zA-Z0-9_-]/g, '');
     if (potentialId.length > 3 && potentialId.length < 30) {
-        logger.info(`Using sanitized title as putative Mod ID: ${potentialId}`);
+        log.info(`Using sanitized title as putative Mod ID: ${potentialId}`);
         return potentialId;
     }
     
-    logger.warn(`Could not extract Mod ID from workshop ${workshopId} description. Title: "${title}"`);
+    log.warn(`Could not extract Mod ID from workshop ${workshopId} description. Title: "${title}"`);
     return null;
   } catch (error) {
-    logger.error(`Error fetching mod ID from workshop ${workshopId}: ${error.message}`);
+    log.error(`Error fetching mod ID from workshop ${workshopId}: ${error.message}`);
     return null;
   }
 }
@@ -1045,7 +1046,7 @@ function findMapFoldersFromWorkshop(workshopId, serverPath) {
             for (const mapEntry of mapEntries) {
                 if (mapEntry.isDirectory()) {
                 mapFolders.push(mapEntry.name);
-                logger.debug(`Found map folder: ${mapEntry.name} in workshop ${workshopId}`);
+                log.debug(`Found map folder: ${mapEntry.name} in workshop ${workshopId}`);
                 }
             }
             }
@@ -1059,7 +1060,7 @@ function findMapFoldersFromWorkshop(workshopId, serverPath) {
         for (const mapEntry of mapEntries) {
           if (mapEntry.isDirectory() && !mapFolders.includes(mapEntry.name)) {
             mapFolders.push(mapEntry.name);
-            logger.debug(`Found map folder (direct): ${mapEntry.name} in workshop ${workshopId}`);
+            log.debug(`Found map folder (direct): ${mapEntry.name} in workshop ${workshopId}`);
           }
         }
       }
@@ -1138,7 +1139,7 @@ function getModDetailsFromWorkshop(workshopId, serverPath) {
       // If we found mods in this path, stop searching other paths
       if (mods.length > 0) return mods;
     } catch (e) {
-      logger.debug(`Error scanning path ${searchPath}: ${e.message}`);
+      log.debug(`Error scanning path ${searchPath}: ${e.message}`);
     }
   }
   
@@ -1171,7 +1172,7 @@ router.post('/inspect-workshop-item', async (req, res) => {
       count: mods.length
     });
   } catch (error) {
-    logger.error(`Failed to inspect workshop item: ${error.message}`);
+    log.error(`Failed to inspect workshop item: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1226,7 +1227,7 @@ router.post('/remove-from-ini', async (req, res) => {
       // Try to find the mod ID by reading the workshop folder
       modIdToRemove = findModIdFromWorkshop(String(workshopId), serverPath);
       if (modIdToRemove) {
-        logger.info(`Found mod ID "${modIdToRemove}" for workshop ID ${workshopId} from mod files`);
+        log.info(`Found mod ID "${modIdToRemove}" for workshop ID ${workshopId} from mod files`);
       }
     }
     
@@ -1252,7 +1253,7 @@ router.post('/remove-from-ini', async (req, res) => {
           if (currentMaps.includes(folder)) {
             currentMaps = currentMaps.filter(m => m !== folder);
             removedMapFolders.push(folder);
-            logger.info(`Removed map folder: ${folder} for workshop ${workshopId}`);
+            log.info(`Removed map folder: ${folder} for workshop ${workshopId}`);
           }
         }
         
@@ -1281,7 +1282,7 @@ router.post('/remove-from-ini', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Removed workshop ID ${workshopId}${removedModId ? ` and mod ID ${removedModId}` : ''}${removedMapFolders.length > 0 ? ` and map folders: ${removedMapFolders.join(', ')}` : ''} from ${iniPath}`);
+    log.info(`Removed workshop ID ${workshopId}${removedModId ? ` and mod ID ${removedModId}` : ''}${removedMapFolders.length > 0 ? ` and map folders: ${removedMapFolders.join(', ')}` : ''} from ${iniPath}`);
     
     res.json({
       success: true,
@@ -1295,7 +1296,7 @@ router.post('/remove-from-ini', async (req, res) => {
       remainingMods: modIds.length
     });
   } catch (error) {
-    logger.error(`Failed to remove mod from ini: ${error.message}`);
+    log.error(`Failed to remove mod from ini: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1360,7 +1361,7 @@ router.post('/sync-mod-ids', async (req, res) => {
             if (!finalModIds.includes(defaultMod)) {
               finalModIds.push(defaultMod);
               syncedMods.push({ workshopId, mods: [defaultMod], status: 'added_default' });
-              logger.info(`Auto-added default mod ID '${defaultMod}' for workshop item ${workshopId}`);
+              log.info(`Auto-added default mod ID '${defaultMod}' for workshop item ${workshopId}`);
             }
             
             // If there are multiple, add a warning or info
@@ -1384,7 +1385,7 @@ router.post('/sync-mod-ids', async (req, res) => {
           }
         }
       } catch (err) {
-        logger.error(`Error processing workshop ID ${workshopId}: ${err.message}`);
+        log.error(`Error processing workshop ID ${workshopId}: ${err.message}`);
         missingMods.push(workshopId);
       }
     }
@@ -1401,7 +1402,7 @@ router.post('/sync-mod-ids', async (req, res) => {
     
     const addedCount = syncedMods.filter(m => m.status.startsWith('added')).length;
     
-    logger.info(`Synced mod IDs: ${addedCount} added, ${missingMods.length} missing downloads`);
+    log.info(`Synced mod IDs: ${addedCount} added, ${missingMods.length} missing downloads`);
     
     res.json({
       success: true,
@@ -1414,7 +1415,7 @@ router.post('/sync-mod-ids', async (req, res) => {
         : undefined
     });
   } catch (error) {
-    logger.error(`Failed to sync mod IDs: ${error.message}`);
+    log.error(`Failed to sync mod IDs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1515,7 +1516,7 @@ router.get('/validate-config', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error(`Failed to validate config: ${error.message}`);
+    log.error(`Failed to validate config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1528,7 +1529,7 @@ router.get('/presets', async (req, res) => {
     const presets = await getModPresets();
     res.json({ presets });
   } catch (error) {
-    logger.error(`Failed to get mod presets: ${error.message}`);
+    log.error(`Failed to get mod presets: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1559,10 +1560,10 @@ router.post('/presets', async (req, res) => {
     
     const preset = await createModPreset(name, description, modIds, workshopIds);
     
-    logger.info(`Created mod preset "${name}" with ${workshopIds.length} workshop items and ${modIds.length} mod IDs`);
+    log.info(`Created mod preset "${name}" with ${workshopIds.length} workshop items and ${modIds.length} mod IDs`);
     res.json({ preset, message: `Preset "${name}" created successfully` });
   } catch (error) {
-    logger.error(`Failed to create mod preset: ${error.message}`);
+    log.error(`Failed to create mod preset: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1582,10 +1583,10 @@ router.put('/presets/:id', async (req, res) => {
       return res.status(404).json({ error: 'Preset not found' });
     }
     
-    logger.info(`Updated mod preset: ${name || id}`);
+    log.info(`Updated mod preset: ${name || id}`);
     res.json({ preset, message: 'Preset updated successfully' });
   } catch (error) {
-    logger.error(`Failed to update mod preset: ${error.message}`);
+    log.error(`Failed to update mod preset: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1604,10 +1605,10 @@ router.delete('/presets/:id', async (req, res) => {
       return res.status(404).json({ error: 'Preset not found' });
     }
     
-    logger.info(`Deleted mod preset: ${id}`);
+    log.info(`Deleted mod preset: ${id}`);
     res.json({ message: 'Preset deleted successfully' });
   } catch (error) {
-    logger.error(`Failed to delete mod preset: ${error.message}`);
+    log.error(`Failed to delete mod preset: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1651,14 +1652,14 @@ router.post('/presets/:id/apply', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Applied mod preset "${preset.name}": ${(preset.workshop_ids || []).length} workshop items, ${(preset.mods || []).length} mod IDs`);
+    log.info(`Applied mod preset "${preset.name}": ${(preset.workshop_ids || []).length} workshop items, ${(preset.mods || []).length} mod IDs`);
     res.json({ 
       message: `Preset "${preset.name}" applied successfully`,
       workshopCount: (preset.workshop_ids || []).length,
       modCount: (preset.mods || []).length
     });
   } catch (error) {
-    logger.error(`Failed to apply mod preset: ${error.message}`);
+    log.error(`Failed to apply mod preset: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1692,13 +1693,13 @@ router.post('/save-order', async (req, res) => {
     
     fs.writeFileSync(iniPath, content, 'utf-8');
     
-    logger.info(`Saved mod load order: ${modIds.length} mods`);
+    log.info(`Saved mod load order: ${modIds.length} mods`);
     res.json({ 
       message: 'Mod load order saved successfully',
       modCount: modIds.length
     });
   } catch (error) {
-    logger.error(`Failed to save mod order: ${error.message}`);
+    log.error(`Failed to save mod order: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1767,15 +1768,15 @@ router.post('/discover-mod-ids', async (req, res) => {
         
         // Handle Steam API error codes
         if (modInfo && modInfo.result !== 1) {
-          logger.warn(`Steam API returned error for workshop ${wsId}: result=${modInfo.result}`);
+          log.warn(`Steam API returned error for workshop ${wsId}: result=${modInfo.result}`);
           modInfo = null;
         }
       }
     } catch (e) {
       if (e.name === 'AbortError') {
-        logger.warn(`Steam API request timed out for workshop ${wsId}`);
+        log.warn(`Steam API request timed out for workshop ${wsId}`);
       } else {
-        logger.warn(`Failed to fetch Steam API for workshop ${wsId}: ${e.message}`);
+        log.warn(`Failed to fetch Steam API for workshop ${wsId}: ${e.message}`);
       }
     }
     
@@ -1832,7 +1833,7 @@ router.post('/discover-mod-ids', async (req, res) => {
       tags: modInfo?.tags?.map(t => t.tag) || []
     });
   } catch (error) {
-    logger.error(`Failed to discover mod IDs: ${error.message}`);
+    log.error(`Failed to discover mod IDs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1966,7 +1967,7 @@ router.post('/add-mod-advanced', async (req, res) => {
       // Ignore if already tracked
     }
     
-    logger.info(`Added mod ${workshopId} with ${addedModIds.length} mod IDs: ${addedModIds.join(', ')}`);
+    log.info(`Added mod ${workshopId} with ${addedModIds.length} mod IDs: ${addedModIds.join(', ')}`);
     
     res.json({
       success: true,
@@ -1980,7 +1981,7 @@ router.post('/add-mod-advanced', async (req, res) => {
         : 'Workshop ID added (mod IDs were already configured)'
     });
   } catch (error) {
-    logger.error(`Failed to add mod advanced: ${error.message}`);
+    log.error(`Failed to add mod advanced: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

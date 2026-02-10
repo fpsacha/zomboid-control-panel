@@ -5,7 +5,8 @@ import archiver from 'archiver';
 import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
-import { logger } from '../utils/logger.js';
+import { createLogger } from '../utils/logger.js';
+const log = createLogger('Backup');
 import { getActiveServer, getSetting, setSetting, logServerEvent } from '../database/init.js';
 
 // Dynamic import for unzipper (CommonJS module)
@@ -56,7 +57,7 @@ export class BackupService {
           }
           // Only use first folder as last resort with a warning
           if (folders.length > 0) {
-            logger.warn(`Could not find save folder matching "${activeServer.serverName}", using first available: ${folders[0]}`);
+            log.warn(`Could not find save folder matching "${activeServer.serverName}", using first available: ${folders[0]}`);
             return path.join(baseSavesPath, folders[0]);
           }
         }
@@ -72,7 +73,7 @@ export class BackupService {
       
       return null;
     } catch (error) {
-      logger.error(`Failed to get saves path: ${error.message}`);
+      log.error(`Failed to get saves path: ${error.message}`);
       return null;
     }
   }
@@ -106,7 +107,7 @@ export class BackupService {
       
       return backupsPath;
     } catch (error) {
-      logger.error(`Failed to get backups path: ${error.message}`);
+      log.error(`Failed to get backups path: ${error.message}`);
       return null;
     }
   }
@@ -166,7 +167,7 @@ export class BackupService {
     try {
       return await this._doCreateBackup(options, startTime, emitProgress);
     } catch (error) {
-      logger.error(`Backup failed: ${error.message}`);
+      log.error(`Backup failed: ${error.message}`);
       emitProgress('error', 0, `Backup failed: ${error.message}`);
       return { success: false, message: error.message };
     } finally {
@@ -202,29 +203,38 @@ export class BackupService {
       const backupName = `${serverName}_${timestamp}.zip`;
       const backupPath = path.join(backupsPath, backupName);
 
-      logger.info(`Starting backup: ${backupName}`);
-      logger.info(`Source: ${savesPath}`);
-      logger.info(`Destination: ${backupPath}`);
+      log.info(`Starting backup: ${backupName}`);
+      log.info(`Source: ${savesPath}`);
+      log.info(`Destination: ${backupPath}`);
       
       emitProgress('preparing', 10, 'Scanning files...');
 
-      // Count total files for progress (before entering Promise callback)
+      // Count total files for progress (asynchronously to avoid blocking)
       let totalFiles = 0;
-      const countFiles = (dir) => {
+      const countFiles = async (dir) => {
         try {
-          const entries = fs.readdirSync(dir, { withFileTypes: true });
-          for (const entry of entries) {
+          const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+          // Use Promise.all to process directories in parallel
+          const counts = await Promise.all(entries.map(async (entry) => {
             if (entry.isDirectory()) {
-              countFiles(path.join(dir, entry.name));
+              return countFiles(path.join(dir, entry.name));
             } else {
-              totalFiles++;
+              return 1;
             }
-          }
+          }));
+          return counts.reduce((a, b) => a + b, 0);
         } catch (e) {
-          // Ignore errors during counting
+          // Ignore errors during counting (e.g. permission denied)
+          return 0;
         }
       };
-      countFiles(savesPath);
+      
+      try {
+          totalFiles = await countFiles(savesPath);
+      } catch (err) {
+          log.warn(`Failed to count files: ${err.message}`);
+          totalFiles = 1000; // Fallback estimate
+      }
 
       // Get database path if needed (before entering Promise callback)
       let dbPathToInclude = null;
@@ -268,7 +278,7 @@ export class BackupService {
           const sizeBytes = archive.pointer();
           const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(2);
           
-          logger.info(`Backup completed: ${backupName} (${sizeMB} MB) in ${duration}s`);
+          log.info(`Backup completed: ${backupName} (${sizeMB} MB) in ${duration}s`);
           
           this.lastBackup = {
             name: backupName,
@@ -303,7 +313,7 @@ export class BackupService {
 
         archive.on('warning', (err) => {
           if (err.code === 'ENOENT') {
-            logger.warn(`Backup warning: ${err.message}`);
+            log.warn(`Backup warning: ${err.message}`);
           } else {
             throw err;
           }
@@ -333,23 +343,31 @@ export class BackupService {
         return [];
       }
 
-      const files = fs.readdirSync(backupsPath)
+      const files = await fs.promises.readdir(backupsPath);
+      
+      const backups = await Promise.all(files
         .filter(f => f.endsWith('.zip'))
-        .map(f => {
-          const filePath = path.join(backupsPath, f);
-          const stats = fs.statSync(filePath);
-          return {
-            name: f,
-            path: filePath,
-            size: stats.size,
-            created: stats.birthtime.toISOString()
-          };
-        })
-        .sort((a, b) => new Date(b.created) - new Date(a.created)); // Newest first
+        .map(async f => {
+            try {
+                const filePath = path.join(backupsPath, f);
+                const stats = await fs.promises.stat(filePath);
+                return {
+                    name: f,
+                    path: filePath,
+                    size: stats.size,
+                    created: stats.birthtime.toISOString()
+                };
+            } catch (e) {
+                return null;
+            }
+        }));
 
-      return files;
+      return backups
+        .filter(b => b !== null)
+        .sort((a, b) => new Date(b.created) - new Date(a.created)); // Newest first
+        
     } catch (error) {
-      logger.error(`Failed to list backups: ${error.message}`);
+      log.error(`Failed to list backups: ${error.message}`);
       return [];
     }
   }
@@ -377,12 +395,12 @@ export class BackupService {
       }
 
       fs.unlinkSync(backupPath);
-      logger.info(`Deleted backup: ${safeName}`);
+      log.info(`Deleted backup: ${safeName}`);
       await logServerEvent('backup_deleted', safeName);
       
       return { success: true };
     } catch (error) {
-      logger.error(`Failed to delete backup: ${error.message}`);
+      log.error(`Failed to delete backup: ${error.message}`);
       return { success: false, message: error.message };
     }
   }
@@ -403,10 +421,10 @@ export class BackupService {
       const toDelete = backups.slice(settings.maxBackups);
       for (const backup of toDelete) {
         await this.deleteBackup(backup.name);
-        logger.info(`Cleaned up old backup: ${backup.name}`);
+        log.info(`Cleaned up old backup: ${backup.name}`);
       }
     } catch (error) {
-      logger.error(`Failed to cleanup old backups: ${error.message}`);
+      log.error(`Failed to cleanup old backups: ${error.message}`);
     }
   }
 
@@ -442,7 +460,7 @@ export class BackupService {
         }
       }
       
-      logger.info(`Deleted ${deletedCount} backups older than ${days} days`);
+      log.info(`Deleted ${deletedCount} backups older than ${days} days`);
       
       return { 
         success: true, 
@@ -452,7 +470,7 @@ export class BackupService {
         message: `Deleted ${deletedCount} backup${deletedCount !== 1 ? 's' : ''} older than ${days} days${failedCount > 0 ? ` (${failedCount} failed)` : ''}` 
       };
     } catch (error) {
-      logger.error(`Failed to delete old backups: ${error.message}`);
+      log.error(`Failed to delete old backups: ${error.message}`);
       return { success: false, message: error.message };
     }
   }
@@ -539,15 +557,15 @@ export class BackupService {
         throw new Error(`Backup not found: ${safeName}`);
       }
 
-      logger.info(`Starting restore from: ${safeName}`);
-      logger.info(`Destination: ${savesPath}`);
+      log.info(`Starting restore from: ${safeName}`);
+      log.info(`Destination: ${savesPath}`);
 
       // Create a pre-restore backup if requested
       if (options.createPreRestoreBackup !== false) {
-        logger.info('Creating pre-restore backup...');
+        log.info('Creating pre-restore backup...');
         const preBackupResult = await this.createBackup({ isPreRestore: true });
         if (!preBackupResult.success) {
-          logger.warn(`Pre-restore backup failed: ${preBackupResult.message}`);
+          log.warn(`Pre-restore backup failed: ${preBackupResult.message}`);
           // Continue anyway if the save folder exists
         }
       }
@@ -558,7 +576,7 @@ export class BackupService {
 
       // Clear the existing saves folder
       if (fs.existsSync(savesPath)) {
-        logger.info('Removing existing saves folder...');
+        log.info('Removing existing saves folder...');
         fs.rmSync(savesPath, { recursive: true, force: true });
       }
 
@@ -568,7 +586,7 @@ export class BackupService {
       }
 
       // Extract the backup
-      logger.info('Extracting backup...');
+      log.info('Extracting backup...');
       const unzip = await getUnzipper();
       
       await new Promise((resolve, reject) => {
@@ -595,7 +613,7 @@ export class BackupService {
                 fs.existsSync(path.join(folderPath, 'map_t.bin'))) {
               // Rename to expected folder name if different
               if (folder !== expectedFolderName) {
-                logger.info(`Renaming extracted folder from ${folder} to ${expectedFolderName}`);
+                log.info(`Renaming extracted folder from ${folder} to ${expectedFolderName}`);
                 fs.renameSync(folderPath, savesPath);
               }
               break;
@@ -609,7 +627,7 @@ export class BackupService {
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      logger.info(`Restore completed in ${duration}s`);
+      log.info(`Restore completed in ${duration}s`);
       
       await logServerEvent('backup_restored', `Restored from ${safeName}`);
 
@@ -622,7 +640,7 @@ export class BackupService {
 
     } catch (error) {
       this.restoreInProgress = false;
-      logger.error(`Restore failed: ${error.message}`);
+      log.error(`Restore failed: ${error.message}`);
       await logServerEvent('restore_failed', error.message);
       return { success: false, message: error.message };
     }
