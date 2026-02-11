@@ -251,11 +251,15 @@ export class DiscordBot {
       }
     } catch (error) {
       log.error(`command error: ${error.message}`);
-      const content = `❌ Error: ${error.message}`;
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content, ephemeral: true });
-      } else {
-        await interaction.reply({ content, ephemeral: true });
+      try {
+        const content = `❌ Error: ${error.message}`;
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({ content, ephemeral: true });
+        } else {
+          await interaction.reply({ content, ephemeral: true });
+        }
+      } catch (replyError) {
+        log.error(`Failed to send error reply: ${replyError.message}`);
       }
     }
   }

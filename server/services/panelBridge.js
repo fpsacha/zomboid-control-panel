@@ -161,11 +161,13 @@ class PanelBridge extends EventEmitter {
     }
 
     try {
-      let debounceTimer = null;
+      this._debounceTimer = null;
       this.fileWatcher = fs.watch(this.bridgePath, { persistent: false }, (eventType, filename) => {
         // Debounce rapid file changes
-        if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
+        if (this._debounceTimer) clearTimeout(this._debounceTimer);
+        this._debounceTimer = setTimeout(() => {
+          this._debounceTimer = null;
+          if (!this.isRunning) return;
           try {
             if (filename === 'status.json') {
               this.checkModStatus();
@@ -175,7 +177,6 @@ class PanelBridge extends EventEmitter {
           } catch (e) {
             log.debug(`File change handler error: ${e.message}`);
           }
-          debounceTimer = null;
         }, this.config.fileWatchDebounceMs);
       });
 
@@ -230,6 +231,10 @@ class PanelBridge extends EventEmitter {
     if (this.fileWatcher) {
       this.fileWatcher.close();
       this.fileWatcher = null;
+    }
+    if (this._debounceTimer) {
+      clearTimeout(this._debounceTimer);
+      this._debounceTimer = null;
     }
 
     // Reject all pending commands

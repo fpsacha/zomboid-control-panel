@@ -241,7 +241,7 @@ router.get('/chunks/:saveName', async (req, res) => {
       chunks,
       totalChunks: chunks.length,
       bounds,
-      limitReached: chunkLimitReached,
+      limitReached: chunks.length >= MAX_CHUNKS,
       maxChunks: MAX_CHUNKS
     });
   } catch (error) {

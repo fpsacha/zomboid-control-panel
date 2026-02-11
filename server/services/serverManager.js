@@ -474,12 +474,17 @@ export class ServerManager {
       throw new Error('Save path not configured');
     }
 
-    // Use dynamic server name (matching getServerConfig logic), fallback to servertest.ini
+    // Match getServerConfig logic: check Server/ subdirectory first, then fallback paths
     const serverIni = this.serverName ? `${this.serverName}.ini` : 'servertest.ini';
-    let configPath = path.join(this.savePath, serverIni);
-    // If server-named ini doesn't exist, fall back to servertest.ini
-    if (!fs.existsSync(configPath)) {
-      configPath = path.join(this.savePath, 'servertest.ini');
+    const serverSubdirPath = path.join(this.savePath, 'Server', serverIni);
+    let configPath;
+    if (fs.existsSync(serverSubdirPath)) {
+      configPath = serverSubdirPath;
+    } else {
+      configPath = path.join(this.savePath, serverIni);
+      if (!fs.existsSync(configPath)) {
+        configPath = path.join(this.savePath, 'servertest.ini');
+      }
     }
     
     try {

@@ -141,7 +141,11 @@ export class LogTailer extends EventEmitter {
                  stream.on('data', chunk => data += chunk);
                  stream.on('end', () => {
                      this.currentSize = stats.size;
-                     this.processNewData(data);
+                     try {
+                         this.processNewData(data);
+                     } catch (e) {
+                         log.error(`Error processing log data: ${e.message}`);
+                     }
                      resolve();
                  });
                  stream.on('error', (err) => {

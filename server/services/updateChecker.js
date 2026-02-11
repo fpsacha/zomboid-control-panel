@@ -31,7 +31,7 @@ export class UpdateChecker {
     }
 
     // Do initial check after 1 minute (let server fully start)
-    setTimeout(() => this.checkForUpdates(), 60 * 1000);
+    this.initialTimeout = setTimeout(() => this.checkForUpdates(), 60 * 1000);
 
     // Start periodic checks
     this.checkInterval = setInterval(() => {
@@ -45,6 +45,10 @@ export class UpdateChecker {
    * Stop update checking
    */
   stop() {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;

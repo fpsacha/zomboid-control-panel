@@ -315,7 +315,7 @@ export class BackupService {
           if (err.code === 'ENOENT') {
             log.warn(`Backup warning: ${err.message}`);
           } else {
-            throw err;
+            reject(err);
           }
         });
 
@@ -565,8 +565,8 @@ export class BackupService {
         log.info('Creating pre-restore backup...');
         const preBackupResult = await this.createBackup({ isPreRestore: true });
         if (!preBackupResult.success) {
-          log.warn(`Pre-restore backup failed: ${preBackupResult.message}`);
-          // Continue anyway if the save folder exists
+          log.error(`Pre-restore backup failed: ${preBackupResult.message}`);
+          return { success: false, message: `Cannot restore: pre-restore backup failed (${preBackupResult.message}). Aborting to protect save data.` };
         }
       }
 

@@ -850,7 +850,7 @@ export class RconService extends EventEmitter {
       const result = await this.execute('quit', { skipLog });
       // Mark as disconnected since server is shutting down
       this.connected = false;
-      this.client = null;
+      this._cleanupClient();
       return result;
     } catch (error) {
       // Connection errors are expected when server shuts down
@@ -861,7 +861,7 @@ export class RconService extends EventEmitter {
           error.message.includes('socket') ||
           error.message.includes('connection')) {
         this.connected = false;
-        this.client = null;
+        this._cleanupClient();
         return { success: true, response: 'Server shutting down' };
       }
       throw error;
@@ -1134,14 +1134,17 @@ export class RconService extends EventEmitter {
     }
     
     try {
-      // Use 'players' command as a lightweight health check
-      const response = await this.client.execute('players');
+      // Use 'players' command as a lightweight health check (with timeout)
+      const response = await Promise.race([
+        this.client.execute('players'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timed out')), 10000))
+      ]);
       this.lastSuccessfulCommand = Date.now();
       return { healthy: true, lastCommand: this.lastSuccessfulCommand };
     } catch (error) {
       // Connection is dead, mark as disconnected
       this.connected = false;
-      this.client = null;
+      this._cleanupClient();
       log.warn(`health check failed: ${error.message}`);
       this.emit('disconnected');
       return { healthy: false, reason: error.message };

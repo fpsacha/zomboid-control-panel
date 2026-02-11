@@ -179,8 +179,10 @@ function registerShutdownHandlers() {
     createBackup('shutdown');
   };
 
-  process.on('SIGINT', () => shutdown('SIGINT').then(() => process.exit(0)));
-  process.on('SIGTERM', () => shutdown('SIGTERM').then(() => process.exit(0)));
+  // Only flush writes — do NOT call process.exit() here.
+  // The main index.js gracefulShutdown handler manages the exit sequence.
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('beforeExit', () => shutdown('beforeExit'));
 }
 

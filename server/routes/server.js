@@ -702,15 +702,13 @@ function parseSteamBranches(output) {
     // }
     
     const branchesMatch = output.match(/"branches"\s*\{([^]*?)\n\t\t\}/);
-    if (!branchesMatch) {
-      // Try alternative pattern
-      const altMatch = output.match(/"branches"\s*\{([^]*?)\}\s*"installedrepots"/i);
-      if (!altMatch) {
-        return branches;
-      }
+    const altMatch = !branchesMatch ? output.match(/"branches"\s*\{([^]*?)\}\s*"installedrepots"/i) : null;
+    
+    if (!branchesMatch && !altMatch) {
+      return branches;
     }
     
-    const branchesSection = branchesMatch ? branchesMatch[1] : '';
+    const branchesSection = (branchesMatch || altMatch)[1];
     
     // Extract individual branch names and their properties
     // Match pattern: "branchname" followed by { ... }
@@ -1247,7 +1245,8 @@ router.post('/quick-setup', async (req, res) => {
 // Configure RCON in server's .ini file
 router.post('/configure-rcon', async (req, res) => {
   try {
-    const { rconPassword, rconPort = 27015 } = req.body;
+    const { rconPassword, rconPort: rawRconPort = 27015 } = req.body;
+    const rconPort = validateInt(rawRconPort, 1024, 65535, 27015);
     
     if (!rconPassword) {
       return res.status(400).json({ error: 'RCON password is required' });
@@ -1308,7 +1307,8 @@ router.post('/configure-rcon', async (req, res) => {
 // Configure server network settings (port, UPnP) in .ini file
 router.post('/configure-network', async (req, res) => {
   try {
-    const { serverPort = 16261, useUpnp = true } = req.body;
+    const { serverPort: rawServerPort = 16261, useUpnp = true } = req.body;
+    const serverPort = validateInt(rawServerPort, 1024, 65535, 16261);
     
     // Get the server config path from active server or settings
     const serverConfigPath = await getServerConfigPath();
