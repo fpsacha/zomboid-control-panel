@@ -82,7 +82,7 @@ interface SaveStats {
 
 // Camera: screenX = worldX * scale + offset.x
 // Each chunk occupies 1x1 in world space (world unit = 1 chunk)
-const MIN_SCALE = 0.5    // px per chunk (zoomed way out)
+const MIN_SCALE = 0.1    // px per chunk (zoomed way out)
 const MAX_SCALE = 60     // px per chunk (zoomed way in)
 const MAP_TILE_SIZE = 100 // each grabofus tile covers 100x100 chunks
 const MAP_TILES_CDN = 'https://grabofus.github.io/zomboid-chunk-cleaner/assets'
@@ -267,7 +267,7 @@ export default function ChunkCleaner() {
     })
     ro.observe(container)
     return () => ro.disconnect()
-  }, [])
+  }, [hasCanvas])
 
   // ─── Map tile loading (lazy, on-demand) ───
   const loadMapTile = useCallback((tileX: number, tileY: number) => {
