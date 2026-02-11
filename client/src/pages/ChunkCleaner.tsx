@@ -11,7 +11,10 @@ import {
   Square,
   Info,
   Database,
-  FileBox
+  FileBox,
+  Maximize,
+  Image,
+  ImageOff
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/PageHeader'
@@ -78,6 +81,13 @@ interface SaveStats {
   vehiclesDbSize?: number
 }
 
+// Camera: screenX = worldX * scale + offset.x
+// Each chunk occupies 1x1 in world space (world unit = 1 chunk)
+const MIN_SCALE = 0.5    // px per chunk (zoomed way out)
+const MAX_SCALE = 60     // px per chunk (zoomed way in)
+const MAP_TILE_SIZE = 100 // each grabofus tile covers 100x100 chunks
+const MAP_TILES_CDN = 'https://grabofus.github.io/zomboid-chunk-cleaner/assets'
+
 export default function ChunkCleaner() {
   const [saves, setSaves] = useState<SaveInfo[]>([])
   const [selectedSave, setSelectedSave] = useState<string>('')
@@ -88,34 +98,47 @@ export default function ChunkCleaner() {
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const { toast } = useToast()
   
-  // Canvas state
+  // Canvas refs  
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 520 })
-  const [zoom, setZoom] = useState(1)
-  const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  
+  // Camera state: screen = world * scale + offset
+  const [scale, setScale] = useState(4)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  
+  // Interaction state
+  const [tool, setTool] = useState<'select' | 'pan'>('select')
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null)
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null)
-  const [tool, setTool] = useState<'select' | 'pan'>('select')
+  const [hoverWorld, setHoverWorld] = useState<{ x: number; y: number } | null>(null)
+  
+  // Map tile state
+  const [showMap, setShowMap] = useState(true)
+  const tileCacheRef = useRef<Record<string, HTMLImageElement | null>>({})
+  const [tileLoadCount, setTileLoadCount] = useState(0)
   
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [createBackup, setCreateBackup] = useState(true)
   const [deleting, setDeleting] = useState(false)
-  
-  // Map background state - disabled for now as coordinate mapping needs work
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [showMapBackground, _setShowMapBackground] = useState(false)
-  const [mapTilesLoaded, setMapTilesLoaded] = useState<Record<string, HTMLImageElement>>({})
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_loadingTiles, setLoadingTiles] = useState(false)
-  
-  // Map tiles CDN - using grabofus hosted tiles from GitHub Pages
-  const MAP_TILES_BASE = 'https://grabofus.github.io/zomboid-chunk-cleaner/assets'
 
-  // Load saves
+  // ─── Coordinate transforms ───
+  const screenToWorld = useCallback((sx: number, sy: number) => ({
+    x: (sx - offset.x) / scale,
+    y: (sy - offset.y) / scale
+  }), [scale, offset])
+  
+  const getCanvasMousePos = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+    const rect = canvas.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }, [])
+
+  // ─── Data loading ───
   const fetchSaves = useCallback(async () => {
     try {
       const result = await chunksApi.getSaves()
@@ -125,16 +148,11 @@ export default function ChunkCleaner() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchSaves()
-  }, [fetchSaves])
+  useEffect(() => { fetchSaves() }, [fetchSaves])
 
-  // Load chunks for selected save
   const loadChunks = useCallback(async () => {
     if (!selectedSave) return
-    
     setLoading(true)
-    // Clear previous data immediately to avoid showing stale data
     setChunks([])
     setBounds(null)
     setStats(null)
@@ -145,14 +163,9 @@ export default function ChunkCleaner() {
         chunksApi.getChunks(selectedSave),
         chunksApi.getStats(selectedSave)
       ])
-      
       setChunks(chunksResult.chunks || [])
       setBounds(chunksResult.bounds)
       setStats(statsResult)
-      
-      // Reset view
-      setZoom(1)
-      setPan({ x: 0, y: 0 })
     } catch (error) {
       toast({
         title: 'Error',
@@ -165,17 +178,37 @@ export default function ChunkCleaner() {
   }, [selectedSave, toast])
 
   useEffect(() => {
-    if (selectedSave) {
-      loadChunks()
-    }
+    if (selectedSave) loadChunks()
   }, [selectedSave, loadChunks])
 
-  // Handle canvas resize
+  // ─── Fit view to show all chunks ───
+  const fitView = useCallback(() => {
+    if (!bounds || canvasSize.width === 0 || canvasSize.height === 0) return
+    const rangeX = bounds.maxX - bounds.minX + 1
+    const rangeY = bounds.maxY - bounds.minY + 1
+    const padding = 40
+    const fitScale = Math.min(
+      (canvasSize.width - padding * 2) / rangeX,
+      (canvasSize.height - padding * 2) / rangeY
+    )
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, fitScale))
+    const centerX = (bounds.minX + bounds.maxX + 1) / 2
+    const centerY = (bounds.minY + bounds.maxY + 1) / 2
+    setScale(newScale)
+    setOffset({
+      x: canvasSize.width / 2 - centerX * newScale,
+      y: canvasSize.height / 2 - centerY * newScale
+    })
+  }, [bounds, canvasSize])
+
+  // Auto-fit when chunks load or canvas resizes
+  useEffect(() => { fitView() }, [fitView])
+
+  // ─── Canvas resize observer ───
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    
-    const resizeObserver = new ResizeObserver((entries) => {
+    const ro = new ResizeObserver(entries => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect
         if (width > 0 && height > 0) {
@@ -183,315 +216,308 @@ export default function ChunkCleaner() {
         }
       }
     })
-    
-    resizeObserver.observe(container)
-    return () => resizeObserver.disconnect()
+    ro.observe(container)
+    return () => ro.disconnect()
   }, [])
 
-  // Draw canvas
+  // ─── Map tile loading (lazy, on-demand) ───
+  const loadMapTile = useCallback((tileX: number, tileY: number) => {
+    const key = `${tileX}_${tileY}`
+    if (key in tileCacheRef.current) return
+    tileCacheRef.current[key] = null // mark as loading
+    const img = new window.Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      tileCacheRef.current[key] = img
+      setTileLoadCount(c => c + 1)
+    }
+    img.onerror = () => { /* tile missing, keep null */ }
+    img.src = `${MAP_TILES_CDN}/map_${tileX}_${tileY}.png`
+  }, [])
+
+  // ─── Canvas draw ───
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !bounds || chunks.length === 0) return
+    if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return
+    
+    canvas.width = canvasSize.width
+    canvas.height = canvasSize.height
     
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     
-    const width = canvas.width
-    const height = canvas.height
+    const W = canvasSize.width
+    const H = canvasSize.height
     
-    // Clear canvas with dark background
-    ctx.fillStyle = '#111827'
-    ctx.fillRect(0, 0, width, height)
+    // Dark background
+    ctx.fillStyle = '#0f1117'
+    ctx.fillRect(0, 0, W, H)
     
-    // Calculate cell size based on bounds (guard against division by zero)
-    const rangeX = Math.max(1, bounds.maxX - bounds.minX + 1)
-    const rangeY = Math.max(1, bounds.maxY - bounds.minY + 1)
-    const baseCellSize = Math.min(
-      (width - 80) / rangeX,
-      (height - 80) / rangeY
-    )
-    const cellSize = baseCellSize * zoom
+    if (!bounds || chunks.length === 0) return
     
-    const offsetX = 40 + (width - 80 - rangeX * cellSize) / 2 + pan.x
-    const offsetY = 40 + (height - 80 - rangeY * cellSize) / 2 + pan.y
+    // Visible world bounds (with 1-chunk margin)
+    const visMinX = Math.floor(-offset.x / scale) - 1
+    const visMaxX = Math.ceil((W - offset.x) / scale) + 1
+    const visMinY = Math.floor(-offset.y / scale) - 1
+    const visMaxY = Math.ceil((H - offset.y) / scale) + 1
     
-    // Draw map background if enabled and tiles are loaded
-    if (showMapBackground && Object.keys(mapTilesLoaded).length > 0) {
-      // Draw loaded map tiles BEHIND the chunks
+    // ── Map tiles ──
+    if (showMap) {
+      const minTX = Math.floor(visMinX / MAP_TILE_SIZE)
+      const maxTX = Math.floor(visMaxX / MAP_TILE_SIZE)
+      const minTY = Math.floor(visMinY / MAP_TILE_SIZE)
+      const maxTY = Math.floor(visMaxY / MAP_TILE_SIZE)
+      
       ctx.save()
-      ctx.globalAlpha = 0.6
-      
-      for (const [tileKey, img] of Object.entries(mapTilesLoaded)) {
-        const [tileX, tileY] = tileKey.split('_').map(Number)
-        // Each tile covers 10 chunks (100 cells / 10 cells per chunk)
-        const tileChunkStartX = tileX * 10
-        const tileChunkStartY = tileY * 10
-        
-        // Calculate pixel position for this tile
-        const px = offsetX + (tileChunkStartX - bounds.minX) * cellSize
-        const py = offsetY + (tileChunkStartY - bounds.minY) * cellSize
-        const tileDisplaySize = cellSize * 10
-        
-        ctx.drawImage(img, px, py, tileDisplaySize, tileDisplaySize)
-      }
-      
-      ctx.restore()
-    } else {
-      // Draw background grid pattern (fallback)
-      ctx.fillStyle = '#1f2937'
-      for (let x = bounds.minX; x <= bounds.maxX; x++) {
-        for (let y = bounds.minY; y <= bounds.maxY; y++) {
-          const px = offsetX + (x - bounds.minX) * cellSize
-          const py = offsetY + (y - bounds.minY) * cellSize
-          
-          // Checkerboard pattern for empty cells
-          if ((x + y) % 2 === 0) {
-            ctx.fillRect(px, py, cellSize, cellSize)
+      ctx.globalAlpha = 0.5
+      for (let ty = minTY; ty <= maxTY; ty++) {
+        for (let tx = minTX; tx <= maxTX; tx++) {
+          loadMapTile(tx, ty)
+          const img = tileCacheRef.current[`${tx}_${ty}`]
+          if (img) {
+            const sx = tx * MAP_TILE_SIZE * scale + offset.x
+            const sy = ty * MAP_TILE_SIZE * scale + offset.y
+            const sw = MAP_TILE_SIZE * scale
+            ctx.drawImage(img, sx, sy, sw, sw)
           }
         }
       }
+      ctx.restore()
     }
     
-    // Draw grid lines
-    ctx.strokeStyle = '#374151'
-    ctx.lineWidth = 1
-    
-    for (let x = bounds.minX; x <= bounds.maxX + 1; x++) {
-      const px = offsetX + (x - bounds.minX) * cellSize
-      ctx.beginPath()
-      ctx.moveTo(px, offsetY)
-      ctx.lineTo(px, offsetY + rangeY * cellSize)
-      ctx.stroke()
-    }
-    
-    for (let y = bounds.minY; y <= bounds.maxY + 1; y++) {
-      const py = offsetY + (y - bounds.minY) * cellSize
-      ctx.beginPath()
-      ctx.moveTo(offsetX, py)
-      ctx.lineTo(offsetX + rangeX * cellSize, py)
-      ctx.stroke()
-    }
-    
-    // Draw chunks
-    for (const chunk of chunks) {
-      const px = offsetX + (chunk.x - bounds.minX) * cellSize
-      const py = offsetY + (chunk.y - bounds.minY) * cellSize
+    // ── Grid lines (only when zoomed in enough) ──
+    if (scale > 4) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
+      ctx.lineWidth = 1
       
+      const gridMinX = Math.max(bounds.minX, visMinX)
+      const gridMaxX = Math.min(bounds.maxX + 1, visMaxX)
+      const gridMinY = Math.max(bounds.minY, visMinY)
+      const gridMaxY = Math.min(bounds.maxY + 1, visMaxY)
+      
+      for (let x = gridMinX; x <= gridMaxX; x++) {
+        const sx = Math.floor(x * scale + offset.x) + 0.5
+        if (sx >= 0 && sx <= W) {
+          ctx.beginPath()
+          ctx.moveTo(sx, 0)
+          ctx.lineTo(sx, H)
+          ctx.stroke()
+        }
+      }
+      for (let y = gridMinY; y <= gridMaxY; y++) {
+        const sy = Math.floor(y * scale + offset.y) + 0.5
+        if (sy >= 0 && sy <= H) {
+          ctx.beginPath()
+          ctx.moveTo(0, sy)
+          ctx.lineTo(W, sy)
+          ctx.stroke()
+        }
+      }
+    }
+    
+    // ── Draw chunks ──
+    for (const chunk of chunks) {
+      // Viewport culling
+      if (chunk.x + 1 < visMinX || chunk.x > visMaxX || chunk.y + 1 < visMinY || chunk.y > visMaxY) continue
+      
+      const sx = chunk.x * scale + offset.x
+      const sy = chunk.y * scale + offset.y
       const key = `${chunk.x}_${chunk.y}`
       const isSelected = selectedChunks.has(key)
       
-      // Color based on size (darker = bigger)
-      const sizeRatio = Math.min(chunk.size / 50000, 1)
-      const green = Math.floor(120 + (1 - sizeRatio) * 80)
-      const blue = Math.floor(80 + (1 - sizeRatio) * 40)
-      
       if (isSelected) {
-        ctx.fillStyle = '#dc2626' // Red for selected
-        ctx.strokeStyle = '#fca5a5'
-        ctx.lineWidth = 2
+        ctx.fillStyle = 'rgba(220, 38, 38, 0.85)'
       } else {
-        ctx.fillStyle = `rgb(34, ${green}, ${blue})`
-        ctx.strokeStyle = `rgb(50, ${green + 30}, ${blue + 20})`
-        ctx.lineWidth = 1
+        const ratio = Math.min(chunk.size / 50000, 1)
+        const g = Math.floor(140 + (1 - ratio) * 60)
+        const b = Math.floor(100 + (1 - ratio) * 40)
+        ctx.fillStyle = `rgba(34, ${g}, ${b}, 0.75)`
       }
       
-      const padding = 2
-      ctx.fillRect(px + padding, py + padding, cellSize - padding * 2, cellSize - padding * 2)
-      ctx.strokeRect(px + padding, py + padding, cellSize - padding * 2, cellSize - padding * 2)
+      if (scale > 4) {
+        const gap = Math.max(0.5, scale * 0.06)
+        ctx.fillRect(sx + gap, sy + gap, scale - gap * 2, scale - gap * 2)
+      } else {
+        ctx.fillRect(sx, sy, Math.max(scale, 1), Math.max(scale, 1))
+      }
     }
     
-    // Draw coordinate labels if zoomed enough
-    if (cellSize > 20) {
-      ctx.font = '10px monospace'
-      ctx.fillStyle = '#9ca3af'
+    // ── Coordinate labels (when zoomed in) ──
+    if (scale > 18) {
+      const fontSize = Math.min(10, scale * 0.5)
+      ctx.font = `${fontSize}px monospace`
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.6)'
+      
       ctx.textAlign = 'center'
-      
-      // X axis labels
-      for (let x = bounds.minX; x <= bounds.maxX; x++) {
-        const px = offsetX + (x - bounds.minX) * cellSize + cellSize / 2
-        ctx.fillText(x.toString(), px, offsetY - 5)
+      ctx.textBaseline = 'bottom'
+      for (let x = Math.max(bounds.minX, visMinX); x <= Math.min(bounds.maxX, visMaxX); x++) {
+        const sx = (x + 0.5) * scale + offset.x
+        if (sx >= 0 && sx <= W) {
+          const tickY = bounds.minY * scale + offset.y - 3
+          if (tickY > -20 && tickY < H) ctx.fillText(x.toString(), sx, tickY)
+        }
       }
-      
-      // Y axis labels
       ctx.textAlign = 'right'
-      for (let y = bounds.minY; y <= bounds.maxY; y++) {
-        const py = offsetY + (y - bounds.minY) * cellSize + cellSize / 2 + 3
-        ctx.fillText(y.toString(), offsetX - 5, py)
+      ctx.textBaseline = 'middle'
+      for (let y = Math.max(bounds.minY, visMinY); y <= Math.min(bounds.maxY, visMaxY); y++) {
+        const sy = (y + 0.5) * scale + offset.y
+        if (sy >= 0 && sy <= H) {
+          const tickX = bounds.minX * scale + offset.x - 4
+          if (tickX > -60 && tickX < W) ctx.fillText(y.toString(), tickX, sy)
+        }
       }
     }
     
-    // Draw selection rectangle
+    // ── Selection rectangle ──
     if (selectionStart && selectionEnd) {
+      const s1x = selectionStart.x * scale + offset.x
+      const s1y = selectionStart.y * scale + offset.y
+      const s2x = selectionEnd.x * scale + offset.x
+      const s2y = selectionEnd.y * scale + offset.y
+      
+      const rx = Math.min(s1x, s2x)
+      const ry = Math.min(s1y, s2y)
+      const rw = Math.abs(s2x - s1x)
+      const rh = Math.abs(s2y - s1y)
+      
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'
+      ctx.fillRect(rx, ry, rw, rh)
       ctx.strokeStyle = '#3b82f6'
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.2)'
       ctx.lineWidth = 2
-      ctx.setLineDash([5, 5])
-      
-      const sx = Math.min(selectionStart.x, selectionEnd.x)
-      const sy = Math.min(selectionStart.y, selectionEnd.y)
-      const sw = Math.abs(selectionEnd.x - selectionStart.x)
-      const sh = Math.abs(selectionEnd.y - selectionStart.y)
-      
-      ctx.fillRect(sx, sy, sw, sh)
-      ctx.strokeRect(sx, sy, sw, sh)
+      ctx.setLineDash([6, 4])
+      ctx.strokeRect(rx, ry, rw, rh)
       ctx.setLineDash([])
     }
-  }, [chunks, bounds, zoom, pan, selectedChunks, selectionStart, selectionEnd, canvasSize, showMapBackground, mapTilesLoaded])
-  
-  // Load map tiles when bounds change
-  useEffect(() => {
-    if (!bounds || !showMapBackground) return
     
-    const loadTiles = async () => {
-      setLoadingTiles(true)
-      const loaded: Record<string, HTMLImageElement> = {}
+    // ── Hover highlight ──
+    if (hoverWorld) {
+      const hx = Math.floor(hoverWorld.x)
+      const hy = Math.floor(hoverWorld.y)
+      const shx = hx * scale + offset.x
+      const shy = hy * scale + offset.y
       
-      // Calculate tile coordinates needed (PZ uses ~300 cell chunks per tile, roughly 30 chunks)
-      const minTileX = Math.floor(bounds.minX / 10)
-      const maxTileX = Math.floor(bounds.maxX / 10)
-      const minTileY = Math.floor(bounds.minY / 10)
-      const maxTileY = Math.floor(bounds.maxY / 10)
-      
-      const tilePromises: Promise<void>[] = []
-      
-      for (let x = minTileX; x <= maxTileX; x++) {
-        for (let y = minTileY; y <= maxTileY; y++) {
-          const tileKey = `${x}_${y}`
-          const promise = new Promise<void>((resolve) => {
-            const img = new window.Image()
-            img.crossOrigin = 'anonymous'
-            img.onload = () => {
-              loaded[tileKey] = img
-              resolve()
-            }
-            img.onerror = () => {
-              // Tile doesn't exist, just skip
-              resolve()
-            }
-            img.src = `${MAP_TILES_BASE}/map_${x}_${y}.png`
-          })
-          tilePromises.push(promise)
-        }
-      }
-      
-      await Promise.all(tilePromises)
-      setMapTilesLoaded(loaded)
-      setLoadingTiles(false)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(shx, shy, scale, scale)
     }
     
-    loadTiles()
-  }, [bounds, showMapBackground, MAP_TILES_BASE])
-
-  // Mouse handlers - get properly scaled coordinates
-  const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
+    // ── HUD: coordinates + zoom ──
+    ctx.font = '11px monospace'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'bottom'
     
-    const rect = canvas.getBoundingClientRect()
-    // Account for CSS scaling - canvas internal size vs displayed size
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
+    if (hoverWorld) {
+      const label = `Chunk ${Math.floor(hoverWorld.x)}, ${Math.floor(hoverWorld.y)}`
+      const metrics = ctx.measureText(label)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+      ctx.fillRect(6, H - 22, metrics.width + 12, 18)
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillText(label, 12, H - 8)
     }
-  }
+    
+    // Zoom indicator
+    ctx.textAlign = 'right'
+    const zLabel = `${scale.toFixed(1)} px/chunk`
+    const zm = ctx.measureText(zLabel)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    ctx.fillRect(W - zm.width - 16, H - 22, zm.width + 12, 18)
+    ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'
+    ctx.fillText(zLabel, W - 10, H - 8)
+    
+  }, [chunks, bounds, scale, offset, selectedChunks, selectionStart, selectionEnd, canvasSize, showMap, hoverWorld, tileLoadCount, loadMapTile])
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  // ─── Mouse handlers ───
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    const pos = getCanvasMousePos(e)
     
-    const { x, y } = getCanvasCoords(e)
-    
-    if (tool === 'pan' || e.button === 1) {
-      setIsDragging(true)
-      setDragStart({ x: x - pan.x, y: y - pan.y })
-    } else if (tool === 'select') {
-      setSelectionStart({ x, y })
-      setSelectionEnd({ x, y })
+    if (tool === 'pan' || e.button === 1 || e.button === 2) {
+      setIsPanning(true)
+      panStartRef.current = { x: pos.x, y: pos.y, ox: offset.x, oy: offset.y }
+    } else if (tool === 'select' && e.button === 0) {
+      const world = screenToWorld(pos.x, pos.y)
+      setSelectionStart(world)
+      setSelectionEnd(world)
     }
-  }
+  }, [tool, offset, getCanvasMousePos, screenToWorld])
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const pos = getCanvasMousePos(e)
+    const world = screenToWorld(pos.x, pos.y)
+    setHoverWorld(world)
     
-    const { x, y } = getCanvasCoords(e)
-    
-    if (isDragging) {
-      setPan({ x: x - dragStart.x, y: y - dragStart.y })
+    if (isPanning) {
+      const dx = pos.x - panStartRef.current.x
+      const dy = pos.y - panStartRef.current.y
+      setOffset({ x: panStartRef.current.ox + dx, y: panStartRef.current.oy + dy })
     } else if (selectionStart) {
-      setSelectionEnd({ x, y })
+      setSelectionEnd(world)
     }
-  }
+  }, [isPanning, selectionStart, getCanvasMousePos, screenToWorld])
 
-  const handleMouseUp = useCallback((event?: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isDragging) {
-      setIsDragging(false)
+  const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isPanning) {
+      setIsPanning(false)
       return
     }
     
-    if (!selectionStart || !selectionEnd || !bounds) {
-      setSelectionStart(null)
-      setSelectionEnd(null)
-      return
-    }
-    
-    // Calculate which chunks are in selection
-    const canvas = canvasRef.current
-    if (!canvas) {
-      setSelectionStart(null)
-      setSelectionEnd(null)
-      return
-    }
-    
-    const width = canvas.width
-    const height = canvas.height
-    const rangeX = Math.max(1, bounds.maxX - bounds.minX + 1)
-    const rangeY = Math.max(1, bounds.maxY - bounds.minY + 1)
-    const baseCellSize = Math.min(
-      (width - 80) / rangeX,
-      (height - 80) / rangeY
-    )
-    const cellSize = baseCellSize * zoom
-    
-    const offsetX = 40 + (width - 80 - rangeX * cellSize) / 2 + pan.x
-    const offsetY = 40 + (height - 80 - rangeY * cellSize) / 2 + pan.y
-    
-    const sx = Math.min(selectionStart.x, selectionEnd.x)
-    const sy = Math.min(selectionStart.y, selectionEnd.y)
-    const ex = Math.max(selectionStart.x, selectionEnd.x)
-    const ey = Math.max(selectionStart.y, selectionEnd.y)
-    
-    const newSelected = new Set(selectedChunks)
-    
-    for (const chunk of chunks) {
-      const px = offsetX + (chunk.x - bounds.minX) * cellSize
-      const py = offsetY + (chunk.y - bounds.minY) * cellSize
+    if (selectionStart && selectionEnd) {
+      const sx = Math.min(selectionStart.x, selectionEnd.x)
+      const sy = Math.min(selectionStart.y, selectionEnd.y)
+      const ex = Math.max(selectionStart.x, selectionEnd.x)
+      const ey = Math.max(selectionStart.y, selectionEnd.y)
       
-      if (px + cellSize >= sx && px <= ex && py + cellSize >= sy && py <= ey) {
-        const key = `${chunk.x}_${chunk.y}`
-        if (event?.shiftKey) {
-          newSelected.delete(key)
-        } else {
-          newSelected.add(key)
+      const newSelected = new Set(selectedChunks)
+      
+      for (const chunk of chunks) {
+        // Chunk occupies [cx, cx+1) x [cy, cy+1) in world space
+        if (chunk.x + 1 > sx && chunk.x < ex && chunk.y + 1 > sy && chunk.y < ey) {
+          const key = `${chunk.x}_${chunk.y}`
+          if (e.shiftKey) {
+            newSelected.delete(key)
+          } else {
+            newSelected.add(key)
+          }
         }
       }
+      
+      setSelectedChunks(newSelected)
     }
     
-    setSelectedChunks(newSelected)
     setSelectionStart(null)
     setSelectionEnd(null)
-  }, [isDragging, selectionStart, selectionEnd, bounds, zoom, pan, selectedChunks, chunks])
+  }, [isPanning, selectionStart, selectionEnd, selectedChunks, chunks])
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? 0.9 : 1.1
-    setZoom(z => Math.max(0.1, Math.min(5, z * delta)))
-  }
+    const pos = getCanvasMousePos(e)
+    const factor = e.deltaY > 0 ? 0.88 : 1.14
+    const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor))
+    
+    // Zoom centered on mouse position
+    const worldX = (pos.x - offset.x) / scale
+    const worldY = (pos.y - offset.y) / scale
+    setScale(newScale)
+    setOffset({
+      x: pos.x - worldX * newScale,
+      y: pos.y - worldY * newScale
+    })
+  }, [scale, offset, getCanvasMousePos])
 
-  // Delete handlers
+  const handleMouseLeave = useCallback(() => {
+    setHoverWorld(null)
+    if (isPanning) setIsPanning(false)
+    if (selectionStart) {
+      setSelectionStart(null)
+      setSelectionEnd(null)
+    }
+  }, [isPanning, selectionStart])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault() // prevent right-click menu on canvas
+  }, [])
+
+  // ─── Delete handlers ───
   const handleDelete = async () => {
     if (selectedChunks.size === 0) return
     
@@ -522,21 +548,13 @@ export default function ChunkCleaner() {
     }
   }
 
-  const selectAll = () => {
-    setSelectedChunks(new Set(chunks.map(c => `${c.x}_${c.y}`)))
-  }
-
-  const clearSelection = () => {
-    setSelectedChunks(new Set())
-  }
-
+  const selectAll = () => setSelectedChunks(new Set(chunks.map(c => `${c.x}_${c.y}`)))
+  const clearSelection = () => setSelectedChunks(new Set())
   const invertSelection = () => {
     const all = new Set(chunks.map(c => `${c.x}_${c.y}`))
     const inverted = new Set<string>()
     for (const key of all) {
-      if (!selectedChunks.has(key)) {
-        inverted.add(key)
-      }
+      if (!selectedChunks.has(key)) inverted.add(key)
     }
     setSelectedChunks(inverted)
   }
@@ -647,7 +665,7 @@ export default function ChunkCleaner() {
                         <Square className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Select Tool</TooltipContent>
+                    <TooltipContent>Select Tool (drag to select)</TooltipContent>
                   </Tooltip>
                   
                   <Tooltip>
@@ -660,7 +678,7 @@ export default function ChunkCleaner() {
                         <Move className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Pan Tool</TooltipContent>
+                    <TooltipContent>Pan Tool (drag to move)</TooltipContent>
                   </Tooltip>
                   
                   <Separator orientation="vertical" className="h-8" />
@@ -670,7 +688,15 @@ export default function ChunkCleaner() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => setZoom(z => Math.min(5, z * 1.2))}
+                        onClick={() => {
+                          const newScale = Math.min(MAX_SCALE, scale * 1.3)
+                          const cx = canvasSize.width / 2
+                          const cy = canvasSize.height / 2
+                          const wx = (cx - offset.x) / scale
+                          const wy = (cy - offset.y) / scale
+                          setScale(newScale)
+                          setOffset({ x: cx - wx * newScale, y: cy - wy * newScale })
+                        }}
                       >
                         <ZoomIn className="w-4 h-4" />
                       </Button>
@@ -683,39 +709,45 @@ export default function ChunkCleaner() {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => setZoom(z => Math.max(0.1, z * 0.8))}
+                        onClick={() => {
+                          const newScale = Math.max(MIN_SCALE, scale * 0.7)
+                          const cx = canvasSize.width / 2
+                          const cy = canvasSize.height / 2
+                          const wx = (cx - offset.x) / scale
+                          const wy = (cy - offset.y) / scale
+                          setScale(newScale)
+                          setOffset({ x: cx - wx * newScale, y: cy - wy * newScale })
+                        }}
                       >
                         <ZoomOut className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Zoom Out</TooltipContent>
                   </Tooltip>
+                  
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={fitView}>
+                        <Maximize className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Fit All Chunks</TooltipContent>
+                  </Tooltip>
                 </div>
 
                 <Separator />
                 
-                {/* Map Background Toggle - DISABLED: Grabofus tiles use different coordinate system than B42 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {showMapBackground ? (
+                    {showMap ? (
                       <Image className="w-4 h-4 text-muted-foreground" />
                     ) : (
                       <ImageOff className="w-4 h-4 text-muted-foreground" />
                     )}
-                    <Label className="text-xs">Show Map</Label>
+                    <Label className="text-xs">Map Background</Label>
                   </div>
-                  <Switch
-                    checked={showMapBackground}
-                    onCheckedChange={setShowMapBackground}
-                  />
+                  <Switch checked={showMap} onCheckedChange={setShowMap} />
                 </div>
-                {loadingTiles && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    Loading map tiles...
-                  </div>
-                )}
-                */}
                 
                 <Separator />
                 
@@ -764,7 +796,7 @@ export default function ChunkCleaner() {
                     )}
                   </CardTitle>
                   <span className="text-xs text-muted-foreground">
-                    Zoom: {Math.round(zoom * 100)}%
+                    Zoom: {scale.toFixed(1)} px/chunk
                   </span>
                 </div>
               </CardHeader>
@@ -789,19 +821,27 @@ export default function ChunkCleaner() {
                     </div>
                   </div>
                 ) : (
-                  <div ref={containerRef} className="h-[520px] w-full">
-                    <canvas
-                      ref={canvasRef}
-                      width={canvasSize.width}
-                      height={canvasSize.height}
-                      className="w-full h-full rounded border cursor-crosshair"
-                      onMouseDown={handleMouseDown}
-                      onMouseMove={handleMouseMove}
-                      onMouseUp={handleMouseUp}
-                      onMouseLeave={handleMouseUp}
-                      onWheel={handleWheel}
-                      style={{ cursor: tool === 'pan' ? 'grab' : 'crosshair' }}
-                    />
+                  <div ref={containerRef} className="h-[520px] w-full overflow-hidden">
+                    {canvasSize.width > 0 && (
+                      <canvas
+                        ref={canvasRef}
+                        width={canvasSize.width}
+                        height={canvasSize.height}
+                        style={{
+                          width: canvasSize.width,
+                          height: canvasSize.height,
+                          borderRadius: '0.375rem',
+                          border: '1px solid hsl(var(--border))',
+                          cursor: tool === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'crosshair'
+                        }}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseLeave}
+                        onWheel={handleWheel}
+                        onContextMenu={handleContextMenu}
+                      />
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -818,11 +858,13 @@ export default function ChunkCleaner() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>• <strong>Select a save</strong> - Choose the multiplayer save you want to modify</p>
-            <p>• <strong>Draw selection</strong> - Click and drag on the map to select chunks</p>
-            <p>• <strong>Hold Shift</strong> - While selecting to deselect chunks</p>
-            <p>• <strong>Delete chunks</strong> - Selected chunks (red) will be deleted, resetting those map areas</p>
-            <p>• <strong>Backup recommended</strong> - Always enable backup before deleting</p>
+            <p>• <strong>Select a save</strong> — Choose the multiplayer save you want to modify</p>
+            <p>• <strong>Draw selection</strong> — Use the Select tool and click+drag on the map to select chunks (green = data, red = selected)</p>
+            <p>• <strong>Hold Shift</strong> — While selecting to deselect chunks from an existing selection</p>
+            <p>• <strong>Navigate</strong> — Scroll wheel to zoom (centered on cursor), switch to Pan tool or middle-click to drag the view</p>
+            <p>• <strong>Map tiles</strong> — Toggle "Map Background" to overlay the PZ world map behind chunks (B41 tiles, may not cover B42 areas)</p>
+            <p>• <strong>Delete chunks</strong> — Selected chunks (red) will be deleted, resetting those map areas when players revisit</p>
+            <p>• <strong>Backup recommended</strong> — Always enable backup before deleting</p>
           </CardContent>
         </Card>
 
