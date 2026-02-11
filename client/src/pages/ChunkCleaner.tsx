@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/tooltip'
 import { useToast } from '@/components/ui/use-toast'
 import { Separator } from '@/components/ui/separator'
-import { chunksApi } from '@/lib/api'
+import { chunksApi, serversApi } from '@/lib/api'
 
 interface SaveInfo {
   name: string
@@ -173,12 +173,29 @@ export default function ChunkCleaner() {
     try {
       const result = await chunksApi.getSaves()
       setSaves(result.saves || [])
+      return result.saves || []
     } catch (error) {
       console.error('Failed to fetch saves:', error)
+      return []
     }
   }, [])
 
-  useEffect(() => { fetchSaves() }, [fetchSaves])
+  // On mount: fetch saves and auto-select the active server's save
+  useEffect(() => {
+    (async () => {
+      const savesList = await fetchSaves()
+      if (savesList.length === 0) return
+      try {
+        const { server } = await serversApi.getActive()
+        if (server?.serverName) {
+          const match = savesList.find((s: SaveInfo) => s.name === server.serverName)
+          if (match) setSelectedSave(match.name)
+        }
+      } catch {
+        // No active server configured — user picks manually
+      }
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadChunks = useCallback(async () => {
     if (!selectedSave) return
