@@ -49,7 +49,6 @@ import { chunksApi } from '@/lib/api'
 
 interface SaveInfo {
   name: string
-  path: string
   modified: string
   chunkCount: number
   size: number
@@ -109,16 +108,22 @@ export default function ChunkCleaner() {
   
   // Interaction state
   const [tool, setTool] = useState<'select' | 'pan'>('select')
-  const [isPanning, setIsPanning] = useState(false)
+  const isPanningRef = useRef(false)
   const panStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 })
   const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null)
   const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null)
-  const [hoverWorld, setHoverWorld] = useState<{ x: number; y: number } | null>(null)
+  
+  // Hover state as ref (avoids re-render on every mouse move)
+  const hoverWorldRef = useRef<{ x: number; y: number } | null>(null)
+  const drawRequestRef = useRef(0)
   
   // Map tile state
   const [showMap, setShowMap] = useState(true)
   const tileCacheRef = useRef<Record<string, HTMLImageElement | null>>({})
-  const [tileLoadCount, setTileLoadCount] = useState(0)
+  const tileLoadCountRef = useRef(0)
+  
+  // Chunk limit warning
+  const [limitReached, setLimitReached] = useState(false)
   
   // Delete dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -157,6 +162,7 @@ export default function ChunkCleaner() {
     setBounds(null)
     setStats(null)
     setSelectedChunks(new Set())
+    setLimitReached(false)
     
     try {
       const [chunksResult, statsResult] = await Promise.all([
@@ -166,6 +172,7 @@ export default function ChunkCleaner() {
       setChunks(chunksResult.chunks || [])
       setBounds(chunksResult.bounds)
       setStats(statsResult)
+      setLimitReached(chunksResult.limitReached === true)
     } catch (error) {
       toast({
         title: 'Error',
@@ -229,210 +236,233 @@ export default function ChunkCleaner() {
     img.crossOrigin = 'anonymous'
     img.onload = () => {
       tileCacheRef.current[key] = img
-      setTileLoadCount(c => c + 1)
+      tileLoadCountRef.current++
+      // Trigger a redraw when tile loads
+      if (drawRequestRef.current === 0) {
+        drawRequestRef.current = requestAnimationFrame(() => { drawRequestRef.current = 0 })
+      }
     }
     img.onerror = () => { /* tile missing, keep null */ }
     img.src = `${MAP_TILES_CDN}/map_${tileX}_${tileY}.png`
   }, [])
 
-  // ─── Canvas draw ───
+  // ─── Canvas draw (extracted to callable function for rAF use) ───
+  const drawCanvasRef = useRef<() => void>(() => {})
+  
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return
-    
-    canvas.width = canvasSize.width
-    canvas.height = canvasSize.height
-    
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    
-    const W = canvasSize.width
-    const H = canvasSize.height
-    
-    // Dark background
-    ctx.fillStyle = '#0f1117'
-    ctx.fillRect(0, 0, W, H)
-    
-    if (!bounds || chunks.length === 0) return
-    
-    // Visible world bounds (with 1-chunk margin)
-    const visMinX = Math.floor(-offset.x / scale) - 1
-    const visMaxX = Math.ceil((W - offset.x) / scale) + 1
-    const visMinY = Math.floor(-offset.y / scale) - 1
-    const visMaxY = Math.ceil((H - offset.y) / scale) + 1
-    
-    // ── Map tiles ──
-    if (showMap) {
-      const minTX = Math.floor(visMinX / MAP_TILE_SIZE)
-      const maxTX = Math.floor(visMaxX / MAP_TILE_SIZE)
-      const minTY = Math.floor(visMinY / MAP_TILE_SIZE)
-      const maxTY = Math.floor(visMaxY / MAP_TILE_SIZE)
+    drawCanvasRef.current = () => {
+      const canvas = canvasRef.current
+      if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return
       
-      ctx.save()
-      ctx.globalAlpha = 0.5
-      for (let ty = minTY; ty <= maxTY; ty++) {
-        for (let tx = minTX; tx <= maxTX; tx++) {
-          loadMapTile(tx, ty)
-          const img = tileCacheRef.current[`${tx}_${ty}`]
-          if (img) {
-            const sx = tx * MAP_TILE_SIZE * scale + offset.x
-            const sy = ty * MAP_TILE_SIZE * scale + offset.y
-            const sw = MAP_TILE_SIZE * scale
-            ctx.drawImage(img, sx, sy, sw, sw)
+      canvas.width = canvasSize.width
+      canvas.height = canvasSize.height
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      
+      const W = canvasSize.width
+      const H = canvasSize.height
+      
+      // Dark background
+      ctx.fillStyle = '#0f1117'
+      ctx.fillRect(0, 0, W, H)
+      
+      if (!bounds || chunks.length === 0) return
+      
+      // Visible world bounds (with 1-chunk margin)
+      const visMinX = Math.floor(-offset.x / scale) - 1
+      const visMaxX = Math.ceil((W - offset.x) / scale) + 1
+      const visMinY = Math.floor(-offset.y / scale) - 1
+      const visMaxY = Math.ceil((H - offset.y) / scale) + 1
+      
+      // ── Map tiles ──
+      if (showMap) {
+        const minTX = Math.floor(visMinX / MAP_TILE_SIZE)
+        const maxTX = Math.floor(visMaxX / MAP_TILE_SIZE)
+        const minTY = Math.floor(visMinY / MAP_TILE_SIZE)
+        const maxTY = Math.floor(visMaxY / MAP_TILE_SIZE)
+        
+        ctx.save()
+        ctx.globalAlpha = 0.5
+        for (let ty = minTY; ty <= maxTY; ty++) {
+          for (let tx = minTX; tx <= maxTX; tx++) {
+            loadMapTile(tx, ty)
+            const img = tileCacheRef.current[`${tx}_${ty}`]
+            if (img) {
+              const sx = tx * MAP_TILE_SIZE * scale + offset.x
+              const sy = ty * MAP_TILE_SIZE * scale + offset.y
+              const sw = MAP_TILE_SIZE * scale
+              ctx.drawImage(img, sx, sy, sw, sw)
+            }
+          }
+        }
+        ctx.restore()
+      }
+      
+      // ── Grid lines (only when zoomed in enough) ──
+      if (scale > 4) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
+        ctx.lineWidth = 1
+        
+        const gridMinX = Math.max(bounds.minX, visMinX)
+        const gridMaxX = Math.min(bounds.maxX + 1, visMaxX)
+        const gridMinY = Math.max(bounds.minY, visMinY)
+        const gridMaxY = Math.min(bounds.maxY + 1, visMaxY)
+        
+        for (let x = gridMinX; x <= gridMaxX; x++) {
+          const sx = Math.floor(x * scale + offset.x) + 0.5
+          if (sx >= 0 && sx <= W) {
+            ctx.beginPath()
+            ctx.moveTo(sx, 0)
+            ctx.lineTo(sx, H)
+            ctx.stroke()
+          }
+        }
+        for (let y = gridMinY; y <= gridMaxY; y++) {
+          const sy = Math.floor(y * scale + offset.y) + 0.5
+          if (sy >= 0 && sy <= H) {
+            ctx.beginPath()
+            ctx.moveTo(0, sy)
+            ctx.lineTo(W, sy)
+            ctx.stroke()
           }
         }
       }
-      ctx.restore()
-    }
-    
-    // ── Grid lines (only when zoomed in enough) ──
-    if (scale > 4) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
-      ctx.lineWidth = 1
       
-      const gridMinX = Math.max(bounds.minX, visMinX)
-      const gridMaxX = Math.min(bounds.maxX + 1, visMaxX)
-      const gridMinY = Math.max(bounds.minY, visMinY)
-      const gridMaxY = Math.min(bounds.maxY + 1, visMaxY)
-      
-      for (let x = gridMinX; x <= gridMaxX; x++) {
-        const sx = Math.floor(x * scale + offset.x) + 0.5
-        if (sx >= 0 && sx <= W) {
-          ctx.beginPath()
-          ctx.moveTo(sx, 0)
-          ctx.lineTo(sx, H)
-          ctx.stroke()
+      // ── Draw chunks ──
+      for (const chunk of chunks) {
+        if (chunk.x + 1 < visMinX || chunk.x > visMaxX || chunk.y + 1 < visMinY || chunk.y > visMaxY) continue
+        
+        const sx = chunk.x * scale + offset.x
+        const sy = chunk.y * scale + offset.y
+        const key = `${chunk.x}_${chunk.y}`
+        const isSelected = selectedChunks.has(key)
+        
+        if (isSelected) {
+          ctx.fillStyle = 'rgba(220, 38, 38, 0.85)'
+        } else {
+          const ratio = Math.min(chunk.size / 50000, 1)
+          const g = Math.floor(140 + (1 - ratio) * 60)
+          const b = Math.floor(100 + (1 - ratio) * 40)
+          ctx.fillStyle = `rgba(34, ${g}, ${b}, 0.75)`
+        }
+        
+        if (scale > 4) {
+          const gap = Math.max(0.5, scale * 0.06)
+          ctx.fillRect(sx + gap, sy + gap, scale - gap * 2, scale - gap * 2)
+        } else {
+          ctx.fillRect(sx, sy, Math.max(scale, 1), Math.max(scale, 1))
         }
       }
-      for (let y = gridMinY; y <= gridMaxY; y++) {
-        const sy = Math.floor(y * scale + offset.y) + 0.5
-        if (sy >= 0 && sy <= H) {
-          ctx.beginPath()
-          ctx.moveTo(0, sy)
-          ctx.lineTo(W, sy)
-          ctx.stroke()
+      
+      // ── Coordinate labels (when zoomed in) ──
+      if (scale > 18) {
+        const fontSize = Math.min(10, scale * 0.5)
+        ctx.font = `${fontSize}px monospace`
+        ctx.fillStyle = 'rgba(156, 163, 175, 0.6)'
+        
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        for (let x = Math.max(bounds.minX, visMinX); x <= Math.min(bounds.maxX, visMaxX); x++) {
+          const sx = (x + 0.5) * scale + offset.x
+          if (sx >= 0 && sx <= W) {
+            const tickY = bounds.minY * scale + offset.y - 3
+            if (tickY > -20 && tickY < H) ctx.fillText(x.toString(), sx, tickY)
+          }
+        }
+        ctx.textAlign = 'right'
+        ctx.textBaseline = 'middle'
+        for (let y = Math.max(bounds.minY, visMinY); y <= Math.min(bounds.maxY, visMaxY); y++) {
+          const sy = (y + 0.5) * scale + offset.y
+          if (sy >= 0 && sy <= H) {
+            const tickX = bounds.minX * scale + offset.x - 4
+            if (tickX > -60 && tickX < W) ctx.fillText(y.toString(), tickX, sy)
+          }
         }
       }
-    }
-    
-    // ── Draw chunks ──
-    for (const chunk of chunks) {
-      // Viewport culling
-      if (chunk.x + 1 < visMinX || chunk.x > visMaxX || chunk.y + 1 < visMinY || chunk.y > visMaxY) continue
       
-      const sx = chunk.x * scale + offset.x
-      const sy = chunk.y * scale + offset.y
-      const key = `${chunk.x}_${chunk.y}`
-      const isSelected = selectedChunks.has(key)
-      
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(220, 38, 38, 0.85)'
-      } else {
-        const ratio = Math.min(chunk.size / 50000, 1)
-        const g = Math.floor(140 + (1 - ratio) * 60)
-        const b = Math.floor(100 + (1 - ratio) * 40)
-        ctx.fillStyle = `rgba(34, ${g}, ${b}, 0.75)`
+      // ── Selection rectangle ──
+      if (selectionStart && selectionEnd) {
+        const s1x = selectionStart.x * scale + offset.x
+        const s1y = selectionStart.y * scale + offset.y
+        const s2x = selectionEnd.x * scale + offset.x
+        const s2y = selectionEnd.y * scale + offset.y
+        
+        const rx = Math.min(s1x, s2x)
+        const ry = Math.min(s1y, s2y)
+        const rw = Math.abs(s2x - s1x)
+        const rh = Math.abs(s2y - s1y)
+        
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'
+        ctx.fillRect(rx, ry, rw, rh)
+        ctx.strokeStyle = '#3b82f6'
+        ctx.lineWidth = 2
+        ctx.setLineDash([6, 4])
+        ctx.strokeRect(rx, ry, rw, rh)
+        ctx.setLineDash([])
       }
       
-      if (scale > 4) {
-        const gap = Math.max(0.5, scale * 0.06)
-        ctx.fillRect(sx + gap, sy + gap, scale - gap * 2, scale - gap * 2)
-      } else {
-        ctx.fillRect(sx, sy, Math.max(scale, 1), Math.max(scale, 1))
+      // ── Hover highlight ──
+      const hover = hoverWorldRef.current
+      if (hover) {
+        const hx = Math.floor(hover.x)
+        const hy = Math.floor(hover.y)
+        const shx = hx * scale + offset.x
+        const shy = hy * scale + offset.y
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
+        ctx.lineWidth = 1.5
+        ctx.strokeRect(shx, shy, scale, scale)
       }
-    }
-    
-    // ── Coordinate labels (when zoomed in) ──
-    if (scale > 18) {
-      const fontSize = Math.min(10, scale * 0.5)
-      ctx.font = `${fontSize}px monospace`
-      ctx.fillStyle = 'rgba(156, 163, 175, 0.6)'
       
-      ctx.textAlign = 'center'
+      // ── HUD: coordinates + zoom ──
+      ctx.font = '11px monospace'
+      ctx.textAlign = 'left'
       ctx.textBaseline = 'bottom'
-      for (let x = Math.max(bounds.minX, visMinX); x <= Math.min(bounds.maxX, visMaxX); x++) {
-        const sx = (x + 0.5) * scale + offset.x
-        if (sx >= 0 && sx <= W) {
-          const tickY = bounds.minY * scale + offset.y - 3
-          if (tickY > -20 && tickY < H) ctx.fillText(x.toString(), sx, tickY)
-        }
+      
+      if (hover) {
+        const label = `Chunk ${Math.floor(hover.x)}, ${Math.floor(hover.y)}`
+        const metrics = ctx.measureText(label)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
+        ctx.fillRect(6, H - 22, metrics.width + 12, 18)
+        ctx.fillStyle = '#e5e7eb'
+        ctx.fillText(label, 12, H - 8)
       }
+      
       ctx.textAlign = 'right'
-      ctx.textBaseline = 'middle'
-      for (let y = Math.max(bounds.minY, visMinY); y <= Math.min(bounds.maxY, visMaxY); y++) {
-        const sy = (y + 0.5) * scale + offset.y
-        if (sy >= 0 && sy <= H) {
-          const tickX = bounds.minX * scale + offset.x - 4
-          if (tickX > -60 && tickX < W) ctx.fillText(y.toString(), tickX, sy)
-        }
-      }
+      const zLabel = `${scale.toFixed(1)} px/chunk`
+      const zm = ctx.measureText(zLabel)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+      ctx.fillRect(W - zm.width - 16, H - 22, zm.width + 12, 18)
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'
+      ctx.fillText(zLabel, W - 10, H - 8)
     }
     
-    // ── Selection rectangle ──
-    if (selectionStart && selectionEnd) {
-      const s1x = selectionStart.x * scale + offset.x
-      const s1y = selectionStart.y * scale + offset.y
-      const s2x = selectionEnd.x * scale + offset.x
-      const s2y = selectionEnd.y * scale + offset.y
-      
-      const rx = Math.min(s1x, s2x)
-      const ry = Math.min(s1y, s2y)
-      const rw = Math.abs(s2x - s1x)
-      const rh = Math.abs(s2y - s1y)
-      
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'
-      ctx.fillRect(rx, ry, rw, rh)
-      ctx.strokeStyle = '#3b82f6'
-      ctx.lineWidth = 2
-      ctx.setLineDash([6, 4])
-      ctx.strokeRect(rx, ry, rw, rh)
-      ctx.setLineDash([])
-    }
-    
-    // ── Hover highlight ──
-    if (hoverWorld) {
-      const hx = Math.floor(hoverWorld.x)
-      const hy = Math.floor(hoverWorld.y)
-      const shx = hx * scale + offset.x
-      const shy = hy * scale + offset.y
-      
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
-      ctx.lineWidth = 1.5
-      ctx.strokeRect(shx, shy, scale, scale)
-    }
-    
-    // ── HUD: coordinates + zoom ──
-    ctx.font = '11px monospace'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'bottom'
-    
-    if (hoverWorld) {
-      const label = `Chunk ${Math.floor(hoverWorld.x)}, ${Math.floor(hoverWorld.y)}`
-      const metrics = ctx.measureText(label)
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-      ctx.fillRect(6, H - 22, metrics.width + 12, 18)
-      ctx.fillStyle = '#e5e7eb'
-      ctx.fillText(label, 12, H - 8)
-    }
-    
-    // Zoom indicator
-    ctx.textAlign = 'right'
-    const zLabel = `${scale.toFixed(1)} px/chunk`
-    const zm = ctx.measureText(zLabel)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-    ctx.fillRect(W - zm.width - 16, H - 22, zm.width + 12, 18)
-    ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'
-    ctx.fillText(zLabel, W - 10, H - 8)
-    
-  }, [chunks, bounds, scale, offset, selectedChunks, selectionStart, selectionEnd, canvasSize, showMap, hoverWorld, tileLoadCount, loadMapTile])
+    // Initial draw
+    drawCanvasRef.current()
+  }, [chunks, bounds, scale, offset, selectedChunks, selectionStart, selectionEnd, canvasSize, showMap, loadMapTile])
+
+  // Schedule a canvas redraw via requestAnimationFrame (used by mouse handlers)
+  const scheduleDraw = useCallback(() => {
+    if (drawRequestRef.current) return
+    drawRequestRef.current = requestAnimationFrame(() => {
+      drawRequestRef.current = 0
+      drawCanvasRef.current()
+    })
+  }, [])
+  
+  // Cleanup rAF on unmount
+  useEffect(() => {
+    return () => { if (drawRequestRef.current) cancelAnimationFrame(drawRequestRef.current) }
+  }, [])
 
   // ─── Mouse handlers ───
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const pos = getCanvasMousePos(e)
     
-    if (tool === 'pan' || e.button === 1 || e.button === 2) {
-      setIsPanning(true)
+    if (tool === 'pan' || e.button === 1) {
+      isPanningRef.current = true
       panStartRef.current = { x: pos.x, y: pos.y, ox: offset.x, oy: offset.y }
     } else if (tool === 'select' && e.button === 0) {
       const world = screenToWorld(pos.x, pos.y)
@@ -444,49 +474,69 @@ export default function ChunkCleaner() {
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const pos = getCanvasMousePos(e)
     const world = screenToWorld(pos.x, pos.y)
-    setHoverWorld(world)
+    hoverWorldRef.current = world
     
-    if (isPanning) {
+    if (isPanningRef.current) {
       const dx = pos.x - panStartRef.current.x
       const dy = pos.y - panStartRef.current.y
       setOffset({ x: panStartRef.current.ox + dx, y: panStartRef.current.oy + dy })
     } else if (selectionStart) {
       setSelectionEnd(world)
+    } else {
+      // Only hover changed — redraw via rAF without re-rendering
+      scheduleDraw()
     }
-  }, [isPanning, selectionStart, getCanvasMousePos, screenToWorld])
+  }, [selectionStart, getCanvasMousePos, screenToWorld, scheduleDraw])
+
+  // Commit a selection (shared by mouseUp and mouseLeave)
+  const commitSelection = useCallback((shiftKey: boolean) => {
+    if (!selectionStart || !selectionEnd) return
+    
+    const sx = Math.min(selectionStart.x, selectionEnd.x)
+    const sy = Math.min(selectionStart.y, selectionEnd.y)
+    const ex = Math.max(selectionStart.x, selectionEnd.x)
+    const ey = Math.max(selectionStart.y, selectionEnd.y)
+    
+    // If selection area is very small (click), snap to include the clicked chunk
+    const isClick = Math.abs(ex - sx) < 0.5 && Math.abs(ey - sy) < 0.5
+    
+    const newSelected = new Set(selectedChunks)
+    
+    for (const chunk of chunks) {
+      let hit: boolean
+      if (isClick) {
+        // Single click: toggle the chunk under cursor
+        const cx = Math.floor((sx + ex) / 2)
+        const cy = Math.floor((sy + ey) / 2)
+        hit = chunk.x === cx && chunk.y === cy
+      } else {
+        // Drag selection: chunk overlaps selection rect
+        hit = chunk.x + 1 > sx && chunk.x < ex && chunk.y + 1 > sy && chunk.y < ey
+      }
+      
+      if (hit) {
+        const key = `${chunk.x}_${chunk.y}`
+        if (shiftKey || (isClick && selectedChunks.has(key))) {
+          newSelected.delete(key)
+        } else {
+          newSelected.add(key)
+        }
+      }
+    }
+    
+    setSelectedChunks(newSelected)
+    setSelectionStart(null)
+    setSelectionEnd(null)
+  }, [selectionStart, selectionEnd, selectedChunks, chunks])
 
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (isPanning) {
-      setIsPanning(false)
+    if (isPanningRef.current) {
+      isPanningRef.current = false
       return
     }
     
-    if (selectionStart && selectionEnd) {
-      const sx = Math.min(selectionStart.x, selectionEnd.x)
-      const sy = Math.min(selectionStart.y, selectionEnd.y)
-      const ex = Math.max(selectionStart.x, selectionEnd.x)
-      const ey = Math.max(selectionStart.y, selectionEnd.y)
-      
-      const newSelected = new Set(selectedChunks)
-      
-      for (const chunk of chunks) {
-        // Chunk occupies [cx, cx+1) x [cy, cy+1) in world space
-        if (chunk.x + 1 > sx && chunk.x < ex && chunk.y + 1 > sy && chunk.y < ey) {
-          const key = `${chunk.x}_${chunk.y}`
-          if (e.shiftKey) {
-            newSelected.delete(key)
-          } else {
-            newSelected.add(key)
-          }
-        }
-      }
-      
-      setSelectedChunks(newSelected)
-    }
-    
-    setSelectionStart(null)
-    setSelectionEnd(null)
-  }, [isPanning, selectionStart, selectionEnd, selectedChunks, chunks])
+    commitSelection(e.shiftKey)
+  }, [commitSelection])
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault()
@@ -505,16 +555,21 @@ export default function ChunkCleaner() {
   }, [scale, offset, getCanvasMousePos])
 
   const handleMouseLeave = useCallback(() => {
-    setHoverWorld(null)
-    if (isPanning) setIsPanning(false)
-    if (selectionStart) {
-      setSelectionStart(null)
-      setSelectionEnd(null)
+    hoverWorldRef.current = null
+    if (isPanningRef.current) {
+      isPanningRef.current = false
     }
-  }, [isPanning, selectionStart])
+    // Commit selection if one was in progress (don't lose the work)
+    if (selectionStart && selectionEnd) {
+      commitSelection(false)
+    }
+    scheduleDraw()
+  }, [selectionStart, selectionEnd, commitSelection, scheduleDraw])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault() // prevent right-click menu on canvas
+    e.preventDefault()
+    // Reset pan state in case right-click was used
+    isPanningRef.current = false
   }, [])
 
   // ─── Delete handlers ───
@@ -580,6 +635,20 @@ export default function ChunkCleaner() {
             </p>
           </div>
         </div>
+
+        {/* Limit Warning */}
+        {limitReached && (
+          <div className="p-3 rounded-lg border border-orange-500/50 bg-orange-500/10 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-orange-500">Chunk limit reached</p>
+              <p className="text-muted-foreground">
+                Only the first {chunks.length.toLocaleString()} chunks are shown. The save contains more chunks than can be displayed.
+                Use the region delete feature or select smaller areas at a time.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {/* Left Panel - Controls */}
@@ -832,7 +901,7 @@ export default function ChunkCleaner() {
                           height: canvasSize.height,
                           borderRadius: '0.375rem',
                           border: '1px solid hsl(var(--border))',
-                          cursor: tool === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'crosshair'
+                          cursor: tool === 'pan' ? 'grab' : 'crosshair'
                         }}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
@@ -859,8 +928,8 @@ export default function ChunkCleaner() {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground space-y-2">
             <p>• <strong>Select a save</strong> — Choose the multiplayer save you want to modify</p>
-            <p>• <strong>Draw selection</strong> — Use the Select tool and click+drag on the map to select chunks (green = data, red = selected)</p>
-            <p>• <strong>Hold Shift</strong> — While selecting to deselect chunks from an existing selection</p>
+            <p>• <strong>Select chunks</strong> — Click to toggle a single chunk, or click+drag to select a region (green = data, red = selected)</p>
+            <p>• <strong>Hold Shift</strong> — While clicking/dragging to deselect chunks from an existing selection</p>
             <p>• <strong>Navigate</strong> — Scroll wheel to zoom (centered on cursor), switch to Pan tool or middle-click to drag the view</p>
             <p>• <strong>Map tiles</strong> — Toggle "Map Background" to overlay the PZ world map behind chunks (B41 tiles, may not cover B42 areas)</p>
             <p>• <strong>Delete chunks</strong> — Selected chunks (red) will be deleted, resetting those map areas when players revisit</p>
@@ -877,7 +946,12 @@ export default function ChunkCleaner() {
                 Delete {selectedChunks.size} Chunks?
               </DialogTitle>
               <DialogDescription>
-                This will permanently delete the selected chunk files. The map areas will regenerate
+                This will permanently delete the selected chunk files ({(() => {
+                  const totalBytes = chunks.filter(c => selectedChunks.has(`${c.x}_${c.y}`)).reduce((sum, c) => sum + (c.size || 0), 0)
+                  if (totalBytes >= 1024 * 1024) return `${(totalBytes / 1024 / 1024).toFixed(1)} MB`
+                  if (totalBytes >= 1024) return `${(totalBytes / 1024).toFixed(1)} KB`
+                  return `${totalBytes} B`
+                })()}). The map areas will regenerate
                 when players visit them, but any player constructions or stored items will be lost.
               </DialogDescription>
             </DialogHeader>

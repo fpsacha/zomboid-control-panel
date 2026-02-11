@@ -55,7 +55,6 @@ router.get('/saves', async (req, res) => {
         
         return {
           name: d.name,
-          path: savePath,
           modified: stats.mtime,
           chunkCount,
           size,
@@ -237,7 +236,6 @@ router.get('/chunks/:saveName', async (req, res) => {
     
     res.json({
       saveName,
-      savePath,
       chunks,
       totalChunks: chunks.length,
       bounds,
@@ -292,7 +290,7 @@ router.post('/delete-chunks', async (req, res) => {
     
     // Create backup if requested
     if (createBackup) {
-      const backupPath = path.join(zomboidDataPath, 'backups', `${saveName}_chunks_${Date.now()}`);
+      const backupPath = path.join(zomboidDataPath, 'backups', `${sanitizedSaveName}_chunks_${Date.now()}`);
       await fs.promises.mkdir(backupPath, { recursive: true });
       
       // Backup only the chunks we're about to delete
@@ -375,7 +373,21 @@ router.post('/delete-chunks', async (req, res) => {
         }
     }
     
-    log.info(`Deleted ${deleted} chunks from save ${saveName}`);
+    // Clean up empty X directories after B42 chunk deletion
+    const deletedXDirs = new Set();
+    for (const chunk of chunks) {
+      const parts = chunk.file.split('/');
+      if (parts.length === 2) deletedXDirs.add(parts[0]);
+    }
+    for (const xDir of deletedXDirs) {
+      try {
+        const xPath = path.join(savePath, 'map', xDir);
+        const remaining = await fs.promises.readdir(xPath);
+        if (remaining.length === 0) await fs.promises.rmdir(xPath);
+      } catch (e) { /* ignore */ }
+    }
+    
+    log.info(`Deleted ${deleted} chunks from save ${sanitizedSaveName}`);
     
     res.json({
       success: true,
@@ -483,7 +495,7 @@ router.post('/delete-region', async (req, res) => {
     
     // Create backup if requested
     if (createBackup) {
-      const backupPath = path.join(zomboidDataPath, 'backups', `${saveName}_region_${Date.now()}`);
+      const backupPath = path.join(zomboidDataPath, 'backups', `${sanitizedSaveName}_region_${Date.now()}`);
       await fs.promises.mkdir(backupPath, { recursive: true });
       
       // Parallel backup
@@ -535,7 +547,21 @@ router.post('/delete-region', async (req, res) => {
       }
     }));
     
-    log.info(`Deleted ${deleted} chunks in region [${minX},${minY}]-[${maxX},${maxY}] from ${saveName}`);
+    // Clean up empty X directories after B42 chunk deletion
+    const deletedXDirs = new Set();
+    for (const chunk of chunksToDelete) {
+      const parts = chunk.file.split('/');
+      if (parts.length === 2) deletedXDirs.add(parts[0]);
+    }
+    for (const xDir of deletedXDirs) {
+      try {
+        const xDirPath = path.join(mapPath, xDir);
+        const remaining = await fs.promises.readdir(xDirPath);
+        if (remaining.length === 0) await fs.promises.rmdir(xDirPath);
+      } catch (e) { /* ignore */ }
+    }
+    
+    log.info(`Deleted ${deleted} chunks in region [${minX},${minY}]-[${maxX},${maxY}] from ${sanitizedSaveName}`);
     
     res.json({
       success: true,
