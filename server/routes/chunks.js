@@ -234,6 +234,9 @@ router.get('/chunks/:saveName', async (req, res) => {
     
     const bounds = chunks.length > 0 ? { minX, maxX, minY, maxY } : null;
     
+    // Sort chunks by coordinate for consistent rendering order
+    chunks.sort((a, b) => a.x - b.x || a.y - b.y);
+    
     res.json({
       saveName,
       chunks,
@@ -491,6 +494,13 @@ router.post('/delete-region', async (req, res) => {
     
     if (chunksToDelete.length === 0) {
       return res.json({ success: true, deleted: 0, message: 'No chunks in selected region' });
+    }
+    
+    // Safety limit to prevent accidental mass deletion
+    if (chunksToDelete.length > 100000) {
+      return res.status(400).json({ 
+        error: `Region too large (${chunksToDelete.length.toLocaleString()} chunks). Maximum is 100,000 at a time.` 
+      });
     }
     
     // Create backup if requested

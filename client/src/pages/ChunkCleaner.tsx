@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { 
   Map, 
   Trash2, 
@@ -87,6 +87,12 @@ const MAX_SCALE = 60     // px per chunk (zoomed way in)
 const MAP_TILE_SIZE = 100 // each grabofus tile covers 100x100 chunks
 const MAP_TILES_CDN = 'https://grabofus.github.io/zomboid-chunk-cleaner/assets'
 
+function formatSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
 export default function ChunkCleaner() {
   const [saves, setSaves] = useState<SaveInfo[]>([])
   const [selectedSave, setSelectedSave] = useState<string>('')
@@ -129,6 +135,25 @@ export default function ChunkCleaner() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [createBackup, setCreateBackup] = useState(true)
   const [deleting, setDeleting] = useState(false)
+
+  // O(1) chunk lookup by coordinate key "x_y"
+  const chunkMap = useMemo(() => {
+    const lookup: Record<string, ChunkInfo> = {}
+    for (const chunk of chunks) lookup[`${chunk.x}_${chunk.y}`] = chunk
+    return lookup
+  }, [chunks])
+
+  // Total size of selected chunks (memoized for display)
+  const selectedSize = useMemo(() => {
+    let total = 0
+    for (const chunk of chunks) {
+      if (selectedChunks.has(`${chunk.x}_${chunk.y}`)) total += chunk.size || 0
+    }
+    return total
+  }, [chunks, selectedChunks])
+
+  // Whether the canvas container is in the DOM
+  const hasCanvas = !!selectedSave && !loading && chunks.length > 0
 
   // ─── Coordinate transforms ───
   const screenToWorld = useCallback((sx: number, sy: number) => ({
@@ -383,6 +408,11 @@ export default function ChunkCleaner() {
       
       // ── Selection rectangle ──
       if (selectionStart && selectionEnd) {
+        const wsx = Math.min(selectionStart.x, selectionEnd.x)
+        const wsy = Math.min(selectionStart.y, selectionEnd.y)
+        const wex = Math.max(selectionStart.x, selectionEnd.x)
+        const wey = Math.max(selectionStart.y, selectionEnd.y)
+        
         const s1x = selectionStart.x * scale + offset.x
         const s1y = selectionStart.y * scale + offset.y
         const s2x = selectionEnd.x * scale + offset.x
@@ -400,6 +430,26 @@ export default function ChunkCleaner() {
         ctx.setLineDash([6, 4])
         ctx.strokeRect(rx, ry, rw, rh)
         ctx.setLineDash([])
+        
+        // Selection preview: count chunks in selection region
+        let selCount = 0
+        for (const c of chunks) {
+          if (c.x + 1 > wsx && c.x < wex && c.y + 1 > wsy && c.y < wey) selCount++
+        }
+        
+        if (selCount > 0 && rw > 30) {
+          const selLabel = `${selCount} chunk${selCount !== 1 ? 's' : ''}`
+          ctx.font = '11px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'bottom'
+          const mx = rx + rw / 2
+          const lm = ctx.measureText(selLabel)
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.9)'
+          const pw = lm.width + 10
+          ctx.fillRect(mx - pw / 2, ry - 18, pw, 16)
+          ctx.fillStyle = '#fff'
+          ctx.fillText(selLabel, mx, ry - 4)
+        }
       }
       
       // ── Hover highlight ──
@@ -421,7 +471,17 @@ export default function ChunkCleaner() {
       ctx.textBaseline = 'bottom'
       
       if (hover) {
-        const label = `Chunk ${Math.floor(hover.x)}, ${Math.floor(hover.y)}`
+        const hx = Math.floor(hover.x)
+        const hy = Math.floor(hover.y)
+        const hkey = `${hx}_${hy}`
+        const hoverChunk = chunkMap[hkey]
+        const hoverSel = selectedChunks.has(hkey)
+        
+        let label = `Chunk ${hx}, ${hy}`
+        if (hoverChunk) {
+          label += ` | ${formatSize(hoverChunk.size)}${hoverSel ? ' | SELECTED' : ''}`
+        }
+        
         const metrics = ctx.measureText(label)
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
         ctx.fillRect(6, H - 22, metrics.width + 12, 18)
@@ -440,7 +500,7 @@ export default function ChunkCleaner() {
     
     // Initial draw
     drawCanvasRef.current()
-  }, [chunks, bounds, scale, offset, selectedChunks, selectionStart, selectionEnd, canvasSize, showMap, loadMapTile])
+  }, [chunks, chunkMap, bounds, scale, offset, selectedChunks, selectionStart, selectionEnd, canvasSize, showMap, loadMapTile])
 
   // Schedule a canvas redraw via requestAnimationFrame (used by mouse handlers)
   const scheduleDraw = useCallback(() => {
@@ -456,12 +516,51 @@ export default function ChunkCleaner() {
     return () => { if (drawRequestRef.current) cancelAnimationFrame(drawRequestRef.current) }
   }, [])
 
+  // Prevent page scroll when wheeling over the canvas (React onWheel is passive)
+  useEffect(() => {
+    if (!hasCanvas) return
+    const container = containerRef.current
+    if (!container) return
+    const preventScroll = (e: WheelEvent) => { e.preventDefault() }
+    container.addEventListener('wheel', preventScroll, { passive: false })
+    return () => container.removeEventListener('wheel', preventScroll)
+  }, [hasCanvas])
+
+  // ─── Keyboard shortcuts ───
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (deleteDialogOpen) return
+      if (!selectedSave) return
+      
+      switch (e.key) {
+        case 'Escape':
+          setSelectionStart(null)
+          setSelectionEnd(null)
+          setSelectedChunks(new Set())
+          break
+        case 'Delete':
+          if (selectedChunks.size > 0) setDeleteDialogOpen(true)
+          break
+        case '1':
+          setTool('select')
+          break
+        case '2':
+          setTool('pan')
+          break
+      }
+    }
+    
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedChunks.size, deleteDialogOpen, selectedSave])
+
   // ─── Mouse handlers ───
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const pos = getCanvasMousePos(e)
     
-    if (tool === 'pan' || e.button === 1) {
+    if (tool === 'pan' || e.button === 1 || e.button === 2) {
       isPanningRef.current = true
       panStartRef.current = { x: pos.x, y: pos.y, ox: offset.x, oy: offset.y }
     } else if (tool === 'select' && e.button === 0) {
@@ -497,37 +596,42 @@ export default function ChunkCleaner() {
     const ex = Math.max(selectionStart.x, selectionEnd.x)
     const ey = Math.max(selectionStart.y, selectionEnd.y)
     
-    // If selection area is very small (click), snap to include the clicked chunk
+    // If selection area is very small (click), toggle the single chunk under cursor
     const isClick = Math.abs(ex - sx) < 0.5 && Math.abs(ey - sy) < 0.5
     
-    const newSelected = new Set(selectedChunks)
-    
-    for (const chunk of chunks) {
-      let hit: boolean
+    setSelectedChunks(prev => {
+      const newSelected = new Set(prev)
+      
       if (isClick) {
-        // Single click: toggle the chunk under cursor
         const cx = Math.floor((sx + ex) / 2)
         const cy = Math.floor((sy + ey) / 2)
-        hit = chunk.x === cx && chunk.y === cy
+        const key = `${cx}_${cy}`
+        if (chunkMap[key]) {
+          if (shiftKey || prev.has(key)) {
+            newSelected.delete(key)
+          } else {
+            newSelected.add(key)
+          }
+        }
       } else {
-        // Drag selection: chunk overlaps selection rect
-        hit = chunk.x + 1 > sx && chunk.x < ex && chunk.y + 1 > sy && chunk.y < ey
-      }
-      
-      if (hit) {
-        const key = `${chunk.x}_${chunk.y}`
-        if (shiftKey || (isClick && selectedChunks.has(key))) {
-          newSelected.delete(key)
-        } else {
-          newSelected.add(key)
+        for (const chunk of chunks) {
+          if (chunk.x + 1 > sx && chunk.x < ex && chunk.y + 1 > sy && chunk.y < ey) {
+            const key = `${chunk.x}_${chunk.y}`
+            if (shiftKey) {
+              newSelected.delete(key)
+            } else {
+              newSelected.add(key)
+            }
+          }
         }
       }
-    }
+      
+      return newSelected
+    })
     
-    setSelectedChunks(newSelected)
     setSelectionStart(null)
     setSelectionEnd(null)
-  }, [selectionStart, selectionEnd, selectedChunks, chunks])
+  }, [selectionStart, selectionEnd, chunks, chunkMap])
 
   const handleMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanningRef.current) {
@@ -539,7 +643,6 @@ export default function ChunkCleaner() {
   }, [commitSelection])
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
     const pos = getCanvasMousePos(e)
     const factor = e.deltaY > 0 ? 0.88 : 1.14
     const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor))
@@ -568,8 +671,6 @@ export default function ChunkCleaner() {
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    // Reset pan state in case right-click was used
-    isPanningRef.current = false
   }, [])
 
   // ─── Delete handlers ───
@@ -734,7 +835,7 @@ export default function ChunkCleaner() {
                         <Square className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Select Tool (drag to select)</TooltipContent>
+                    <TooltipContent>Select Tool (1)</TooltipContent>
                   </Tooltip>
                   
                   <Tooltip>
@@ -747,7 +848,7 @@ export default function ChunkCleaner() {
                         <Move className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Pan Tool (drag to move)</TooltipContent>
+                    <TooltipContent>Pan Tool (2) — also right-click drag</TooltipContent>
                   </Tooltip>
                   
                   <Separator orientation="vertical" className="h-8" />
@@ -821,7 +922,7 @@ export default function ChunkCleaner() {
                 <Separator />
                 
                 <div className="space-y-2">
-                  <Label className="text-xs">Selection ({selectedChunks.size} chunks)</Label>
+                  <Label className="text-xs">Selection ({selectedChunks.size} chunks{selectedChunks.size > 0 ? ` — ${formatSize(selectedSize)}` : ''})</Label>
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" onClick={selectAll} disabled={chunks.length === 0}>
                       Select All
@@ -930,9 +1031,10 @@ export default function ChunkCleaner() {
             <p>• <strong>Select a save</strong> — Choose the multiplayer save you want to modify</p>
             <p>• <strong>Select chunks</strong> — Click to toggle a single chunk, or click+drag to select a region (green = data, red = selected)</p>
             <p>• <strong>Hold Shift</strong> — While clicking/dragging to deselect chunks from an existing selection</p>
-            <p>• <strong>Navigate</strong> — Scroll wheel to zoom (centered on cursor), switch to Pan tool or middle-click to drag the view</p>
+            <p>• <strong>Navigate</strong> — Scroll to zoom, right-click or middle-click to pan, press 1/2 to switch tools</p>
             <p>• <strong>Map tiles</strong> — Toggle "Map Background" to overlay the PZ world map behind chunks (B41 tiles, may not cover B42 areas)</p>
             <p>• <strong>Delete chunks</strong> — Selected chunks (red) will be deleted, resetting those map areas when players revisit</p>
+            <p>• <strong>Keyboard</strong> — Escape to clear selection, Delete to open delete dialog, 1/2 to switch tools</p>
             <p>• <strong>Backup recommended</strong> — Always enable backup before deleting</p>
           </CardContent>
         </Card>
@@ -946,12 +1048,7 @@ export default function ChunkCleaner() {
                 Delete {selectedChunks.size} Chunks?
               </DialogTitle>
               <DialogDescription>
-                This will permanently delete the selected chunk files ({(() => {
-                  const totalBytes = chunks.filter(c => selectedChunks.has(`${c.x}_${c.y}`)).reduce((sum, c) => sum + (c.size || 0), 0)
-                  if (totalBytes >= 1024 * 1024) return `${(totalBytes / 1024 / 1024).toFixed(1)} MB`
-                  if (totalBytes >= 1024) return `${(totalBytes / 1024).toFixed(1)} KB`
-                  return `${totalBytes} B`
-                })()}). The map areas will regenerate
+                This will permanently delete the selected chunk files ({formatSize(selectedSize)}). The map areas will regenerate
                 when players visit them, but any player constructions or stored items will be lost.
               </DialogDescription>
             </DialogHeader>
