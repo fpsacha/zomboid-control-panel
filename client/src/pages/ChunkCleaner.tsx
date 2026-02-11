@@ -341,6 +341,29 @@ export default function ChunkCleaner() {
         ctx.restore()
       }
       
+      // ── Tile grid lines (every 100 chunks — tile boundaries) ──
+      if (showMap && scale > 0.3) {
+        const tileGridMinX = Math.floor(visMinX / MAP_TILE_SIZE) * MAP_TILE_SIZE
+        const tileGridMaxX = Math.ceil(visMaxX / MAP_TILE_SIZE) * MAP_TILE_SIZE
+        const tileGridMinY = Math.floor(visMinY / MAP_TILE_SIZE) * MAP_TILE_SIZE
+        const tileGridMaxY = Math.ceil(visMaxY / MAP_TILE_SIZE) * MAP_TILE_SIZE
+        
+        ctx.strokeStyle = 'rgba(59, 130, 246, 0.25)'
+        ctx.lineWidth = 1
+        for (let x = tileGridMinX; x <= tileGridMaxX; x += MAP_TILE_SIZE) {
+          const sx = Math.floor(x * scale + offset.x) + 0.5
+          if (sx >= 0 && sx <= W) {
+            ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke()
+          }
+        }
+        for (let y = tileGridMinY; y <= tileGridMaxY; y += MAP_TILE_SIZE) {
+          const sy = Math.floor(y * scale + offset.y) + 0.5
+          if (sy >= 0 && sy <= H) {
+            ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(W, sy); ctx.stroke()
+          }
+        }
+      }
+      
       // ── Grid lines (only when zoomed in enough) ──
       if (scale > 4) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'
@@ -494,7 +517,9 @@ export default function ChunkCleaner() {
         const hoverChunk = chunkMap[hkey]
         const hoverSel = selectedChunks.has(hkey)
         
-        let label = `Chunk ${hx}, ${hy}`
+        const tileX = Math.floor(hx / MAP_TILE_SIZE)
+        const tileY = Math.floor(hy / MAP_TILE_SIZE)
+        let label = `Chunk ${hx}, ${hy}  |  Tile ${tileX}, ${tileY}`
         if (hoverChunk) {
           label += ` | ${formatSize(hoverChunk.size)}${hoverSel ? ' | SELECTED' : ''}`
         }
@@ -513,6 +538,16 @@ export default function ChunkCleaner() {
       ctx.fillRect(W - zm.width - 16, H - 22, zm.width + 12, 18)
       ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'
       ctx.fillText(zLabel, W - 10, H - 8)
+      
+      // ── Top-left bounds info ──
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      const boundsLabel = `X: ${bounds.minX}–${bounds.maxX}  Y: ${bounds.minY}–${bounds.maxY}  (${chunks.length} chunks)`
+      const bm = ctx.measureText(boundsLabel)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+      ctx.fillRect(6, 6, bm.width + 12, 18)
+      ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'
+      ctx.fillText(boundsLabel, 12, 9)
     }
     
     // Initial draw

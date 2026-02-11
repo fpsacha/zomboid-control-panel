@@ -192,43 +192,48 @@ router.get('/chunks/:saveName', async (req, res) => {
       }
     }
     
-    // Also check chunkdata folder for B42
-    const chunkDataPath = path.join(savePath, 'chunkdata');
-    if (fs.existsSync(chunkDataPath)) {
-      // Create a Set for O(1) lookup of existing chunks to prevent O(N^2) complexity
-      const existingCoords = new Set(chunks.map(c => `${c.x},${c.y}`));
+    // Also check chunkdata folder — but ONLY for legacy (B41) saves.
+    // In B42 (directory-based map/), chunkdata files use a different coordinate
+    // system (cell-based, not chunk-based) and would corrupt bounds if mixed in.
+    const isB42 = xDirs.length > 0;
+    if (!isB42) {
+      const chunkDataPath = path.join(savePath, 'chunkdata');
+      if (fs.existsSync(chunkDataPath)) {
+        // Create a Set for O(1) lookup of existing chunks to prevent O(N^2) complexity
+        const existingCoords = new Set(chunks.map(c => `${c.x},${c.y}`));
 
-      const chunkDataFiles = await fs.promises.readdir(chunkDataPath);
-      const validFiles = chunkDataFiles.filter(f => f.endsWith('.bin'));
+        const chunkDataFiles = await fs.promises.readdir(chunkDataPath);
+        const validFiles = chunkDataFiles.filter(f => f.endsWith('.bin'));
 
-      const chunkDataPromises = validFiles.map(async file => {
-        const match = file.match(/(\d+)_(\d+)(?:_\d+)?\.bin$/i);
-        if (match) {
-          const x = parseInt(match[1], 10);
-          const y = parseInt(match[2], 10);
-          
-          // Check if we already have this chunk from map folder
-          if (!existingCoords.has(`${x},${y}`)) {
-            try {
-                const stats = await fs.promises.stat(path.join(chunkDataPath, file));
-                return {
-                  file, x, y, size: stats.size, modified: stats.mtime, source: 'chunkdata'
-                };
-            } catch(e) { return null; }
+        const chunkDataPromises = validFiles.map(async file => {
+          const match = file.match(/(\d+)_(\d+)(?:_\d+)?\.bin$/i);
+          if (match) {
+            const x = parseInt(match[1], 10);
+            const y = parseInt(match[2], 10);
+            
+            // Check if we already have this chunk from map folder
+            if (!existingCoords.has(`${x},${y}`)) {
+              try {
+                  const stats = await fs.promises.stat(path.join(chunkDataPath, file));
+                  return {
+                    file, x, y, size: stats.size, modified: stats.mtime, source: 'chunkdata'
+                  };
+              } catch(e) { return null; }
+            }
           }
+          return null;
+        });
+
+        const chunkDataResults = await Promise.all(chunkDataPromises);
+        for(const res of chunkDataResults) {
+            if (res) {
+              chunks.push(res);
+              minX = Math.min(minX, res.x);
+              maxX = Math.max(maxX, res.x);
+              minY = Math.min(minY, res.y);
+              maxY = Math.max(maxY, res.y);
+            }
         }
-        return null;
-      });
-
-      const chunkDataResults = await Promise.all(chunkDataPromises);
-      for(const res of chunkDataResults) {
-          if (res) {
-            chunks.push(res);
-            minX = Math.min(minX, res.x);
-            maxX = Math.max(maxX, res.x);
-            minY = Math.min(minY, res.y);
-            maxY = Math.max(maxY, res.y);
-          }
       }
     }
     
