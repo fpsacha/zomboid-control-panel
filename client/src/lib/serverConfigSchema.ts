@@ -453,17 +453,6 @@ export const INI_SCHEMA: IniSetting[] = [
     default: true,
     category: 'players'
   },
-  {
-    key: 'MinutesPerPage',
-    label: 'Minutes Per Page',
-    description: 'In-game minutes needed to read a single page.',
-    type: 'number',
-    min: 0.1,
-    max: 10,
-    default: 1.0,
-    category: 'players'
-  },
-
   // Safehouses
   {
     key: 'PlayerSafehouse',
