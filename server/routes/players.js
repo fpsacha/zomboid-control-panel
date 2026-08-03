@@ -24,7 +24,11 @@ const router = express.Router();
 // Allow normal in-game names (spaces/symbols) but block control chars and quote/backslash.
 const USERNAME_REGEX = /^[^\x00-\x1F\x7F"\\]{1,64}$/;
 const SAFE_TEXT_REGEX = /^[a-zA-Z0-9\s.,!?'":;()@#&+=%_\-\u00C0-\u024F]{0,256}$/;
-const ITEM_REGEX = /^[a-zA-Z][a-zA-Z0-9_]*\.[a-zA-Z][a-zA-Z0-9_]*$/;
+// Mirrors the add-vehicle check below: item names legitimately start with a
+// digit (all rifle ammunition, and mod vehicle parts named by model year) and
+// weapon-attachment mods use - and &. Quotes, backslashes and whitespace stay
+// excluded, which is what matters for the RCON command this is spliced into.
+const ITEM_REGEX = /^[A-Za-z0-9_]+\.[A-Za-z0-9_&-]+$/;
 
 function isValidUsername(username) {
   if (typeof username !== 'string') return false;
