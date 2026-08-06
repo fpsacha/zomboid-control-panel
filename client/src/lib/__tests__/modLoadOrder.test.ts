@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildRequiresMap, computeAutoSortedOrder } from '../modLoadOrder'
+import { buildRequiresMap, computeAutoSortedOrder, createRequirementResolver } from '../modLoadOrder'
 
 const requires = (entries: Record<string, string[]>) => new Map(Object.entries(entries))
 
@@ -65,14 +65,35 @@ describe('computeAutoSortedOrder', () => {
     expect(result.missing).toEqual([{ modId: 'Overhaul', requires: 'NotEnabled' }])
   })
 
-  it('keeps cyclic mods instead of dropping them', () => {
+  it('keeps cyclic mods instead of dropping them, and reports them as one group', () => {
     const result = computeAutoSortedOrder(
       ['A', 'B', 'C'],
       requires({ A: ['B'], B: ['A'] }),
     )
 
     expect(result.order.slice().sort()).toEqual(['A', 'B', 'C'])
-    expect(result.cycles).toEqual(['A', 'B'])
+    expect(result.cycles).toEqual([['A', 'B']])
+  })
+
+  it('reports independent cycles separately instead of as one blob', () => {
+    const result = computeAutoSortedOrder(
+      ['A', 'B', 'C', 'D'],
+      requires({ A: ['B'], B: ['A'], C: ['D'], D: ['C'] }),
+    )
+
+    expect(result.cycles).toEqual([['A', 'B'], ['C', 'D']])
+  })
+
+  it('still orders a mod that depends on a mod caught in a cycle', () => {
+    // Patch -> A is perfectly satisfiable even though A and B require each
+    // other, so Patch must still be moved below A.
+    const result = computeAutoSortedOrder(
+      ['Patch', 'A', 'B'],
+      requires({ A: ['B'], B: ['A'], Patch: ['A'] }),
+    )
+
+    expect(result.order.indexOf('A')).toBeLessThan(result.order.indexOf('Patch'))
+    expect(result.cycles).toEqual([['A', 'B']])
   })
 
   it('ignores self-requirements and duplicate entries', () => {
@@ -83,6 +104,57 @@ describe('computeAutoSortedOrder', () => {
 
     expect(result.order).toEqual(['A', 'B'])
     expect(result.appliedEdges).toBe(1)
+  })
+
+  it('orders against a fork that satisfies the requirement instead of calling it missing', () => {
+    // The Conflicts tab already treats "BaseLibrary_Refactor" as satisfying
+    // "require=BaseLibrary"; the sort has to agree and order against it.
+    const result = computeAutoSortedOrder(
+      ['Overhaul', 'BaseLibrary_Refactor'],
+      requires({ Overhaul: ['BaseLibrary'] }),
+    )
+
+    expect(result.order).toEqual(['BaseLibrary_Refactor', 'Overhaul'])
+    expect(result.appliedEdges).toBe(1)
+    expect(result.missing).toEqual([])
+  })
+
+  it('trims padded requirement entries and reports each one once', () => {
+    const result = computeAutoSortedOrder(
+      ['Overhaul', 'BaseLibrary'],
+      requires({ Overhaul: [' BaseLibrary ', '', '  ', 'NotEnabled', 'NotEnabled '] }),
+    )
+
+    expect(result.order).toEqual(['BaseLibrary', 'Overhaul'])
+    expect(result.appliedEdges).toBe(1)
+    expect(result.missing).toEqual([{ modId: 'Overhaul', requires: 'NotEnabled' }])
+  })
+})
+
+describe('createRequirementResolver', () => {
+  it('prefers an exact match over a fork', () => {
+    const resolve = createRequirementResolver(['Base_Fork', 'Base'])
+
+    expect(resolve('Base')).toBe('Base')
+  })
+
+  it('accepts underscore and dash forks case-insensitively', () => {
+    const resolve = createRequirementResolver(['base_refactor', 'Other-Legacy'])
+
+    expect(resolve('Base')).toBe('base_refactor')
+    expect(resolve('other')).toBe('Other-Legacy')
+  })
+
+  it('does not treat an unrelated mod with a shared prefix as a fork', () => {
+    const resolve = createRequirementResolver(['BaseLibraryExtra'])
+
+    expect(resolve('BaseLibrary')).toBeNull()
+  })
+
+  it('returns null for blank requirements', () => {
+    const resolve = createRequirementResolver(['A'])
+
+    expect(resolve('   ')).toBeNull()
   })
 })
 

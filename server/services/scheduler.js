@@ -9,8 +9,6 @@ import {
   updateTaskLastRun,
   logServerEvent,
   logScheduleExecution,
-  getSetting,
-  setSetting,
   getActiveServer,
 } from "../database/init.js";
 
@@ -112,55 +110,60 @@ export class Scheduler {
       this.jobs.get(task.id).stop();
     }
 
-    const job = cron.schedule(task.cron_expression, async () => {
-      // Prevent duplicate execution of same task
-      if (this.runningTasks.has(task.id)) {
-        log.debug(
-          `Skipping duplicate execution of task ${task.name} (already running)`,
-        );
-        return;
-      }
-
-      this.runningTasks.add(task.id);
-      log.info(`Executing scheduled task: ${task.name}`);
-      const startTime = Date.now();
-      try {
-        await this.executeTask(task);
-        const duration = Date.now() - startTime;
-        await updateTaskLastRun(task.id);
-        await logScheduleExecution(
-          task.id,
-          task.name,
-          task.command,
-          true,
-          "Completed successfully",
-          duration,
-        );
-        await logServerEvent("scheduled_task", `Executed: ${task.name}`);
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        log.error(`Scheduled task failed ${task.name}: ${error.message}`);
-        await logScheduleExecution(
-          task.id,
-          task.name,
-          task.command,
-          false,
-          error.message,
-          duration,
-        );
-        await logServerEvent(
-          "scheduled_task_error",
-          `${task.name}: ${error.message}`,
-        );
-      } finally {
-        this.runningTasks.delete(task.id);
-      }
-    });
+    const job = cron.schedule(task.cron_expression, () => this.runTaskNow(task));
 
     this.jobs.set(task.id, job);
     this.jobLabels.set(task.id, task.name || task.command || "task");
     log.info(`Scheduled task: ${task.name} (${task.cron_expression})`);
     return true;
+  }
+
+  // Runs a task through the same dispatch as its cron trigger (restart/save/
+  // servermsg/bridge: special-casing in executeTask), so a manual "run now"
+  // behaves identically to the scheduled fire instead of shelling the raw
+  // command string straight to RCON.
+  async runTaskNow(task) {
+    if (this.runningTasks.has(task.id)) {
+      log.debug(
+        `Skipping duplicate execution of task ${task.name} (already running)`,
+      );
+      return;
+    }
+
+    this.runningTasks.add(task.id);
+    log.info(`Executing scheduled task: ${task.name}`);
+    const startTime = Date.now();
+    try {
+      await this.executeTask(task);
+      const duration = Date.now() - startTime;
+      await updateTaskLastRun(task.id);
+      await logScheduleExecution(
+        task.id,
+        task.name,
+        task.command,
+        true,
+        "Completed successfully",
+        duration,
+      );
+      await logServerEvent("scheduled_task", `Executed: ${task.name}`);
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      log.error(`Scheduled task failed ${task.name}: ${error.message}`);
+      await logScheduleExecution(
+        task.id,
+        task.name,
+        task.command,
+        false,
+        error.message,
+        duration,
+      );
+      await logServerEvent(
+        "scheduled_task_error",
+        `${task.name}: ${error.message}`,
+      );
+    } finally {
+      this.runningTasks.delete(task.id);
+    }
   }
 
   /**
@@ -226,11 +229,21 @@ export class Scheduler {
           throw new Error("Restart skipped - already in progress");
         }
       } else if (commandLower === "save") {
-        await rconService.save({ skipLog: true });
+        const saved = await rconService.save({ skipLog: true });
+        if (!saved?.success) {
+          throw new Error(`Save failed: ${saved?.error || "unknown error"}`);
+        }
       } else if (commandLower.startsWith("servermsg ")) {
         // Preserve original casing for the message text
         const message = task.command.substring(10);
-        await rconService.serverMessage(message, { skipLog: true });
+        const sent = await rconService.serverMessage(message, {
+          skipLog: true,
+        });
+        if (!sent?.success) {
+          throw new Error(
+            `Broadcast failed: ${sent?.error || "unknown error"}`,
+          );
+        }
       } else if (commandLower.startsWith("bridge:")) {
         // PanelBridge action: `bridge:<action>` optionally followed by a
         // JSON args object. Validates against the SCHEDULABLE_BRIDGE_ACTIONS
@@ -251,7 +264,12 @@ export class Scheduler {
         await this.executeBridgeAction(task.command);
       } else {
         // Execute as raw RCON command - skip logging for scheduled tasks
-        await rconService.execute(task.command, { skipLog: true });
+        const result = await rconService.execute(task.command, {
+          skipLog: true,
+        });
+        if (!result?.success) {
+          throw new Error(result?.error || "RCON command failed");
+        }
       }
     } finally {
       if (cleanup) await cleanup();
@@ -496,9 +514,6 @@ export class Scheduler {
   setupAutoRestart() {
     const enabled = process.env.AUTO_RESTART_ENABLED === "true";
     const cronExpression = process.env.AUTO_RESTART_CRON || "0 */6 * * *";
-    const warningMinutes =
-      parseInt(process.env.RESTART_WARNING_MINUTES, 10) || 5;
-
     if (!enabled) {
       log.info("Auto-restart is disabled");
       return;
@@ -519,7 +534,14 @@ export class Scheduler {
     this.autoRestartJob = cron.schedule(cronExpression, async () => {
       log.info("Executing scheduled auto-restart");
       try {
-        await this.performRestart();
+        // performRestart answers with a result rather than throwing when it
+        // refuses or fails, so a silent no-op is the failure mode to catch.
+        const result = await this.performRestart();
+        if (!result?.success) {
+          log.error(
+            `Scheduled auto-restart did not complete: ${result?.message || "unknown error"}`,
+          );
+        }
       } catch (err) {
         // performRestart re-throws on failure. node-cron does not consume the
         // returned promise, so without this catch the rejection is unhandled
@@ -581,6 +603,19 @@ export class Scheduler {
       }
     } catch (err) {
       log.debug(`Restart broadcast (bridge) threw: ${err.message}`);
+    }
+  }
+
+  // Discord was already told the restart was coming, so it has to be told when
+  // it isn't. Best-effort — a cancellation must never fail because of Discord.
+  async _notifyRestartCancelled() {
+    if (!this.discordBot) return;
+    try {
+      await this.discordBot.sendNotification(
+        "✅ **Scheduled restart cancelled** — the server is staying up.",
+      );
+    } catch (err) {
+      log.debug(`Discord restart-cancelled notification failed: ${err.message}`);
     }
   }
 
@@ -657,7 +692,12 @@ export class Scheduler {
         log.info(
           "Auto-restart triggered but server was not running - starting server",
         );
-        await serverManager.startServer();
+        const started = await serverManager.startServer();
+        if (!started?.success) {
+          log.warn(
+            `Auto-restart: start command reported failure: ${started?.error || started?.message || "unknown error"}`,
+          );
+        }
 
         // Wait a bit and verify it started
         await this.sleep(10000);
@@ -754,6 +794,7 @@ export class Scheduler {
               "[SERVER] Restart CANCELLED.",
               rconService,
             );
+            await this._notifyRestartCancelled();
             return { success: false, message: "Restart cancelled" };
           }
           const minuteWord = i === 1 ? "MINUTE" : "MINUTES";
@@ -789,6 +830,7 @@ export class Scheduler {
               "[SERVER] Restart CANCELLED.",
               rconService,
             );
+            await this._notifyRestartCancelled();
             return { success: false, message: "Restart cancelled" };
           }
           await this._broadcastRestartMessage(tick.msg, rconService);
@@ -822,7 +864,12 @@ export class Scheduler {
 
       // Quit server - skip logging for automated quit
       log.info("Auto-restart: Sending quit command...");
-      await rconService.quit({ skipLog: true });
+      const quit = await rconService.quit({ skipLog: true });
+      if (!quit?.success) {
+        log.warn(
+          `Auto-restart: quit command failed (${quit?.error || "unknown error"}), falling back to a forced stop`,
+        );
+      }
       await this.sleep(10000);
 
       // Wait for server to stop
@@ -834,7 +881,12 @@ export class Scheduler {
 
       // Force stop if needed
       if (await serverManager.checkServerRunning()) {
-        await serverManager.stopServer(false);
+        const forced = await serverManager.stopServer(false);
+        if (!forced?.success) {
+          log.warn(
+            `Auto-restart: forced stop reported failure: ${forced?.error || forced?.message || "unknown error"}`,
+          );
+        }
         await this.sleep(5000);
       }
 
@@ -853,7 +905,14 @@ export class Scheduler {
       // Start server — skip the running check since we just confirmed the server stopped
       log.info("Auto-restart: Starting server...");
       await this._ensureRestartTarget(serverManager, pinnedServerId);
-      await serverManager.startServer({ skipRunningCheck: true });
+      const restarted = await serverManager.startServer({
+        skipRunningCheck: true,
+      });
+      if (!restarted?.success) {
+        log.warn(
+          `Auto-restart: start command reported failure: ${restarted?.error || restarted?.message || "unknown error"}`,
+        );
+      }
 
       // Wait for server process to be running (up to 60 seconds)
       let serverStarted = false;
@@ -1039,10 +1098,20 @@ export class Scheduler {
     log.info("Mod update detected - scheduling restart");
 
     try {
-      await this.rconService.serverMessage(
+      const warned = await this.rconService.serverMessage(
         "🔧 Mod updates detected! Server will restart in 5 minutes.",
       );
-      await this.performRestart(5); // Explicitly pass 5 minutes to match the message
+      if (!warned?.success) {
+        log.warn(
+          `Could not warn players about the mod-update restart: ${warned?.error || "unknown error"}`,
+        );
+      }
+      const result = await this.performRestart(5); // Explicitly pass 5 minutes to match the message
+      if (!result?.success) {
+        log.error(
+          `Mod-update restart did not complete: ${result?.message || "unknown error"}`,
+        );
+      }
       this.modUpdateRestartPending = false;
     } catch (error) {
       this.modUpdateRestartPending = false;
@@ -1052,7 +1121,7 @@ export class Scheduler {
 
   getStatus() {
     const tasks = [];
-    for (const [id, job] of this.jobs) {
+    for (const [id] of this.jobs) {
       tasks.push({ id, running: true });
     }
 

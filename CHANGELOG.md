@@ -5,11 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.31] - 2026-08-05
 
 ### Added
 
+#### Settings > Mods
+
+- **"Remove everywhere" for a mod you never want back**: every row in the collection table now has a single destructive action that takes the mod out of the Steam collection, the server config (`WorkshopItems`, `Mods` and `Map`), and the downloaded files on disk, then untracks it and adds it to the ignore list so a later scan can't quietly bring it back. Previously this took four separate steps across two pages, and nothing stopped the mod reappearing afterwards. Deleting a mod from disk now also clears its map folders from `Map=`, which it should always have done.
+- **Add and remove mods from the server straight out of the collection table**: rows in Settings > Mods only ever offered collection and tracking buttons, so a mod sitting in the collection but not on the server could be spotted there but not acted on. Each row now also carries "To server" or "From server", matching the Mods > Import collection panel.
+
+#### Documentation
+
 - **Unraid and Indifferent Broccoli deployment guide**: the README now separates the panel's own `/app/data` and `/app/logs` state from shared Project Zomboid `/pz-server` and `/zomboid` mounts, explains RCON networking and PanelBridge access for a separate PZ container, and includes an importable Unraid template. It also calls out that `/panel-data` and `/panel-logs` are unused paths.
+
+#### Project
+
+- **A lint rule that stops the panel from ignoring a failed command**: many services here report failure by returning `{ success: false }` rather than by raising an error, and a third of the bugs fixed in this release were a discarded result — the panel telling you an action had worked when nothing had checked. `local/require-result-handling` now fails the build when the result of one of those calls is thrown away. Deliberately ignoring one is still allowed, but has to be written as `void`, so it shows up in review.
+
+### Fixed
+
+#### Server control
+
+- **Stopping the server could lose progress, in three more places**: the panel's own Stop button, the automatic game-server update, and the pre-update shutdown before a Docker panel update all issued a save followed immediately by a quit without checking whether the save worked. A failed save meant quitting anyway and discarding everything since the last one. Each now refuses to shut down and says why. (The same fault was fixed in Discord's `/stop` earlier.)
+- **Actions reported success when the underlying command had failed**: saving the server configuration, testing the RCON connection, `/start` in Discord, restarting from the panel, and scheduled tasks all announced success without checking the result they were handed. A scheduled task whose RCON command failed was recorded in the history as having run.
+
+#### Discord
+
+- **`/restart` always claimed the restart was starting**: the scheduler reports a refusal or a failure by returning a result rather than by raising an error, so the command ignored it. Asking for a restart while one was already running, or when the server failed to come back, still answered "Server restart initiated". The command now reports what actually happened, falling back to the notification channel if the warning period outlasted Discord's reply window.
+- **Restart warnings were announced twice in game**: `/restart` sent its own warning immediately before the scheduler began its countdown with the same message. The duplicate is gone — and because it was the one countdown line without the `[SERVER]` prefix, it was also the only one still leaking into the chat relay.
+- **/stop shut the server down even when the save failed**: the world save and the shutdown were issued back to back without checking the first one, so a failed save quietly cost everyone their progress since the last one. It now stops and reports the failure instead.
+- **A cancelled restart was announced only in game**: Discord was told the restart was coming and then never told it had been called off, leaving anyone watching from Discord expecting the server to go down.
+- **The restart countdown flooded the chat relay**: every warning, including the final second-by-second ticks, was forwarded to Discord on top of the single restart notification. Those broadcasts now stay in game where they are aimed.
+- **In-game chat stopped reaching Discord**: v1.1.28 narrowed the relay to the General tab, but Build 42 records ordinary talking as `Say` and Q shouts as `Local`/`Shout`, so almost nothing was forwarded while server notifications kept arriving normally. All public chat is relayed again, and Discord > In-Game Chat Relay now has a "Which messages to forward" choice for anyone who wants the General tab only. Faction, safehouse, radio, whisper and admin chat are still never forwarded.
+- **Turning the chat relay off only stopped half of it**: messages still flowed from Discord into the game, including from the notification channel when no separate relay channel was set. The switch now covers both directions, and is labelled as such.
+- **Chat could arrive in Discord out of order**: relayed messages were sent in parallel, so Discord ordered them by whichever request finished first. They are now sent in the order the game logged them.
+- **Chat could pile up faster than Discord accepts it**: a busy server or an in-game spammer could queue relayed messages without limit. The queue is capped and reports what it dropped rather than falling further and further behind.
+- **In-game chat could inject formatting into Discord**: player names and messages were posted to Discord unescaped, so anything typed in game could apply Discord formatting — including a link with harmless-looking text pointing anywhere. Player text is now escaped, as it already was everywhere else.
+- **Messages typed in Discord vanished when the game server was unreachable**: they were dropped with no reply and nothing in the channel to say so. Discord now gets a short notice, at most once a minute.
+- **A broken chat channel silenced server notifications**: one circuit breaker covered all Discord sends, so three failures relaying chat to a deleted channel suppressed start/stop/backup notifications to a perfectly healthy channel for up to 30 minutes. Each channel now fails independently.
+- **Nobody was announced for joining an empty server**: join and leave notifications were held back until the panel had seen at least one player online, which it works out from the previous poll. On an empty server that condition is never met, so the first person to arrive after every restart — and after every time the server emptied out — joined silently. The panel now tracks that it has taken a first look, separately from whether anyone was in it.
+- **A blank notification template could silence Discord entirely**: an event enabled with an empty template, or one whose only placeholder resolved to nothing, sent an empty message. Discord rejects those, and three rejections in a row suppressed all notifications for half an hour. Blank templates can no longer be enabled, and a notification that renders to nothing is skipped instead of sent.
+- **Turning on an event notification saved a blank message**: the switch enabled the event without filling in the template, so it sent nothing. Each event now starts from a sensible default wording.
+- **Saving one notification could reset the others**: the events endpoint replaced the whole configuration with whatever was sent, so a partial update wiped every event it did not mention. Updates are merged now.
+- **Long notifications were rejected**: a template plus a long player name could exceed Discord's message limit, failing the send and counting against the same suppression that silences later notifications.
+- **Send Test Message always claimed success**: the result of the send was discarded, so the one button whose job is to prove Discord works reported "sent" even when the channel was wrong or the bot could not post. It now reports the failure.
+- **The Admin and Moderator role settings did nothing**: every command was also locked on Discord's side to members holding Discord's own Administrator permission, so a role named in the panel could not see the command at all, let alone run it. Discord-side locks are now only applied when no role is configured, and changing a role re-registers the commands immediately instead of waiting for a bot restart.
+- **Moderators could be refused their own commands**: the role check only understood a cached guild member, so an uncached one — whose roles arrive as a plain list — read as having no roles at all.
+- **Discord IDs of valid length were rejected by the setup form**: the page required 17 to 19 digits while the server accepts 15 to 21.
+- **A failed settings load looked like a fresh install**: if the configuration request failed, the page cleared everything and showed the first-time setup wizard, with no indication anything had gone wrong. It now keeps the last known values and says the read failed.
+- **Saving and starting in one step reported the wrong failure**: if the bot failed to start, the message claimed the configuration had not been saved, when it had.
+
+#### Chat
+
+- **Chat messages could vanish from the panel's Chat page**: every message was tagged with the current millisecond, and a single read of the log file often produces several lines within the same millisecond. The page treats a repeated tag as a duplicate delivery, so when two people spoke at once only one of them appeared.
+- **Players with an apostrophe in their name never appeared in Discord**: the chat log parser stopped reading the name at the first quote, so the whole line failed to match and every message from, say, O'Brien was dropped silently and permanently.
+- **Chat messages were dropped at log-read boundaries**: the log tailer discarded any line that straddled two polls, and re-read one byte each time, corrupting the line after it. Partial lines are now held until the rest arrives. A log burst larger than 1MB is still skipped, but it now says so in the panel log instead of vanishing.
+- **The first messages after a log rotation were missed**: when Project Zomboid started a new chat or user log, the tailer jumped to the end of it, skipping anything already written. It now reads a rotated file from the start, while still skipping history on panel startup.
+- **Chat never started on a server that had not run yet**: the log tailer gave up if `server-console.txt` and the `Logs` folder were missing when the panel booted, which is exactly the case on a first start, and never looked again. It now keeps watching and picks the logs up as soon as the game server creates them.
+
+#### Mods
+
+- **A failed mod-update restart could block every later one**: the pending-restart flag was only cleared when the restart threw, not when it reported failure by return value, leaving the panel convinced a restart was still in flight.
+- **Deactivated mods were silently deleted from tracking**: loading the mod list pruned every tracked mod missing from `WorkshopItems=` — exactly the set the Mods > Deactivated tab exists to show. The tab emptied itself on the next refresh, so a deactivated mod disappeared for good as soon as any other mod was removed. Deactivated mods are now kept until you re-enable or delete them.
+- **The collection compared itself against the wrong thing**: drift was measured against the locally tracked mod list rather than `WorkshopItems=`, so a mod removed from the server still counted as "in sync" for as long as it stayed tracked, and the "Mismatch" badge could read 0 above a list of 26 rows. Every row is now classified against what the server actually loads, and the counts match the list they filter.
+
+#### Mods > Conflicts
+
+- **Mods could be reported as conflicting with themselves**: a mod that ships the same file under both `media/` and a Build 42 `42/media/` folder was counted twice, producing a nonsensical "ModA vs ModA" pair and inflating the file counts of every real pair it appeared in.
+- **Translation files that failed to parse were silently treated as safe**: an unreadable or unparsable translation file now counts as a possible conflict instead of being skipped, matching how script and clothing files already behaved.
+- **Script and clothing files with no definitions were reported as conflicts**: an empty file cannot collide with anything, and is now treated as additive. Only files that genuinely could not be parsed still fail closed.
+- **A file was reported as identical when only one copy could actually be read**: the scan now requires every copy to be verified before calling a shared file safe.
+
+#### Mods > Load order
+
+- **A dependency cycle broke the load order of unrelated mods**: auto-sort used to give up on every mod it could not place and append them all in their old order, so a mod that merely required something caught in a cycle could still be sorted above it. Cycles are now detected precisely, and only the dependencies inside a cycle are ignored.
+- **Auto-sort disagreed with the Conflicts tab about missing dependencies**: a `require=` satisfied by a `<required>_<suffix>` fork was accepted on the Conflicts tab but reported as missing by auto-sort, which then failed to order against it. Both now use the same rule.
+- **Padded `require=` entries were treated as missing dependencies**: surrounding whitespace is now trimmed, and a requirement declared several times is only reported once.
+
+#### Backups
+
+- **Old backups were logged as cleaned up even when the deletion failed**, and a failed automatic update no longer reports nothing when the server does not come back.
+
+### Changed
+
+#### Mods > Conflicts
+
+- **Conflict scan is faster and uses far less memory**: file sizes are compared before hashing, so files that obviously differ are never read; hashing is streamed instead of loading whole files into memory; `sandbox-options.txt` and `fileGuidTable.xml` are skipped before being read rather than after; and Lua files are parsed once instead of once per scanning pass.
+- **Conflict scan progress no longer appears to stall**: the comparison phase reports progress instead of jumping from 60% to 85%, the stream sends a keep-alive so proxies do not drop long scans, and closing the page now stops the scan instead of letting it run to completion.
+
+#### Mods > Load order
+
+- **Load-order auto-sort reports each dependency cycle separately**: two unrelated circular dependencies used to be listed as one group of mods, which made it impossible to tell which mods were actually looping. Each cycle is now shown on its own, and the messages shown when there is nothing to sort explain whether the requirements are simply not enabled.
+
+#### Settings > Mods
+
+- **The Steam collection is now reconciled one mod at a time**: the "Sync all" / "Sync now" buttons are gone. Each row states plainly whether it is missing from the collection, in the collection but not on the server, or in sync, and carries its own buttons to add or remove it from the collection and from the server. Bulk operations are still available by ticking rows first.
 
 ## [1.1.30] - 2026-08-05
 

@@ -908,8 +908,14 @@ router.post("/stop", async (req, res) => {
         .json({ error: "RCON not connected. Cannot gracefully stop server." });
     }
 
-    // Save first
-    await rconService.save();
+    // Save first — quitting after a failed save discards everything since
+    // the last one.
+    const saved = await rconService.save();
+    if (!saved?.success) {
+      return res.status(502).json({
+        error: `Save failed, so the server was left running: ${sanitizeError(saved?.error)}`,
+      });
+    }
 
     // Then quit
     const result = await rconService.quit();
@@ -1389,6 +1395,11 @@ function getBetaArgs(branch) {
   return ["-beta", branch];
 }
 
+async function getSteamLoginArgs() {
+  const account = String((await getSetting("steamUpdateAccount")) || "").trim();
+  return ["+login", account || "anonymous"];
+}
+
 // SteamCMD Installation endpoint
 router.post("/install", async (req, res) => {
   try {
@@ -1519,11 +1530,11 @@ router.post("/install", async (req, res) => {
     // Build SteamCMD command
     // App ID 380870 is Project Zomboid Dedicated Server
     const betaArgs = getBetaArgs(selectedBranch);
+    const loginArgs = await getSteamLoginArgs();
     const steamcmdArgs = [
       "+force_install_dir",
       installPath,
-      "+login",
-      "anonymous",
+      ...loginArgs,
       "+app_update",
       "380870",
       ...betaArgs,
@@ -2476,11 +2487,11 @@ router.post("/steam-update", async (req, res) => {
 
     // Build SteamCMD command
     const betaArgs = getBetaArgs(selectedBranch);
+    const loginArgs = await getSteamLoginArgs();
     const steamcmdArgs = [
       "+force_install_dir",
       installPath,
-      "+login",
-      "anonymous",
+      ...loginArgs,
       "+app_update",
       "380870",
       ...betaArgs,
@@ -2562,12 +2573,18 @@ router.post("/steam-update", async (req, res) => {
       activeSteamOperations.delete(normalizedPath);
 
       const success = code === 0;
+      const steamDepotAccessDenied =
+        /app ['"]?380870['"]? state is 0x6/i.test(output) ||
+        /manifest.*access denied/i.test(output);
+      const failureMessage = steamDepotAccessDenied
+        ? "SteamCMD could not access a Project Zomboid depot manifest. Your installed server files were not changed. Retry later; if it persists, update using a Steam account that owns Project Zomboid."
+        : `Server ${operation} failed with code ${code}`;
 
       io.emit("steam:complete", {
         success,
         message: success
           ? `Server ${operation} completed successfully`
-          : `Server ${operation} failed with code ${code}`,
+          : failureMessage,
       });
 
       // After successful update, re-check update status so banner clears

@@ -21,6 +21,7 @@ const VALID_SETTINGS_KEYS = [
   "serverConfigPath",
   "zomboidDataPath",
   "steamcmdPath",
+  "steamUpdateAccount",
   "steamApiKey",
   "serverName",
   "minMemory",
@@ -151,7 +152,12 @@ router.put("/", async (req, res) => {
       return res.status(400).json({ error: "Config is required" });
     }
 
-    await serverManager.saveServerConfig(config);
+    const saved = await serverManager.saveServerConfig(config);
+    if (!saved?.success) {
+      return res.status(500).json({
+        error: sanitizeError(saved?.error || "Configuration could not be written"),
+      });
+    }
     res.json({ success: true, message: "Configuration saved" });
   } catch (error) {
     log.error(`Failed to save config: ${error.message}`);
@@ -621,7 +627,19 @@ router.post("/test-rcon", async (req, res) => {
       // Try a lightweight command to verify the connection is alive
       // Avoid 'help' — PZ dumps a huge response that can overflow RCON packets and hang
       try {
-        await rconService.execute("players", { skipLog: true });
+        // execute() reports a failed command by return value, so the catch
+        // below only ever saw transport-level errors.
+        const probe = await rconService.execute("players", { skipLog: true });
+        if (!probe?.success) {
+          res.json({
+            success: true,
+            message:
+              "Connected but command failed: " + sanitizeError(probe?.error),
+            connected: true,
+            warning: true,
+          });
+          return;
+        }
         res.json({
           success: true,
           message: "RCON connection successful",

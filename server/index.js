@@ -90,7 +90,6 @@ import {
     process.exit(0);
   } catch (err) {
     // Don't block startup on a bootstrap failure; fall through to direct boot.
-    // eslint-disable-next-line no-console
     console.error(
       "Supervisor bootstrap failed, continuing without it:",
       err.message,
@@ -925,6 +924,9 @@ async function tryStartPanelBridge(trigger = "unknown") {
 rconService.on("connected", async () => {
   log.info("RCON connected - checking PanelBridge...");
   rconConnectedAt = Date.now();
+  // Whoever is online at reconnect was not necessarily a new arrival.
+  lastPlayerList = [];
+  playerBaselineReady = false;
   await tryStartPanelBridge("rcon-connected");
 });
 
@@ -1428,8 +1430,20 @@ app.post(
             });
           }
 
-          await rconService.save();
-          await rconService.quit();
+          const saved = await rconService.save();
+          if (!saved?.success) {
+            return res.status(409).json({
+              error: `The world could not be saved (${saved?.error || "unknown error"}), so the server was left running. Applying the update now would lose everything since the last save.`,
+              code: "save_failed",
+            });
+          }
+          const quit = await rconService.quit();
+          if (!quit?.success) {
+            return res.status(502).json({
+              error: `The world was saved, but the server could not be shut down (${quit?.error || "unknown error"}). It is still running, so the update was not applied.`,
+              code: "stop_failed",
+            });
+          }
           await logServerEvent(
             "server_stop",
             "Server stopped before Docker panel update",
@@ -1644,6 +1658,10 @@ async function autoExportPlayer(username) {
 // Server-side player polling for real-time updates
 // ============================================
 let lastPlayerList = [];
+// Set once the first successful poll has established who was already online.
+// Inferring this from lastPlayerList being empty swallowed every join onto an
+// empty server, which is most of them.
+let playerBaselineReady = false;
 let playerPollingInterval = null;
 let rconConnectedAt = 0; // timestamp of last RCON connect — used for grace period
 
@@ -1652,6 +1670,8 @@ function startPlayerPolling() {
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
   }
+  lastPlayerList = [];
+  playerBaselineReady = false;
 
   playerPollingInterval = setInterval(async () => {
     try {
@@ -1668,6 +1688,9 @@ function startPlayerPolling() {
 
       const result = await rconService.getPlayers();
       if (result.success && result.players) {
+        const baselineWasReady = playerBaselineReady;
+        playerBaselineReady = true;
+
         // Check if player list has changed
         const currentNames = result.players
           .map((p) => p.name)
@@ -1698,7 +1721,7 @@ function startPlayerPolling() {
           // Skip entirely while PanelBridge is alive: its own connect/disconnect
           // events (wired above) already send these same notifications from a
           // more reliable presence source, and firing both would double them up.
-          if (lastSet.size > 0 && !panelBridge.modStatus?.alive) {
+          if (baselineWasReady && !panelBridge.modStatus?.alive) {
             for (const p of joined) {
               discordBot
                 .sendEventNotification("playerJoin", { player: p.name })
@@ -1986,13 +2009,6 @@ function startStatusWatchdog() {
   log.info("Server status watchdog started (10s interval)");
 }
 
-function stopStatusWatchdog() {
-  if (statusWatchdogInterval) {
-    clearInterval(statusWatchdogInterval);
-    statusWatchdogInterval = null;
-  }
-}
-
 // Initialize and start server
 async function start() {
   try {
@@ -2117,10 +2133,13 @@ async function start() {
     // Initialize log tailer
     await logTailer.init();
 
-    // Broadcast live chat messages to Socket.IO clients
+    // Broadcast live chat messages to Socket.IO clients. The id needs a
+    // counter: one log chunk emits several lines within the same millisecond,
+    // and the client discards a message whose id it has already seen.
+    let chatMessageSeq = 0;
     logTailer.on("chatMessage", (data) => {
       io.emit("chat:message", {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${chatMessageSeq++}`,
         type: data.type || "general",
         author: data.author,
         message: data.message,
@@ -2327,7 +2346,6 @@ async function start() {
                   const rconHost = rconService.config.host || "127.0.0.1";
                   const rconPort = rconService.config.port || 27015;
 
-                  let connected = false;
                   const maxPollAttempts = 60; // 5 minutes max
 
                   for (let i = 0; i < maxPollAttempts; i++) {
@@ -2366,7 +2384,6 @@ async function start() {
                         log.info(
                           "RCON connected successfully after auto-start",
                         );
-                        connected = true;
                         break;
                       } else {
                         // Port open but auth/handshake failed

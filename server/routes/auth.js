@@ -213,7 +213,7 @@ router.post("/setup", setupLimiter, async (req, res) => {
         .status(400)
         .json({ error: "Username and password are required" });
     }
-    const user = await authService.createUser(username, password);
+    await authService.createUser(username, password);
 
     // Auto-login after setup — generate tokens
     const result = await authService.login(

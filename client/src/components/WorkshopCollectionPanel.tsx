@@ -37,10 +37,21 @@ import {
   RefreshCw,
   Search,
   Settings as SettingsIcon,
+  Trash2,
   X,
   XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -68,8 +79,16 @@ import { useTranslation } from 'react-i18next'
 type DiffResponse = Awaited<ReturnType<typeof modsApi.collectionDiff>>
 type DiffItem = DiffResponse['items'][number]
 
-type FilterKey = 'mismatch' | 'all' | 'tracked' | 'collection' | 'synced'
-type RowAction = 'add' | 'remove' | 'track' | 'untrack' | 'add-server' | 'remove-server'
+type FilterKey =
+  | 'all'
+  | 'missing'
+  | 'not-on-server'
+  | 'tracked-only'
+  | 'synced'
+  | 'tracked'
+  | 'collection'
+  | 'server'
+type RowAction = 'add' | 'remove' | 'track' | 'untrack' | 'add-server' | 'remove-server' | 'purge'
 
 // Friendly relative-time string for the "last refreshed" badge.
 function formatAgo(date: Date | null, t: (key: string, options?: Record<string, unknown>) => string): string {
@@ -105,14 +124,15 @@ export function WorkshopCollectionPanel() {
   const [diffError, setDiffError] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
   const [diffCheckedAt, setDiffCheckedAt] = useState<Date | null>(null)
-  const [syncing, setSyncing] = useState(false)
   const [bulkBusy, setBulkBusy] = useState<RowAction | null>(null)
+  const [purgeTarget, setPurgeTarget] = useState<DiffItem | null>(null)
   const [cookieDialogOpen, setCookieDialogOpen] = useState(false)
   const [cookiePaste, setCookiePaste] = useState('')
   const [cookieSaving, setCookieSaving] = useState(false)
   const [cookieError, setCookieError] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
-  const [filter, setFilter] = useState<FilterKey>('mismatch')
+  const [filter, setFilter] = useState<FilterKey>('missing')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [rowBusy, setRowBusy] = useState<Record<string, RowAction | null>>({})
@@ -150,24 +170,34 @@ export function WorkshopCollectionPanel() {
   // Counts per filter category — drive both the pill labels and the
   // stat tiles so they always agree.
   const counts = useMemo(() => {
-    let synced = 0, toAdd = 0, collectionOnly = 0, tracked = 0, inColl = 0
+    let synced = 0, toAdd = 0, collectionOnly = 0, trackedOnly = 0, tracked = 0, inColl = 0, onServer = 0
     for (const it of items) {
       if (it.status === 'synced') synced++
       else if (it.status === 'to-add') toAdd++
       else if (it.status === 'collection-only') collectionOnly++
+      else if (it.status === 'tracked-only') trackedOnly++
       if (it.inTracked) tracked++
       if (it.inCollection) inColl++
+      if (it.inServer) onServer++
     }
-    return { synced, toAdd, collectionOnly, tracked, inColl, total: items.length, mismatch: toAdd }
+    return {
+      synced, toAdd, collectionOnly, trackedOnly, tracked, inColl, onServer,
+      total: items.length,
+      // Everything the collection and the server disagree about.
+      mismatch: toAdd + collectionOnly + trackedOnly,
+    }
   }, [items])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return items.filter((it) => {
-      if (filter === 'mismatch' && it.status !== 'to-add') return false
+      if (filter === 'missing' && it.status !== 'to-add') return false
+      if (filter === 'not-on-server' && it.status !== 'collection-only') return false
+      if (filter === 'tracked-only' && it.status !== 'tracked-only') return false
       if (filter === 'synced' && it.status !== 'synced') return false
       if (filter === 'tracked' && !it.inTracked) return false
       if (filter === 'collection' && !it.inCollection) return false
+      if (filter === 'server' && !it.inServer) return false
       if (q) {
         if (!it.workshopId.includes(q) && !(it.name || '').toLowerCase().includes(q)) return false
       }
@@ -188,7 +218,7 @@ export function WorkshopCollectionPanel() {
   )
   const canBulkTrack = selectedItems.some((item) => !item.inTracked)
   const canBulkUntrack = selectedItems.some((item) => item.inTracked)
-  const canBulkRemoveServer = selectedItems.some((item) => item.inServer && !item.inCollection)
+  const canBulkRemoveServer = selectedItems.some((item) => item.inServer)
 
   const toggleSelectAllVisible = () => {
     setSelected((prev) => {
@@ -260,6 +290,23 @@ export function WorkshopCollectionPanel() {
           title: t('collectionPanel.removeServer'),
           description: autoSync ? t('collectionPanel.removeFromCollection') : t('collectionPanel.collectionOnly'),
         })
+      } else if (action === 'purge') {
+        const item = items.find((it) => it.workshopId === workshopId)
+        const r = await modsApi.purgeMod(workshopId, item?.name)
+        const done = [
+          r.collection.attempted
+            ? r.collection.ok
+              ? 'removed from the collection'
+              : `collection not updated (${r.collection.error || 'Steam rejected the change'})`
+            : null,
+          'removed from the server config',
+          r.deletedFromDisk ? 'deleted from disk' : 'no files on disk',
+          'untracked and ignored',
+        ].filter(Boolean)
+        toast({
+          title: `Removed ${r.name || workshopId} everywhere`,
+          description: `${done.join(', ')}. Restart the server to apply.`,
+        })
       }
       await refresh()
     } catch (err: any) {
@@ -285,7 +332,7 @@ export function WorkshopCollectionPanel() {
       if (action === 'remove') return it.inCollection
       if (action === 'track') return !it.inTracked
       if (action === 'untrack') return it.inTracked
-      if (action === 'remove-server') return it.inServer && !it.inCollection
+      if (action === 'remove-server') return it.inServer
       return false
     })
     if (targets.length === 0) {
@@ -370,7 +417,6 @@ export function WorkshopCollectionPanel() {
       setSyncing(false)
     }
   }
-
   // ── Render guards ────────────────────────────────────────────────────
   const noCollectionConfigured = diff !== null && !collectionId
 
@@ -564,13 +610,14 @@ export function WorkshopCollectionPanel() {
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   {t('collectionPanel.trackedSummary', { synced: counts.synced, optional: counts.collectionOnly })}
+                  {counts.trackedOnly > 0 && ` ${t('collectionPanel.trackedOnlySummary', { count: counts.trackedOnly })}`}
                 </p>
               </div>
             </div>
             <div className="min-w-[12rem] space-y-1.5">
               <div className="flex items-center justify-between font-mono text-[10px] text-muted-foreground">
                 <span>{Math.round(syncedRatio)}%</span>
-                {!inSync && <span>{t('collectionPanel.addCount', { count: counts.toAdd })}</span>}
+                {!inSync && <span>{t('collectionPanel.reviewCount', { count: counts.mismatch })}</span>}
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-border/40">
                 <div className={cn('h-full rounded-full transition-all duration-500 ease-out', inSync ? 'bg-success' : 'bg-warning')} style={{ width: `${syncedRatio}%` }} />
@@ -583,10 +630,10 @@ export function WorkshopCollectionPanel() {
               {t('collectionPanel.showCounts')}
             </summary>
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatTile label={t('collectionPanel.trackedLocally')} value={counts.tracked} icon={<Bookmark className="w-3.5 h-3.5" />} accent="primary" />
-              <StatTile label={t('collectionPanel.inSteamCollection')} value={counts.inColl} icon={<Library className="w-3.5 h-3.5" />} accent="primary" />
-              <StatTile label={t('collectionPanel.missingFromCollection')} value={counts.toAdd} icon={<Plus className="w-3.5 h-3.5" />} accent={counts.toAdd > 0 ? 'warning' : 'muted'} onClick={counts.toAdd > 0 ? () => setFilter('mismatch') : undefined} />
-              <StatTile label={t('collectionPanel.collectionOnly')} value={counts.collectionOnly} icon={<Library className="w-3.5 h-3.5" />} accent={counts.collectionOnly > 0 ? 'primary' : 'muted'} onClick={counts.collectionOnly > 0 ? () => setFilter('collection') : undefined} />
+              <StatTile label={t('collectionPanel.onServer')} value={counts.onServer} icon={<Server className="w-3.5 h-3.5" />} accent="primary" onClick={() => setFilter('server')} />
+              <StatTile label={t('collectionPanel.inSteamCollection')} value={counts.inColl} icon={<Library className="w-3.5 h-3.5" />} accent="primary" onClick={() => setFilter('collection')} />
+              <StatTile label={t('collectionPanel.missingFromCollection')} value={counts.toAdd} icon={<Plus className="w-3.5 h-3.5" />} accent={counts.toAdd > 0 ? 'warning' : 'muted'} onClick={counts.toAdd > 0 ? () => setFilter('missing') : undefined} />
+              <StatTile label={t('collectionPanel.notOnServer')} value={counts.collectionOnly} icon={<Library className="w-3.5 h-3.5" />} accent={counts.collectionOnly > 0 ? 'primary' : 'muted'} onClick={counts.collectionOnly > 0 ? () => setFilter('not-on-server') : undefined} />
             </div>
           </details>
         </div>
@@ -595,11 +642,13 @@ export function WorkshopCollectionPanel() {
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-md border border-border/55 bg-muted/30 p-0.5 text-[11px] font-medium">
             {([
-              ['mismatch', t('filters.mismatch'), counts.mismatch],
-              ['all', t('filters.all'), counts.total],
-              ['tracked', t('filters.tracked'), counts.tracked],
-              ['collection', t('filters.collection'), counts.inColl],
-              ['synced', t('filters.synced'), counts.synced],
+              ['missing', t('collectionPanel.missingFromCollection'), counts.toAdd],
+              ['not-on-server', t('collectionPanel.notOnServer'), counts.collectionOnly],
+              ...(counts.trackedOnly > 0
+                ? [['tracked-only', t('collectionPanel.trackedOnly'), counts.trackedOnly] as [FilterKey, string, number]]
+                : []),
+              ['synced', t('collectionPanel.inSync'), counts.synced],
+              ['all', t('collectionPanel.all'), counts.total],
             ] as Array<[FilterKey, string, number]>).map(([key, label, count]) => (
               <button
                 key={key}
@@ -720,7 +769,7 @@ export function WorkshopCollectionPanel() {
               </div>
             ) : filtered.length === 0 ? (
               <div className="px-3 py-10 text-center text-xs text-muted-foreground space-y-2">
-                {inSync && filter === 'mismatch' ? (
+                {inSync && filter === 'missing' ? (
                   <>
                     <CheckCircle2 className="w-6 h-6 text-success mx-auto" />
                     <div className="font-medium text-foreground">{t('everythingInSync')}</div>
@@ -758,7 +807,13 @@ export function WorkshopCollectionPanel() {
                       busy={rowBusy[it.workshopId] || null}
                       credsConfigured={credsConfigured}
                       tokenExpired={tokenExpired}
-                      onAction={(action) => runRowAction(it.workshopId, action)}
+                      onAction={(action) => {
+                        if (action === 'purge') {
+                          setPurgeTarget(it)
+                          return
+                        }
+                        runRowAction(it.workshopId, action)
+                      }}
                       t={t}
                     />
                   ))}
@@ -776,6 +831,42 @@ export function WorkshopCollectionPanel() {
             </span>
           </div>
         </div>
+        <AlertDialog open={!!purgeTarget} onOpenChange={(open) => !open && setPurgeTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('collectionPanel.removeEverywhereTitle', { name: purgeTarget?.name || purgeTarget?.workshopId })}
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>{t('collectionPanel.removeEverywhereSummary')}</p>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    <li>{t('collectionPanel.removeEverywhereSteam')}</li>
+                    <li>
+                      {t('collectionPanel.removeEverywhereServer')} (<code>WorkshopItems</code>, <code>Mods</code>, <code>Map</code>)
+                    </li>
+                    <li>{t('collectionPanel.removeEverywhereDisk')}</li>
+                    <li>{t('collectionPanel.removeEverywhereTracked')}</li>
+                  </ul>
+                  <p>{t('collectionPanel.removeEverywhereIgnore')}</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  const target = purgeTarget
+                  setPurgeTarget(null)
+                  if (target) runRowAction(target.workshopId, 'purge')
+                }}
+              >
+                {t('collectionPanel.removeEverywhere')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   )
@@ -853,7 +944,9 @@ function Row({
       ? { label: t('collectionPanel.statusInSync'), cls: 'text-success border-success/40 bg-success/10', icon: <Check className="w-3 h-3" /> }
       : item.status === 'to-add'
         ? { label: t('collectionPanel.statusMissing'), cls: 'text-warning border-warning/40 bg-warning/10', icon: <Plus className="w-3 h-3" /> }
-        : { label: t('collectionPanel.statusCollectionOnly'), cls: 'text-primary border-primary/40 bg-primary/10', icon: <Library className="w-3 h-3" /> }
+        : item.status === 'collection-only'
+          ? { label: t('collectionPanel.statusCollectionOnly'), cls: 'text-primary border-primary/40 bg-primary/10', icon: <Library className="w-3 h-3" /> }
+          : { label: t('collectionPanel.statusTrackedOnly'), cls: 'text-muted-foreground border-border bg-muted/40', icon: <Bookmark className="w-3 h-3" /> }
 
   return (
     <tr className={cn(
@@ -898,6 +991,31 @@ function Row({
       </td>
       <td className="px-3 py-2 align-top">
         <div className="flex items-center justify-end gap-1">
+          {item.inServer ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onAction('remove-server')}
+              disabled={!!busy}
+              title="Remove this mod from the server configuration"
+            >
+              {busy === 'remove-server' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Server className="w-3 h-3" />}
+              <span className="ml-1 hidden sm:inline">Remove from server</span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px] text-success hover:text-success hover:bg-success/10"
+              onClick={() => onAction('add-server')}
+              disabled={!!busy}
+              title="Add this Workshop mod to the server configuration"
+            >
+              {busy === 'add-server' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Server className="w-3 h-3" />}
+              <span className="ml-1 hidden sm:inline">Add to server</span>
+            </Button>
+          )}
           {item.inCollection ? (
             <Button
               size="sm"
@@ -948,32 +1066,6 @@ function Row({
               <span className="ml-1 hidden sm:inline">{t('track')}</span>
             </Button>
           )}
-          {!item.inServer && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-[11px] text-success hover:text-success hover:bg-success/10"
-              onClick={() => onAction('add-server')}
-              disabled={!!busy}
-              title={t('collectionPanel.addServer')}
-            >
-              {busy === 'add-server' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Server className="w-3 h-3" />}
-              <span className="ml-1 hidden sm:inline">{t('addToServer')}</span>
-            </Button>
-          )}
-          {item.inServer && !item.inCollection && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => onAction('remove-server')}
-              disabled={!!busy}
-              title={t('collectionPanel.removeServerTitle')}
-            >
-              {busy === 'remove-server' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Minus className="w-3 h-3" />}
-              <span className="ml-1 hidden sm:inline">{t('removeServer')}</span>
-            </Button>
-          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" disabled={!!busy} title={t('actions.moreActions')}>
@@ -999,6 +1091,14 @@ function Row({
               >
                 <Library className="w-3.5 h-3.5 mr-2" />
                 {t('toast.copied')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => onAction('purge')}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Remove everywhere
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

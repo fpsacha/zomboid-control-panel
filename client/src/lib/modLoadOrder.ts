@@ -13,10 +13,61 @@ export interface AutoSortResult {
   moved: Array<{ modId: string; from: number; to: number }>
   /** Dependency edges that were applied (dependency loads before dependent). */
   appliedEdges: number
-  /** Mods involved in a dependency cycle. Their relative order is preserved. */
-  cycles: string[]
+  /**
+   * Groups of mods that require each other. No order can satisfy a cycle, so
+   * only the edges inside a group are dropped — every other constraint, including
+   * the ones on mods downstream of the cycle, is still enforced.
+   */
+  cycles: string[][]
   /** Declared requirements that are not present in the load order at all. */
   missing: Array<{ modId: string; requires: string }>
+}
+
+/**
+ * Resolve a declared `require=` entry against a set of mod IDs.
+ *
+ * An exact ID always wins. Otherwise a mod whose ID is `<required>_<suffix>` or
+ * `<required>-<suffix>` satisfies it: that is the convention modders use when
+ * they ship a refactor, test or legacy fork of the same mod from one workshop
+ * item. When several forks match, the one earliest in the list wins so the
+ * result is deterministic.
+ *
+ * Both the load-order sort and the missing-dependency report use this, so the
+ * two can never disagree about whether a requirement is met.
+ */
+export function createRequirementResolver(
+  modIds: Iterable<string>,
+): (requirement: string) => string | null {
+  const exact = new Set<string>()
+  const lowerById: Array<[string, string]> = []
+  for (const modId of modIds) {
+    if (!modId || exact.has(modId)) continue
+    exact.add(modId)
+    lowerById.push([modId, modId.toLowerCase()])
+  }
+
+  const cache = new Map<string, string | null>()
+  return (requirement: string): string | null => {
+    const needle = requirement?.trim()
+    if (!needle) return null
+    const cached = cache.get(needle)
+    if (cached !== undefined) return cached
+
+    let resolved: string | null = null
+    if (exact.has(needle)) {
+      resolved = needle
+    } else {
+      const prefix = needle.toLowerCase()
+      for (const [modId, lower] of lowerById) {
+        if (lower.startsWith(prefix + '_') || lower.startsWith(prefix + '-')) {
+          resolved = modId
+          break
+        }
+      }
+    }
+    cache.set(needle, resolved)
+    return resolved
+  }
 }
 
 /**
@@ -41,50 +92,83 @@ export function computeAutoSortedOrder(
     order.push(modId)
   }
 
+  const resolve = createRequirementResolver(order)
+  const indexOfMod = (modId: string) => indexOf.get(modId) ?? 0
+
   const dependents = new Map<string, string[]>()
-  const remainingDeps = new Map<string, number>()
   const missing: AutoSortResult['missing'] = []
   let appliedEdges = 0
 
   for (const modId of order) {
-    remainingDeps.set(modId, 0)
-  }
+    const seenDependencies = new Set<string>()
+    const reportedMissing = new Set<string>()
+    for (const declared of requiresByModId.get(modId) || []) {
+      const requirement = declared?.trim()
+      if (!requirement) continue
 
-  for (const modId of order) {
-    const seen = new Set<string>()
-    for (const requirement of requiresByModId.get(modId) || []) {
-      // Self-requirement and duplicates carry no ordering information.
-      if (!requirement || requirement === modId || seen.has(requirement)) continue
-      seen.add(requirement)
-
-      if (!indexOf.has(requirement)) {
+      const dependency = resolve(requirement)
+      if (!dependency) {
         // The dependency isn't enabled. Reporting it is useful, but it can't
         // constrain an order that doesn't contain it.
+        if (reportedMissing.has(requirement)) continue
+        reportedMissing.add(requirement)
         missing.push({ modId, requires: requirement })
         continue
       }
 
-      const list = dependents.get(requirement)
+      // Self-requirement and duplicates carry no ordering information.
+      if (dependency === modId || seenDependencies.has(dependency)) continue
+      seenDependencies.add(dependency)
+
+      const list = dependents.get(dependency)
       if (list) list.push(modId)
-      else dependents.set(requirement, [modId])
-      remainingDeps.set(modId, (remainingDeps.get(modId) || 0) + 1)
+      else dependents.set(dependency, [modId])
       appliedEdges++
     }
   }
 
+  // No order can satisfy a cycle, so drop the edges inside each one and keep
+  // everything else. Appending the leftovers instead would also break the
+  // perfectly satisfiable constraints of any mod that merely depends on a mod
+  // caught in a cycle.
+  const cycles = stronglyConnectedComponents(order, dependents)
+    .filter((component) => component.length > 1)
+    .map((component) => component.sort((a, b) => indexOfMod(a) - indexOfMod(b)))
+    .sort((a, b) => indexOfMod(a[0]) - indexOfMod(b[0]))
+  const cycleOf = new Map<string, number>()
+  cycles.forEach((group, groupIndex) => {
+    for (const modId of group) cycleOf.set(modId, groupIndex)
+  })
+
+  const remainingDeps = new Map<string, number>()
+  for (const modId of order) remainingDeps.set(modId, 0)
+  const unlocks = new Map<string, string[]>()
+  for (const [dependency, list] of dependents) {
+    for (const dependent of list) {
+      const cycle = cycleOf.get(dependency)
+      if (cycle !== undefined && cycle === cycleOf.get(dependent)) continue
+      const existing = unlocks.get(dependency)
+      if (existing) existing.push(dependent)
+      else unlocks.set(dependency, [dependent])
+      remainingDeps.set(dependent, (remainingDeps.get(dependent) ?? 0) + 1)
+    }
+  }
+
   // Ready set kept sorted by original index for deterministic, minimal movement.
-  const ready = order.filter((modId) => (remainingDeps.get(modId) || 0) === 0)
-  const byIndex = (a: string, b: string) => (indexOf.get(a) || 0) - (indexOf.get(b) || 0)
+  const ready = order.filter((modId) => (remainingDeps.get(modId) ?? 0) === 0)
+  const byIndex = (a: string, b: string) => indexOfMod(a) - indexOfMod(b)
   ready.sort(byIndex)
 
-  const sorted: string[] = []
+  // With every intra-cycle edge removed the graph is acyclic, so this drains
+  // completely and no mod can be dropped.
+  const finalOrder: string[] = []
   while (ready.length > 0) {
     const modId = ready.shift() as string
-    sorted.push(modId)
+    finalOrder.push(modId)
 
     let unlocked = false
-    for (const dependent of dependents.get(modId) || []) {
-      const left = (remainingDeps.get(dependent) || 0) - 1
+    for (const dependent of unlocks.get(modId) || []) {
+      const left = (remainingDeps.get(dependent) ?? 0) - 1
       remainingDeps.set(dependent, left)
       if (left === 0) {
         ready.push(dependent)
@@ -93,11 +177,6 @@ export function computeAutoSortedOrder(
     }
     if (unlocked) ready.sort(byIndex)
   }
-
-  // Anything left is part of a dependency cycle. PZ still has to load it, so
-  // append it in the user's existing order rather than dropping or guessing.
-  const cycles = order.filter((modId) => !sorted.includes(modId))
-  const finalOrder = cycles.length > 0 ? [...sorted, ...cycles] : sorted
 
   // Report only the mods that genuinely had to move. Everything that keeps its
   // relative position just drifts by an index or two when a mod above it moves,
@@ -140,6 +219,73 @@ function longestIncreasingSubsequence(values: number[]): Set<number> {
     cursor = previous[cursor]
   }
   return result
+}
+
+/**
+ * Tarjan's strongly connected components, iterative so a long dependency chain
+ * can't overflow the call stack. Every component of two or more nodes is a set
+ * of mods that transitively require each other.
+ */
+function stronglyConnectedComponents(
+  nodes: string[],
+  edges: Map<string, string[]>,
+): string[][] {
+  const index = new Map<string, number>()
+  const lowLink = new Map<string, number>()
+  const onStack = new Set<string>()
+  const stack: string[] = []
+  const components: string[][] = []
+  let counter = 0
+
+  const visit = (node: string) => {
+    index.set(node, counter)
+    lowLink.set(node, counter)
+    counter++
+    stack.push(node)
+    onStack.add(node)
+  }
+
+  for (const root of nodes) {
+    if (index.has(root)) continue
+    visit(root)
+    // Each frame remembers how far through its successor list it got, which is
+    // what the recursive version keeps on the call stack.
+    const frames = [{ node: root, successors: edges.get(root) || [], cursor: 0 }]
+
+    while (frames.length > 0) {
+      const frame = frames[frames.length - 1]
+
+      if (frame.cursor < frame.successors.length) {
+        const next = frame.successors[frame.cursor++]
+        if (!index.has(next)) {
+          visit(next)
+          frames.push({ node: next, successors: edges.get(next) || [], cursor: 0 })
+        } else if (onStack.has(next)) {
+          lowLink.set(frame.node, Math.min(lowLink.get(frame.node) as number, index.get(next) as number))
+        }
+        continue
+      }
+
+      frames.pop()
+      if (lowLink.get(frame.node) === index.get(frame.node)) {
+        const component: string[] = []
+        for (;;) {
+          const member = stack.pop() as string
+          onStack.delete(member)
+          component.push(member)
+          if (member === frame.node) break
+        }
+        components.push(component)
+      }
+
+      const parent = frames[frames.length - 1]
+      if (parent) {
+        lowLink.set(parent.node, Math.min(lowLink.get(parent.node) as number, lowLink.get(frame.node) as number))
+      }
+    }
+  }
+
+  return components
 }
 
 /**

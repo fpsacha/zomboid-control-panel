@@ -567,7 +567,7 @@ class PanelBridge extends EventEmitter {
     }
 
     // Reject all pending commands
-    for (const [id, pending] of this.pendingCommands) {
+    for (const [, pending] of this.pendingCommands) {
       clearTimeout(pending.timeout);
       pending.reject(new Error('Bridge stopped'));
     }

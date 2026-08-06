@@ -1126,7 +1126,12 @@ export class ServerManager {
 
       // Force stop if still running
       if (await this.checkServerRunning()) {
-        await this.stopServer(false);
+        const forced = await this.stopServer(false);
+        if (!forced?.success) {
+          throw new Error(
+            `The old server process could not be stopped (${forced?.error || "unknown error"}), so it was not restarted`,
+          );
+        }
         await this.sleep(5000);
       }
 
@@ -1134,7 +1139,13 @@ export class ServerManager {
       await this.sleep(3000);
 
       // Start the server — skip running check, we just confirmed it stopped
-      await this.startServer({ skipRunningCheck: true });
+      const started = await this.startServer({ skipRunningCheck: true });
+      if (!started?.success) {
+        return {
+          success: false,
+          message: `Server stopped but did not start again: ${started?.error || started?.message || "unknown error"}`,
+        };
+      }
 
       await logServerEvent("server_restart", "Server restarted");
       return { success: true, message: "Server restarted successfully" };

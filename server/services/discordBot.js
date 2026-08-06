@@ -80,6 +80,19 @@ async function _resolveDiscordApplicationId(token) {
   return typeof user?.id === "string" && user.id ? user.id : null;
 }
 
+// PZ chat channels that are public to every player on the server. Faction,
+// safehouse, radio, admin and whisper channels are deliberately absent: they
+// are private in game and must stay private in Discord.
+const PUBLIC_CHAT_TYPES = new Set([
+  "General",
+  "Say",
+  "Local",
+  "Shout",
+  "Server Alert",
+  "Server chat",
+]);
+const GENERAL_ONLY_CHAT_TYPES = new Set(["General"]);
+
 // Default permission levels for each command
 // 'everyone' = no role needed, 'moderator' = mod or admin role, 'admin' = admin role only
 const DEFAULT_COMMAND_PERMISSIONS = {
@@ -111,19 +124,24 @@ export class DiscordBot {
     this.commandPermissions = { ...DEFAULT_COMMAND_PERMISSIONS };
     this.chatRelayEnabled = true;
     this.chatRelayChannelId = null; // null = use main channelId
+    this.chatRelayScope = "public"; // 'public' = all open channels, 'general' = General tab only
 
     // Notification circuit breaker — avoids log/network spam when Discord
     // is unreachable (DNS failures, transient outages). After N consecutive
     // failures we open the circuit for COOLDOWN_MS and drop sends silently.
-    this._notifyFailures = 0;
-    this._notifyCircuitUntil = 0;
-    this._notifySuppressedCount = 0;
+    // Tracked per channel: a chat relay pointed at a deleted channel must not
+    // silence server notifications going to a perfectly healthy one.
+    this._channelBreakers = new Map(); // channelId -> {failures, openUntil, suppressed}
 
     // Lifecycle dedupe — serverStart/serverStop webhooks can be triggered
     // from several paths (HTTP /start /stop /force-stop, Discord slash
     // commands, the status watchdog, RCON-disconnect detection). Track the
     // last fired state so we send exactly one webhook per real transition.
     this._lastLifecycleState = null; // 'running' | 'stopped' | null
+
+    // Throttles the "game server unreachable" reply so a busy Discord channel
+    // gets told once rather than once per message.
+    this._bridgeOfflineNoticeAt = 0;
 
     // Serialise registerCommands() — it can be invoked from start() and
     // from updateCommandPermissions() at roughly the same time on a fresh
@@ -139,26 +157,77 @@ export class DiscordBot {
     // Hold onto the chatMessage listener as a bound reference so we can
     // off() it during stop(). An inline arrow would be anonymous and leak.
     this._onGameChat = null;
+    this._chatRelayChain = Promise.resolve();
+    this._chatRelayPending = 0;
+    this._chatRelayDropped = 0;
 
     // Setup Chat Bridge listener
     if (this.logTailer) {
-      this._onGameChat = (data) => this.handleGameChat(data);
+      this._onGameChat = (data) => this._queueGameChat(data);
       this.logTailer.on("chatMessage", this._onGameChat);
     }
+  }
+
+  // Relay sends are chained so Discord shows messages in the order the game
+  // logged them — parallel channel.send() calls routinely land out of order.
+  // The queue is capped: if Discord is slower than the server's chat, dropping
+  // is better than relaying an ever-growing backlog of stale messages.
+  _queueGameChat(data) {
+    const MAX_PENDING = 40;
+    if (this._chatRelayPending >= MAX_PENDING) {
+      this._chatRelayDropped++;
+      if (this._chatRelayDropped % 25 === 1) {
+        log.warn(
+          `Chat relay is behind (${this._chatRelayPending} queued) — dropped ${this._chatRelayDropped} message(s) so far`,
+        );
+      }
+      return;
+    }
+    this._chatRelayPending++;
+    this._chatRelayChain = this._chatRelayChain
+      .then(() => this.handleGameChat(data))
+      .catch((e) => log.debug(`Game chat relay failed: ${e.message}`))
+      .finally(() => {
+        this._chatRelayPending--;
+        if (this._chatRelayPending === 0 && this._chatRelayDropped > 0) {
+          log.info(
+            `Chat relay caught up — ${this._chatRelayDropped} message(s) were dropped while behind`,
+          );
+          this._chatRelayDropped = 0;
+        }
+      });
   }
 
   async handleGameChat(data) {
     if (!this.chatRelayEnabled || !this.isRunning || !this.client) return;
 
-    // B42 records Q shouts as Local and sometimes as Shout. Keep those in the
-    // panel chat view, but do not forward proximity chat to Discord.
-    if (data?.sourceChatType && data.sourceChatType !== "General") return;
-    if (!data?.sourceChatType && data?.type !== "general") return;
+    // B42 records ordinary talking as Say/Local and Q shouts as Shout, so
+    // filtering down to the General tab silences almost every real message.
+    const allowed =
+      this.chatRelayScope === "general"
+        ? GENERAL_ONLY_CHAT_TYPES
+        : PUBLIC_CHAT_TYPES;
+    if (data?.sourceChatType) {
+      if (!allowed.has(data.sourceChatType)) return;
+    } else if (this.chatRelayScope === "general") {
+      if (data?.type !== "general") return;
+    } else if (data?.type !== "general" && data?.type !== "server") {
+      return;
+    }
 
     // Discord messages reach PZ through RCON as "[Discord] user: message".
     // The server logs that broadcast as chat, so relaying it back would create
     // an immediate duplicate in the originating Discord channel.
     if (String(data?.message || "").startsWith("[Discord] ")) return;
+
+    // The scheduler's restart countdown ticks once a second near the end. It is
+    // aimed at players in game; Discord already gets one scheduledRestart notice.
+    if (
+      data?.type === "server" &&
+      String(data?.message || "").startsWith("[SERVER] ")
+    ) {
+      return;
+    }
 
     // Use dedicated chat relay channel if set, otherwise fall back to main channel
     const targetChannelId = this.chatRelayChannelId || this.channelId;
@@ -167,13 +236,21 @@ export class DiscordBot {
       `Relaying game chat from ${data?.author || "unknown"} to Discord`,
     );
 
-    const cleanMessage = String(data.message || "")
-      .replace(/@everyone/g, "(everyone)")
-      .replace(/@here/g, "(here)")
-      .slice(0, 1850);
-    const cleanAuthor = String(data.author || "unknown")
-      .replace(/[\r\n]+/g, " ")
-      .slice(0, 80);
+    // maskedLink is off by default, and it is the one that turns a player's
+    // chat line into a clickable link pointing anywhere.
+    const cleanMessage = escapeMarkdown(
+      String(data.message || "")
+        .replace(/@everyone/g, "(everyone)")
+        .replace(/@here/g, "(here)")
+        .slice(0, 1850),
+      { maskedLink: true },
+    );
+    const cleanAuthor = escapeMarkdown(
+      String(data.author || "unknown")
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 80),
+      { maskedLink: true },
+    );
     await this._sendToChannel(
       targetChannelId,
       `**<${cleanAuthor}>** ${cleanMessage}`,
@@ -206,6 +283,10 @@ export class DiscordBot {
     this.chatRelayEnabled = chatRelayEnabled !== false; // default true
     this.chatRelayChannelId =
       (await getSetting("discordChatRelayChannelId")) || null;
+    this.chatRelayScope =
+      (await getSetting("discordChatRelayScope")) === "general"
+        ? "general"
+        : "public";
 
     // Load webhook events
     const savedEvents = await getSetting("discordWebhookEvents");
@@ -277,7 +358,16 @@ export class DiscordBot {
     // Prevent @everyone / @here Discord pings triggered by player-supplied variable values
     message = message
       .replace(/@everyone/g, "(everyone)")
-      .replace(/@here/g, "(here)");
+      .replace(/@here/g, "(here)")
+      .slice(0, 1900);
+
+    // A template that renders to nothing would be rejected by Discord and
+    // counted as a channel failure, eventually suppressing every notification.
+    if (!message.trim()) {
+      log.warn(`Skipping ${eventType} notification: template rendered empty`);
+      if (isLifecycle) this._lastLifecycleState = newState;
+      return;
+    }
 
     const sent = await this.sendNotification(message);
     // Only commit lifecycle dedupe state on a successful send. If the send
@@ -294,6 +384,9 @@ export class DiscordBot {
     await setSetting("discordChannelId", channelId || "");
 
     const previousGuildId = this.guildId;
+    const rolesChanged =
+      this.adminRoleId !== (adminRoleId || null) ||
+      this.modRoleId !== (modRoleId || null);
     this.token = token;
     this.guildId = guildId;
     this.adminRoleId = adminRoleId;
@@ -328,13 +421,25 @@ export class DiscordBot {
       }
       this._registeredGuildId = null;
     }
+
+    // Command visibility depends on which roles are configured, so a role
+    // change has to be pushed back to Discord.
+    if (rolesChanged && this.isRunning && this.client?.user) {
+      try {
+        await this.registerCommands();
+      } catch (e) {
+        log.warn(`Failed to re-register commands after role change: ${e.message}`);
+      }
+    }
   }
 
-  async updateChatRelay(enabled, channelId) {
+  async updateChatRelay(enabled, channelId, scope) {
     this.chatRelayEnabled = enabled;
     this.chatRelayChannelId = channelId || null;
+    this.chatRelayScope = scope === "general" ? "general" : "public";
     await setSetting("discordChatRelayEnabled", enabled);
     await setSetting("discordChatRelayChannelId", channelId || "");
+    await setSetting("discordChatRelayScope", this.chatRelayScope);
   }
 
   async resetConfig() {
@@ -376,6 +481,7 @@ export class DiscordBot {
     await setSetting("discordAutoStart", true);
     await setSetting("discordChatRelayEnabled", true);
     await setSetting("discordChatRelayChannelId", "");
+    await setSetting("discordChatRelayScope", "public");
     await setSetting(
       "discordCommandPermissions",
       JSON.stringify(DEFAULT_COMMAND_PERMISSIONS),
@@ -391,6 +497,10 @@ export class DiscordBot {
     this.commandPermissions = { ...DEFAULT_COMMAND_PERMISSIONS };
     this.chatRelayEnabled = true;
     this.chatRelayChannelId = null;
+    this.chatRelayScope = "public";
+    this._registeredGuildId = null;
+    this._channelBreakers.clear();
+    this._lastLifecycleState = null;
   }
 
   async updateCommandPermissions(permissions) {
@@ -510,17 +620,19 @@ export class DiscordBot {
       },
     ];
 
-    // Apply Discord-side default permission restrictions based on permission level
-    // 'admin' commands require Discord Administrator permission by default (server admins can override)
-    // 'moderator' commands require ManageMessages by default
-    // 'everyone' commands have no restriction
+    // Discord-side defaults are only a fallback for when no role is configured
+    // here. Setting them unconditionally hid the command from the very roles the
+    // panel was told to trust, so the Admin/Moderator role settings did nothing
+    // unless the role also held Discord's Administrator permission. When a role
+    // is configured we leave the command visible and let checkPermission() answer,
+    // which replies with a clear refusal instead of hiding the command.
     for (const cmd of commands) {
       const level = this.commandPermissions[cmd.name] || "admin";
-      if (level === "admin") {
+      if (level === "admin" && !this.adminRoleId) {
         cmd.builder.setDefaultMemberPermissions(
           PermissionFlagsBits.Administrator,
         );
-      } else if (level === "moderator") {
+      } else if (level === "moderator" && !this.modRoleId && !this.adminRoleId) {
         cmd.builder.setDefaultMemberPermissions(
           PermissionFlagsBits.ManageMessages,
         );
@@ -583,6 +695,11 @@ export class DiscordBot {
     if (member.roles && member.roles.cache) {
       return member.roles.cache.has(roleId);
     }
+    // Uncached guilds hand back the raw API member, whose roles are a plain
+    // array of IDs. Without this a moderator is silently denied.
+    if (Array.isArray(member.roles)) {
+      return member.roles.includes(roleId);
+    }
     return false;
   }
 
@@ -598,7 +715,7 @@ export class DiscordBot {
     // Discord Administrator permission holders can use everything
     if (
       interaction.member &&
-      interaction.member.permissions &&
+      typeof interaction.member.permissions?.has === "function" &&
       interaction.member.permissions.has(PermissionFlagsBits.Administrator)
     )
       return true;
@@ -814,7 +931,13 @@ export class DiscordBot {
       return;
     }
 
-    await this.serverManager.startServer();
+    const started = await this.serverManager.startServer();
+    if (!started?.success) {
+      await interaction.editReply(
+        `❌ Failed to start the server: ${sanitizeError(started?.error || started?.message)}`,
+      );
+      return;
+    }
     await interaction.editReply("🚀 Server is starting...");
 
     // Send notification to channel
@@ -838,9 +961,21 @@ export class DiscordBot {
       return;
     }
 
-    // Save first
-    await this.rconService.save();
-    await this.rconService.quit();
+    // Quitting after a failed save would discard everything since the last one.
+    const saved = await this.rconService.save();
+    if (!saved?.success) {
+      await interaction.editReply(
+        `❌ Save failed, so the server was left running: ${sanitizeError(saved?.error)}`,
+      );
+      return;
+    }
+    const quit = await this.rconService.quit();
+    if (!quit?.success) {
+      await interaction.editReply(
+        `❌ The world was saved, but the shutdown command failed: ${sanitizeError(quit?.error)}`,
+      );
+      return;
+    }
 
     await interaction.editReply("🛑 Server is stopping...");
     const safeTag = escapeMarkdown(String(interaction.user.tag));
@@ -867,13 +1002,9 @@ export class DiscordBot {
       return;
     }
 
-    // Send initial message
-    if (minutes > 0) {
-      await this.rconService.serverMessage(
-        `Server restarting in ${minutes} minute(s)!`,
-      );
-    }
-
+    // The scheduler opens its own countdown with the same warning, so an
+    // extra notice here only doubles it in game — and unlike the scheduler's
+    // it lacks the [SERVER] prefix, so it leaks back into the chat relay.
     await interaction.editReply(
       `🔄 Server restart initiated (${minutes} min warning)`,
     );
@@ -884,12 +1015,31 @@ export class DiscordBot {
 
     // Use scheduler for proper restart with the specified warning time
     try {
-      await this.scheduler.performRestart(minutes);
+      // performRestart reports refusal and failure by return value rather than
+      // by throwing, so without this the command always claims it worked.
+      const result = await this.scheduler.performRestart(minutes);
+      if (!result?.success) {
+        await this._reportRestartOutcome(
+          interaction,
+          `❌ Restart did not complete: ${sanitizeError(result?.message || "unknown error")}`,
+        );
+      }
     } catch (error) {
       log.error(`restart failed: ${error.message}`);
-      await this.sendNotification(
-        `❌ **Server restart failed:** ${sanitizeError(error.message)}`,
+      await this._reportRestartOutcome(
+        interaction,
+        `❌ Server restart failed: ${sanitizeError(error.message)}`,
       );
+    }
+  }
+
+  // A long warning can outlive the 15-minute interaction token, so fall back
+  // to the notification channel rather than losing the outcome entirely.
+  async _reportRestartOutcome(interaction, text) {
+    try {
+      await interaction.editReply(text);
+    } catch {
+      await this.sendNotification(text);
     }
   }
 
@@ -1030,9 +1180,10 @@ export class DiscordBot {
     const FAILURE_THRESHOLD = 3;
     const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
     const now = Date.now();
+    const breaker = this._breakerFor(channelId);
 
-    if (now < this._notifyCircuitUntil) {
-      this._notifySuppressedCount++;
+    if (now < breaker.openUntil) {
+      breaker.suppressed++;
       return false;
     }
 
@@ -1042,18 +1193,18 @@ export class DiscordBot {
         throw new Error("Configured channel is not a sendable text channel");
       }
       await channel.send(message);
-      if (this._notifyFailures > 0 || this._notifySuppressedCount > 0) {
-        if (this._notifySuppressedCount > 0) {
+      if (breaker.failures > 0 || breaker.suppressed > 0) {
+        if (breaker.suppressed > 0) {
           log.info(
-            `Discord recovered — ${this._notifySuppressedCount} send(s) were suppressed during the outage`,
+            `Discord channel ${channelId} recovered — ${breaker.suppressed} send(s) were suppressed during the outage`,
           );
         }
-        this._notifyFailures = 0;
-        this._notifySuppressedCount = 0;
+        breaker.failures = 0;
+        breaker.suppressed = 0;
       }
       return true;
     } catch (error) {
-      this._notifyFailures++;
+      breaker.failures++;
       const transient =
         /EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|Connect Timeout|fetch failed|UND_ERR/i.test(
           error.message || "",
@@ -1064,20 +1215,29 @@ export class DiscordBot {
       // we hold the breaker longer since retries won't help — only an admin
       // fixing config will. For transient network errors, COOLDOWN_MS is
       // enough for a typical DNS/route blip to resolve.
-      if (this._notifyFailures >= FAILURE_THRESHOLD) {
+      if (breaker.failures >= FAILURE_THRESHOLD) {
         const cooldown = transient ? COOLDOWN_MS : COOLDOWN_MS * 6; // 5 min vs 30 min
-        this._notifyCircuitUntil = now + cooldown;
+        breaker.openUntil = now + cooldown;
         const kind = transient
           ? "unreachable"
           : "misconfigured (likely channel/perms)";
         log.error(
-          `Discord ${kind} (${this._notifyFailures} consecutive failures): ${error.message}. Suppressing sends for ${Math.round(cooldown / 60000)} min.`,
+          `Discord ${kind} for channel ${channelId} (${breaker.failures} consecutive failures): ${error.message}. Suppressing ${label} sends for ${Math.round(cooldown / 60000)} min.`,
         );
       } else {
         log.error(`Failed to send Discord ${label}: ${error.message}`);
       }
       return false;
     }
+  }
+
+  _breakerFor(channelId) {
+    let breaker = this._channelBreakers.get(channelId);
+    if (!breaker) {
+      breaker = { failures: 0, openUntil: 0, suppressed: 0 };
+      this._channelBreakers.set(channelId, breaker);
+    }
+    return breaker;
   }
 
   async start() {
@@ -1094,7 +1254,7 @@ export class DiscordBot {
     // If a previous stop() detached the chatMessage listener, reattach it
     // now so the freshly started bot can relay in-game chat again.
     if (this.logTailer && !this._onGameChat) {
-      this._onGameChat = (data) => this.handleGameChat(data);
+      this._onGameChat = (data) => this._queueGameChat(data);
       this.logTailer.on("chatMessage", this._onGameChat);
     }
 
@@ -1140,6 +1300,10 @@ export class DiscordBot {
       // boost messages, etc.) — these have empty content and would relay
       // as `<username>: ` to in-game chat.
       if (message.system) return;
+
+      // The relay switch covers the whole bridge. Leaving this direction live
+      // meant turning the relay off still piped Discord chatter into the game.
+      if (!this.chatRelayEnabled) return;
 
       // Use the dedicated relay channel in both directions when configured.
       const relayChannelId = this.chatRelayChannelId || this.channelId;
@@ -1199,9 +1363,28 @@ export class DiscordBot {
             const safeUser = user.slice(0, 50);
             const safeMsg = resolved.replace(/[\r\n]+/g, " ").slice(0, 200);
             if (!safeMsg.trim()) return; // mentions-only message after stripping
-            await this.rconService.serverMessage(
+            const relayed = await this.rconService.serverMessage(
               `[Discord] ${safeUser}: ${safeMsg}`,
             );
+            // Being connected is not the same as the command succeeding, and a
+            // silent drop is exactly what the offline notice exists to prevent.
+            if (!relayed?.success) {
+              const now = Date.now();
+              if (now - this._bridgeOfflineNoticeAt > 60_000) {
+                this._bridgeOfflineNoticeAt = now;
+                await message.reply(
+                  "⚠️ The game server rejected that message, so it was not delivered in-game.",
+                );
+              }
+            }
+          } else {
+            const now = Date.now();
+            if (now - this._bridgeOfflineNoticeAt > 60_000) {
+              this._bridgeOfflineNoticeAt = now;
+              await message.reply(
+                "⚠️ The game server is unreachable right now, so that message was not delivered in-game.",
+              );
+            }
           }
         } catch (e) {
           log.warn(`Failed to bridge message to server: ${e.message}`);
@@ -1248,6 +1431,14 @@ export class DiscordBot {
       return true;
     } catch (error) {
       log.error(`Failed to start Discord bot: ${error.message}`);
+      if (this.logTailer && this._onGameChat) {
+        try {
+          this.logTailer.off("chatMessage", this._onGameChat);
+        } catch {
+          /* noop */
+        }
+        this._onGameChat = null;
+      }
       if (this.client) {
         try {
           this.client.destroy();
@@ -1261,18 +1452,20 @@ export class DiscordBot {
     }
   }
   async stop() {
-    if (this.client) {
-      // Detach the chatMessage listener so a swapped LogTailer (e.g. a
-      // restart of the panel-managed game-server changes the tailer instance)
-      // doesn't leak handlers across bot lifecycles.
-      if (this.logTailer && this._onGameChat) {
-        try {
-          this.logTailer.off("chatMessage", this._onGameChat);
-        } catch {
-          /* noop */
-        }
-        this._onGameChat = null;
+    // Detach the chatMessage listener so a swapped LogTailer (e.g. a
+    // restart of the panel-managed game-server changes the tailer instance)
+    // doesn't leak handlers across bot lifecycles. Done outside the client
+    // check because a failed start() leaves the listener attached with no
+    // client to go with it.
+    if (this.logTailer && this._onGameChat) {
+      try {
+        this.logTailer.off("chatMessage", this._onGameChat);
+      } catch {
+        /* noop */
       }
+      this._onGameChat = null;
+    }
+    if (this.client) {
       await this.client.destroy();
       this.client = null;
       this.isRunning = false;
@@ -1280,9 +1473,10 @@ export class DiscordBot {
       // serverStart/serverStop without being suppressed by the previous run.
       this._lastLifecycleState = null;
       // Reset breaker state too — stale failure counts shouldn't carry over.
-      this._notifyFailures = 0;
-      this._notifyCircuitUntil = 0;
-      this._notifySuppressedCount = 0;
+      this._channelBreakers.clear();
+      this._chatRelayChain = Promise.resolve();
+      this._chatRelayPending = 0;
+      this._chatRelayDropped = 0;
       // Drop registration tracking; a fresh start() should re-register.
       this._registerInFlight = null;
       this._registeredGuildId = null;

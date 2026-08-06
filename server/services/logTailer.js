@@ -13,18 +13,42 @@ export class LogTailer extends EventEmitter {
     this.chatLogPath = null;   // B42 dedicated chat log file (Logs/*_chat.txt)
     this.chatLogSize = 0;
     this.currentSize = 0;
-    this.userLogPath = null;   // B42 player event log (Logs/*_user.txt) — deaths, joins, etc.
+    this.userLogPath = null;   // B42 player event log (Logs/*_user.txt) — only deaths are parsed
     this.userLogSize = 0;
     this.isWatching = false;
     this.checkTimer = null;
     this.logsDir = null;       // Path to Logs/ directory for chat/user log discovery
+    this.basePath = null;      // Zomboid data dir, kept so paths can be re-resolved
+    // Files created after this point are new sessions and must be read whole;
+    // files that already existed are skipped to the end so a panel restart
+    // doesn't replay history.
+    this.watchStartedAt = Date.now();
+    // A poll can land mid-line; the tail of each chunk is held back until the
+    // rest of the line arrives, otherwise the message is dropped by both reads.
+    this.consoleRemainder = '';
+    this.chatRemainder = '';
+    this.userRemainder = '';
+  }
+
+  // Where to start reading a newly discovered file. A file born after we
+  // started watching is a fresh session, so every byte in it is unseen.
+  startOffsetFor(filePath, firstDiscovery) {
+    try {
+        const stats = fs.statSync(filePath);
+        const born = stats.birthtimeMs || 0;
+        if (!firstDiscovery || (born > 0 && born >= this.watchStartedAt)) return 0;
+        return stats.size;
+    } catch (e) {
+        log.debug(`LogTailer: stat failed for ${filePath}: ${e.message}`);
+        return 0;
+    }
   }
 
   async init() {
     await this.findLogPath();
-    if (this.logPath || this.chatLogPath || this.userLogPath) {
-        this.startWatching();
-    }
+    // Watch even when nothing was found yet: on a first boot the Logs/ folder
+    // and server-console.txt only appear once the game server has started.
+    this.startWatching();
   }
 
   async findLogPath() {
@@ -39,6 +63,7 @@ export class LogTailer extends EventEmitter {
             const settingPath = await getSetting('zomboidDataPath');
             if (settingPath) basePath = settingPath;
         }
+        this.basePath = basePath;
 
         // server-console.txt (B41 chat via [chat] markers, also general log tailing)
         const consoleLogPath = path.join(basePath, 'server-console.txt');
@@ -68,6 +93,30 @@ export class LogTailer extends EventEmitter {
     }
   }
 
+  // The console log and the Logs/ folder are created by the game server, which
+  // may not have started yet when the panel boots.
+  reresolvePaths() {
+    if (!this.basePath) return;
+    if (!this.logPath) {
+        const consoleLogPath = path.join(this.basePath, 'server-console.txt');
+        try {
+            fs.accessSync(consoleLogPath, fs.constants.R_OK);
+            this.logPath = consoleLogPath;
+            this.currentSize = this.startOffsetFor(consoleLogPath, true);
+            log.info(`Found console log at ${consoleLogPath}`);
+        } catch {
+            /* not there yet */
+        }
+    }
+    if (!this.logsDir) {
+        const logsDir = path.join(this.basePath, 'Logs');
+        if (fs.existsSync(logsDir)) {
+            this.logsDir = logsDir;
+            log.info(`Found Logs directory at ${logsDir}`);
+        }
+    }
+  }
+
   // Find the most recently modified *_chat.txt in the Logs/ directory
   findLatestChatLog() {
     if (!this.logsDir) return;
@@ -85,12 +134,10 @@ export class LogTailer extends EventEmitter {
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.chatLogPath) {
+                const firstDiscovery = !this.chatLogPath;
                 this.chatLogPath = latest;
-                // Start from end so we don't replay old messages on startup
-                try { this.chatLogSize = fs.statSync(latest).size; } catch (e) {
-      log.debug(`LogTailer: initial chat log stat failed: ${e.message}`);
-      this.chatLogSize = 0;
-    }
+                this.chatRemainder = '';
+                this.chatLogSize = this.startOffsetFor(latest, firstDiscovery);
                 log.info(`Tailing B42 chat log: ${latest}`);
             }
         }
@@ -117,12 +164,10 @@ export class LogTailer extends EventEmitter {
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.userLogPath) {
+                const firstDiscovery = !this.userLogPath;
                 this.userLogPath = latest;
-                // Start from end so we don't replay historical deaths on startup
-                try { this.userLogSize = fs.statSync(latest).size; } catch (e) {
-                    log.debug(`LogTailer: initial user log stat failed: ${e.message}`);
-                    this.userLogSize = 0;
-                }
+                this.userRemainder = '';
+                this.userLogSize = this.startOffsetFor(latest, firstDiscovery);
                 log.info(`Tailing B42 user log: ${latest}`);
             }
         }
@@ -162,6 +207,7 @@ export class LogTailer extends EventEmitter {
   async checkLoop() {
       if (!this.isWatching) return;
 
+      this.reresolvePaths();
       await this.checkConsoleLog();
       await this.checkChatLog();
       await this.checkUserLog();
@@ -184,7 +230,9 @@ export class LogTailer extends EventEmitter {
          if (stats.size > this.currentSize) {
              const bytesToRead = stats.size - this.currentSize;
              if (bytesToRead > 1024 * 1024) {
+                 log.warn(`Console log grew by ${Math.round(bytesToRead / 1024)}KB since the last poll — skipping the burst`);
                  this.currentSize = stats.size;
+                 this.consoleRemainder = '';
                  return;
              }
              const data = await this.readChunk(this.logPath, this.currentSize, stats.size);
@@ -192,6 +240,7 @@ export class LogTailer extends EventEmitter {
              if (data) this.processConsoleData(data);
          } else if (stats.size < this.currentSize) {
              this.currentSize = 0;
+             this.consoleRemainder = '';
          }
      } catch (e) {
        log.debug(`LogTailer: console log polling error: ${e.message}`);
@@ -220,7 +269,9 @@ export class LogTailer extends EventEmitter {
          if (stats.size > this.chatLogSize) {
              const bytesToRead = stats.size - this.chatLogSize;
              if (bytesToRead > 1024 * 1024) {
+                 log.warn(`Chat log grew by ${Math.round(bytesToRead / 1024)}KB since the last poll — skipping the burst, those messages will not reach Discord`);
                  this.chatLogSize = stats.size;
+                 this.chatRemainder = '';
                  return;
              }
              const data = await this.readChunk(this.chatLogPath, this.chatLogSize, stats.size);
@@ -228,6 +279,7 @@ export class LogTailer extends EventEmitter {
              if (data) this.processChatLogData(data);
          } else if (stats.size < this.chatLogSize) {
              this.chatLogSize = 0;
+             this.chatRemainder = '';
          }
      } catch (e) {
        log.debug(`LogTailer: chat log polling error: ${e.message}`);
@@ -236,7 +288,10 @@ export class LogTailer extends EventEmitter {
 
   readChunk(filePath, start, end) {
     return new Promise((resolve) => {
-        const stream = fs.createReadStream(filePath, { start, end });
+        // `end` is inclusive in createReadStream, so read up to end-1 or the
+        // byte at `end` gets replayed as the first byte of the next chunk.
+        if (end <= start) return resolve(null);
+        const stream = fs.createReadStream(filePath, { start, end: end - 1 });
         let data = '';
         stream.on('data', chunk => data += chunk);
         stream.on('end', () => resolve(data));
@@ -244,9 +299,20 @@ export class LogTailer extends EventEmitter {
     });
   }
 
+  // Splits a chunk into complete lines, holding any trailing partial line back
+  // until the rest of it is written. The cap stops a newline-free file from
+  // growing the buffer without limit.
+  _splitLines(data, remainderKey) {
+    const lines = (this[remainderKey] + data).split(/\r?\n/);
+    let remainder = lines.pop() ?? '';
+    if (remainder.length > 64 * 1024) remainder = '';
+    this[remainderKey] = remainder;
+    return lines;
+  }
+
   // Parse server-console.txt lines (B41-style [chat] markers)
   processConsoleData(data) {
-    const lines = data.split(/\r?\n/);
+    const lines = this._splitLines(data, 'consoleRemainder');
     for (const line of lines) {
         if (!line.trim()) continue;
         if (line.includes('[chat]')) {
@@ -270,12 +336,14 @@ export class LogTailer extends EventEmitter {
   //   Player msg:  [DD-MM-YY HH:MM:SS.mmm][info] Got message:ChatMessage{chat=General, author='user', text='hello'}.
   //   Server msg:  [DD-MM-YY HH:MM:SS.mmm] Server alert message: 'text' sent..
   processChatLogData(data) {
-    const lines = data.split(/\r?\n/);
+    const lines = this._splitLines(data, 'chatRemainder');
     for (const line of lines) {
         if (!line.trim()) continue;
 
         // Player/admin chat messages
-        const msgMatch = line.match(/Got message:ChatMessage\{chat=([^,]+),\s*author='([^']*)',\s*text='(.*)'\}/);
+        // Author is matched lazily rather than as "anything but a quote" so a
+        // name like O'Brien doesn't fail the whole line.
+        const msgMatch = line.match(/Got message:ChatMessage\{chat=([^,]+),\s*author='(.*?)',\s*text='(.*)'\}/);
         if (msgMatch) {
             const chatType = msgMatch[1].trim();
             const author = msgMatch[2];
@@ -310,7 +378,8 @@ export class LogTailer extends EventEmitter {
     }
   }
 
-  // Tail the active B42 *_user.txt file (player join/leave/death events).
+    // Tail the active B42 *_user.txt file. It records joins and leaves too,
+    // but only deaths are parsed — presence comes from PanelBridge and RCON.
   async checkUserLog() {
      if (this.logsDir) {
        const prev = this.userLogPath;
@@ -331,7 +400,9 @@ export class LogTailer extends EventEmitter {
          if (stats.size > this.userLogSize) {
              const bytesToRead = stats.size - this.userLogSize;
              if (bytesToRead > 1024 * 1024) {
+                 log.warn(`User log grew by ${Math.round(bytesToRead / 1024)}KB since the last poll — skipping the burst`);
                  this.userLogSize = stats.size;
+                 this.userRemainder = '';
                  return;
              }
              const data = await this.readChunk(this.userLogPath, this.userLogSize, stats.size);
@@ -339,6 +410,7 @@ export class LogTailer extends EventEmitter {
              if (data) this.processUserLogData(data);
          } else if (stats.size < this.userLogSize) {
              this.userLogSize = 0;
+             this.userRemainder = '';
          }
      } catch (e) {
        log.debug(`LogTailer: user log polling error: ${e.message}`);
@@ -351,7 +423,7 @@ export class LogTailer extends EventEmitter {
   //   [29-05-26 17:42:08.123] user Bob died at (2384,5923,0) (pvp).
   // Username may contain spaces; we anchor on the " died at " marker.
   processUserLogData(data) {
-    const lines = data.split(/\r?\n/);
+    const lines = this._splitLines(data, 'userRemainder');
     for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;

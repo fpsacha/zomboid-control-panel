@@ -20,7 +20,6 @@ const TYPE_AUTH_RESPONSE = 2;
 const TYPE_EXECCOMMAND = 2;
 const TYPE_RESPONSE_VALUE = 0;
 
-const HEADER_SIZE = 12; // 3x int32 (size field itself is NOT counted in size)
 // Nominal Source RCON packets are capped around 4096 bytes, but PZ (like many
 // game servers) doesn't strictly enforce that on responses -- `showoptions`
 // on a heavily modded server can be tens of KB. Cap generously so we don't

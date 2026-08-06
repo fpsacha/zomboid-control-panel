@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import requireResultHandling from "./eslint-rules/require-result-handling.js";
 
 export default [
   {
@@ -15,7 +16,10 @@ export default [
     ],
   },
   {
-    files: ["server/**/*.js", "*.js"],
+    files: ["server/**/*.js", "eslint-rules/**/*.js", "*.js"],
+    plugins: {
+      local: { rules: { "require-result-handling": requireResultHandling } },
+    },
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
@@ -29,6 +33,10 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
 
+      // Much of this codebase reports failure by returning { success: false }
+      // rather than by throwing, so a discarded result is a swallowed error.
+      "local/require-result-handling": "error",
+
       // Control chars in regexes are deliberate input sanitization (RCON args,
       // player names, PanelBridge payloads).
       "no-control-regex": "off",
@@ -37,21 +45,20 @@ export default [
         "warn",
         {
           args: "after-used",
-          argsIgnorePattern: "^_",
+          argsIgnorePattern: "^(_|next$|serverName$|reason$|skipLog$)",
           varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
+          caughtErrors: "none",
         },
       ],
 
       // Triaged 2026-08-04: the one real race (server wipe guard) is fixed.
       // The rest are per-request/per-socket objects and function-local
-      // variables, which this rule reports as false positives. Kept visible
-      // as warnings so new occurrences still surface for review.
-      "require-atomic-updates": "warn",
+      // variables, which this rule reports as false positives.
+      "require-atomic-updates": "off",
 
       // Escaping `-` and `[` inside character classes is deliberate defensive
       // style here; rewriting 20 working regexes would risk real bugs.
-      "no-useless-escape": "warn",
+      "no-useless-escape": "off",
 
       "no-empty": ["warn", { allowEmptyCatch: false }],
       "no-fallthrough": "error",
@@ -60,7 +67,9 @@ export default [
       "no-self-compare": "error",
       "no-template-curly-in-string": "warn",
       "no-unmodified-loop-condition": "error",
-      "require-await": "warn",
+      // Express handlers and service interfaces intentionally remain async,
+      // including paths that do not await on every code path.
+      "require-await": "off",
     },
   },
   {
@@ -68,7 +77,13 @@ export default [
     // async stub with no await inside is correct here.
     files: ["server/tests/**/*.js"],
     rules: {
+      // A test calls these for their effect on a stub, not for the result.
+      "local/require-result-handling": "off",
       "require-await": "off",
+      // Test doubles often mirror a wider production interface than the
+      // assertion needs, so unused parameters/imports are not useful here.
+      "no-unused-vars": "off",
+      "no-template-curly-in-string": "off",
     },
   },
 ];

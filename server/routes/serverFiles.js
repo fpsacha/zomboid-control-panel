@@ -868,7 +868,7 @@ router.put("/ini", async (req, res) => {
 
     // Read original to preserve comments/structure. Locked per-path so two
     // overlapping PUTs to the same INI can't interleave their read-modify-write.
-    const newContent = await withFileLock(filePath, async () => {
+    await withFileLock(filePath, async () => {
       let originalContent = "";
       if (fs.existsSync(filePath)) {
         originalContent = fs.readFileSync(filePath, "utf-8");

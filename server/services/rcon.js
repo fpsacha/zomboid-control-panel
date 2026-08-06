@@ -1372,7 +1372,7 @@ export class RconService extends EventEmitter {
 
     try {
       // Use 'players' command as a lightweight health check (with timeout)
-      const response = await Promise.race([
+      await Promise.race([
         this.client.execute("players"),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Health check timed out")), 10000),

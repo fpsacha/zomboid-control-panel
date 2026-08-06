@@ -410,7 +410,7 @@ router.post("/auto-configure", async (req, res) => {
     }
 
     // Configure and start bridge - foundPath IS the complete panelbridge folder
-    const bridgePath = bridge.configure(foundPath.path, true); // true = direct path
+    bridge.configure(foundPath.path, true); // true = direct path
     bridge.start();
 
     // Auto-install or update PanelBridge mod
@@ -844,7 +844,6 @@ router.post("/stop", async (req, res) => {
 router.get("/scan-paths", async (req, res) => {
   try {
     const activeServer = await getActiveServer();
-    const allSettings = await getAllSettings();
     const foundBridges = [];
     const scannedDirs = [];
 

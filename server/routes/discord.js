@@ -49,6 +49,8 @@ router.get("/config", async (req, res) => {
       autoStart: autoStart !== false, // default true
       chatRelayEnabled: discordBot.chatRelayEnabled !== false,
       chatRelayChannelId: discordBot.chatRelayChannelId || "",
+      chatRelayScope:
+        discordBot.chatRelayScope === "general" ? "general" : "public",
     });
   } catch (error) {
     log.error(`Failed to get Discord config: ${error.message}`);
@@ -68,6 +70,7 @@ router.put("/config", async (req, res) => {
       autoStart,
       chatRelayEnabled,
       chatRelayChannelId,
+      chatRelayScope,
     } = req.body;
     log.info(
       `PUT /config: guildId=${guildId}, token=${token ? (token === "KEEP_EXISTING" ? "KEEP" : "***") : "none"}, autoStart=${autoStart}`,
@@ -110,6 +113,13 @@ router.put("/config", async (req, res) => {
         .status(400)
         .json({ error: "Invalid Chat Relay Channel ID format" });
     }
+    if (
+      chatRelayScope !== undefined &&
+      chatRelayScope !== "public" &&
+      chatRelayScope !== "general"
+    ) {
+      return res.status(400).json({ error: "Invalid Chat Relay Scope" });
+    }
 
     // Snapshot current auth credentials before overwriting them so we know
     // whether a full Discord reconnection is actually needed.
@@ -133,7 +143,8 @@ router.put("/config", async (req, res) => {
     // Save chat relay settings
     if (
       typeof chatRelayEnabled === "boolean" ||
-      typeof chatRelayChannelId === "string"
+      typeof chatRelayChannelId === "string" ||
+      typeof chatRelayScope === "string"
     ) {
       await discordBot.updateChatRelay(
         typeof chatRelayEnabled === "boolean"
@@ -142,6 +153,9 @@ router.put("/config", async (req, res) => {
         typeof chatRelayChannelId === "string"
           ? chatRelayChannelId
           : discordBot.chatRelayChannelId,
+        typeof chatRelayScope === "string"
+          ? chatRelayScope
+          : discordBot.chatRelayScope,
       );
     }
 
@@ -297,9 +311,15 @@ router.post("/test-message", async (req, res) => {
       return res.status(400).json({ error: "Bot is not running" });
     }
 
-    await discordBot.sendNotification(
+    const sent = await discordBot.sendNotification(
       "🧪 **Test message** from PZ Server Manager",
     );
+    if (!sent) {
+      return res.status(502).json({
+        error:
+          "Discord rejected the message. Check the notification channel ID and that the bot can post there.",
+      });
+    }
     res.json({ success: true, message: "Test message sent" });
   } catch (error) {
     log.error(`Failed to send test message: ${error.message}`);
@@ -383,18 +403,23 @@ router.put("/webhook-events", async (req, res) => {
     const sanitizedEvents = {};
     for (const key of VALID_EVENT_KEYS) {
       if (events[key] && typeof events[key] === "object") {
+        const template =
+          typeof events[key].template === "string"
+            ? events[key].template.slice(0, 500)
+            : "";
         sanitizedEvents[key] = {
-          enabled: !!events[key].enabled,
-          template:
-            typeof events[key].template === "string"
-              ? events[key].template.slice(0, 500)
-              : "",
+          // An enabled event with a blank template would send an empty message,
+          // which Discord rejects and which counts against the circuit breaker.
+          enabled: !!events[key].enabled && template.trim().length > 0,
+          template,
         };
       }
     }
 
-    discordBot.webhookEvents = sanitizedEvents;
-    await discordBot.saveWebhookEvents(sanitizedEvents);
+    // Merge rather than replace so a partial update can't silently wipe the
+    // events it didn't mention.
+    const merged = { ...(discordBot.webhookEvents || {}), ...sanitizedEvents };
+    await discordBot.saveWebhookEvents(merged);
 
     res.json({ success: true, message: "Webhook events updated" });
   } catch (error) {

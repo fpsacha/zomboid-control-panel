@@ -14,7 +14,6 @@ let cached;
 export function getEmbeddedPanelBridgeLua() {
   if (cached !== undefined) return cached;
   try {
-    // eslint-disable-next-line no-undef
     const b64 = typeof PANEL_BRIDGE_LUA_B64 !== 'undefined' ? PANEL_BRIDGE_LUA_B64 : '';
     cached = (b64 && b64.length > 0) ? Buffer.from(b64, 'base64').toString('utf8') : null;
   } catch {

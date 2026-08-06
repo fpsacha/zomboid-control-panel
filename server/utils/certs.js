@@ -2,7 +2,7 @@
  * HTTPS Certificate Utility
  * Generates self-signed certificates for HTTPS support.
  * Also supports loading user-provided certificates.
- * 
+ *
  * Certificates are stored in data/certs/ directory.
  */
 
@@ -48,7 +48,6 @@ function generateSelfSignedCert() {
 function createSelfSignedCertPEM(privateKeyPem, publicKeyPem) {
   // Parse the public key from PEM to DER
   const pubKeyDer = pemToDer(publicKeyPem, 'PUBLIC KEY');
-  const privKeyDer = pemToDer(privateKeyPem, 'PRIVATE KEY');
 
   // Subject/Issuer: CN=Zomboid Control Panel
   const subject = derSequence([

@@ -215,7 +215,12 @@ export class ModChecker extends EventEmitter {
         this.autoRestartEnabled = true;
         if (this.scheduler) {
           this.onUpdateCallback = async (updatedMods) => {
-            await this.handleModUpdate(updatedMods);
+            const handled = await this.handleModUpdate(updatedMods);
+            if (!handled?.success) {
+              log.warn(
+                `Mod update handling failed: ${handled?.error || handled?.message || "unknown error"}`,
+              );
+            }
           };
           log.info("Auto-restart on mod update restored from settings");
         }
@@ -798,7 +803,15 @@ export class ModChecker extends EventEmitter {
           clearInterval(this.playerCheckInterval);
           this.playerCheckInterval = null;
           try {
-            await this.triggerModRestart(updatedMods);
+            const result = await this.triggerModRestart(updatedMods);
+            // A refusal comes back as a result, and leaving pendingRestart set
+            // would block every later mod-update restart.
+            if (!result?.success) {
+              log.error(
+                `Player monitor: mod restart did not run: ${result?.error || result?.message || "unknown error"}`,
+              );
+              this.pendingRestart = false;
+            }
           } catch (e) {
             log.error(`Player monitor: triggerModRestart threw: ${e.message}`);
             this.pendingRestart = false;
@@ -819,7 +832,13 @@ export class ModChecker extends EventEmitter {
           clearInterval(this.playerCheckInterval);
           this.playerCheckInterval = null;
           try {
-            await this.triggerModRestart(updatedMods);
+            const result = await this.triggerModRestart(updatedMods);
+            if (!result?.success) {
+              log.error(
+                `Player monitor: mod restart did not run: ${result?.error || result?.message || "unknown error"}`,
+              );
+              this.pendingRestart = false;
+            }
           } catch (e) {
             log.error(`Player monitor: triggerModRestart threw: ${e.message}`);
             this.pendingRestart = false;

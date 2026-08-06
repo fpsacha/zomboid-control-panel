@@ -88,7 +88,7 @@ import { useToast } from '@/components/ui/use-toast'
 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { modsApi } from '@/lib/api'
-import { buildRequiresMap, computeAutoSortedOrder, type AutoSortResult } from '@/lib/modLoadOrder'
+import { buildRequiresMap, computeAutoSortedOrder, createRequirementResolver, type AutoSortResult } from '@/lib/modLoadOrder'
 import { EmptyState } from '@/components/EmptyState'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -1726,9 +1726,11 @@ export default function Mods() {
 
     if (result.appliedEdges === 0) {
       toast({
-        title: t('toast.noDependencyData'),
+        title: result.missing.length > 0 ? t('toast.nothingToSortBy') : t('toast.noDependencyData'),
         description:
-          t('toast.noDependencyDataDesc'),
+          result.missing.length > 0
+            ? t('toast.missingDependencies', { count: result.missing.length })
+            : t('toast.noDependencyDataDesc'),
       })
       return
     }
@@ -1736,7 +1738,10 @@ export default function Mods() {
     if (result.moved.length === 0) {
       toast({
         title: t('toast.loadOrderAlreadyCorrect'),
-        description: t('toast.loadOrderAlreadyCorrectDesc', { appliedEdges: result.appliedEdges }),
+        description:
+          result.cycles.length > 0
+            ? t('toast.circularDependencies', { count: result.cycles.length })
+            : t('toast.loadOrderAlreadyCorrectDesc', { appliedEdges: result.appliedEdges }),
       })
       return
     }
@@ -2125,18 +2130,10 @@ export default function Mods() {
     const multiIdCount = groups.filter(g => g.mods.length > 1).length
 
     // Build missing-deps map: modId → list of required mod IDs not currently enabled.
-    // A require is satisfied either by an exact-id enabled mod or by a variant whose id
-    // is "<required>_<suffix>" / "<required>-<suffix>" (the convention modders use for
-    // refactor / test / legacy forks of the same mod shipped from the same workshop item).
-    const enabledLower = new Set(Array.from(enabledIds, id => id.toLowerCase()))
-    const isRequireSatisfied = (req: string) => {
-      if (enabledIds.has(req)) return true
-      const r = req.toLowerCase()
-      for (const id of enabledLower) {
-        if (id.startsWith(r + '_') || id.startsWith(r + '-')) return true
-      }
-      return false
-    }
+    // Resolution (exact id, or a "<required>_<suffix>" / "<required>-<suffix>" fork)
+    // is shared with the load-order auto-sort so the two can't disagree.
+    const resolveRequirement = createRequirementResolver(enabledIds)
+    const isRequireSatisfied = (req: string) => resolveRequirement(req) !== null
     const missingDepsMap = new Map<string, string[]>()
     for (const g of groups) {
       for (const mod of g.mods) {
@@ -3374,7 +3371,7 @@ export default function Mods() {
                   <button
                     type="button"
                     onClick={fetchCollectionStatus}
-                    title={`Collection sync error: ${collectionStatus.error}`}
+                    title={t('view.collectionErrorTitle', { error: collectionStatus.error })}
                     className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/20 transition-colors"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
@@ -4948,9 +4945,13 @@ export default function Mods() {
                         </ScrollArea>
 
                         {autoSortPreview.cycles.length > 0 && (
-                          <p className="text-[11px] text-warning">
-                            {t('ui.circularDependency', { deps: autoSortPreview.cycles.join(', ') })}
-                          </p>
+                          <div className="space-y-0.5">
+                            {autoSortPreview.cycles.map((group) => (
+                              <p key={group.join('|')} className="text-[11px] text-warning">
+                                {t('ui.circularDependency', { deps: group.join(', ') })}
+                              </p>
+                            ))}
+                          </div>
                         )}
                         {autoSortPreview.missing.length > 0 && (
                           <p className="text-[11px] text-muted-foreground">

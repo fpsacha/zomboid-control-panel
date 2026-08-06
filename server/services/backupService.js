@@ -3,7 +3,6 @@ import fs from "fs";
 import { createWriteStream } from "fs";
 import archiver from "archiver";
 import { createReadStream } from "fs";
-import { pipeline } from "stream/promises";
 import { createLogger } from "../utils/logger.js";
 const log = createLogger("Backup");
 import {
@@ -517,7 +516,13 @@ export class BackupService {
       // Delete oldest backups
       const toDelete = backups.slice(settings.maxBackups);
       for (const backup of toDelete) {
-        await this.deleteBackup(backup.name);
+        const deleted = await this.deleteBackup(backup.name);
+        if (!deleted?.success) {
+          log.warn(
+            `Could not clean up old backup ${backup.name}: ${deleted?.error || "unknown error"}`,
+          );
+          continue;
+        }
         log.info(`Cleaned up old backup: ${backup.name}`);
       }
     } catch (error) {

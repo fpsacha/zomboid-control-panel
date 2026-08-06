@@ -216,24 +216,14 @@ router.get("/tracked", async (req, res) => {
             );
             const trackedNow = await getTrackedMods();
 
-            // The INI is the source of truth. Earlier versions only added
-            // IDs here, so a mod removed from WorkshopItems= lived forever
-            // in tracked_mods and kept appearing in the panel.
-            let removed = 0;
-            for (const mod of trackedNow) {
-              if (configuredIds.has(mod.workshop_id)) continue;
-              if (await removeTrackedMod(mod.workshop_id)) removed++;
-            }
-            if (removed > 0) {
-              log.info(`Pruned ${removed} stale tracked mods missing from INI`);
-            }
-
+            // Tracked mods absent from WorkshopItems= are deliberately kept:
+            // they are what the Mods > Deactivated tab lists so they can be
+            // re-enabled or deleted on purpose. Pruning them here silently
+            // emptied that tab on the next page load. "Remove from server"
+            // already untracks and ignore-lists in one step.
             if (configuredIds.size > 0) {
-              const activeTracked = removed > 0
-                ? await getTrackedMods()
-                : trackedNow;
               const trackedSet = new Set(
-                activeTracked.map((m) => m.workshop_id),
+                trackedNow.map((m) => m.workshop_id),
               );
               const modChecker = req.app.get("modChecker");
               let added = 0;
@@ -677,7 +667,12 @@ router.post("/auto-restart", async (req, res) => {
 
     if (enabled) {
       await modChecker.setUpdateCallback(async (updatedMods) => {
-        await modChecker.handleModUpdate(updatedMods);
+        const handled = await modChecker.handleModUpdate(updatedMods);
+        if (!handled?.success) {
+          log.warn(
+            `Mod update handling failed: ${handled?.error || handled?.message || "unknown error"}`,
+          );
+        }
       });
     } else {
       await modChecker.setUpdateCallback(null);
@@ -960,6 +955,10 @@ router.get("/collection/diff", async (req, res) => {
     const ids = tracked.map((m) => String(m.workshop_id));
     const diff = await computeCollectionDiff(ids);
     const configuredWorkshopIds = new Set();
+    // Whether WorkshopItems= was actually read. Status below is derived from
+    // server membership, so an unreadable INI must not be reported as "every
+    // mod is missing from the server".
+    let serverConfigRead = false;
     try {
       const serverConfigPath = await getServerConfigPath();
       const serverName = await getServerName();
@@ -977,9 +976,11 @@ router.get("/collection/diff", async (req, res) => {
           for (const id of workshopMatch?.[1]?.split(";") || []) {
             if (id) configuredWorkshopIds.add(id);
           }
+          serverConfigRead = true;
         }
       }
     } catch (error) {
+      serverConfigRead = false;
       log.debug(`Collection server membership check skipped: ${error.message}`);
     }
 
@@ -1000,7 +1001,14 @@ router.get("/collection/diff", async (req, res) => {
         }),
       );
       const inCollection = new Set(diff.inCollection.map(String));
-      const allIds = new Set([...trackedNames.keys(), ...inCollection]);
+      // Mods enabled on the server are included even when they are neither
+      // tracked nor in the collection (an ignored mod, say) — they are drift
+      // and would otherwise be invisible here.
+      const allIds = new Set([
+        ...trackedNames.keys(),
+        ...inCollection,
+        ...configuredWorkshopIds,
+      ]);
       // Resolve names for collection-only items (and any tracked items
       // missing a stored name).
       const needTitles = [...allIds].filter((id) => !trackedNames.get(id));
@@ -1011,22 +1019,36 @@ router.get("/collection/diff", async (req, res) => {
       items = [...allIds].map((id) => {
         const inTracked = trackedNames.has(id);
         const inColl = inCollection.has(id);
+        const inServer = configuredWorkshopIds.has(id);
+        // The collection is meant to mirror what the server actually loads,
+        // so drift is measured against WorkshopItems=. Tracking alone no
+        // longer implies the mod is on the server: deactivated mods stay
+        // tracked on purpose. Fall back to tracking when the INI is
+        // unreadable, otherwise every row would claim to be off-server.
+        const present = serverConfigRead ? inServer : inTracked;
         let status;
-        if (inTracked && inColl) status = "synced";
-        else if (inTracked && !inColl) status = "to-add";
-        else status = "collection-only";
+        if (present && inColl) status = "synced";
+        else if (present && !inColl) status = "to-add";
+        else if (!present && inColl) status = "collection-only";
+        else status = "tracked-only";
         return {
           workshopId: id,
           name: trackedNames.get(id) || titleMap.get(id) || null,
           status,
           inTracked,
           inCollection: inColl,
-          inServer: configuredWorkshopIds.has(id),
+          inServer,
         };
       });
-      // Tracked mods missing from Steam need attention. Collection-only mods
-      // are legitimate optional items, followed by fully synced entries.
-      const order = { "to-add": 0, "collection-only": 1, synced: 2 };
+      // Mods on the server but missing from the collection need attention
+      // first, then collection entries the server no longer loads, then
+      // tracked leftovers, then everything already in sync.
+      const order = {
+        "to-add": 0,
+        "collection-only": 1,
+        "tracked-only": 2,
+        synced: 3,
+      };
       items.sort((a, b) => {
         if (order[a.status] !== order[b.status])
           return order[a.status] - order[b.status];
@@ -1083,6 +1105,7 @@ router.get("/collection/diff", async (req, res) => {
       tokenExpiry,
       tokenExpired,
       trackedCount: ids.length,
+      serverConfigRead,
     });
   } catch (error) {
     log.error(`Collection diff failed: ${error.message}`);
@@ -4976,9 +4999,12 @@ const SCAN_MUTEX_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 let lastScanResult = null;
 let lastScanWorkshopSnapshot = null;
 let lastScanModSnapshot = null;
+let lastScanServerPath = null;
 let lastScanTimestamp = 0;
+let scanLockToken = 0;
 const SCAN_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+// Returns a token identifying this scan, or null when a scan is already running.
 function acquireScanLock() {
   // Auto-reset if stuck for more than 5 minutes (e.g. crash mid-scan)
   if (
@@ -4988,13 +5014,16 @@ function acquireScanLock() {
     log.warn("Conflict scan mutex was stuck for >5 min — auto-resetting");
     conflictScanInFlight = false;
   }
-  if (conflictScanInFlight) return false;
+  if (conflictScanInFlight) return null;
   conflictScanInFlight = true;
   conflictScanStartedAt = Date.now();
-  return true;
+  return ++scanLockToken;
 }
 
-function releaseScanLock() {
+// Tokens stop a scan that overran the stuck-mutex timeout from releasing the
+// lock out from under the newer scan that replaced it.
+function releaseScanLock(token) {
+  if (token !== scanLockToken) return;
   conflictScanInFlight = false;
   conflictScanStartedAt = 0;
 }
@@ -5002,15 +5031,40 @@ function releaseScanLock() {
 // Max file size to hash (50 MB) — larger files are treated as different
 const HASH_MAX_BYTES = 50 * 1024 * 1024;
 
+const WALK_MAX_DEPTH = 20;
+const WALK_MAX_FILES = 50_000;
+const WALK_SKIP_DIRS = new Set([
+  ".git",
+  ".svn",
+  ".hg",
+  "__pycache__",
+  "node_modules",
+  ".vscode",
+]);
+
+function safeRealpath(p) {
+  try {
+    return fs.realpathSync(p);
+  } catch (e) {
+    log.debug(`Could not resolve ${p}: ${e.message}`);
+    return null;
+  }
+}
+
+function isInsideRoot(target, root) {
+  return target === root || target.startsWith(root + path.sep);
+}
+
 // Recursively collect all files under a directory, returning relative paths.
 // Guarded with depth and file-count limits to prevent runaway traversal.
 // Returns { files: string[], truncated: boolean }
-function walkDir(dir, prefix = "", _depth = 0) {
-  const MAX_DEPTH = 20;
-  const MAX_FILES = 50_000;
+function walkDir(dir, prefix = "", _depth = 0, _ctx = null) {
+  // The budget is shared across the whole recursion; a per-call limit let a
+  // deep tree return many times the intended maximum.
+  const ctx = _ctx || { left: WALK_MAX_FILES, root: safeRealpath(dir) || dir };
   const results = [];
   let truncated = false;
-  if (_depth > MAX_DEPTH) return { files: results, truncated };
+  if (_depth > WALK_MAX_DEPTH) return { files: results, truncated };
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -5019,37 +5073,34 @@ function walkDir(dir, prefix = "", _depth = 0) {
     return { files: results, truncated };
   }
   for (const entry of entries) {
-    if (results.length >= MAX_FILES) {
+    if (ctx.left <= 0) {
       truncated = true;
       break;
     }
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) {
-      // Skip version-control and metadata directories — never game content
-      const lowerName = entry.name.toLowerCase();
-      if (
-        lowerName === ".git" ||
-        lowerName === ".svn" ||
-        lowerName === ".hg" ||
-        lowerName === "__pycache__" ||
-        lowerName === "node_modules" ||
-        lowerName === ".vscode"
-      )
-        continue;
-      // Skip symlinked directories to stay within the expected tree
-      const fullPath = path.join(dir, entry.name);
+    const fullPath = path.join(dir, entry.name);
+    let isDirectory = entry.isDirectory();
+    // readdir reports a symlink as its own type, so a linked folder would
+    // otherwise be indexed as if it were a file. Resolve it, and refuse
+    // anything that escapes the mod's own media tree.
+    if (entry.isSymbolicLink()) {
+      const real = safeRealpath(fullPath);
+      if (!real || !isInsideRoot(real, ctx.root)) continue;
       try {
-        const real = fs.realpathSync(fullPath);
-        const realDir = fs.realpathSync(dir);
-        if (!real.startsWith(realDir + path.sep) && real !== realDir) continue;
+        isDirectory = fs.statSync(real).isDirectory();
       } catch (e) {
-        log.debug(`Symlink resolve failed for ${fullPath}: ${e.message}`);
+        log.debug(`walkDir: could not stat link ${fullPath}: ${e.message}`);
         continue;
       }
-      const sub = walkDir(fullPath, rel, _depth + 1);
+    }
+    if (isDirectory) {
+      // Skip version-control and metadata directories — never game content
+      if (WALK_SKIP_DIRS.has(entry.name.toLowerCase())) continue;
+      const sub = walkDir(fullPath, rel, _depth + 1, ctx);
       results.push(...sub.files);
       if (sub.truncated) truncated = true;
     } else {
+      ctx.left--;
       results.push(rel);
     }
   }
@@ -5167,27 +5218,53 @@ function extractTranslationKeys(filePath) {
   }
 }
 
-// Compare keys from multiple mod versions of the same translation file.
-// Returns { disjoint: true } if no keys overlap (additive — not a real conflict),
-// or { disjoint: false, overlapping: [...] } if keys collide.
-function compareTranslationKeys(modEntries) {
-  const keysByMod = [];
+// Compare per-mod definition sets for one shared file path.
+// `extract` returns a Set of names, or null when the file could not be parsed.
+// The two cases are deliberately different: a file that parsed to zero
+// definitions genuinely cannot collide with anything, while a file that failed
+// to parse tells us nothing and must fail closed so a parser limitation never
+// hides a real clash.
+// Returns { disjoint, overlapping, inconclusive }.
+export function compareDefinitionSets(modEntries, extract) {
+  const parsed = [];
+  let unparsable = 0;
   for (const entry of modEntries) {
-    const keys = extractTranslationKeys(entry.absPath);
-    if (!keys || keys.size === 0) continue; // can't parse → skip this entry, check remaining
-    keysByMod.push({ mod: entry, keys });
+    const defs = extract(entry.absPath);
+    if (!defs) {
+      unparsable++;
+      continue;
+    }
+    parsed.push({ mod: entry, defs });
   }
-  // Check every pair for overlapping keys
   const overlapping = new Set();
-  for (let i = 0; i < keysByMod.length; i++) {
-    for (let j = i + 1; j < keysByMod.length; j++) {
-      if (keysByMod[i].mod.modId === keysByMod[j].mod.modId) continue;
-      for (const k of keysByMod[i].keys) {
-        if (keysByMod[j].keys.has(k)) overlapping.add(k);
-      }
+  for (let i = 0; i < parsed.length; i++) {
+    for (let j = i + 1; j < parsed.length; j++) {
+      if (parsed[i].mod.modId === parsed[j].mod.modId) continue;
+      // Iterate the smaller set so the cost tracks the cheaper file.
+      const [small, large] =
+        parsed[i].defs.size <= parsed[j].defs.size
+          ? [parsed[i].defs, parsed[j].defs]
+          : [parsed[j].defs, parsed[i].defs];
+      for (const d of small) if (large.has(d)) overlapping.add(d);
     }
   }
-  return { disjoint: overlapping.size === 0, overlapping: [...overlapping] };
+  if (overlapping.size > 0) {
+    return {
+      disjoint: false,
+      overlapping: [...overlapping],
+      inconclusive: false,
+    };
+  }
+  const distinctParsedMods = new Set(parsed.map((p) => p.mod.modId)).size;
+  const inconclusive = unparsable > 0 || distinctParsedMods < 2;
+  return { disjoint: !inconclusive, overlapping: [], inconclusive };
+}
+
+// Compare keys from multiple mod versions of the same translation file.
+// Returns { disjoint: true } if no keys overlap (additive — not a real conflict),
+// or { disjoint: false, overlapping: [...] } if keys collide or cannot be read.
+function compareTranslationKeys(modEntries) {
+  return compareDefinitionSets(modEntries, extractTranslationKeys);
 }
 
 // ─── PZ script file parsing ─────────────────────────────────────────────────
@@ -5236,23 +5313,7 @@ function extractScriptDefinitions(filePath) {
 // Returns { disjoint: true } if no definitions overlap (additive),
 // or { disjoint: false, overlapping: [...] } if definitions collide.
 function compareScriptDefinitions(modEntries) {
-  const defsByMod = [];
-  for (const entry of modEntries) {
-    const defs = extractScriptDefinitions(entry.absPath);
-    if (!defs || defs.size === 0) continue;
-    defsByMod.push({ mod: entry, defs });
-  }
-  if (defsByMod.length < 2) return { disjoint: false, overlapping: [] }; // can't parse → assume conflict
-  const overlapping = new Set();
-  for (let i = 0; i < defsByMod.length; i++) {
-    for (let j = i + 1; j < defsByMod.length; j++) {
-      if (defsByMod[i].mod.modId === defsByMod[j].mod.modId) continue;
-      for (const d of defsByMod[i].defs) {
-        if (defsByMod[j].defs.has(d)) overlapping.add(d);
-      }
-    }
-  }
-  return { disjoint: overlapping.size === 0, overlapping: [...overlapping] };
+  return compareDefinitionSets(modEntries, extractScriptDefinitions);
 }
 
 // ─── Clothing XML parsing ───────────────────────────────────────────────────
@@ -5285,23 +5346,7 @@ function extractClothingDefinitions(filePath) {
 }
 
 function compareClothingDefinitions(modEntries) {
-  const defsByMod = [];
-  for (const entry of modEntries) {
-    const defs = extractClothingDefinitions(entry.absPath);
-    if (!defs || defs.size === 0) continue;
-    defsByMod.push({ mod: entry, defs });
-  }
-  if (defsByMod.length < 2) return { disjoint: false, overlapping: [] };
-  const overlapping = new Set();
-  for (let i = 0; i < defsByMod.length; i++) {
-    for (let j = i + 1; j < defsByMod.length; j++) {
-      if (defsByMod[i].mod.modId === defsByMod[j].mod.modId) continue;
-      for (const d of defsByMod[i].defs) {
-        if (defsByMod[j].defs.has(d)) overlapping.add(d);
-      }
-    }
-  }
-  return { disjoint: overlapping.size === 0, overlapping: [...overlapping] };
+  return compareDefinitionSets(modEntries, extractClothingDefinitions);
 }
 
 // ─── Lua symbol extraction ──────────────────────────────────────────────────
@@ -5343,12 +5388,31 @@ function extractLuaSymbols(filePath) {
   }
 }
 
+// Lua files are read by both the per-path pass and the cross-file pass. The
+// scan mutex guarantees one scan at a time, so a module-level cache is safe and
+// halves the Lua parsing work. Cleared at the end of every scan.
+const LUA_SYMBOL_CACHE_MAX = 20_000;
+const luaSymbolCache = new Map();
+
+function getLuaSymbols(filePath) {
+  const cached = luaSymbolCache.get(filePath);
+  if (cached !== undefined) return cached;
+  const symbols = extractLuaSymbols(filePath);
+  if (luaSymbolCache.size < LUA_SYMBOL_CACHE_MAX)
+    luaSymbolCache.set(filePath, symbols);
+  return symbols;
+}
+
+function resetScanCaches() {
+  luaSymbolCache.clear();
+}
+
 // Compare Lua files at the same path across multiple mods.
 // Returns { overlapping: [...], parsed: number } or null when nothing parsable.
 function compareLuaSymbols(modEntries) {
   const symsByMod = [];
   for (const entry of modEntries) {
-    const s = extractLuaSymbols(entry.absPath);
+    const s = getLuaSymbols(entry.absPath);
     if (!s || s.size === 0) continue;
     symsByMod.push({ mod: entry, symbols: s });
   }
@@ -5368,17 +5432,66 @@ function compareLuaSymbols(modEntries) {
 // Yield to event loop (allows SSE writes, incoming requests, etc.)
 const yieldTick = () => new Promise((resolve) => setImmediate(resolve));
 
-// Hash a single file for content comparison (async to avoid blocking)
-async function hashFile(filePath) {
-  try {
-    const stat = await fsp.stat(filePath);
-    if (stat.size > HASH_MAX_BYTES) return "too-large";
-    const buf = await fsp.readFile(filePath);
-    return crypto.createHash("md5").update(buf).digest("hex");
-  } catch (e) {
-    log.debug(`Error hashing file ${filePath}: ${e.message}`);
-    return null;
-  }
+const LUA_CATEGORIES = new Set([
+  "lua-server",
+  "lua-shared",
+  "lua-client",
+  "lua-other",
+]);
+
+// One mod can ship the same relative path twice (media/ plus a B42 42/ folder).
+// Pairing and reporting must run on distinct mods or a mod ends up listed as
+// conflicting with itself.
+function dedupeByModId(entries) {
+  const byId = new Map();
+  for (const entry of entries) if (!byId.has(entry.modId)) byId.set(entry.modId, entry);
+  return [...byId.values()];
+}
+
+// Hash a single file for content comparison. Streamed so one large asset never
+// lands in memory whole: a path shared by 30 mods previously allocated 30 full
+// file buffers at once.
+function hashFileStreaming(filePath) {
+  return new Promise((resolve) => {
+    const hash = crypto.createHash("md5");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", (e) => {
+      log.debug(`Error hashing file ${filePath}: ${e.message}`);
+      resolve(null);
+    });
+  });
+}
+
+// Decide whether every mod's copy of one relative path holds the same bytes.
+// Sizes are compared first: a size difference already proves the contents
+// differ, so genuinely conflicting files are never read at all.
+// Returns "identical", "differs" (also used whenever the answer cannot be
+// verified, so a real conflict is never hidden), or "unknown" when fewer than
+// two copies could be read.
+async function compareFileContents(entries) {
+  const sized = await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        return { entry, size: (await fsp.stat(entry.absPath)).size };
+      } catch (e) {
+        log.debug(`Error reading file size ${entry.absPath}: ${e.message}`);
+        return null;
+      }
+    }),
+  );
+  const readable = sized.filter(Boolean);
+  const unreadable = sized.length - readable.length;
+  if (readable.length < 2) return "unknown";
+  if (new Set(readable.map((r) => r.size)).size > 1) return "differs";
+  if (readable[0].size > HASH_MAX_BYTES) return "differs";
+  const hashes = await Promise.all(
+    readable.map((r) => hashFileStreaming(r.entry.absPath)),
+  );
+  if (hashes.some((h) => h == null)) return "differs";
+  if (new Set(hashes).size > 1) return "differs";
+  return unreadable === 0 ? "identical" : "differs";
 }
 
 // Sync variant kept for the non-streaming diff endpoint (single-file, already fast)
@@ -5563,7 +5676,8 @@ async function buildFileIndex(
 }
 
 // Detect conflicts from a file index. Calls `onConflictFound(conflict)` for each.
-async function detectConflicts(fileIndex, onConflictFound) {
+async function detectConflicts(fileIndex, onConflictFound, options = {}) {
+  const { shouldAbort, onProgress } = options;
   const conflicts = [];
   let identicalSkipped = 0;
   let additiveSkipped = 0;
@@ -5576,21 +5690,43 @@ async function detectConflicts(fileIndex, onConflictFound) {
     translate: 0,
   };
   let processed = 0;
-  for (const [filePath, mods] of Object.entries(fileIndex)) {
+  const indexEntries = Object.entries(fileIndex);
+  for (const [filePath, mods] of indexEntries) {
+    if (shouldAbort && shouldAbort()) break;
     if (mods.length < 2) continue;
-    const uniqueModIds = [...new Set(mods.map((m) => m.modId))];
-    if (uniqueModIds.length < 2) continue;
-    const hashes = await Promise.all(
-      mods.map(async (m) => ({ ...m, hash: await hashFile(m.absPath) })),
-    );
-    const validHashes = hashes.filter((h) => h.hash != null);
-    if (validHashes.length === 0) continue;
-    const uniqueHashes = new Set(validHashes.map((h) => h.hash));
-    if (uniqueHashes.size <= 1 && !uniqueHashes.has("too-large")) {
+    const distinctMods = dedupeByModId(mods);
+    if (distinctMods.length < 2) continue;
+    const category = classifyFile(filePath);
+
+    // sandbox-options.txt lives at the media root and PZ merges it by named
+    // option block; fileGuidTable.xml is mod-editor metadata never loaded at
+    // runtime. Both are additive whatever they contain, so skip them before
+    // comparing rather than reading 34+ copies only to discard the answer.
+    if (category === "sandbox-options" || category === "fileguidtable") {
+      pzAdditiveSkipped++;
+      pzAdditiveBreakdown[
+        category === "sandbox-options" ? "sandbox" : "fileguidtable"
+      ]++;
+      continue;
+    }
+
+    const contentState = await compareFileContents(mods);
+    if (++processed % 25 === 0) {
+      if (onProgress) onProgress({ processed, total: indexEntries.length });
+      await yieldTick();
+    }
+    // "unknown" means too few copies were readable to conclude anything.
+    if (contentState === "unknown") continue;
+    if (contentState === "identical") {
       identicalSkipped++;
       continue;
     }
-    const category = classifyFile(filePath);
+
+    const conflictMods = distinctMods.map((m) => ({
+      workshopId: m.workshopId,
+      modId: m.modId,
+      modName: m.modName,
+    }));
 
     // ─── PZ additive files: these are NOT real conflicts ───
 
@@ -5603,43 +5739,25 @@ async function detectConflicts(fileIndex, onConflictFound) {
         pzAdditiveBreakdown.translate++;
         continue;
       }
-      // Has overlapping keys — surface as a low-severity conflict with the keys attached.
+      // Keys overlap, or the file could not be parsed — surface as a
+      // low-severity conflict with whatever keys were identified.
       const conflict = {
         file: filePath,
         category,
         categoryLabel: CATEGORY_LABELS[category] || category,
         severity: "low",
         identical: false,
-        overlap: {
+        mods: conflictMods,
+      };
+      if (comparison.overlapping.length > 0) {
+        conflict.overlap = {
           kind: "translation-keys",
           items: comparison.overlapping.slice(0, 50),
           total: comparison.overlapping.length,
-        },
-        mods: mods.map((m) => ({
-          workshopId: m.workshopId,
-          modId: m.modId,
-          modName: m.modName,
-        })),
-      };
+        };
+      }
       conflicts.push(conflict);
       if (onConflictFound) onConflictFound(conflict);
-      if (++processed % 20 === 0) await yieldTick();
-      continue;
-    }
-
-    // sandbox-options.txt: lives at media root. PZ merges by named option blocks.
-    // 34+ mods on a typical server share this filename — never a real conflict.
-    if (category === "sandbox-options") {
-      pzAdditiveSkipped++;
-      pzAdditiveBreakdown.sandbox++;
-      continue;
-    }
-
-    // fileGuidTable.xml: PZ mod editor metadata. Auto-generated, not loaded at runtime.
-    // Every mod built with the editor has one — never a real conflict.
-    if (category === "fileguidtable") {
-      pzAdditiveSkipped++;
-      pzAdditiveBreakdown.fileguidtable++;
       continue;
     }
 
@@ -5674,12 +5792,7 @@ async function detectConflicts(fileIndex, onConflictFound) {
     // Lua: not merged — last-loaded wins. Parse symbol names so the UI can show
     // exactly which functions/events/classes clash vs which are silently shadowed.
     let luaOverlap = null;
-    if (
-      category === "lua-server" ||
-      category === "lua-shared" ||
-      category === "lua-client" ||
-      category === "lua-other"
-    ) {
+    if (LUA_CATEGORIES.has(category)) {
       luaOverlap = compareLuaSymbols(mods); // null when files unparsable / no symbols
     }
 
@@ -5689,11 +5802,7 @@ async function detectConflicts(fileIndex, onConflictFound) {
       categoryLabel: CATEGORY_LABELS[category] || category,
       severity: SEVERITY_MAP[category] || "low",
       identical: false,
-      mods: mods.map((m) => ({
-        workshopId: m.workshopId,
-        modId: m.modId,
-        modName: m.modName,
-      })),
+      mods: conflictMods,
     };
     if (scriptOverlap && scriptOverlap.length > 0) {
       conflict.overlap = {
@@ -5723,8 +5832,6 @@ async function detectConflicts(fileIndex, onConflictFound) {
     }
     conflicts.push(conflict);
     if (onConflictFound) onConflictFound(conflict);
-    // Yield every 20 files to keep event loop responsive
-    if (++processed % 20 === 0) await yieldTick();
   }
   return {
     conflicts,
@@ -5749,11 +5856,13 @@ async function detectSameWorkshopLuaSymbolConflicts(
   fileIndex,
   existingConflicts,
   onConflictFound,
+  options = {},
 ) {
+  const { shouldAbort } = options;
   // Build set of (modId|modId) pairs already covered by the per-file pass.
   const coveredPairs = new Set();
   for (const c of existingConflicts) {
-    const ids = c.mods.map((m) => m.modId).sort();
+    const ids = [...new Set(c.mods.map((m) => m.modId))].sort();
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
         coveredPairs.add(`${ids[i]}|${ids[j]}`);
@@ -5765,14 +5874,7 @@ async function detectSameWorkshopLuaSymbolConflicts(
   // { wsId: { modId: [{relPath, absPath, modName}] } }
   const wsModFiles = {};
   for (const [relPath, mods] of Object.entries(fileIndex)) {
-    const cat = classifyFile(relPath);
-    if (
-      cat !== "lua-server" &&
-      cat !== "lua-shared" &&
-      cat !== "lua-client" &&
-      cat !== "lua-other"
-    )
-      continue;
+    if (!LUA_CATEGORIES.has(classifyFile(relPath))) continue;
     for (const m of mods) {
       if (!wsModFiles[m.workshopId]) wsModFiles[m.workshopId] = {};
       if (!wsModFiles[m.workshopId][m.modId])
@@ -5787,7 +5889,9 @@ async function detectSameWorkshopLuaSymbolConflicts(
 
   const conflicts = [];
   let scanned = 0;
+  let parsed = 0;
   for (const [wsId, modFilesMap] of Object.entries(wsModFiles)) {
+    if (shouldAbort && shouldAbort()) break;
     const modIds = Object.keys(modFilesMap);
     if (modIds.length < 2) continue;
 
@@ -5797,7 +5901,11 @@ async function detectSameWorkshopLuaSymbolConflicts(
     for (const modId of modIds) {
       const symMap = new Map();
       for (const f of modFilesMap[modId]) {
-        const syms = extractLuaSymbols(f.absPath);
+        // Reads and parses are the expensive part of this pass, so yield here
+        // too — yielding only in the pair loop below left the event loop
+        // blocked for the whole extraction phase.
+        if (++parsed % 50 === 0) await yieldTick();
+        const syms = getLuaSymbols(f.absPath);
         if (!syms || syms.size === 0) continue;
         for (const s of syms) {
           if (!symMap.has(s))
@@ -5860,10 +5968,12 @@ async function detectSameWorkshopLuaSymbolConflicts(
 }
 
 // Group flat conflict list into mod pairs
-function groupIntoPairs(conflicts) {
+export function groupIntoPairs(conflicts) {
   const pairConflicts = {};
   for (const conflict of conflicts) {
-    const modIds = conflict.mods.map((m) => m.modId).sort();
+    // Deduplicate first: a repeated mod ID would otherwise produce an "A vs A"
+    // self-pair and double-count every real pair it appears in.
+    const modIds = [...new Set(conflict.mods.map((m) => m.modId))].sort();
     for (let i = 0; i < modIds.length; i++) {
       for (let j = i + 1; j < modIds.length; j++) {
         const pairKey = `${modIds[i]}|${modIds[j]}`;
@@ -5889,7 +5999,9 @@ function groupIntoPairs(conflicts) {
           winner: conflict.winner || null,
           overlap: conflict.overlap || null,
         });
-        pairConflicts[pairKey][`${conflict.severity}Count`]++;
+        const severityKey = `${conflict.severity}Count`;
+        if (severityKey in pairConflicts[pairKey])
+          pairConflicts[pairKey][severityKey]++;
         // Per-file winner tally for the pair card
         if (conflict.winner == null) pairConflicts[pairKey].unknownWins++;
         else if (conflict.winner.modId === modIds[i])
@@ -6229,11 +6341,13 @@ router.get("/conflicts/cached", async (req, res) => {
   // Check if config has changed since last scan
   try {
     const { workshopIds, modIdsFromIni } = await readIniModLists();
+    const currentServerPath = await getServerPath();
     const currentWsSnapshot = workshopIds.slice().sort().join(",");
     const currentModSnapshot = modIdsFromIni.slice().sort().join(",");
     const stale =
       currentWsSnapshot !== lastScanWorkshopSnapshot ||
-      currentModSnapshot !== lastScanModSnapshot;
+      currentModSnapshot !== lastScanModSnapshot ||
+      currentServerPath !== lastScanServerPath;
     res.json({
       ...lastScanResult,
       stale,
@@ -6252,7 +6366,8 @@ router.get("/conflicts/cached", async (req, res) => {
 
 // ─── Batch scan endpoint (for non-SSE clients) ──────────────────────────────
 router.get("/conflicts", async (req, res) => {
-  if (!acquireScanLock()) {
+  const lockToken = acquireScanLock();
+  if (!lockToken) {
     return res
       .status(429)
       .json({ error: "A conflict scan is already running. Please wait." });
@@ -6351,6 +6466,7 @@ router.get("/conflicts", async (req, res) => {
     };
     lastScanWorkshopSnapshot = workshopIds.slice().sort().join(",");
     lastScanModSnapshot = modIdsFromIni?.slice().sort().join(",") || null;
+    lastScanServerPath = serverPath;
     lastScanResult = result;
     lastScanTimestamp = Date.now();
     res.json(result);
@@ -6358,7 +6474,8 @@ router.get("/conflicts", async (req, res) => {
     log.error(`Failed to scan mod conflicts: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
   } finally {
-    releaseScanLock();
+    resetScanCaches();
+    releaseScanLock(lockToken);
   }
 });
 
@@ -6366,7 +6483,8 @@ router.get("/conflicts", async (req, res) => {
 // Streams progress events as each mod is scanned and conflicts are found.
 // Auth handled via ?token= query param (SSE can't set custom headers).
 router.get("/conflicts/stream", async (req, res) => {
-  if (!acquireScanLock()) {
+  const lockToken = acquireScanLock();
+  if (!lockToken) {
     return res
       .status(429)
       .json({ error: "A conflict scan is already running. Please wait." });
@@ -6382,6 +6500,12 @@ router.get("/conflicts/stream", async (req, res) => {
   });
   res.flushHeaders();
 
+  // Detect client disconnect
+  let aborted = false;
+  req.on("close", () => {
+    aborted = true;
+  });
+
   const send = (event, data) => {
     if (!res.writable || aborted) return;
     try {
@@ -6391,11 +6515,17 @@ router.get("/conflicts/stream", async (req, res) => {
     }
   };
 
-  // Detect client disconnect
-  let aborted = false;
-  req.on("close", () => {
-    aborted = true;
-  });
+  // A large scan can spend a long time in one phase. Without traffic a proxy
+  // is free to drop the connection, so emit an SSE comment as a keep-alive.
+  const heartbeat = setInterval(() => {
+    if (!res.writable || aborted) return;
+    try {
+      res.write(": ping\n\n");
+    } catch (e) {
+      log.debug(`SSE heartbeat failed (stream closed): ${e.message}`);
+    }
+  }, 20_000);
+  heartbeat.unref?.();
 
   try {
     const serverPath = await getServerPath();
@@ -6479,24 +6609,40 @@ router.get("/conflicts/stream", async (req, res) => {
       additiveSkipped,
       pzAdditiveSkipped,
       pzAdditiveBreakdown,
-    } = await detectConflicts(fileIndex, (conflict) => {
-      if (aborted) return;
-      conflictCount++;
-      // Stream each conflict as it's found (every 3rd to avoid flooding, or always for high severity)
-      if (
-        conflict.severity === "high" ||
-        conflictCount <= 5 ||
-        conflictCount % 3 === 0
-      ) {
-        send("conflict-found", {
-          file: conflict.file,
-          severity: conflict.severity,
-          categoryLabel: conflict.categoryLabel,
-          mods: conflict.mods.map((m) => m.modName),
-          conflictsSoFar: conflictCount,
-        });
-      }
-    });
+    } = await detectConflicts(
+      fileIndex,
+      (conflict) => {
+        if (aborted) return;
+        conflictCount++;
+        // Stream each conflict as it's found (every 3rd to avoid flooding, or always for high severity)
+        if (
+          conflict.severity === "high" ||
+          conflictCount <= 5 ||
+          conflictCount % 3 === 0
+        ) {
+          send("conflict-found", {
+            file: conflict.file,
+            severity: conflict.severity,
+            categoryLabel: conflict.categoryLabel,
+            mods: conflict.mods.map((m) => m.modName),
+            conflictsSoFar: conflictCount,
+          });
+        }
+      },
+      {
+        // Stop the scan when the client has gone: comparing files for a
+        // browser that closed the tab is pure wasted I/O.
+        shouldAbort: () => aborted,
+        // Comparison used to be a silent gap between 60% and 85%.
+        onProgress: ({ processed, total }) => {
+          if (aborted || total === 0) return;
+          send("phase", {
+            phase: "hashing",
+            progress: 60 + Math.round((processed / total) * 25),
+          });
+        },
+      },
+    );
 
     if (aborted) {
       res.end();
@@ -6520,6 +6666,7 @@ router.get("/conflicts/stream", async (req, res) => {
           conflictsSoFar: conflictCount,
         });
       },
+      { shouldAbort: () => aborted },
     );
     if (crossFileConflicts.length > 0) conflicts.push(...crossFileConflicts);
 
@@ -6573,6 +6720,7 @@ router.get("/conflicts/stream", async (req, res) => {
     lastScanTimestamp = Date.now();
     lastScanWorkshopSnapshot = workshopIds.slice().sort().join(",");
     lastScanModSnapshot = modIdsFromIni.slice().sort().join(",");
+    lastScanServerPath = serverPath;
     send("complete", result);
     res.end();
   } catch (error) {
@@ -6582,7 +6730,9 @@ router.get("/conflicts/stream", async (req, res) => {
       res.end();
     }
   } finally {
-    releaseScanLock();
+    clearInterval(heartbeat);
+    resetScanCaches();
+    releaseScanLock(lockToken);
   }
 });
 
@@ -7094,6 +7244,87 @@ router.post("/enable-disk-mod", async (req, res) => {
   }
 });
 
+// Deletes the workshop content folder, then strips the workshop ID, its
+// mod-folder IDs and its map folders from the server INI so the server stops
+// loading it. Returns iniEditApplied=false when the config file could not be
+// reached — callers must not ignore-list in that case, because the mod may
+// still be live in Mods=/WorkshopItems=.
+async function deleteModFromDiskAndIni(wsId) {
+  const serverConfigPath = await getServerConfigPath();
+  const serverName = await getServerName();
+  const serverPath = await getServerPath();
+  const sanitized = serverName ? path.basename(serverName) : null;
+  const iniPath =
+    sanitized && serverConfigPath
+      ? path.join(serverConfigPath, `${sanitized}.ini`)
+      : null;
+
+  // Capture mod IDs and map folders BEFORE we delete the folder — both are
+  // read off the files we are about to remove.
+  const modIdsToStrip = serverPath
+    ? findAllModIdsFromWorkshop(wsId, serverPath)
+    : [];
+  const mapFoldersToStrip = serverPath
+    ? findMapFoldersFromWorkshop(wsId, serverPath)
+    : [];
+
+  const possiblePaths = getWorkshopPaths(wsId, serverPath || "");
+  let removedPath = null;
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      try {
+        fs.rmSync(p, { recursive: true, force: true });
+        removedPath = p;
+        break;
+      } catch (e) {
+        log.warn(`Failed to delete workshop folder ${p}: ${e.message}`);
+      }
+    }
+  }
+
+  let iniEditApplied = false;
+  if (iniPath && fs.existsSync(iniPath)) {
+    iniEditApplied = true;
+    await withIniLock(iniPath, () => {
+      let content = readTextFile(iniPath);
+      const wsMatch = content.match(/^WorkshopItems=(.*)$/m);
+      if (wsMatch) {
+        const wsList = wsMatch[1]
+          .split(";")
+          .filter(Boolean)
+          .filter((id) => id !== wsId);
+        content = content.replace(
+          /^WorkshopItems=.*/m,
+          `WorkshopItems=${sanitizeIniList(wsList)}`,
+        );
+      }
+      const modsMatch = content.match(/^Mods=(.*)$/m);
+      if (modsMatch && modIdsToStrip.length > 0) {
+        const modsList = modsMatch[1]
+          .split(";")
+          .filter(Boolean)
+          .filter((id) => !modIdsToStrip.includes(id));
+        content = content.replace(
+          /^Mods=.*/m,
+          `Mods=${sanitizeModIdList(modsList)}`,
+        );
+      }
+      const mapMatch = content.match(/^Map=(.*)$/m);
+      if (mapMatch && mapFoldersToStrip.length > 0) {
+        let mapList = mapMatch[1]
+          .split(";")
+          .filter(Boolean)
+          .filter((m) => !mapFoldersToStrip.includes(m));
+        if (mapList.length === 0) mapList = ["Muldraugh, KY"];
+        content = content.replace(/^Map=.*/m, `Map=${sanitizeIniList(mapList)}`);
+      }
+      fs.writeFileSync(iniPath, content, "utf-8");
+    });
+  }
+
+  return { removedPath, modIdsToStrip, mapFoldersToStrip, iniEditApplied };
+}
+
 // Delete a mod from disk: removes the workshop content folder, and also
 // strips the workshop ID + any of its mod-folder IDs from the server INI
 // so the server won't try to load it on next start. Used by the "Disabled
@@ -7106,66 +7337,8 @@ router.post("/delete-disk-mod", async (req, res) => {
       return res.status(400).json({ error: "Invalid workshop ID" });
     }
 
-    const serverConfigPath = await getServerConfigPath();
-    const serverName = await getServerName();
-    const serverPath = await getServerPath();
-    const sanitized = serverName ? path.basename(serverName) : null;
-    const iniPath =
-      sanitized && serverConfigPath
-        ? path.join(serverConfigPath, `${sanitized}.ini`)
-        : null;
-
-    // Capture mod IDs BEFORE we delete the folder so we can scrub the INI.
-    const modIdsToStrip = serverPath
-      ? findAllModIdsFromWorkshop(wsId, serverPath)
-      : [];
-
-    // Delete the workshop folder on disk.
-    const possiblePaths = getWorkshopPaths(wsId, serverPath || "");
-    let removedPath = null;
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        try {
-          fs.rmSync(p, { recursive: true, force: true });
-          removedPath = p;
-          break;
-        } catch (e) {
-          log.warn(`Failed to delete workshop folder ${p}: ${e.message}`);
-        }
-      }
-    }
-
-    // Strip from INI (workshop ID + its mod IDs).
-    let iniEditApplied = false;
-    if (iniPath && fs.existsSync(iniPath)) {
-      iniEditApplied = true;
-      await withIniLock(iniPath, () => {
-        let content = readTextFile(iniPath);
-        const wsMatch = content.match(/^WorkshopItems=(.*)$/m);
-        if (wsMatch) {
-          const wsList = wsMatch[1]
-            .split(";")
-            .filter(Boolean)
-            .filter((id) => id !== wsId);
-          content = content.replace(
-            /^WorkshopItems=.*/m,
-            `WorkshopItems=${sanitizeIniList(wsList)}`,
-          );
-        }
-        const modsMatch = content.match(/^Mods=(.*)$/m);
-        if (modsMatch && modIdsToStrip.length > 0) {
-          const modsList = modsMatch[1]
-            .split(";")
-            .filter(Boolean)
-            .filter((id) => !modIdsToStrip.includes(id));
-          content = content.replace(
-            /^Mods=.*/m,
-            `Mods=${sanitizeModIdList(modsList)}`,
-          );
-        }
-        fs.writeFileSync(iniPath, content, "utf-8");
-      });
-    }
+    const { removedPath, modIdsToStrip, iniEditApplied } =
+      await deleteModFromDiskAndIni(wsId);
 
     // Drop from tracking, then ADD to the ignore list so auto-sync won't
     // re-track the mod next time Steam re-downloads it. Delete is meant to
@@ -7211,6 +7384,90 @@ router.post("/delete-disk-mod", async (req, res) => {
     });
   } catch (error) {
     log.error(`Failed to delete disk mod: ${error.message}`);
+    res.status(500).json({ error: sanitizeError(error.message) });
+  }
+});
+
+// "Remove everywhere" — the single action for a mod you never want back.
+// Steam collection, then server INI, then disk, then tracking, and finally
+// ignore-listed so a later scan can't quietly re-add it. The collection step
+// is reported separately because it is the only one that can fail for a
+// reason the user can fix (missing Steam cookies).
+router.post("/purge", async (req, res) => {
+  try {
+    const wsId = String(req.body?.workshopId || "").trim();
+    if (!/^\d{1,15}$/.test(wsId)) {
+      return res.status(400).json({ error: "Invalid workshop ID" });
+    }
+
+    // Read the name before untracking, or the ignore list loses it.
+    let name = null;
+    try {
+      const tracked = await getTrackedMods();
+      name = tracked?.find((m) => String(m.workshop_id) === wsId)?.name || null;
+    } catch {
+      /* ignore */
+    }
+    if (!name && req.body?.name) name = String(req.body.name).slice(0, 200);
+
+    const collection = { attempted: false, ok: false, error: null };
+    const collectionId = await getSetting("workshopCollectionId");
+    if (collectionId) {
+      collection.attempted = true;
+      try {
+        const r = await removeItemFromCollection(collectionId, wsId);
+        collection.ok = !!r.ok;
+        if (!r.ok) collection.error = r.error || "Steam rejected the change";
+      } catch (e) {
+        collection.error = e.message;
+      }
+    }
+
+    const { removedPath, modIdsToStrip, mapFoldersToStrip, iniEditApplied } =
+      await deleteModFromDiskAndIni(wsId);
+
+    if (!iniEditApplied) {
+      log.error(
+        `Purge ${wsId}: INI edit was never applied (missing server config path or ini file) — not untracking or ignore-listing`,
+      );
+      return res.status(500).json({
+        error:
+          "Server config file was not found or not accessible — the mod was not removed from the server.",
+        collection,
+        deletedFromDisk: !!removedPath,
+      });
+    }
+
+    try {
+      await removeTrackedMod(wsId);
+    } catch {
+      /* ignore */
+    }
+    try {
+      await addIgnoredMod(wsId, name);
+    } catch {
+      /* ignore */
+    }
+
+    log.info(
+      `Purged ${wsId} (${name || "unknown name"}): collection=${
+        collection.attempted ? (collection.ok ? "removed" : "failed") : "skipped"
+      }, disk=${removedPath || "not found"}, mod IDs stripped=${
+        modIdsToStrip.length
+      }, map folders stripped=${mapFoldersToStrip.length}`,
+    );
+
+    res.json({
+      success: true,
+      workshopId: wsId,
+      name,
+      collection,
+      deletedFromDisk: !!removedPath,
+      modIdsStripped: modIdsToStrip.length,
+      mapFoldersStripped: mapFoldersToStrip.length,
+    });
+  } catch (error) {
+    log.error(`Purge failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
   }
 });

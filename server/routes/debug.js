@@ -3801,7 +3801,7 @@ router.get("/worldmap", async (req, res) => {
           `${PZ_MAP_ROOT}/maps/${b42Dir || "42.19.0"}/base/layer0_files/0/0_0.jpg`,
         ),
         probeTile(
-          `${PZ_MAP_ROOT}/maps/SurvivalB417812L0/map_files/0/0_0.jpg`,
+          `${PZ_MAP_ROOT}/maps/41.78.16/base/layer0_files/0/0_0.jpg`,
         ),
         b42Dir && b42TopFormat
           ? probeTile(

@@ -5,6 +5,11 @@ import { createLogger } from "../utils/logger.js";
 const log = createLogger("Updates");
 import { getSetting, setSetting, getActiveServer } from "../database/init.js";
 
+async function getSteamLoginArgs() {
+  const account = String((await getSetting("steamUpdateAccount")) || "").trim();
+  return ["+login", account || "anonymous"];
+}
+
 /**
  * Service to check for PZ server updates via Steam
  */
@@ -458,7 +463,10 @@ export class UpdateChecker {
       ? `A server update was detected. The server will restart in ${warningMinutes} minute${warningMinutes === 1 ? "" : "s"}.`
       : "A server update was detected. The server is restarting now.";
     try {
-      if (this.rconService.connected) await this.rconService.serverMessage(message, { skipLog: true });
+      if (this.rconService.connected) {
+        const announced = await this.rconService.serverMessage(message, { skipLog: true });
+        if (!announced?.success) log.warn(`Could not announce automatic update: ${announced?.error || "unknown error"}`);
+      }
     } catch (error) {
       log.warn(`Could not announce automatic update: ${error.message}`);
     }
@@ -484,8 +492,10 @@ export class UpdateChecker {
       if (await this.serverManager.checkServerRunning()) {
         shouldRestart = true;
         if (!this.rconService.connected) throw new Error("RCON is not connected, so the server cannot be stopped safely");
-        await this.rconService.save({ skipLog: true });
-        await this.rconService.quit();
+        const saved = await this.rconService.save({ skipLog: true });
+        if (!saved?.success) throw new Error(`The world could not be saved (${saved?.error || "unknown error"}), so the update was abandoned rather than lose progress`);
+        const quit = await this.rconService.quit();
+        if (!quit?.success) log.warn(`Quit command failed (${quit?.error || "unknown error"}); waiting to see whether the server stops anyway`);
         const deadline = Date.now() + 5 * 60 * 1000;
         while (await this.serverManager.checkServerRunning()) {
           if (Date.now() >= deadline) throw new Error("Server did not stop within 5 minutes");
@@ -500,8 +510,9 @@ export class UpdateChecker {
           : path.join(steamcmdPath, "steamcmd");
       if (!fs.existsSync(steamcmdExe)) throw new Error(`SteamCMD not found at ${steamcmdExe}`);
       const branch = ["public", "stable"].includes(updateInfo.installed.branch) ? [] : ["-beta", updateInfo.installed.branch];
+      const loginArgs = await getSteamLoginArgs();
       const code = await new Promise((resolve, reject) => {
-        const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, "+login", "anonymous", "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
+        const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, ...loginArgs, "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
         child.once("error", reject);
         child.once("close", resolve);
       });
@@ -514,7 +525,8 @@ export class UpdateChecker {
       this.autoUpdateRunning = false;
       if (shouldRestart) {
         try {
-          await this.serverManager.startServer();
+          const started = await this.serverManager.startServer();
+          if (!started?.success) log.error(`Automatic update could not restart the server: ${started?.error || started?.message || "unknown error"}`);
         } catch (error) {
           log.error(`Automatic update could not restart the server: ${error.message}`);
         }
