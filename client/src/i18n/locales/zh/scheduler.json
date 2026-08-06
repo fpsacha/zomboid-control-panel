@@ -1,0 +1,197 @@
+{
+  "title": "调度器",
+  "description": "自动化服务器任务和重启",
+  "tasks": {
+    "noTasks": "暂无计划任务",
+    "createDescription": "创建任务以自动运行命令。",
+    "runNow": "立即运行任务"
+  },
+  "history": {
+    "noHistory": "暂无执行历史",
+    "description": "执行记录将显示在此处。",
+    "title": "执行历史",
+    "recentDescription": "最近的任务执行日志。",
+    "clearDescription": "确定要清除全部 {{count}} 条执行历史吗？此操作无法撤销。",
+    "succeeded": "执行成功",
+    "failed": "执行失败",
+    "duration": "耗时：{{seconds}} 秒"
+  },
+  "presets": {
+    "restart15": "15分钟后重启，带倒计时警告",
+    "restart10": "10分钟后重启，带倒计时警告",
+    "restart5": "5分钟后重启，带倒计时警告",
+    "restart1": "1分钟后重启 - 短警告，需要确认"
+  },
+  "labels": {
+    "cronExpression": "Cron 表达式"
+  },
+  "placeholders": {
+    "taskName": "例如：每日重启",
+    "interval": "例如 4 表示每4小时",
+    "selectPreset": "选择预设...",
+    "cron": "例如：0 */2 * * *",
+    "selectCommand": "选择常用命令...",
+    "customCommand": "或输入自定义命令",
+    "selectServer": "选择服务器..."
+  },
+  "schedulerDataCouldNotBeLoaded": "无法加载调度器数据",
+  "createScheduledTask": "创建计划任务",
+  "taskName": "任务名称",
+  "scheduleType": "计划类型",
+  "frequency": "频率",
+  "everyHourAtMinute0": "每小时（第 0 分）",
+  "everyXHours": "每 X 小时",
+  "dailyAtSpecificTime": "每日定时",
+  "hour023": "小时 (0-23)",
+  "minute059": "分钟 (0-59)",
+  "generatedCron": "生成的 Cron:",
+  "loadPreset": "加载预设",
+  "customExpression": "自定义表达式",
+  "command": "命令",
+  "targetServer": "目标服务器",
+  "customCountdownMinutes": "自定义倒计时（分钟）",
+  "minute": "分钟",
+  "hour": "小时",
+  "day": "天",
+  "month": "月",
+  "weekday": "星期",
+  "restartServerIn1Minute": "在 1 分钟后重启服务器？",
+  "cancel": "取消",
+  "deleteScheduledTask": "删除计划任务",
+  "clearExecutionHistory": "清除执行历史",
+  "eyebrow": "维护",
+  "createTaskDescription": "按计划执行命令。",
+  "targetServerDescription": "无论任务触发时哪台服务器处于活动状态，该任务始终会在此服务器上执行。",
+  "actions": {
+    "retry": "重试",
+    "newTask": "新建任务",
+    "createTask": "创建任务",
+    "delete": "删除",
+    "refresh": "刷新",
+    "clear": "清除",
+    "clearAll": "全部清除"
+  },
+  "scheduleModes": {
+    "simple": "简单构建器",
+    "advanced": "高级（Cron）"
+  },
+  "commands": {
+    "restartServer": "重启服务器",
+    "saveWorld": "保存世界",
+    "serverMessage": "服务器消息",
+    "checkModUpdates": "检查模组更新",
+    "triggerBlizzard": "触发暴风雪（2 小时）",
+    "triggerStorm": "触发风暴（1 小时）",
+    "triggerTropicalStorm": "触发热带风暴（1 小时）",
+    "stopAllWeather": "停止所有天气",
+    "startRain": "开始下雨",
+    "stopRain": "停止下雨",
+    "restoreUtilities": "恢复公共设施",
+    "shutOffUtilities": "关闭公共设施",
+    "saveWorldPanelBridge": "保存世界（PanelBridge）",
+    "broadcastServerChat": "广播（服务器聊天）"
+  },
+  "server": {
+    "active": "活动",
+    "remote": "远程",
+    "fallbackName": "服务器 {{id}}",
+    "unknown": "未知服务器",
+    "targetTooltip": "目标服务器：{{name}}"
+  },
+  "statusCards": {
+    "activeTasks": "活动任务",
+    "totalTasks": "任务总数：{{count}}",
+    "restartTasks": "重启任务",
+    "scheduled": "已计划",
+    "none": "无",
+    "restartTaskCount": "重启任务数：{{count}}",
+    "modUpdateRestart": "模组更新重启",
+    "pending": "等待中",
+    "modUpdateRestartDescription": "模组更新后自动重启"
+  },
+  "manualRestart": {
+    "title": "手动重启",
+    "onlineDescription": "选择倒计时，玩家会收到提醒，倒计时结束后服务器将重启。",
+    "offlineDescription": "服务器已离线，请先启动服务器再执行重启。",
+    "restartIn": "{{minutes}} 分钟后重启",
+    "oneMinuteDescription": "服务器关闭前玩家只会收到一次 1 分钟提醒。如果有人正在战斗或驾驶，请使用更长的倒计时。",
+    "restartConfirm": "将在 {{minutes}} 分钟后重启，是否继续？",
+    "shortCountdownDescription": "较短的倒计时可能会打断玩家当前操作。确定要这么快重启吗？",
+    "restartNow": "立即重启",
+    "countdownDescription": "倒计时期间，玩家会在剩余 15、10、5 和 1 分钟时收到提醒。"
+  },
+  "broadcasts": {
+    "title": "快速广播",
+    "onlineDescription": "向所有玩家发送常用公告。",
+    "offlineDescription": "服务器已离线，广播需要服务器处于运行状态。",
+    "buttons": {
+      "maintenanceStart": "开始维护",
+      "maintenanceEnd": "结束维护",
+      "saveWarning": "保存提醒",
+      "welcome": "欢迎"
+    },
+    "messages": {
+      "maintenanceStart": "服务器即将进入维护模式，请保存进度并断开连接",
+      "maintenanceEnd": "维护完成，服务器已恢复在线！",
+      "saveWarning": "服务器将在 30 秒后保存，期间可能出现短暂卡顿",
+      "welcome": "欢迎！请在出生点阅读游戏规则"
+    }
+  },
+  "scheduledTasks": {
+    "title": "计划任务",
+    "description": "管理自动执行的命令。",
+    "lastRun": "上次运行",
+    "deleteDescription": "确定要删除“{{name}}”吗？此操作无法撤销。"
+  },
+  "accessibility": {
+    "runTask": "立即运行 {{name}}",
+    "toggleTask": "切换 {{name}}",
+    "deleteTask": "删除任务 {{name}}"
+  },
+  "cron": {
+    "format": "格式：分钟 小时 日期 月份 星期"
+  },
+  "bridge": {
+    "format": "格式",
+    "example": "示例",
+    "description": "参数可选。只有允许列表中的操作才能通过计划任务执行。"
+  },
+  "cronHelp": {
+    "title": "Cron 表达式帮助",
+    "weekdayValues": "0-6（周日-周六）",
+    "anyValue": "任意值",
+    "everyNUnits": "每 n 个单位",
+    "everyTwoHours": "每 2 小时",
+    "dailyAtSix": "每天 6 点"
+  },
+  "toast": {
+    "success": "成功",
+    "error": "错误",
+    "taskCreated": "任务创建成功",
+    "taskEnabled": "任务已启用",
+    "taskDisabled": "任务已禁用",
+    "taskDeleted": "任务已删除",
+    "taskExecutedTitle": "任务已执行",
+    "taskExecuted": "“{{name}}”执行成功",
+    "restartInitiated": "已发起重启",
+    "serverRestartIn": "服务器将在 {{minutes}} 分钟后重启",
+    "serverRestartWithWarnings": "服务器将在 {{minutes}} 分钟后重启，并发送倒计时提醒",
+    "broadcastSent": "广播已发送",
+    "historyCleared": "执行历史已清除"
+  },
+  "errors": {
+    "loadDataFailed": "加载计划任务数据失败，后端可能无法访问。",
+    "requiredFields": "请填写所有字段",
+    "invalidSchedule": "计划无效",
+    "invalidCron": "Cron 表达式无效：{{cron}}",
+    "createTaskFailed": "创建任务失败",
+    "updateTaskFailed": "更新任务失败",
+    "deleteTaskFailed": "删除任务失败",
+    "executionFailed": "执行失败",
+    "commandFailed": "命令执行失败",
+    "runTaskFailed": "运行任务失败",
+    "restartFailed": "发起重启失败",
+    "broadcastFailed": "发送广播失败",
+    "clearHistoryFailed": "清除执行历史失败"
+  }
+}

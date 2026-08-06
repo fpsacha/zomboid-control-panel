@@ -1,0 +1,71 @@
+{
+    "title":  "Zomboid 控制面板",
+    "description":  "为此面板创建第一个管理员账户，然后继续完成剩余设置。",
+    "badge":  "初始配置",
+    "cardTitle":  "创建管理员账户",
+    "cardDescription":  "此账户解锁控制面板并立即登录。",
+    "footer":  "请安全保存此密码。不支持邮箱重置 — 后续重置需要对此服务器的文件系统访问权限。",
+    "steps":  {
+                  "progress":  "设置进度",
+                  "account":  "账户",
+                  "server":  "服务器",
+                  "launch":  "启动"
+              },
+    "labels":  {
+                   "username":  "用户名",
+                   "usernameHint":  "3-32 个字符：字母、数字、_ 或 -",
+                   "password":  "密码",
+                   "confirmPassword":  "确认密码",
+                   "confirmHint":  "再次输入相同密码以确认。",
+                   "keepSignedIn":  "在此浏览器上保持登录"
+               },
+    "placeholders":  {
+                         "password":  "••••••••"
+                     },
+    "passwordStrength":  {
+                             "tooShort":  "太短",
+                             "weak":  "弱",
+                             "fair":  "一般",
+                             "good":  "良好",
+                             "strong":  "强"
+                         },
+    "passwordMatch":  {
+                          "match":  "密码匹配",
+                          "noMatch":  "密码不匹配"
+                      },
+    "actions":  {
+                    "createAccount":  "创建账户并继续",
+                    "creating":  "正在创建管理员账户...",
+                    "showPassword":  "显示密码",
+                    "hidePassword":  "隐藏密码"
+                },
+    "afterStep":  {
+                      "title":  "后续步骤",
+                      "preview":  "预览",
+                      "bringServer":  {
+                                          "title":  "将服务器引入面板",
+                                          "description":  "添加现有安装或运行引导设置来创建一个。"
+                                      },
+                      "confirmRCON":  {
+                                          "title":  "确认 RCON 和路径",
+                                          "description":  "面板需要先对服务器进行身份验证才能执行有用操作。"
+                                      },
+                      "takeLive":  {
+                                       "title":  "上线仪表板",
+                                       "description":  "在一个界面中验证状态、玩家、备份和快速管理操作。"
+                                   }
+                  },
+    "errors":  {
+                   "usernameInvalid":  "用户名必须为 3-32 个字符（字母、数字、_ 或 -）",
+                   "passwordTooShort":  "密码至少需要 6 个字符",
+                   "passwordsNoMatch":  "密码不匹配",
+                   "setupFailed":  "设置失败"
+               },
+    "status":  {
+                   "online":  "在线",
+                   "looksGood":  "正常。",
+                   "usernameFormat":  "仅支持 3-32 个字符：字母、数字、_ 或 -。",
+                   "capsLockOn":  "大写锁定已开启",
+                   "passwordMinimum":  "至少使用 6 个字符。"
+               }
+}

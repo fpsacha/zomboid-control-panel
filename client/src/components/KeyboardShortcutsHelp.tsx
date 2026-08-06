@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,7 @@ interface KeyboardShortcutsHelpProps {
 }
 
 export function KeyboardShortcutsHelp({ open, onClose, shortcuts }: KeyboardShortcutsHelpProps) {
+  const { t } = useTranslation('common')
   const groups = shortcuts.reduce<Record<string, ShortcutDef[]>>((acc, s) => {
     if (!acc[s.group]) acc[s.group] = []
     acc[s.group].push(s)
@@ -22,10 +24,10 @@ export function KeyboardShortcutsHelp({ open, onClose, shortcuts }: KeyboardShor
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
-      <DialogContent className="max-w-sm p-5" aria-label="Keyboard shortcuts">
+      <DialogContent className="max-w-sm p-5" aria-label={t('keyboardShortcuts.title')}>
         <DialogHeader>
-          <DialogTitle className="text-base font-semibold text-foreground">Keyboard Shortcuts</DialogTitle>
-          <DialogDescription className="sr-only">Available keyboard shortcuts for navigating and controlling the panel.</DialogDescription>
+          <DialogTitle className="text-base font-semibold text-foreground">{t('keyboardShortcuts.title')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('keyboardShortcuts.description')}</DialogDescription>
         </DialogHeader>
 
         {Object.entries(groups).map(([group, items]) => (
@@ -45,7 +47,7 @@ export function KeyboardShortcutsHelp({ open, onClose, shortcuts }: KeyboardShor
         ))}
 
         <p className="mt-3 text-xs text-muted-foreground">
-          Shortcuts are disabled when typing in an input field.
+          {t('keyboardShortcuts.inputDisabled')}
         </p>
       </DialogContent>
     </Dialog>

@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 type BridgeState = 'connected' | 'waiting' | 'offline' | 'loading'
 
@@ -13,37 +14,38 @@ interface BridgeStatusBadgeProps {
 }
 
 export function BridgeStatusBadge({ connected, running, loading, bridgePath, summary, className }: BridgeStatusBadgeProps) {
+  const { t } = useTranslation('common')
   const state: BridgeState = loading ? 'loading' : connected ? 'connected' : running ? 'waiting' : 'offline'
 
   const config: Record<BridgeState, { surface: string; dot: string; label: string; hint?: string }> = {
     connected: {
       surface: 'border-primary/15 bg-primary/8',
       dot: 'bg-primary',
-      label: 'Bridge connected',
+      label: t('bridgeStatus.connected'),
     },
     waiting: {
       surface: 'border-warning/20 bg-warning/8',
       dot: 'bg-warning animate-pulse',
-      label: 'Bridge waiting',
-      hint: 'Watching for PZ mod — start/restart the server',
+      label: t('bridgeStatus.waiting'),
+      hint: t('bridgeStatus.waitingHint'),
     },
     offline: {
       surface: 'border-destructive/20 bg-destructive/8',
       dot: 'bg-destructive',
-      label: 'Bridge offline',
-      hint: 'Go to Settings → Bridge to configure',
+      label: t('bridgeStatus.offline'),
+      hint: t('bridgeStatus.offlineHint'),
     },
     loading: {
       surface: 'border-border/40 bg-muted/30',
       dot: '',
-      label: 'Checking…',
+      label: t('bridgeStatus.checking'),
     },
   }
 
   const c = config[state]
   const tooltip = [
     summary || c.hint,
-    bridgePath ? `Path: ${bridgePath}` : null,
+    bridgePath ? t('bridgeStatus.path', { path: bridgePath }) : null,
   ].filter(Boolean).join('\n')
 
   return (

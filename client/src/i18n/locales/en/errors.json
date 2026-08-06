@@ -1,0 +1,85 @@
+{
+    "general":  {
+                    "unknown":  "An unknown error occurred",
+                    "network":  "Network error. Please check your connection.",
+                    "timeout":  "Request timed out. Please try again.",
+                    "serverUnavailable":  "Server is unavailable",
+                    "permissionDenied":  "Permission denied",
+                    "notFound":  "Resource not found",
+                    "invalidRequest":  "Invalid request",
+                    "internalError":  "Internal server error",
+                    "actionFailed":  "Action failed. Please try again."
+                },
+    "auth":  {
+                 "loginFailed":  "Login failed. Please check your credentials.",
+                 "tokenExpired":  "Session expired. Please log in again.",
+                 "invalidToken":  "Invalid authentication token",
+                 "accessDenied":  "Access denied",
+                 "accountLocked":  "Account is locked"
+             },
+    "server":  {
+                   "startFailed":  "Failed to start server",
+                   "stopFailed":  "Failed to stop server",
+                   "restartFailed":  "Failed to restart server",
+                   "saveFailed":  "Failed to save world",
+                   "notRunning":  "Server is not running",
+                   "alreadyRunning":  "Server is already running",
+                   "portInUse":  "Port is already in use",
+                   "invalidPath":  "Invalid server path",
+                   "missingFiles":  "Required server files are missing",
+                   "javaError":  "Java error occurred",
+                   "memoryError":  "Insufficient memory"
+               },
+    "rcon":  {
+                 "connectionFailed":  "Failed to connect to RCON",
+                 "authenticationFailed":  "RCON authentication failed",
+                 "commandFailed":  "Failed to execute command",
+                 "connectionLost":  "RCON connection lost",
+                 "invalidHost":  "Invalid RCON host",
+                 "invalidPort":  "Invalid RCON port"
+             },
+    "mods":  {
+                 "addFailed":  "Failed to add mod",
+                 "removeFailed":  "Failed to remove mod",
+                 "updateFailed":  "Failed to update mod",
+                 "invalidModId":  "Invalid Mod ID",
+                 "invalidWorkshopId":  "Invalid Workshop ID",
+                 "downloadFailed":  "Failed to download mod",
+                 "dependencyMissing":  "Missing required dependency",
+                 "conflictDetected":  "Mod conflict detected",
+                 "alreadyAdded":  "Mod is already added",
+                 "notFound":  "Mod not found"
+             },
+    "backup":  {
+                   "createFailed":  "Failed to create backup",
+                   "restoreFailed":  "Failed to restore backup",
+                   "deleteFailed":  "Failed to delete backup",
+                   "uploadFailed":  "Failed to upload backup",
+                   "downloadFailed":  "Failed to download backup",
+                   "invalidFile":  "Invalid backup file",
+                   "fileTooLarge":  "File too large",
+                   "diskSpace":  "Insufficient disk space",
+                   "corrupted":  "Backup file is corrupted"
+               },
+    "config":  {
+                   "loadFailed":  "Failed to load configuration",
+                   "saveFailed":  "Failed to save configuration",
+                   "invalidValue":  "Invalid configuration value",
+                   "validationFailed":  "Configuration validation failed",
+                   "missingRequired":  "Required configuration is missing"
+               },
+    "player":  {
+                   "notFound":  "Player not found",
+                   "alreadyBanned":  "Player is already banned",
+                   "notBanned":  "Player is not banned",
+                   "actionFailed":  "Player action failed",
+                   "invalidSteamId":  "Invalid Steam ID"
+               },
+    "file":  {
+                 "notFound":  "File not found",
+                 "accessDenied":  "File access denied",
+                 "readFailed":  "Failed to read file",
+                 "writeFailed":  "Failed to write file",
+                 "invalidPath":  "Invalid file path"
+             }
+}

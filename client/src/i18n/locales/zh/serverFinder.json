@@ -1,0 +1,101 @@
+{
+    "title":  "浏览公共服务器",
+    "description":  "搜索公共 Project Zomboid 服务器列表并复制服务器地址以快速加入",
+    "empty":  {
+                  "noServers":  "没有服务器匹配您的筛选条件",
+                  "tryAdjusting":  "尝试调整搜索筛选条件或刷新服务器列表",
+                  "noPublicServers": "未找到公共服务器",
+                  "refreshLater": "请稍后尝试刷新列表。",
+                  "addApiKey": "请在设置中添加 Steam API 密钥，以加载 Project Zomboid 公共服务器列表。"
+              },
+    "labels":  {
+                   "search":  "搜索公共服务器",
+                   "name":  "名称",
+                   "players":  "玩家",
+                   "ping":  "延迟",
+                   "pagination":  "服务器列表分页",
+                   "firstPage":  "转到第一页",
+                   "prevPage":  "转到上一页",
+                   "nextPage":  "转到下一页",
+                   "lastPage":  "转到最后一页",
+                   "version":  "版本",
+                   "sortBy":  "排序方式",
+                   "maxPlayers":  "最大玩家数",
+                   "ascending":  "升序",
+                   "descending":  "降序",
+                   "passwordProtected":  "密码保护",
+                   "vacSecured":  "VAC 安全",
+                   "connectTooltip":  "启动游戏并连接到服务器",
+                   "sortAriaCurrent": "按 {{label}} 排序，{{direction}}",
+                   "sortAria": "按 {{label}} 排序",
+                   "notAvailable": "不可用",
+                   "pingAction": "Ping",
+                   "connect": "连接"
+               },
+    "placeholders":  {
+                         "search":  "按名称、IP、地图或关键词搜索...",
+                         "version":  "所有版本"
+                     },
+    "status":  {
+                   "loading":  "正在加载服务器..."
+               },
+    "errors":  {
+                   "steamApiKeyMissing":  "缺少 Steam API 密钥",
+                   "loadFailed":  "无法加载公共服务器",
+                   "apiKeyInstructions":  "前往\u003c1\u003e设置\u003c/1\u003e页面，在「Steam Web API Key」字段中粘贴您的 API 密钥",
+                   "saveAndRefresh":  "点击「保存设置」并刷新此页面",
+                   "addApiKeyHint":  "请在设置中添加 Steam Web API 密钥，以浏览公共服务器。",
+                   "registerKey":  "注册 Steam Web API 密钥",
+                   "goTo":  "前往",
+                   "opensInNewTab":  "（在新标签页中打开）",
+                   "andRegister":  "并注册密钥",
+                   "fetchFailed":  "获取服务器失败",
+                   "unknown":  "未知错误"
+               }
+  ,
+  "actions": {
+    "refreshList": "刷新列表",
+    "reloadFromSteam": "从 Steam 重新加载",
+    "tryAgain": "重试"
+  },
+  "toast": {
+    "serversLoaded": "服务器已加载",
+    "serversLoadedCached": "服务器已加载（缓存）",
+    "serversLoadedDescription": "找到 {{count}} 台服务器，共有 {{players}} 名玩家在线"
+  },
+  "stats": {
+    "totalServers": "服务器总数",
+    "viaSteamApi": "来源：Steam API",
+    "viaMasterServer": "来源：主服务器",
+    "cached": "缓存",
+    "activeServers": "活动服务器",
+    "withPlayersOnline": "有玩家在线",
+    "totalPlayers": "玩家总数",
+    "playingNow": "当前正在游戏",
+    "showing": "当前显示",
+    "filteredOf": "共 {{count}} 台 · 已筛选",
+    "matchingFilters": "符合筛选条件"
+  },
+  "filters": {
+    "title": "搜索和筛选",
+    "show": "显示筛选",
+    "hide": "隐藏筛选",
+    "hideEmpty": "隐藏空服务器",
+    "hideFull": "隐藏已满服务器",
+    "hidePrivate": "隐藏私有服务器",
+    "vacOnly": "仅显示 VAC 安全服务器",
+    "clearAll": "清除所有筛选"
+  },
+  "serverList": {
+    "title": "服务器列表",
+    "description": "点击服务器查看详情或复制地址"
+  },
+  "pagination": {
+    "showing": "显示第 {{start}} - {{end}} 台，共 {{count}} 台服务器",
+    "first": "首页",
+    "previous": "上一页",
+    "page": "第 {{current}} 页，共 {{total}} 页",
+    "next": "下一页",
+    "last": "末页"
+  }
+}

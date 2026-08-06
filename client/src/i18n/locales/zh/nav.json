@@ -1,0 +1,39 @@
+{
+    "dashboard":  "仪表盘",
+    "console":  "服务器控制台",
+    "players":  "在线玩家",
+    "chat":  "游戏内聊天",
+    "events":  "事件与天气",
+    "worldMap":  "世界地图",
+    "serverConfig":  "服务器配置",
+    "mods":  "模组管理",
+    "scheduler":  "定时任务",
+    "backups":  "世界备份",
+    "chunks":  "地图清理",
+    "myServers":  "我的服务器",
+    "serverSetup":  "服务器安装",
+    "browsePublic":  "浏览公共服务器",
+    "discord":  "Discord",
+    "settings":  "面板设置",
+    "debug":  "调试日志",
+    "sections":  {
+                     "live":  "实时",
+                     "world":  "世界",
+                     "config":  "配置",
+                     "maintain":  "维护",
+                     "servers":  "服务器",
+                     "system":  "设置与工具"
+                 },
+    "server":  {
+                   "status":  "服务器状态",
+                   "running":  "服务器运行中",
+                   "stopped":  "服务器已停止",
+                   "start":  "启动服务器",
+                   "stop":  "停止服务器",
+                   "restart":  "重启服务器",
+                   "save":  "保存世界",
+                   "backup":  "创建备份"
+               },
+    "skipToContent":  "跳转到内容",
+    "appName":  "僵尸毁灭工程控制面板"
+}

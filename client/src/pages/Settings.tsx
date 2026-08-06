@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useSearchParams, Link as RouterLink } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePageShortcut } from "../hooks/useKeyboardShortcuts";
 import {
   Save,
@@ -86,6 +87,7 @@ import {
   PanelUpdatePreflight,
   ServerInstance,
 } from "@/lib/api";
+import { getAccessToken } from "@/lib/authToken";
 import { useSocket } from "@/contexts/SocketContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, type ThemeName } from "@/contexts/ThemeContext";
@@ -124,17 +126,17 @@ interface AppSettings {
   panelBridgeSftpPollIntervalSeconds: string;
   panelBridgeSftpLogPath: string;
 
-  // Server automation
+  // Server automation settings
   autoStartServer: boolean;
   autoExportOnLogin: boolean;
   autoExportMaxPerPlayer: string;
+  serverAutoUpdate: boolean;
+  serverAutoUpdateWarningMinutes: string;
 
   // Mod Checker Settings
   modCheckInterval: string;
   modAutoRestart: boolean;
   modRestartDelay: string;
-  serverAutoUpdate: boolean;
-  serverAutoUpdateWarningMinutes: string;
 
   // API Keys
   steamApiKey: string;
@@ -192,8 +194,6 @@ interface CorsDiagnostics {
 const MAX_CORS_ALLOWED_ORIGINS = 100;
 const MAX_CORS_ORIGIN_LENGTH = 256;
 
-// Settings written by other pages are persisted as raw strings, so a stored
-// "false" would otherwise read as truthy here.
 function toSettingBoolean(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") return value;
   if (value === "true") return true;
@@ -203,8 +203,8 @@ function toSettingBoolean(value: unknown, fallback: boolean): boolean {
 
 // Human-friendly age string for bridge diagnostics. Avoids showing the user
 // raw seconds counts like "3344627s" which read as gibberish.
-function formatBridgeAge(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "unknown";
+function formatBridgeAge(seconds: number, unknownLabel = "unknown"): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return unknownLabel;
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const m = Math.round(seconds / 60);
   if (m < 60) return `${m}m`;
@@ -215,6 +215,7 @@ function formatBridgeAge(seconds: number): string {
 }
 
 function ThemeSelect() {
+  const { t } = useTranslation('settings');
   const { theme, setTheme } = useTheme();
   return (
     <Select value={theme} onValueChange={(v) => setTheme(v as ThemeName)}>
@@ -222,14 +223,15 @@ function ThemeSelect() {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="survival">Survival (Dark)</SelectItem>
-        <SelectItem value="light">Light</SelectItem>
+        <SelectItem value="survival">{t('survivalDark')}</SelectItem>
+        <SelectItem value="light">{t('light')}</SelectItem>
       </SelectContent>
     </Select>
   );
 }
 
 export default function Settings() {
+  const { t } = useTranslation('settings');
   const socket = useSocket();
   const [settings, setSettings] = useState<AppSettings>({
     panelBridgeAutoUpdate: true,
@@ -244,11 +246,11 @@ export default function Settings() {
     autoStartServer: false,
     autoExportOnLogin: false,
     autoExportMaxPerPlayer: "3",
+    serverAutoUpdate: false,
+    serverAutoUpdateWarningMinutes: "15",
     modCheckInterval: "5",
     modAutoRestart: true,
     modRestartDelay: "5",
-    serverAutoUpdate: false,
-    serverAutoUpdateWarningMinutes: "15",
     steamApiKey: "",
     workshopCollectionId: "",
     workshopCollectionAutoSync: false,
@@ -307,13 +309,6 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-  const [recoveryCodeStatus, setRecoveryCodeStatus] = useState<{
-    configured: boolean;
-    remaining: number;
-    total: number;
-  } | null>(null);
-  const [generatedRecoveryCodes, setGeneratedRecoveryCodes] = useState<string[]>([]);
-  const [generatingRecoveryCodes, setGeneratingRecoveryCodes] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [localPasswordResetSupported, setLocalPasswordResetSupported] =
@@ -328,6 +323,13 @@ export default function Settings() {
     useState(false);
   const [resettingLocalPassword, setResettingLocalPassword] = useState(false);
   const [showLocalResetPassword, setShowLocalResetPassword] = useState(false);
+  const [recoveryCodeStatus, setRecoveryCodeStatus] = useState<{
+    configured: boolean;
+    remaining: number;
+    total: number;
+  } | null>(null);
+  const [generatedRecoveryCodes, setGeneratedRecoveryCodes] = useState<string[]>([]);
+  const [generatingRecoveryCodes, setGeneratingRecoveryCodes] = useState(false);
 
   // Panel Bridge state
   const [bridgeStatus, setBridgeStatus] = useState<{
@@ -425,91 +427,84 @@ export default function Settings() {
   // Section navigation via tabs
   const settingsSections = [
     {
-      id: "general",
-      label: "General",
-      icon: Settings2,
-      group: "Panel",
-      tip: "Panel port, restart, and appearance",
-      description: "Port this admin interface listens on, plus theme.",
-    },
-    {
-      id: "updates",
-      label: "Updates",
-      icon: Download,
-      group: "Panel",
-      tip: "Check for and apply new panel releases",
-      description: "Panel release checks, downloads, and how updates apply.",
+      id: "panel",
+      label: t('sections.panel.label'),
+      icon: Globe,
+      group: "core",
+      tip: t('sections.panel.tip'),
+      description:
+        t('sections.panel.description'),
     },
     {
       id: "https",
-      label: "HTTPS",
+      label: t('sections.https.label'),
       icon: Lock,
-      group: "Panel",
-      tip: "TLS certificates for encrypted connections",
+      group: "core",
+      tip: t('sections.https.tip'),
       description:
-        "TLS termination. Enable this when exposing the panel beyond your LAN.",
+        t('sections.https.description'),
     },
     {
-      id: "access",
-      label: "Remote access",
-      icon: Globe,
-      group: "Panel",
-      tip: "Which browsers and devices may connect (CORS)",
-      description:
-        "Which origins may reach this panel from another machine, and why requests get blocked.",
-    },
-    {
-      id: "security",
-      label: "Security",
-      icon: Shield,
-      group: "Panel",
-      tip: "Account password and sign-in",
-      description: "Panel account password and sign-in controls.",
-    },
-    {
-      id: "connection",
-      label: "RCON",
+      id: "rcon",
+      label: t('sections.rcon.label'),
       icon: Link,
-      group: "Game server",
-      tip: "Remote console connection and startup behaviour",
+      group: "connections",
+      tip: t('sections.rcon.tip'),
       description:
-        "RCON connection used for commands, plus whether the game server starts with the panel.",
+        t('sections.rcon.description'),
     },
     {
       id: "bridge",
-      label: "PanelBridge",
+      label: t('sections.bridge.label'),
       icon: Zap,
-      group: "Game server",
-      tip: "Lua mod link, including remote servers over SFTP",
+      group: "connections",
+      tip: t('sections.bridge.tip'),
       description:
-        "PanelBridge Lua mod link for weather, teleport, and item control. Supports remote servers over SFTP.",
+        t('sections.bridge.description'),
     },
     {
       id: "mods",
-      label: "Mods & Workshop",
+      label: t('sections.mods.label'),
       icon: Clock,
-      group: "Automation",
-      tip: "Update checks, collection sync, and Steam key",
+      group: "features",
+      tip: t('sections.mods.tip'),
       description:
-        "Workshop update detection, collection sync, and the Steam Web API key they rely on.",
+        t('sections.mods.description'),
+    },
+    {
+      id: "api-keys",
+      label: t('sections.apiKeys.label'),
+      icon: Key,
+      group: "features",
+      tip: t('sections.apiKeys.tip'),
+      description:
+        t('sections.apiKeys.description'),
     },
     {
       id: "backups",
-      label: "Backups",
+      label: t('sections.backups.label'),
       icon: Archive,
-      group: "Automation",
-      tip: "World backup schedule and character exports",
+      group: "features",
+      tip: t('sections.backups.tip'),
       description:
-        "Automatic world backups and per-character export copies.",
+        t('sections.backups.description'),
+    },
+    {
+      id: "security",
+      label: t('sections.security.label'),
+      icon: Shield,
+      group: "system",
+      tip: t('sections.security.tip'),
+      description:
+        t('sections.security.description'),
     },
     {
       id: "about",
-      label: "About",
-      icon: Info,
-      group: "System",
-      tip: "Version, runtime info, and settings kept on other pages",
-      description:
-        "Panel version and runtime details, plus where the remaining settings live.",
+      label: t('sections.about.label'),
+      icon: Server,
+      group: "system",
+      tip: t('sections.about.tip'),
+      description: t('sections.about.description'),
     },
   ];
   const settingsGroups = settingsSections.reduce<
@@ -520,22 +515,19 @@ export default function Settings() {
     else groups.push({ name: section.group, sections: [section] });
     return groups;
   }, []);
-  // Keeps older ?tab= links and in-app deep links working after the rename.
-  const legacyTabAliases: Record<string, string> = {
-    panel: "general",
-    rcon: "connection",
-    "api-keys": "mods",
-  };
   const validTabs = settingsSections.map((s) => s.id);
-  const resolveTabId = (tab: string | null) => {
-    if (!tab) return null;
-    const resolved = legacyTabAliases[tab] ?? tab;
-    return validTabs.includes(resolved) ? resolved : null;
+  const legacyTabAliases: Record<string, string> = {
+    general: "panel",
+    updates: "panel",
+    access: "panel",
+    connection: "rcon",
   };
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeSection, setActiveSection] = useState(
-    () => resolveTabId(searchParams.get("tab")) ?? "general",
-  );
+  const [activeSection, setActiveSection] = useState(() => {
+    const tab = searchParams.get("tab");
+    const resolvedTab = tab ? legacyTabAliases[tab] ?? tab : null;
+    return resolvedTab && validTabs.includes(resolvedTab) ? resolvedTab : "panel";
+  });
 
   // Sync active tab to URL
   const handleTabChange = useCallback(
@@ -578,15 +570,11 @@ export default function Settings() {
           const loadedSettings: AppSettings = {
             ...prevSettings,
             ...incoming,
-            autoStartServer: toSettingBoolean(incoming.autoStartServer, false),
-            autoExportOnLogin: toSettingBoolean(
-              incoming.autoExportOnLogin,
-              false,
-            ),
-            autoExportMaxPerPlayer: String(
-              incoming.autoExportMaxPerPlayer ??
-                prevSettings.autoExportMaxPerPlayer,
-            ),
+            autoStartServer: toSettingBoolean(incoming.autoStartServer, prevSettings.autoStartServer),
+            autoExportOnLogin: toSettingBoolean(incoming.autoExportOnLogin, prevSettings.autoExportOnLogin),
+            serverAutoUpdate: toSettingBoolean(incoming.serverAutoUpdate, prevSettings.serverAutoUpdate),
+            autoExportMaxPerPlayer: String(incoming.autoExportMaxPerPlayer ?? prevSettings.autoExportMaxPerPlayer),
+            serverAutoUpdateWarningMinutes: String(incoming.serverAutoUpdateWarningMinutes ?? prevSettings.serverAutoUpdateWarningMinutes),
           };
           setOriginalSettings(loadedSettings);
           return loadedSettings;
@@ -673,11 +661,11 @@ export default function Settings() {
       const message =
         error instanceof Error
           ? error.message
-          : "Could not load updater status";
+          : t('ui.couldNotLoadUpdaterStatus');
       setPanelUpdateStatusError(message);
       reportClientError("Failed to fetch panel update status.", error);
     }
-  }, []);
+  }, [t]);
 
   const fetchPanelUpdatePreflight = useCallback(async () => {
     try {
@@ -727,27 +715,30 @@ export default function Settings() {
         .filter(Boolean);
 
       if (origins.length > MAX_CORS_ALLOWED_ORIGINS) {
-        return `Too many origins. Maximum is ${MAX_CORS_ALLOWED_ORIGINS}.`;
+        return t('ui.tooManyOrigins', { max: MAX_CORS_ALLOWED_ORIGINS });
       }
 
       for (const origin of origins) {
         if (origin.length > MAX_CORS_ORIGIN_LENGTH) {
-          return `Origin too long (${origin.length} chars). Maximum is ${MAX_CORS_ORIGIN_LENGTH}.`;
+          return t('ui.originTooLong', {
+            length: origin.length,
+            max: MAX_CORS_ORIGIN_LENGTH,
+          });
         }
 
         try {
           const parsed = new URL(origin);
           if (!["http:", "https:"].includes(parsed.protocol)) {
-            return `Only http/https origins are allowed: ${origin}`;
+            return t('ui.onlyHttpOrigins', { origin });
           }
         } catch {
-          return `Invalid origin format: ${origin}`;
+          return t('ui.invalidOriginFormat', { origin });
         }
       }
 
       return null;
     },
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -757,13 +748,14 @@ export default function Settings() {
   }, [settings.corsAllowedOrigins, validateCorsOriginsInput]);
 
   const fetchRecoveryCodeStatus = useCallback(async () => {
+    if (!authEnabled) return;
     try {
       const status = await authApi.getRecoveryCodes();
       setRecoveryCodeStatus(status);
     } catch {
       setRecoveryCodeStatus(null);
     }
-  }, []);
+  }, [authEnabled]);
 
   useEffect(() => {
     void fetchRecoveryCodeStatus();
@@ -776,15 +768,17 @@ export default function Settings() {
       setGeneratedRecoveryCodes(result.codes || []);
       await fetchRecoveryCodeStatus();
       toast({
-        title: "Recovery codes generated",
-        description: "Save them now — they cannot be shown again.",
+        title: t('latest.recoveryCodesGenerated'),
+        description: t('latest.recoveryCodesSaveNow'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could not generate recovery codes",
+        title: t('latest.recoveryCodesGenerateFailed'),
         description:
-          error instanceof Error ? error.message : "Try again.",
+          error instanceof Error
+            ? error.message
+            : t('latest.tryAgain'),
         variant: "destructive",
       });
     } finally {
@@ -799,7 +793,7 @@ export default function Settings() {
     if (validationError) {
       setCorsOriginValidationError(validationError);
       toast({
-        title: "Invalid CORS Origins",
+        title: t('messages.invalidCorsOrigins'),
         description: validationError,
         variant: "destructive",
       });
@@ -818,17 +812,17 @@ export default function Settings() {
         // Settings are already saved; diagnostics refresh is best-effort.
       }
       toast({
-        title: "Settings Saved",
-        description: "Your panel settings were saved.",
+        title: t('messages.settingsSavedTitle'),
+        description: t('messages.settingsSaved'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could Not Save Settings",
+        title: t('messages.couldNotSaveSettings'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not save your settings. Try again.",
+            : t('messages.saveSettingsRetry'),
         variant: "destructive",
       });
     } finally {
@@ -851,17 +845,17 @@ export default function Settings() {
       const data = await configApi.reloadCorsDiagnostics();
       setCorsDiagnostics(data.diagnostics);
       toast({
-        title: "CORS Rules Reloaded",
-        description: "The backend reloaded CORS settings from the database.",
+        title: t('messages.corsRulesReloaded'),
+        description: t('messages.corsRulesReloadedDescription'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could Not Reload CORS Rules",
+        title: t('messages.couldNotReloadCorsRules'),
         description:
           error instanceof Error
             ? error.message
-            : "Failed to reload CORS rules.",
+            : t('messages.reloadCorsRulesFailed'),
         variant: "destructive",
       });
     } finally {
@@ -875,18 +869,17 @@ export default function Settings() {
       const data = await configApi.clearCorsBlockedOrigins();
       setCorsDiagnostics(data.diagnostics);
       toast({
-        title: "Blocked Origin Log Cleared",
-        description:
-          "Recent blocked CORS origins were removed from diagnostics.",
+        title: t('messages.blockedOriginLogCleared'),
+        description: t('messages.blockedOriginLogClearedDescription'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could Not Clear Log",
+        title: t('messages.couldNotClearLog'),
         description:
           error instanceof Error
             ? error.message
-            : "Failed to clear blocked CORS origins.",
+            : t('messages.clearBlockedLogFailed'),
         variant: "destructive",
       });
     } finally {
@@ -900,7 +893,7 @@ export default function Settings() {
       try {
         await serverApi.restartPanel();
         toast({
-          title: "Restarting Panel",
+          title: t('messages.restartingPanel'),
           description,
         });
 
@@ -917,22 +910,22 @@ export default function Settings() {
         const apiErr = err as { code?: string; message?: string };
         if (apiErr?.code === "apply_in_progress") {
           toast({
-            title: "Update already in progress",
+            title: t('messages.updateAlreadyInProgress'),
             description:
               apiErr.message ||
-              "An update apply is already running. Wait for the panel to reconnect.",
+              t('messages.updateAlreadyInProgressDescription'),
           });
           return;
         }
         toast({
-          title: "Restart Failed",
+          title: t('messages.restartFailed'),
           description:
-            "Could not restart the panel. You may need to restart it manually.",
+            t('messages.restartFailedDescription'),
           variant: "destructive",
         });
       }
     },
-    [settings.panelPort, toast],
+    [settings.panelPort, t, toast],
   );
 
   const handleCheckPanelUpdate = async () => {
@@ -944,24 +937,24 @@ export default function Settings() {
 
       if (status.updateAvailable) {
         toast({
-          title: "Update Available",
-          description: `A newer panel version is available: v${status.latestVersion} (installed: v${status.currentVersion}).`,
+          title: t('messages.updateAvailable'),
+          description: t('messages.updateAvailableDescription', { latest: status.latestVersion, current: status.currentVersion }),
         });
       } else {
         setPanelUpdateReady(false);
         toast({
-          title: "Up to Date",
-          description: `You are running the latest panel release (v${status.currentVersion}).`,
+          title: t('messages.upToDate'),
+          description: t('messages.upToDateDescription', { current: status.currentVersion }),
           variant: "success" as const,
         });
       }
     } catch (error) {
       toast({
-        title: "Update Check Failed",
+        title: t('messages.updateCheckFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not reach GitHub. Check your connection and try again.",
+            : t('messages.updateCheckFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -972,9 +965,9 @@ export default function Settings() {
   const handleDownloadPanelUpdate = async () => {
     if (!panelUpdateStatus?.updateAvailable) {
       toast({
-        title: "No Update Available",
+        title: t('messages.noUpdateAvailable'),
         description:
-          "No newer release was found. Run Check for Updates to refresh status.",
+          t('messages.noUpdateAvailableDescription'),
       });
       return;
     }
@@ -986,7 +979,7 @@ export default function Settings() {
       const pre = await fetchPanelUpdatePreflight();
       if (pre && !pre.ok) {
         throw new Error(
-          pre.blockers[0] || "Update blocked by preflight check.",
+          pre.blockers[0] || t('ui.updateBlockedFallback'),
         );
       }
 
@@ -994,28 +987,28 @@ export default function Settings() {
       if (!result.success) {
         if (result.preflight) setPanelUpdatePreflight(result.preflight);
         throw new Error(
-          result.error || result.message || "Update download failed",
+          result.error || result.message || t('messages.updateDownloadFailed'),
         );
       }
 
       if (!isDockerPanelUpdate) setPanelUpdateReady(true);
       toast({
-        title: isDockerPanelUpdate ? "Docker Update Started" : "Update Downloaded",
+        title: isDockerPanelUpdate ? t('messages.dockerUpdateStarted') : t('messages.updateDownloaded'),
         description:
           result.message ||
           isDockerPanelUpdate
-            ? "The panel container is rebuilding and will reconnect when the health check passes."
-            : "The update files are ready. Restart the panel to apply this version.",
+            ? t('messages.dockerUpdateStartedDescription')
+            : t('messages.updateDownloadedDescription'),
         variant: "success" as const,
       });
       await fetchPanelUpdateStatus();
     } catch (error) {
       toast({
-        title: "Download Failed",
+        title: t('messages.downloadFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not download the update. Check network access, disk space, and permissions.",
+            : t('messages.downloadFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1024,9 +1017,9 @@ export default function Settings() {
   };
 
   const formatTimestamp = (value: string | null): string => {
-    if (!value) return "Never";
+    if (!value) return t('ui.never');
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Unknown";
+    if (Number.isNaN(date.getTime())) return t('ui.unknownValue');
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: "medium",
       timeStyle: "short",
@@ -1104,10 +1097,10 @@ export default function Settings() {
     const handlePanelUpdateReady = (data: { version?: string }) => {
       setPanelUpdateReady(true);
       toast({
-        title: "Update Ready",
+        title: t('messages.updateReady'),
         description: data.version
-          ? `Panel v${data.version} is downloaded. Restart the panel to switch to the new version.`
-          : "The update is downloaded. Restart the panel to switch to the new version.",
+          ? t('messages.updateReadyDescription', { version: data.version })
+          : t('messages.updateReadyDescriptionGeneric'),
         variant: "success" as const,
       });
       setPanelUpdateStatusError(null);
@@ -1119,10 +1112,10 @@ export default function Settings() {
       setPanelApplyResultDismissed(false);
       setPanelApplyLog(null);
       toast({
-        title: "Update Applied",
+        title: t('messages.updateApplied'),
         description: data.version
-          ? `Panel successfully updated to v${data.version}.`
-          : "Panel update applied successfully.",
+          ? t('messages.updateAppliedDescription', { version: data.version })
+          : t('messages.updateAppliedDescriptionGeneric'),
         variant: "success" as const,
       });
       fetchPanelUpdateStatus();
@@ -1135,10 +1128,10 @@ export default function Settings() {
       setPanelApplyResultDismissed(false);
       if (data?.helperLog) setPanelApplyLog(data.helperLog);
       toast({
-        title: "Update Failed to Apply",
+        title: t('updateFailedToApply'),
         description: data?.pendingVersion
-          ? `Panel is still running the previous version. The v${data.pendingVersion} update did not install.`
-          : "The downloaded update did not install. Review the helper log for details.",
+          ? t('messages.updateFailedToApplyDescription', { version: data.pendingVersion })
+          : t('messages.updateFailedToApplyDescriptionGeneric'),
         variant: "destructive",
       });
       fetchPanelUpdateStatus();
@@ -1157,24 +1150,24 @@ export default function Settings() {
       socket.off("panel:updateApplied", handlePanelUpdateApplied);
       socket.off("panel:updateApplyFailed", handlePanelUpdateApplyFailed);
     };
-  }, [socket, toast, fetchPanelUpdateStatus]);
+  }, [socket, toast, fetchPanelUpdateStatus, t]);
 
   const handleTestRcon = async () => {
     setTestingRcon(true);
     try {
       await configApi.testRcon();
       toast({
-        title: "RCON Connected",
-        description: "The panel connected to your server over RCON.",
+        title: t('messages.rconConnected'),
+        description: t('messages.rconConnectedDescription'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "RCON Connection Failed",
+        title: t('messages.rconConnectionFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not connect to RCON. Verify host, port, password, and firewall rules.",
+            : t('messages.rconConnectionFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1212,9 +1205,8 @@ export default function Settings() {
   const handleInstallMod = async () => {
     if (!selectedInstallServerId) {
       toast({
-        title: "Select a Server",
-        description:
-          "Choose the server where you want to install PanelBridge.lua.",
+        title: t('messages.selectServer'),
+        description: t('messages.selectServerDescription'),
         variant: "destructive",
       });
       return;
@@ -1226,17 +1218,17 @@ export default function Settings() {
         selectedInstallServerId,
       );
       toast({
-        title: "PanelBridge Installed",
-        description: `PanelBridge.lua was copied to ${result.serverName || "the selected server"}.`,
+        title: t('messages.panelBridgeInstalled'),
+        description: t('messages.panelBridgeInstalledDescription', { server: result.serverName || t('messages.selectedServer') }),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Installation Failed",
+        title: t('messages.installationFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not copy PanelBridge.lua. Verify the server path and permissions, then try again.",
+            : t('messages.installationFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1320,20 +1312,20 @@ export default function Settings() {
       const result = await backupApi.createBackup();
       if (result.success && result.backup) {
         toast({
-          title: "Backup Created",
-          description: `Created ${result.backup.name} in ${result.duration?.toFixed(1)}s`,
+          title: t('messages.backupCreated'),
+          description: t('messages.backupCreatedDescription', { name: result.backup.name, duration: result.duration?.toFixed(1) }),
           variant: "success" as const,
         });
         await fetchBackups();
         await fetchBackupStatus();
       } else {
-        throw new Error(result.message || "Failed to create backup");
+        throw new Error(result.message || t('messages.backupCreateFailed'));
       }
     } catch (error) {
       toast({
-        title: "Backup Failed",
+        title: t('messages.backupFailed'),
         description:
-          error instanceof Error ? error.message : "Failed to create backup",
+          error instanceof Error ? error.message : t('messages.backupCreateFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1346,19 +1338,19 @@ export default function Settings() {
       const result = await backupApi.deleteBackup(name);
       if (result.success) {
         toast({
-          title: "Backup Deleted",
-          description: `Deleted ${name}`,
+          title: t('messages.backupDeleted'),
+          description: t('messages.backupDeletedDescription', { name }),
           variant: "success" as const,
         });
         await fetchBackups();
       } else {
-        throw new Error(result.message || "Failed to delete backup");
+        throw new Error(result.message || t('messages.backupDeleteFailed'));
       }
     } catch (error) {
       toast({
-        title: "Delete Failed",
+        title: t('messages.deleteFailed'),
         description:
-          error instanceof Error ? error.message : "Failed to delete backup",
+          error instanceof Error ? error.message : t('messages.backupDeleteFailed'),
         variant: "destructive",
       });
     }
@@ -1372,19 +1364,19 @@ export default function Settings() {
       });
       if (result.success) {
         toast({
-          title: "Backup Restored",
-          description: `Restored ${name} in ${(result.duration || 0).toFixed(1)}s`,
+          title: t('messages.backupRestored'),
+          description: t('messages.backupRestoredDescription', { name, duration: (result.duration || 0).toFixed(1) }),
           variant: "success" as const,
         });
         await fetchBackups();
       } else {
-        throw new Error(result.message || "Failed to restore backup");
+        throw new Error(result.message || t('messages.backupRestoreFailed'));
       }
     } catch (error) {
       toast({
-        title: "Restore Failed",
+        title: t('messages.restoreFailed'),
         description:
-          error instanceof Error ? error.message : "Failed to restore backup",
+          error instanceof Error ? error.message : t('messages.backupRestoreFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1413,8 +1405,8 @@ export default function Settings() {
     // Validate cron expression before saving
     if (!isValidCron(backupSchedule)) {
       toast({
-        title: "Invalid Schedule",
-        description: "Please enter a valid cron expression (e.g., 0 */6 * * *)",
+        title: t('messages.invalidSchedule'),
+        description: t('messages.invalidScheduleDescription'),
         variant: "destructive",
       });
       return;
@@ -1429,17 +1421,17 @@ export default function Settings() {
       });
       await fetchBackupStatus();
       toast({
-        title: "Backup Settings Saved",
-        description: "Backup schedule and retention settings were updated.",
+        title: t('messages.backupSettingsSaved'),
+        description: t('messages.backupSettingsSavedDescription'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could Not Save Backup Settings",
+        title: t('messages.couldNotSaveBackupSettings'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not save backup schedule settings. Try again.",
+            : t('messages.couldNotSaveBackupSettingsDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1454,20 +1446,20 @@ export default function Settings() {
       await fetchBackupStatus();
       toast({
         title: enabled
-          ? "Scheduled Backups Enabled"
-          : "Scheduled Backups Disabled",
+          ? t('messages.scheduledBackupsEnabled')
+          : t('messages.scheduledBackupsDisabled'),
         description: enabled
-          ? "The panel will create backups on the configured schedule."
-          : "Automatic backups are off. Manual backups are still available.",
+          ? t('messages.scheduledBackupsEnabledDescription')
+          : t('messages.scheduledBackupsDisabledDescription'),
         variant: "success" as const,
       });
     } catch (error) {
       toast({
-        title: "Could Not Update Backups",
+        title: t('messages.couldNotUpdateBackups'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not update scheduled backup status. Try again.",
+            : t('messages.couldNotUpdateBackupsDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1567,17 +1559,17 @@ export default function Settings() {
       const result = await panelBridgeApi.autoConfigure();
       if (result.success) {
         toast({
-          title: "Bridge Auto-Configured",
-          description: `Connected to server: ${result.serverName}`,
+          title: t('messages.bridgeAutoConfigured'),
+          description: t('messages.bridgeAutoConfiguredDescription', { server: result.serverName }),
           variant: "success" as const,
         });
         await fetchBridgeStatus();
       } else {
-        setBridgeError(result.error || "Failed to auto-configure");
+        setBridgeError(result.error || t('messages.bridgeAutoConfigureFailed'));
       }
     } catch (error) {
       setBridgeError(
-        error instanceof Error ? error.message : "Failed to auto-configure",
+        error instanceof Error ? error.message : t('messages.bridgeAutoConfigureFailed'),
       );
     } finally {
       setBridgeLoading(false);
@@ -1589,18 +1581,18 @@ export default function Settings() {
     try {
       await panelBridgeApi.stop();
       toast({
-        title: "Bridge Stopped",
-        description: "Panel Bridge has been stopped",
+        title: t('messages.bridgeStopped'),
+        description: t('messages.bridgeStoppedDescription'),
         variant: "success" as const,
       });
       await fetchBridgeStatus();
     } catch (error) {
       toast({
-        title: "Failed to Stop",
+        title: t('messages.bridgeStopFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not stop Panel Bridge. Try again.",
+            : t('messages.bridgeStopFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1617,20 +1609,20 @@ export default function Settings() {
       const result = await panelBridgeApi.configureDirect(trimmed);
       if (result.success) {
         toast({
-          title: "Bridge Configured",
-          description: `Watching: ${result.bridgePath}`,
+          title: t('messages.bridgeConfigured'),
+          description: t('messages.bridgeConfiguredDescription', { path: result.bridgePath }),
           variant: "success" as const,
         });
         setManualBridgePath("");
         await fetchBridgeStatus();
       } else {
-        setBridgeError(result.error || "Failed to configure bridge");
+        setBridgeError(result.error || t('messages.bridgeConfigureFailed'));
       }
     } catch (error) {
       setBridgeError(
         error instanceof Error
           ? error.message
-          : "Failed to configure bridge with manual path",
+          : t('messages.bridgeConfigureFailedManual'),
       );
     } finally {
       setBridgeLoading(false);
@@ -1646,6 +1638,39 @@ export default function Settings() {
     pollIntervalSeconds: settings.panelBridgeSftpPollIntervalSeconds,
   });
 
+  const handleTestSftp = async () => {
+    setTestingSftp(true);
+    try {
+      const result = await panelBridgeApi.testSftp(sftpConfig());
+      toast({
+        title: t('messages.sftpConnected'),
+        description: result.statusExists
+          ? t('messages.sftpConnectedWithStatus', { latency: result.latencyMs })
+          : t('messages.sftpConnectedWithoutStatus', { latency: result.latencyMs }),
+        variant: "success" as const,
+      });
+    } catch (error) {
+      toast({ title: t('messages.sftpTestFailed'), description: error instanceof Error ? error.message : t('messages.sftpTestFailedDescription'), variant: "destructive" });
+    } finally {
+      setTestingSftp(false);
+    }
+  };
+
+  const handleConfigureSftp = async () => {
+    setBridgeLoading(true);
+    setBridgeError(null);
+    try {
+      await panelBridgeApi.configureSftp(sftpConfig());
+      updateSetting("panelBridgeSftpEnabled", true);
+      toast({ title: t('messages.sftpBridgeStarted'), description: t('messages.sftpBridgeStartedDescription'), variant: "success" as const });
+      await fetchBridgeStatus();
+    } catch (error) {
+      setBridgeError(error instanceof Error ? error.message : t('messages.sftpBridgeStartFailed'));
+    } finally {
+      setBridgeLoading(false);
+    }
+  };
+
   const handleListRemoteLogs = async () => {
     setLoadingRemoteLogs(true);
     setRemoteLogError(null);
@@ -1655,13 +1680,12 @@ export default function Settings() {
         logPath: settings.panelBridgeSftpLogPath,
       });
       setRemoteLogs(result.files || []);
-      if (!result.files?.length) {
-        setRemoteLogError("No .txt or .log files found in that folder.");
-      }
+      setRemoteLogContent(null);
+      if (!result.files?.length) setRemoteLogError(t('latest.noRemoteLogs'));
     } catch (error) {
       setRemoteLogs([]);
       setRemoteLogError(
-        error instanceof Error ? error.message : "Could not list remote logs.",
+        error instanceof Error ? error.message : t('latest.couldNotListRemoteLogs'),
       );
     } finally {
       setLoadingRemoteLogs(false);
@@ -1686,43 +1710,10 @@ export default function Settings() {
     } catch (error) {
       setRemoteLogContent(null);
       setRemoteLogError(
-        error instanceof Error ? error.message : "Could not read that log file.",
+        error instanceof Error ? error.message : t('latest.couldNotReadRemoteLog'),
       );
     } finally {
       setLoadingRemoteLogs(false);
-    }
-  };
-
-  const handleTestSftp = async () => {
-    setTestingSftp(true);
-    try {
-      const result = await panelBridgeApi.testSftp(sftpConfig());
-      toast({
-        title: "SFTP Connected",
-        description: result.statusExists
-          ? `Bridge status found, ${result.latencyMs} ms round trip.`
-          : `Connected in ${result.latencyMs} ms. Start the PZ server to create status.json.`,
-        variant: "success" as const,
-      });
-    } catch (error) {
-      toast({ title: "SFTP Test Failed", description: error instanceof Error ? error.message : "Could not connect to SFTP.", variant: "destructive" });
-    } finally {
-      setTestingSftp(false);
-    }
-  };
-
-  const handleConfigureSftp = async () => {
-    setBridgeLoading(true);
-    setBridgeError(null);
-    try {
-      await panelBridgeApi.configureSftp(sftpConfig());
-      updateSetting("panelBridgeSftpEnabled", true);
-      toast({ title: "SFTP Bridge Started", description: "PanelBridge is syncing through the local cache.", variant: "success" as const });
-      await fetchBridgeStatus();
-    } catch (error) {
-      setBridgeError(error instanceof Error ? error.message : "Could not start the SFTP bridge.");
-    } finally {
-      setBridgeLoading(false);
     }
   };
 
@@ -1732,26 +1723,26 @@ export default function Settings() {
       const result = await panelBridgeApi.ping();
       if (result.success) {
         toast({
-          title: "Mod Connected!",
-          description: `Connected to ${result.modStatus?.serverName || "server"}`,
+          title: t('messages.modConnected'),
+          description: t('messages.modConnectedDescription', { server: result.modStatus?.serverName || t('messages.server') }),
           variant: "success" as const,
         });
       } else {
         toast({
-          title: "Mod Did Not Respond",
+          title: t('messages.modDidNotRespond'),
           description:
             result.error ||
-            "No response from PanelBridge.lua. Make sure the game server is running and the mod is enabled.",
+            t('messages.modDidNotRespondDescription'),
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
-        title: "Ping Failed",
+        title: t('messages.pingFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not ping the mod. Confirm the server is running with PanelBridge enabled.",
+            : t('messages.pingFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1802,7 +1793,6 @@ export default function Settings() {
   const selectedInstallServer =
     servers.find((server) => String(server.id) === selectedInstallServerId) ||
     null;
-  const activeServer = servers.find((server) => server.isActive) || null;
   const trimmedHttpsKeyPath = settings.httpsKeyPath.trim();
   const trimmedHttpsCertPath = settings.httpsCertPath.trim();
   const hasPartialHttpsCertPath =
@@ -1857,12 +1847,12 @@ export default function Settings() {
   const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) return;
     if (newPassword !== confirmPassword) {
-      toast({ title: "Passwords do not match", variant: "destructive" });
+      toast({ title: t('messages.passwordsDoNotMatch'), variant: "destructive" });
       return;
     }
     if (newPassword.length < 6) {
       toast({
-        title: "Password must be at least 6 characters",
+        title: t('messages.passwordMinLength'),
         variant: "destructive",
       });
       return;
@@ -1871,19 +1861,19 @@ export default function Settings() {
     try {
       await authApi.changePassword(currentPassword, newPassword);
       toast({
-        title: "Password Changed",
-        description: "Your password has been updated.",
+        title: t('messages.passwordChanged'),
+        description: t('messages.passwordChangedDescription'),
       });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (error) {
       toast({
-        title: "Change Password Failed",
+        title: t('messages.changePasswordFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not change your password. Check your current password and try again.",
+            : t('messages.changePasswordFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -1901,7 +1891,7 @@ export default function Settings() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "The panel could not prepare password recovery on this server.",
+            t('messages.recoveryPrepareFailed'),
         );
       }
 
@@ -1909,19 +1899,19 @@ export default function Settings() {
       setShowLocalPasswordReset(true);
       setLocalPasswordResetToken("");
       toast({
-        title: "Recovery Ready",
+        title: t('messages.recoveryReady'),
         description:
           typeof data.message === "string"
             ? data.message
-            : "Recovery token created at data/reset-token.txt. Paste it below to continue.",
+            : t('messages.recoveryReadyDescription'),
       });
     } catch (error) {
       toast({
-        title: "Recovery Unavailable",
+        title: t('messages.recoveryUnavailable'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not prepare password recovery on this server.",
+            : t('messages.recoveryPrepareFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1931,17 +1921,17 @@ export default function Settings() {
 
   const handleResetLostPassword = async () => {
     if (!localPasswordResetToken) {
-      toast({ title: "Recovery token missing", variant: "destructive" });
+      toast({ title: t('messages.recoveryTokenMissing'), variant: "destructive" });
       return;
     }
     if (!localPasswordResetPassword || !localPasswordResetConfirm) return;
     if (localPasswordResetPassword !== localPasswordResetConfirm) {
-      toast({ title: "Passwords do not match", variant: "destructive" });
+      toast({ title: t('messages.passwordsDoNotMatch'), variant: "destructive" });
       return;
     }
     if (localPasswordResetPassword.length < 6) {
       toast({
-        title: "Password must be at least 6 characters",
+        title: t('messages.passwordMinLength'),
         variant: "destructive",
       });
       return;
@@ -1961,7 +1951,7 @@ export default function Settings() {
       if (!response.ok) {
         throw new Error(
           data.error ||
-            "The panel could not reset your password from this server.",
+            t('messages.passwordResetFailedDescription'),
         );
       }
 
@@ -1973,18 +1963,17 @@ export default function Settings() {
       setLocalPasswordResetPassword("");
       setLocalPasswordResetConfirm("");
       toast({
-        title: "Password Reset",
-        description:
-          "Your password has been reset. Sign in again with the new password.",
+        title: t('messages.passwordReset'),
+        description: t('messages.passwordResetDescription'),
       });
       await logout();
     } catch (error) {
       toast({
-        title: "Password Reset Failed",
+        title: t('messages.passwordResetFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "The panel could not reset your password from this server.",
+            : t('messages.passwordResetFailedDescription'),
         variant: "destructive",
       });
     } finally {
@@ -2028,12 +2017,11 @@ export default function Settings() {
                     <span className="relative w-2 h-2 rounded-full bg-warning" />
                   </span>
                   <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-warning">
-                    Unsaved changes
+                    {t('ui.unsavedChanges')}
                   </p>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  You have pending edits. Save changes to apply them to the live
-                  panel.
+                  {t('ui.pendingEdits')}
                 </p>
               </div>
             </div>
@@ -2049,19 +2037,19 @@ export default function Settings() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              Save Changes
+              {t('ui.saveChanges')}
             </Button>
           </div>
         </div>
       )}
 
       <PageHeader
-        title="Settings"
+        title={t('title')}
         description={
           settingsSections.find((s) => s.id === activeSection)?.description ??
-          "Panel port, remote access, server integrations, backups, and security."
+          t('ui.pageDescription')
         }
-        eyebrow="Configuration"
+        eyebrow={t('ui.configuration')}
         tone="config"
         icon={<Settings2 className="w-5 h-5" />}
         actions={
@@ -2078,10 +2066,10 @@ export default function Settings() {
               <Save className="w-5 h-5" />
             )}
             {saving
-              ? "Saving..."
+              ? t('ui.saving')
               : isDirty
-                ? "Save Settings"
-                : "No Unsaved Changes"}
+                ? t('ui.saveSettings')
+                : t('ui.noUnsavedChanges')}
           </Button>
         }
       />
@@ -2089,20 +2077,17 @@ export default function Settings() {
       <Tabs
         value={activeSection}
         onValueChange={handleTabChange}
-        className="mt-6 lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:items-start lg:gap-7"
+        className="mt-6"
       >
         <TabsList
-          aria-label="Settings sections"
-          className="mb-4 flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/30 p-1 lg:sticky lg:top-4 lg:mb-0 lg:flex-col lg:items-stretch lg:gap-px lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0"
+          aria-label={t('labels.settingsSections')}
+          className="flex h-auto flex-wrap gap-1 bg-muted/30 border border-border/50 p-1 rounded-md w-full"
         >
           {settingsGroups.map((group) => (
-            <React.Fragment key={group.name}>
-              <p
-                role="presentation"
-                className="hidden lg:block px-2 pb-1.5 pt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 lg:first:pt-0"
-              >
-                {group.name}
-              </p>
+            <div key={group.name} className="contents">
+              <div className="basis-full px-2 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {t(`latest.groups.${group.name}`)}
+              </div>
               {group.sections.map((section) => {
                 const Icon = section.icon;
                 return (
@@ -2110,39 +2095,40 @@ export default function Settings() {
                     <TooltipTrigger asChild>
                       <TabsTrigger
                         value={section.id}
-                        className="settings-tab-trigger shrink-0 flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground/70 hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none lg:w-full lg:justify-start lg:px-2.5"
+                        aria-label={section.label}
+                        className="settings-tab-trigger flex-1 min-w-[110px] flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium relative overflow-hidden text-muted-foreground/70 hover:text-foreground hover:bg-muted/50 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
                       >
                         <Icon className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{section.label}</span>
+                        <span>{section.label}</span>
                       </TabsTrigger>
                     </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-[220px]">
+                    <TooltipContent side="bottom" className="max-w-[220px]">
                       <p className="text-xs">{section.tip}</p>
                     </TooltipContent>
                   </Tooltip>
                 );
               })}
-            </React.Fragment>
+            </div>
           ))}
         </TabsList>
 
         {/* Tab Content */}
-        <div className="space-y-5">
-          <TabsContent value="general" className="mt-0">
+        <div className="mt-5 space-y-5">
+          <TabsContent value="panel" className="mt-0">
             {/* Panel Settings */}
-            <Card id="settings-general">
+            <Card id="settings-panel">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-primary" />
-                  Panel Settings
+                  {t('ui.panelSettings')}
                 </CardTitle>
                 <CardDescription>
-                  Port this panel listens on, and how it looks.
+                  {t('ui.panelSettingsDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="max-w-xs">
-                  <Label htmlFor="panel-port">Panel Port</Label>
+                  <Label htmlFor="panel-port">{t('panelPort')}</Label>
                   <Input
                     id="panel-port"
                     type="number"
@@ -2151,11 +2137,11 @@ export default function Settings() {
                     onWheel={(e) => e.currentTarget.blur()}
                     min="1024"
                     max="65535"
-                    placeholder="3001"
+                    placeholder={t('placeholders.port')}
                     inputMode="numeric"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Port used to access the panel (default: 3001).
+                    {t('ui.portUsed', { port: 3001 })}
                   </p>
                 </div>
                 {originalSettings &&
@@ -2163,11 +2149,10 @@ export default function Settings() {
                     <Alert className="border-warning/40 bg-warning/10">
                       <AlertTriangle className="h-4 w-4 text-warning" />
                       <AlertTitle className="text-warning">
-                        Restart Required
+                        {t('ui.restartRequired')}
                       </AlertTitle>
                       <AlertDescription>
-                        Port changes require a restart. Save first, then
-                        restart.
+                        {t('ui.portChangesRestart')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -2176,7 +2161,7 @@ export default function Settings() {
                     variant="outline"
                     onClick={() =>
                       restartPanelWithReconnect(
-                        `Panel is restarting on port ${settings.panelPort}. Reconnecting...`,
+                        t('ui.panelRestartingOnPort', { port: settings.panelPort }),
                       )
                     }
                     disabled={restarting || isDirty}
@@ -2187,11 +2172,11 @@ export default function Settings() {
                     ) : (
                       <RotateCw className="w-4 h-4" />
                     )}
-                    {restarting ? "Restarting..." : "Restart Panel"}
+                    {restarting ? t('ui.restarting') : t('ui.restartPanel')}
                   </Button>
                   {isDirty && (
                     <p className="text-xs text-muted-foreground">
-                      Save settings before restarting
+                      {t('ui.saveBeforeRestart')}
                     </p>
                   )}
                 </div>
@@ -2200,59 +2185,50 @@ export default function Settings() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium flex items-center gap-2">
                       <Palette className="w-4 h-4 text-primary" />
-                      Appearance
+                      {t('ui.appearance')}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Panel theme and visual style.
+                      {t('ui.appearanceDescription')}
                     </p>
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/25 p-3">
                     <div>
-                      <Label className="text-sm font-medium">Theme</Label>
+                      <Label className="text-sm font-medium">{t('theme')}</Label>
                       <p className="text-xs text-muted-foreground">
-                        Choose between the gritty survival look or a clean light
-                        theme.
+                        {t('ui.themeDescription')}
                       </p>
                     </div>
                     <ThemeSelect />
                   </div>
                 </div>
 
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="access" className="mt-0">
                 <div className="rounded-xl border border-border/70 bg-background/40 p-4 space-y-4">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium">Remote Access (CORS)</p>
+                    <p className="text-sm font-medium">{t('remoteAccessCors')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Controls which devices and browsers can connect to this
-                      panel. If you only access the panel from this machine,
-                      these defaults are fine.
+                      {t('ui.corsDescription')}
                     </p>
                   </div>
 
                   <Alert className="border-border/60 bg-muted/40">
                     <Globe className="h-4 w-4 text-primary" />
-                    <AlertTitle>Quick Start for VPS Remote Access</AlertTitle>
+                    <AlertTitle>{t('quickStartForVpsRemoteAccess')}</AlertTitle>
                     <AlertDescription className="space-y-1 text-sm text-muted-foreground">
                       <p>
-                        1. Keep{" "}
+                        {t('ui.corsQuickKeep')} {" "}
                         <strong className="text-foreground">
-                          Allow private/LAN origins
+                          {t('labels.allowPrivateLan')}
                         </strong>{" "}
-                        on.
+                        {t('ui.corsQuickOn')}
                       </p>
                       <p>
-                        2. Add one origin per line in the list below (example:{" "}
-                        <code>http://YOUR_PUBLIC_IP:3001</code>).
+                        {t('ui.corsQuickAddOrigin')} {" "}<code>http://YOUR_PUBLIC_IP:3001</code>).
                       </p>
                       <p>
-                        3. Save settings, then click{" "}
+                        {t('ui.corsQuickSave')} {" "}
                         <strong className="text-foreground">
-                          Reload CORS Rules
+                          {t('ui.reloadCorsRules')}
                         </strong>
                         .
                       </p>
@@ -2262,31 +2238,26 @@ export default function Settings() {
                   <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/25 p-3">
                     <div>
                       <Label className="text-sm font-medium">
-                        Allow Private/LAN Origins
+                        {t('labels.allowPrivateLan')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Automatically allow connections from localhost and
-                        private/LAN IP ranges.
+                        {t('ui.allowPrivateLanDescription')}
                       </p>
                     </div>
                     <Switch
                       checked={settings.corsAllowPrivateNetworks}
                       onCheckedChange={handleCorsLanToggle}
-                      aria-label="Allow private and LAN origins"
+                      aria-label={t('labels.allowPrivateLan')}
                     />
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/25 p-3">
                     <div>
                       <Label className="text-sm font-medium">
-                        Show Public IP Address
+                        {t('ui.showPublicIp')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Look up this machine's public IP (via api.ipify.org) to
-                        display on the dashboard. Off by default — an
-                        unnecessary external dependency and small privacy leak
-                        for LAN-only setups. The result is cached, so this calls
-                        out at most once per restart.
+                        {t('ui.showPublicIpDescription')}
                       </p>
                     </div>
                     <Switch
@@ -2294,20 +2265,17 @@ export default function Settings() {
                       onCheckedChange={(value) =>
                         updateSetting("enablePublicIpLookup", value)
                       }
-                      aria-label="Enable public IP lookup"
+                      aria-label={t('labels.enablePublicIpLookup')}
                     />
                   </div>
 
                   <div className="space-y-2 rounded-lg border border-border/60 bg-muted/25 p-3">
                     <div>
                       <Label className="text-sm font-medium">
-                        Dashboard LAN Address
+                        {t('ui.dashboardLanAddress')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Which network interface's address the dashboard
-                        shows. Useful when this host has more than one, e.g.
-                        Tailscale and ZeroTier at once — pick the one you
-                        actually want to share with players.
+                        {t('ui.dashboardLanAddressDescription')}
                       </p>
                     </div>
                     <Select
@@ -2319,12 +2287,12 @@ export default function Settings() {
                         )
                       }
                     >
-                      <SelectTrigger aria-label="Dashboard LAN address">
+                      <SelectTrigger aria-label={t('labels.dashboardLanAddress')}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">
-                          Auto-detect (default)
+                          {t('ui.autoDetectDefault')}
                         </SelectItem>
                         {networkInterfaces.map((iface) => (
                           <SelectItem key={iface.address} value={iface.address}>
@@ -2337,7 +2305,7 @@ export default function Settings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="cors-origins">
-                      Additional Allowed Origins
+                      {t('ui.additionalAllowedOrigins')}
                     </Label>
                     <Textarea
                       id="cors-origins"
@@ -2351,8 +2319,7 @@ export default function Settings() {
                       rows={4}
                     />
                     <p className="text-xs text-muted-foreground">
-                      One address per line, including http:// or https:// and
-                      port if needed.
+                      {t('ui.oneOriginPerLine')}
                     </p>
                     {corsOriginValidationError && (
                       <p className="text-xs text-destructive">
@@ -2364,11 +2331,10 @@ export default function Settings() {
                   <div className="flex items-center justify-between rounded-lg border border-warning/40 bg-warning/10 p-3">
                     <div>
                       <Label className="text-sm font-medium text-warning">
-                        Allow All Origins (Debug Only)
+                        {t('ui.allowAllOriginsDebug')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Skip all origin checks — useful for diagnosing
-                        connection problems.
+                        {t('ui.allowAllOriginsDebugDescription')}
                       </p>
                     </div>
                     <Switch
@@ -2376,17 +2342,17 @@ export default function Settings() {
                       onCheckedChange={(value) =>
                         updateSetting("corsAllowAll", value)
                       }
-                      aria-label="Allow all origins"
+                      aria-label={t('labels.allowAllOrigins')}
                     />
                   </div>
 
                   <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/25 p-3">
                     <div>
                       <Label className="text-sm font-medium">
-                        Enable CORS Debug Logging
+                        {t('ui.enableCorsDebug')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        Log blocked connection attempts for troubleshooting.
+                        {t('ui.enableCorsDebugDescription')}
                       </p>
                     </div>
                     <Switch
@@ -2394,7 +2360,7 @@ export default function Settings() {
                       onCheckedChange={(value) =>
                         updateSetting("corsDebug", value)
                       }
-                      aria-label="Enable CORS debug logging"
+                      aria-label={t('labels.enableCorsDebug')}
                     />
                   </div>
 
@@ -2402,11 +2368,10 @@ export default function Settings() {
                     <Alert className="border-warning/40 bg-warning/10">
                       <AlertTriangle className="h-4 w-4 text-warning" />
                       <AlertTitle className="text-warning">
-                        Security Warning
+                        {t('ui.securityWarning')}
                       </AlertTitle>
                       <AlertDescription>
-                        Allowing all origins removes browser-origin protection.
-                        Use this only for short troubleshooting windows.
+                        {t('ui.allowAllOriginsWarning')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -2429,7 +2394,7 @@ export default function Settings() {
                       ) : (
                         <RefreshCw className="w-4 h-4" />
                       )}
-                      Reload CORS Rules
+                      {t('ui.reloadCorsRules')}
                     </Button>
                     <Button
                       type="button"
@@ -2442,7 +2407,7 @@ export default function Settings() {
                       <RefreshCw
                         className={cn("w-4 h-4", corsLoading && "animate-spin")}
                       />
-                      Refresh Diagnostics
+                      {t('ui.refreshDiagnostics')}
                     </Button>
                     <Button
                       type="button"
@@ -2453,27 +2418,27 @@ export default function Settings() {
                       className="gap-2 text-muted-foreground"
                     >
                       <Trash2 className="w-4 h-4" />
-                      Clear Blocked Log
+                      {t('ui.clearBlockedLog')}
                     </Button>
                   </div>
 
                   <div className="grid gap-3 text-xs sm:grid-cols-3">
                     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                      <p className="text-muted-foreground">Blocked Origins</p>
+                      <p className="text-muted-foreground">{t('blockedOrigins')}</p>
                       <p className="mt-1 font-medium text-foreground">
                         {corsDiagnostics?.blockedCount ?? 0}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
                       <p className="text-muted-foreground">
-                        Effective Allowlist
+                        {t('ui.effectiveAllowlist')}
                       </p>
                       <p className="mt-1 font-medium text-foreground">
                         {corsDiagnostics?.effectiveAllowedOrigins.length ?? 0}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
-                      <p className="text-muted-foreground">Last Reload</p>
+                      <p className="text-muted-foreground">{t('lastReload')}</p>
                       <p className="mt-1 font-medium text-foreground">
                         {formatTimestamp(corsDiagnostics?.lastLoadedAt || null)}
                       </p>
@@ -2483,7 +2448,7 @@ export default function Settings() {
                   {!!corsDiagnostics?.blocked.length && (
                     <div className="space-y-2">
                       <p className="text-xs font-medium text-foreground">
-                        Recent Blocked Origins
+                        {t('recentBlockedOrigins')}
                       </p>
                       <ScrollArea className="h-[150px] rounded-lg border border-border/60 bg-muted/20 p-2">
                         <div className="space-y-2 pr-2">
@@ -2507,42 +2472,38 @@ export default function Settings() {
                   )}
                 </div>
 
-          </TabsContent>
-
-          <TabsContent value="updates" className="mt-0">
                 <div className="rounded-xl border border-border/70 bg-muted/30 p-4 space-y-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-sm font-medium">Panel Auto Update</p>
+                      <p className="text-sm font-medium">{t('panelAutoUpdate')}</p>
                       <p className="text-xs text-muted-foreground">
-                        Check for a new release, download it, then apply on
-                        restart.
+                        {t('ui.panelAutoUpdateDescription')}
                       </p>
                     </div>
                     {checkingPanelUpdate || panelUpdateStatus?.isChecking ? (
                       <span className="inline-flex items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-0.5 text-xs font-semibold text-foreground/85">
-                        Checking...
+                        {t('ui.checking')}
                       </span>
                     ) : downloadingPanelUpdate ||
                       panelUpdateStatus?.isDownloading ? (
                       <span className="inline-flex items-center rounded-full border border-primary/35 bg-primary/12 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                        Downloading...
+                        {t('ui.downloading')}
                       </span>
                     ) : panelUpdateStatus?.updateAvailable ? (
                       <span className="inline-flex items-center rounded-full border border-warning/35 bg-warning/12 px-2.5 py-0.5 text-xs font-semibold text-warning">
-                        Update available
+                        {t('ui.updateAvailableStatus')}
                       </span>
                     ) : panelUpdateStatusError ? (
                       <span className="inline-flex items-center rounded-full border border-destructive/35 bg-destructive/12 px-2.5 py-0.5 text-xs font-semibold text-destructive">
-                        Cannot reach updater
+                        {t('ui.cannotReachUpdater')}
                       </span>
                     ) : !panelUpdateStatus ? (
                       <span className="inline-flex items-center rounded-full border border-border/60 bg-background/60 px-2.5 py-0.5 text-xs font-semibold text-foreground/80">
-                        Not checked
+                        {t('ui.notChecked')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                        Up to date
+                        {t('messages.upToDate')}
                       </span>
                     )}
                   </div>
@@ -2550,7 +2511,7 @@ export default function Settings() {
                   {panelUpdateStatusError && (
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Updater Error</AlertTitle>
+                      <AlertTitle>{t('updaterError')}</AlertTitle>
                       <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <span className="break-words">
                           {panelUpdateStatusError}
@@ -2566,7 +2527,7 @@ export default function Settings() {
                           }
                           className="self-start"
                         >
-                          Retry
+                          {t('ui.retry')}
                         </Button>
                       </AlertDescription>
                     </Alert>
@@ -2574,27 +2535,27 @@ export default function Settings() {
 
                   <div className="grid gap-3 text-xs sm:grid-cols-2">
                     <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <p className="text-muted-foreground">Installed</p>
+                      <p className="text-muted-foreground">{t('installed')}</p>
                       <p className="mt-1 font-medium text-foreground">
-                        v{panelUpdateStatus?.currentVersion || "Unknown"}
+                        v{panelUpdateStatus?.currentVersion || t('ui.unknownValue')}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <p className="text-muted-foreground">Latest</p>
+                      <p className="text-muted-foreground">{t('latest')}</p>
                       <p className="mt-1 font-medium text-foreground">
                         {panelUpdateStatus?.latestVersion
                           ? `v${panelUpdateStatus.latestVersion}`
-                          : "Not checked yet"}
+                          : t('ui.notCheckedYet')}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <p className="text-muted-foreground">Last Check</p>
+                      <p className="text-muted-foreground">{t('lastCheck')}</p>
                       <p className="mt-1 font-medium text-foreground">
                         {formatTimestamp(panelUpdateStatus?.lastCheck || null)}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
-                      <p className="text-muted-foreground">Release Published</p>
+                      <p className="text-muted-foreground">{t('releasePublished')}</p>
                       <p className="mt-1 font-medium text-foreground">
                         {formatTimestamp(
                           panelUpdateStatus?.publishedAt || null,
@@ -2607,7 +2568,7 @@ export default function Settings() {
                     panelUpdateStatus?.isDownloading) && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Downloading update</span>
+                        <span>{t('downloadingUpdate')}</span>
                         <span>{panelUpdateStatus?.downloadProgress ?? 0}%</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
@@ -2624,7 +2585,7 @@ export default function Settings() {
                   {panelUpdateStatus?.lastError && (
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Last Update Error</AlertTitle>
+                      <AlertTitle>{t('lastUpdateError')}</AlertTitle>
                       <AlertDescription className="break-words whitespace-pre-wrap">
                         {panelUpdateStatus.lastError}
                       </AlertDescription>
@@ -2643,17 +2604,18 @@ export default function Settings() {
                           panelUpdateStatus.currentVersion) ||
                       panelUpdateStatus.stagedUpdate ? null : (
                         <Alert variant="success">
-                          <AlertTitle>Update Applied</AlertTitle>
+                          <AlertTitle>{t('updateApplied')}</AlertTitle>
                           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <span>
-                              Panel is now running v
-                              {panelUpdateStatus.lastApplyResult
-                                .appliedVersion ||
-                                panelUpdateStatus.currentVersion}
-                              {panelUpdateStatus.lastApplyResult.at
-                                ? ` (applied ${formatTimestamp(panelUpdateStatus.lastApplyResult.at)})`
-                                : ""}
-                              .
+                              {t('ui.panelRunningVersion', {
+                                version:
+                                  panelUpdateStatus.lastApplyResult
+                                    .appliedVersion ||
+                                  panelUpdateStatus.currentVersion,
+                                applied: panelUpdateStatus.lastApplyResult.at
+                                  ? ` (${formatTimestamp(panelUpdateStatus.lastApplyResult.at)})`
+                                  : "",
+                              })}
                             </span>
                             <Button
                               variant="outline"
@@ -2661,7 +2623,7 @@ export default function Settings() {
                               onClick={() => setPanelApplyResultDismissed(true)}
                               className="self-start"
                             >
-                              Dismiss
+                              {t('ui.dismiss')}
                             </Button>
                           </AlertDescription>
                         </Alert>
@@ -2669,34 +2631,38 @@ export default function Settings() {
                     ) : (
                       <Alert variant="destructive">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Update Failed to Apply</AlertTitle>
+                        <AlertTitle>{t('updateFailedToApply')}</AlertTitle>
                         <AlertDescription className="flex flex-col gap-2">
                           <span className="break-words">
-                            Panel is still running v
-                            {panelUpdateStatus.lastApplyResult.currentVersion ||
-                              panelUpdateStatus.currentVersion}
-                            .
-                            {panelUpdateStatus.lastApplyResult.pendingVersion
-                              ? ` Expected v${panelUpdateStatus.lastApplyResult.pendingVersion}.`
-                              : ""}
-                            {panelUpdateStatus.lastApplyResult
-                              .stagedStillPresent
-                              ? " The downloaded file is still on disk; you can retry the restart."
-                              : " The staged binary is gone — re-download the update before retrying."}
+                            {panelUpdateStatus.lastApplyResult.stagedStillPresent
+                              ? t('ui.updateStillRunningPreviousWithFile', {
+                                  current:
+                                    panelUpdateStatus.lastApplyResult.currentVersion ||
+                                    panelUpdateStatus.currentVersion,
+                                  expected: panelUpdateStatus.lastApplyResult.pendingVersion
+                                    ? ` v${panelUpdateStatus.lastApplyResult.pendingVersion}`
+                                    : "",
+                                })
+                              : t('ui.updateStillRunningPreviousMissingFile', {
+                                  current:
+                                    panelUpdateStatus.lastApplyResult.currentVersion ||
+                                    panelUpdateStatus.currentVersion,
+                                  expected: panelUpdateStatus.lastApplyResult.pendingVersion
+                                    ? ` v${panelUpdateStatus.lastApplyResult.pendingVersion}`
+                                    : "",
+                                })}
                           </span>
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
                             "av_quarantine" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
-                                Likely cause:
+                                {t('ui.likelyCause')}
                               </strong>{" "}
-                              antivirus or Controlled Folder Access deleted the
-                              new binary after it was placed.
+                              {t('ui.antivirusDeletedBinary')}
                               {panelUpdateStatus.lastApplyResult
                                 .panelFolder && (
                                 <div className="mt-1">
-                                  Add this folder to your AV exclusions and
-                                  retry:
+                                  {t('ui.addFolderToAvExclusions')}
                                   <pre className="mt-1 rounded bg-background/70 p-1 text-[11px]">
                                     {
                                       panelUpdateStatus.lastApplyResult
@@ -2704,7 +2670,7 @@ export default function Settings() {
                                     }
                                   </pre>
                                   <div className="mt-1 text-[11px] opacity-80">
-                                    Windows Defender:{" "}
+                                    {t('ui.windowsDefender')}{" "}
                                     <code>
                                       Add-MpPreference -ExclusionPath{" "}
                                       {JSON.stringify(
@@ -2721,39 +2687,31 @@ export default function Settings() {
                             "rename_locked" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
-                                Likely cause:
+                                {t('ui.likelyCause')}
                               </strong>{" "}
-                              another process (OneDrive, AV, or a file watcher)
-                              held the exe locked. Pause OneDrive or close
-                              explorer windows pointing at the folder, then
-                              retry.
+                              {t('ui.renameLockedDescription')}
                             </div>
                           )}
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
                             "permission" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
-                                Likely cause:
+                                {t('ui.likelyCause')}
                               </strong>{" "}
-                              access denied writing to the panel folder.
-                              Relaunch the panel as Administrator or move it out
-                              of Program Files.
+                              {t('ui.permissionDescription')}
                             </div>
                           )}
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
                             "helper_blocked" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
-                                Likely cause:
+                                {t('ui.likelyCause')}
                               </strong>{" "}
-                              the update helper script was blocked from running
-                              (Windows Defender ASR, AppLocker, or Group
-                              Policy). The staged binary is still on disk.
+                              {t('ui.helperBlockedDescription')}
                               {panelUpdateStatus.lastApplyResult
                                 .panelFolder && (
                                 <div className="mt-1">
-                                  <strong>Recovery:</strong> close this panel
-                                  and double-click <code>Start.bat</code> in:
+                                  <strong>{t('recovery')}</strong>{" "}{t('ui.startBatRecovery')}
                                   <pre className="mt-1 rounded bg-background/70 p-1 text-[11px]">
                                     {
                                       panelUpdateStatus.lastApplyResult
@@ -2761,10 +2719,7 @@ export default function Settings() {
                                     }
                                   </pre>
                                   <div className="mt-1 text-[11px] opacity-80">
-                                    Start.bat picks the newest binary
-                                    automatically, so the update will apply. To
-                                    prevent this in the future, add the panel
-                                    folder to AV exclusions.
+                                    {t('ui.startBatRecoveryDescription')}
                                   </div>
                                 </div>
                               )}
@@ -2774,17 +2729,15 @@ export default function Settings() {
                             "no_helper_log" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
-                                No helper log was written.
+                                {t('ui.noHelperLog')}
                               </strong>{" "}
-                              The helper script may have been blocked by
-                              execution policy or AV. Check Windows Defender
-                              protection history.
+                              {t('ui.noHelperLogDescription')}
                             </div>
                           )}
                           {panelApplyLog && (
                             <details className="mt-1 text-xs">
                               <summary className="cursor-pointer font-medium">
-                                Show helper log
+                                {t('ui.showHelperLog')}
                               </summary>
                               <pre className="mt-2 max-h-64 overflow-auto rounded-md border border-destructive/30 bg-background/60 p-2 text-[11px] leading-snug whitespace-pre-wrap break-all">
                                 {panelApplyLog}
@@ -2797,7 +2750,7 @@ export default function Settings() {
                               size="sm"
                               onClick={() => setPanelApplyResultDismissed(true)}
                             >
-                              Dismiss
+                              {t('ui.dismiss')}
                             </Button>
                             <Button
                               variant="outline"
@@ -2807,21 +2760,21 @@ export default function Settings() {
                                   const { log: helperLog } =
                                     await panelUpdateApi.getApplyLog();
                                   setPanelApplyLog(
-                                    helperLog || "No helper log found.",
+                                    helperLog || t('ui.noHelperLogFound'),
                                   );
                                 } catch (error) {
                                   toast({
-                                    title: "Could not read log",
+                                    title: t('messages.couldNotReadLog'),
                                     description:
                                       error instanceof Error
                                         ? error.message
-                                        : "Failed to read helper log.",
+                                        : t('ui.failedToReadHelperLog'),
                                     variant: "destructive",
                                   });
                                 }
                               }}
                             >
-                              Refresh log
+                              {t('ui.refreshLog')}
                             </Button>
                           </div>
                         </AlertDescription>
@@ -2834,7 +2787,7 @@ export default function Settings() {
                       panelUpdateStatus?.stagedUpdate) && (
                       <Alert variant="destructive">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Update Blocked</AlertTitle>
+                        <AlertTitle>{t('updateBlocked')}</AlertTitle>
                         <AlertDescription>
                           <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                             {panelUpdatePreflight.blockers.map((b, i) => (
@@ -2858,7 +2811,7 @@ export default function Settings() {
                     ) && (
                       <Alert variant="warning">
                         <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Before You Restart</AlertTitle>
+                        <AlertTitle>{t('beforeYouRestart')}</AlertTitle>
                         <AlertDescription>
                           <ul className="mt-1 list-disc space-y-1 pl-5 text-sm">
                             {panelUpdatePreflight.warnings.map((w, i) => (
@@ -2888,8 +2841,8 @@ export default function Settings() {
                         <RefreshCw className="w-4 h-4" />
                       )}
                       {checkingPanelUpdate
-                        ? "Checking..."
-                        : "Check for Updates"}
+                        ? t('ui.checking')
+                        : t('ui.checkForUpdates')}
                     </Button>
 
                     {isDockerPanelUpdate ? (
@@ -2914,31 +2867,28 @@ export default function Settings() {
                               <Download className="w-4 h-4" />
                             )}
                             {downloadingPanelUpdate
-                              ? "Applying Docker Update..."
-                              : "Apply Docker Update"}
+                              ? t('ui.applyingDockerUpdate')
+                              : t('ui.applyDockerUpdate')}
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>
-                              Apply Docker update?
+                              {t('ui.applyDockerUpdateQuestion')}
                             </AlertDialogTitle>
                             <AlertDialogDescription>
-                              The panel will save and stop Project Zomboid through
-                              RCON, then rebuild and recreate the all-in-one
-                              container. Players will be disconnected while the
-                              panel comes back online.
+                              {t('ui.dockerUpdateDescription')}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => {
                                 setDockerUpdateConfirmOpen(false);
                                 handleDownloadPanelUpdate();
                               }}
                             >
-                              Stop server and update
+                              {t('ui.stopServerAndUpdate')}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -2960,7 +2910,7 @@ export default function Settings() {
                         ) : (
                           <Download className="w-4 h-4" />
                         )}
-                        {downloadingPanelUpdate ? "Downloading..." : "Download Update"}
+                        {downloadingPanelUpdate ? t('ui.downloading') : t('ui.downloadUpdate')}
                       </Button>
                     )}
 
@@ -2983,28 +2933,27 @@ export default function Settings() {
                           ) : (
                             <RotateCw className="w-4 h-4" />
                           )}
-                          Restart and Apply Update
+                          {t('ui.restartAndApplyUpdate')}
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>
-                            Apply panel update?
+                            {t('ui.applyPanelUpdateQuestion')}
                           </AlertDialogTitle>
                           <AlertDialogDescription asChild>
                             <div className="space-y-3 text-sm">
                               <p>
-                                The panel will exit immediately. A helper
-                                process will swap the executable and relaunch it
-                                in a few seconds.
-                                {panelUpdateStatus?.stagedUpdate?.version
-                                  ? ` You are about to install v${panelUpdateStatus.stagedUpdate.version}.`
-                                  : ""}
+                                {t('ui.panelUpdateExitDescription', {
+                                  version: panelUpdateStatus?.stagedUpdate?.version
+                                    ? ` v${panelUpdateStatus.stagedUpdate.version}`
+                                    : "",
+                                })}
                               </p>
                               {panelUpdatePreflight?.warnings.length ? (
                                 <div>
                                   <p className="font-medium text-foreground">
-                                    Please confirm before continuing:
+                                    {t('ui.confirmBeforeContinuing')}
                                   </p>
                                   <ul className="mt-1 list-disc space-y-1 pl-5">
                                     {panelUpdatePreflight.warnings.map(
@@ -3021,25 +2970,23 @@ export default function Settings() {
                                 </div>
                               ) : null}
                               <p className="text-xs text-muted-foreground">
-                                If the new version does not come back online
-                                within a minute, check the helper log in{" "}
+                                {t('ui.helperLogRecoveryHint')}{" "}
                                 <code>%TEMP%</code>(
-                                <code>zomboid-panel-update-*.log</code>) and
-                                relaunch the panel manually.
+                                <code>zomboid-panel-update-*.log</code>) {t('ui.helperLogRelaunch')}
                               </p>
                             </div>
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() =>
                               restartPanelWithReconnect(
-                                "Applying downloaded update. Restarting panel...",
+                                t('ui.applyingDownloadedUpdate'),
                               )
                             }
                           >
-                            Restart and apply
+                            {t('ui.restartAndApply')}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -3055,8 +3002,8 @@ export default function Settings() {
                           title={panelUpdateStatus.releaseUrl}
                         >
                           <ExternalLink className="h-4 w-4" />
-                          View Release Notes{" "}
-                          <span className="sr-only">(opens in new tab)</span>
+                          {t('ui.viewReleaseNotes')}{" "}
+                          <span className="sr-only">({t('ui.opensInNewTab')})</span>
                         </a>
                       </Button>
                     )}
@@ -3064,22 +3011,91 @@ export default function Settings() {
 
                   <p className="text-xs text-muted-foreground">
                     {isDirty
-                      ? "Save settings before applying an update."
+                      ? t('ui.saveBeforeUpdate')
                       : panelUpdateReady
-                        ? "Update files are ready. Restart to switch to the new version."
+                        ? t('ui.updateFilesReady')
                         : panelUpdateStatus?.updateAvailable
                           ? isDockerPanelUpdate
-                            ? "Applying this update saves and stops Project Zomboid, then rebuilds and recreates the all-in-one container."
-                            : "Download the update, then restart to apply it."
-                          : "No update is ready to install."}
+                            ? t('ui.dockerUpdateReadyDescription')
+                            : t('ui.downloadThenRestart')
+                          : t('ui.noUpdateReady')}
                   </p>
 
                   <p className="text-xs text-muted-foreground">
                     {isDockerPanelUpdate
-                      ? "Docker updates are handled by the configured host controller."
-                      : "Auto-update works in packaged builds only. In dev mode, update from git."}
+                        ? t('ui.dockerUpdatesHostController')
+                        : t('ui.autoUpdatePackagedOnly')}
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+            <Card className="mt-4">
+              <CardHeader className="pb-4">
+                <CardTitle>{t('latest.serverAutomation')}</CardTitle>
+                <CardDescription>{t('latest.serverAutomationDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="auto-start-server">{t('latest.autoStartServer')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('latest.autoStartServerDescription')}</p>
+                  </div>
+                  <Switch
+                    id="auto-start-server"
+                    checked={settings.autoStartServer}
+                    onCheckedChange={(value) => updateSetting("autoStartServer", value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="auto-export-on-login">{t('latest.autoExportOnLogin')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('latest.autoExportOnLoginDescription')}</p>
+                  </div>
+                  <Switch
+                    id="auto-export-on-login"
+                    checked={settings.autoExportOnLogin}
+                    onCheckedChange={(value) => updateSetting("autoExportOnLogin", value)}
+                  />
+                </div>
+                {settings.autoExportOnLogin && (
+                  <div className="max-w-xs space-y-1.5">
+                    <Label htmlFor="auto-export-max-per-player">{t('latest.autoExportMaxPerPlayer')}</Label>
+                    <Input
+                      id="auto-export-max-per-player"
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={settings.autoExportMaxPerPlayer}
+                      onChange={(event) => updateSetting("autoExportMaxPerPlayer", event.target.value)}
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="server-auto-update">{t('latest.serverAutoUpdate')}</Label>
+                    <p className="text-xs text-muted-foreground">{t('latest.serverAutoUpdateDescription')}</p>
+                  </div>
+                  <Switch
+                    id="server-auto-update"
+                    checked={settings.serverAutoUpdate}
+                    onCheckedChange={(value) => updateSetting("serverAutoUpdate", value)}
+                  />
+                </div>
+                {settings.serverAutoUpdate && (
+                  <div className="max-w-xs space-y-1.5">
+                    <Label htmlFor="server-auto-update-warning">{t('latest.serverAutoUpdateWarningMinutes')}</Label>
+                    <Input
+                      id="server-auto-update-warning"
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={settings.serverAutoUpdateWarningMinutes}
+                      onChange={(event) => updateSetting("serverAutoUpdateWarningMinutes", event.target.value)}
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="https" className="mt-0">
@@ -3091,21 +3107,19 @@ export default function Settings() {
                   HTTPS
                 </CardTitle>
                 <CardDescription>
-                  Encrypt panel traffic with a TLS certificate.
+                  {t('ui.httpsDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <Alert className="border-border/60 bg-muted/40">
                   <Lock className="h-4 w-4 text-primary" />
-                  <AlertTitle>Recommended Setup (Most Servers)</AlertTitle>
+                  <AlertTitle>{t('recommendedSetupMostServers')}</AlertTitle>
                   <AlertDescription className="space-y-2 text-sm text-muted-foreground">
                     <p>
-                      Enable HTTPS, leave certificate paths empty, save, then
-                      restart.
+                      {t('ui.httpsRecommendedStep')}
                     </p>
                     <p>
-                      The panel creates a local self-signed certificate
-                      automatically.
+                      {t('ui.httpsAutoCertificate')}
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
                       <Button
@@ -3114,7 +3128,7 @@ export default function Settings() {
                         size="sm"
                         onClick={applyRecommendedHttpsDefaults}
                       >
-                        Use Recommended Defaults
+                        {t('ui.useRecommendedDefaults')}
                       </Button>
                     </div>
                   </AlertDescription>
@@ -3126,23 +3140,23 @@ export default function Settings() {
                     onCheckedChange={(value) =>
                       updateSetting("httpsEnabled", value)
                     }
-                    aria-label="Enable HTTPS"
+                    aria-label={t('labels.enableHttps')}
                   />
                   <div>
-                    <Label className="text-base">Enable HTTPS</Label>
+                    <Label className="text-base">{t('enableHttps')}</Label>
                     <p className="text-sm text-muted-foreground">
-                      Serve the panel over HTTPS.
+                      {t('ui.serveOverHttps')}
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-xs text-muted-foreground space-y-1">
                   <p>
-                    <strong className="text-foreground">HTTP URL:</strong>{" "}
+                    <strong className="text-foreground">{t('httpUrl')}</strong>{" "}
                     <code className="break-all">{httpPreviewUrl}</code>
                   </p>
                   <p>
-                    <strong className="text-foreground">HTTPS URL:</strong>{" "}
+                    <strong className="text-foreground">{t('httpsUrl')}</strong>{" "}
                     <code className="break-all">{httpsPreviewUrl}</code>
                   </p>
                 </div>
@@ -3150,7 +3164,7 @@ export default function Settings() {
                 {settings.httpsEnabled && (
                   <div className="ml-2 space-y-4 border-l-2 border-primary/20 pl-2">
                     <div className="max-w-xs">
-                      <Label htmlFor="https-port">HTTPS Port</Label>
+                      <Label htmlFor="https-port">{t('httpsPort')}</Label>
                       <Input
                         id="https-port"
                         type="number"
@@ -3161,18 +3175,18 @@ export default function Settings() {
                         onWheel={(e) => e.currentTarget.blur()}
                         min="1024"
                         max="65535"
-                        placeholder="3443"
+                        placeholder={t('placeholders.httpsPort')}
                         inputMode="numeric"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        HTTPS listener port (recommended 3443).
+                        {t('ui.httpsPortDescription')}
                       </p>
                     </div>
                     <div className="max-w-md">
                       <Label htmlFor="https-cert-path">
-                        Custom Certificate Path{" "}
+                        {t('ui.customCertificatePath')} {" "}
                         <span className="text-muted-foreground font-normal">
-                          (optional)
+                          {t('ui.optional')}
                         </span>
                       </Label>
                       <Input
@@ -3181,18 +3195,18 @@ export default function Settings() {
                         onChange={(e) =>
                           updateSetting("httpsCertPath", e.target.value)
                         }
-                        placeholder="Example: C:\\certs\\panel.fullchain.pem"
+                        placeholder={t('placeholders.certPath')}
                         maxLength={260}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Set both certificate and key paths, or leave both empty.
+                        {t('ui.certificatePathsDescription')}
                       </p>
                     </div>
                     <div className="max-w-md">
                       <Label htmlFor="https-key-path">
-                        Custom Key Path{" "}
+                        {t('ui.customKeyPath')} {" "}
                         <span className="text-muted-foreground font-normal">
-                          (optional)
+                          {t('ui.optional')}
                         </span>
                       </Label>
                       <Input
@@ -3201,11 +3215,11 @@ export default function Settings() {
                         onChange={(e) =>
                           updateSetting("httpsKeyPath", e.target.value)
                         }
-                        placeholder="Example: C:\\certs\\panel.privkey.pem"
+                        placeholder={t('placeholders.keyPath')}
                         maxLength={260}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Supports PEM key files that Node.js can read.
+                        {t('ui.keyPathDescription')}
                       </p>
                     </div>
 
@@ -3213,11 +3227,10 @@ export default function Settings() {
                       <Alert className="border-warning/40 bg-warning/10">
                         <AlertTriangle className="h-4 w-4 text-warning" />
                         <AlertTitle className="text-warning">
-                          Provide Both Certificate Files
+                          {t('ui.provideBothCertificateFiles')}
                         </AlertTitle>
                         <AlertDescription>
-                          Set both certificate and key paths, or clear both to
-                          use auto-generated certs.
+                          {t('ui.provideBothCertificateFilesDescription')}
                         </AlertDescription>
                       </Alert>
                     )}
@@ -3226,21 +3239,19 @@ export default function Settings() {
                       <Alert className="border-primary/30 bg-primary/10">
                         <Lock className="h-4 w-4 text-primary" />
                         <AlertTitle className="text-primary">
-                          Auto-Generated Certificate Mode
+                          {t('ui.autoGeneratedCertificateMode')}
                         </AlertTitle>
                         <AlertDescription>
-                          The panel will create and reuse a local self-signed
-                          certificate.
+                          {t('ui.autoGeneratedCertificateDescription')}
                         </AlertDescription>
                       </Alert>
                     )}
 
                     <Alert className="border-border/60 bg-muted/35">
                       <Lock className="h-4 w-4 text-muted-foreground" />
-                      <AlertTitle>Reverse Proxy Note</AlertTitle>
+                      <AlertTitle>{t('reverseProxyNote')}</AlertTitle>
                       <AlertDescription>
-                        If TLS is terminated by Nginx, Caddy, or Cloudflare
-                        Tunnel, keep panel HTTPS off and proxy local HTTP.
+                        {t('ui.reverseProxyDescription')}
                       </AlertDescription>
                     </Alert>
 
@@ -3250,11 +3261,10 @@ export default function Settings() {
                         <Alert className="border-warning/40 bg-warning/10">
                           <AlertTriangle className="h-4 w-4 text-warning" />
                           <AlertTitle className="text-warning">
-                            Restart Required
+                            {t('ui.restartRequired')}
                           </AlertTitle>
                           <AlertDescription>
-                            HTTPS changes require restart. Save first, then
-                            restart from Panel Settings.
+                            {t('ui.httpsRestartDescription')}
                           </AlertDescription>
                         </Alert>
                       )}
@@ -3264,17 +3274,16 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="connection" className="mt-0 space-y-5">
+          <TabsContent value="rcon" className="mt-0">
             {/* RCON Settings */}
             <Card id="settings-rcon">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Link className="w-4 h-4 text-primary" />
-                  RCON Connection
+                  {t('ui.rconConnection')}
                 </CardTitle>
                 <CardDescription>
-                  Test the connection and set reconnect behavior. Host, port,
-                  and password are configured per-server on the Servers page.
+                  {t('ui.rconDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -3288,7 +3297,7 @@ export default function Settings() {
                     {testingRcon ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : null}
-                    Test Connection
+                    {t('ui.testConnection')}
                   </Button>
                   <div className="flex items-center gap-2">
                     <Switch
@@ -3296,15 +3305,15 @@ export default function Settings() {
                       onCheckedChange={(value) =>
                         updateSetting("autoReconnect", value)
                       }
-                      aria-label="Auto-reconnect RCON on disconnect"
+                      aria-label={t('labels.autoReconnectRcon')}
                     />
-                    <Label>Auto-reconnect on disconnect</Label>
+                    <Label>{t('autoreconnectOnDisconnect')}</Label>
                   </div>
                 </div>
                 {settings.autoReconnect && (
                   <div className="max-w-xs">
                     <Label htmlFor="reconnect-interval">
-                      Reconnect Interval (seconds)
+                      {t('ui.reconnectInterval')}
                     </Label>
                     <Input
                       id="reconnect-interval"
@@ -3322,55 +3331,17 @@ export default function Settings() {
                 )}
                 <div className="p-4 bg-muted rounded-xl text-sm">
                   <p className="font-medium mb-2">
-                    RCON is configured per-server:
+                    {t('ui.rconPerServer')}
                   </p>
                   <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                     <li>
-                      Go to <strong>Servers</strong> page
+                      {t('ui.goToServersPage', { page: t('servers') })}
                     </li>
                     <li>
-                      Click <strong>Edit</strong> on your server
+                      {t('ui.editServer', { action: t('edit') })}
                     </li>
-                    <li>Configure RCON host, port, and password there</li>
+                    <li>{t('configureRconHostPortAndPasswordThere')}</li>
                   </ol>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card id="settings-server-startup">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Server className="w-4 h-4 text-primary" />
-                  Server Startup
-                </CardTitle>
-                <CardDescription>
-                  Whether the panel launches the game server for you.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/25 p-3">
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="auto-start-server"
-                      className="text-sm font-medium"
-                    >
-                      Start the game server when the panel starts
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Skipped automatically when the RCON port is already in
-                      use, so a server that is already running is never
-                      duplicated. Needs a local install path; servers hosted by
-                      a provider are started by the provider.
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto-start-server"
-                    checked={settings.autoStartServer}
-                    onCheckedChange={(value) =>
-                      updateSetting("autoStartServer", value)
-                    }
-                    aria-label="Start the game server when the panel starts"
-                  />
                 </div>
               </CardContent>
             </Card>
@@ -3384,66 +3355,64 @@ export default function Settings() {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-primary" />
-                      Panel Bridge
+                      {t('bridge.title')}
                     </CardTitle>
                     <CardDescription className="flex items-center gap-2">
-                      Connects this panel to the live game for weather,
-                      utilities, richer chat, and other in-world actions
+                      {t('bridge.description')}{" "}
                       <Dialog>
                         <DialogTrigger asChild>
                           <button className="inline-flex items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap">
                             <Info className="w-3.5 h-3.5" />
-                            How it works
+                            {t('bridge.howItWorks')}
                           </button>
                         </DialogTrigger>
                         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                           <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                               <Zap className="w-4 h-4 text-primary" />
-                              Panel Bridge
+                              {t('bridge.title')}
                             </DialogTitle>
                             <DialogDescription>
-                              A Lua mod that runs inside Project Zomboid, giving
-                              this panel direct access to the live game world.
+                              {t('bridge.dialogDescription')}
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-5 text-sm">
                             {/* What it unlocks */}
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                What it unlocks
+                                {t('bridge.whatItUnlocks')}
                               </p>
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                                   <p className="font-medium text-foreground">
-                                    Weather & Climate
+                                    {t('bridge.weatherClimate')}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Storms, rain, temperature, fog, wind
+                                    {t('bridge.weatherClimateDescription')}
                                   </p>
                                 </div>
                                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                                   <p className="font-medium text-foreground">
-                                    Player Actions
+                                    {t('bridge.playerActions')}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Teleport, heal, god mode, inventory
+                                    {t('bridge.playerActionsDescription')}
                                   </p>
                                 </div>
                                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                                   <p className="font-medium text-foreground">
-                                    World Control
+                                    {t('bridge.worldControl')}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Utilities, zombies, time, sandbox
+                                    {t('bridge.worldControlDescription')}
                                   </p>
                                 </div>
                                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
                                   <p className="font-medium text-foreground">
-                                    Chat & Sound
+                                    {t('bridge.chatSound')}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    Server chat, admin chat, world sounds
+                                    {t('bridge.chatSoundDescription')}
                                   </p>
                                 </div>
                               </div>
@@ -3452,23 +3421,21 @@ export default function Settings() {
                             {/* How it works */}
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                How it works
+                                {t('bridge.howItWorks')}
                               </p>
                               <p className="text-muted-foreground mb-3">
-                                Two pieces meet in the middle: the panel runs a
-                                file watcher, and{" "}
+                                {t('bridge.howItWorksDescription')}{" "}
                                 <strong className="text-foreground">
                                   PanelBridge.lua
                                 </strong>{" "}
-                                runs inside the game. They exchange commands via
-                                JSON files.
+                                {t('bridge.howItWorksDetails')}
                               </p>
                             </div>
 
                             {/* Setup steps */}
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                Setup
+                                {t('bridge.setup')}
                               </p>
                               <ol className="space-y-2">
                                 <li className="flex gap-3 items-start">
@@ -3477,11 +3444,10 @@ export default function Settings() {
                                   </span>
                                   <div>
                                     <p className="font-medium">
-                                      Install the Lua file
+                                      {t('bridge.installLuaFile')}
                                     </p>
                                     <p className="text-muted-foreground text-xs">
-                                      Use the Install section on this tab to
-                                      copy PanelBridge.lua into your server.
+                                      {t('bridge.installLuaDescription')}
                                     </p>
                                   </div>
                                 </li>
@@ -3491,11 +3457,10 @@ export default function Settings() {
                                   </span>
                                   <div>
                                     <p className="font-medium">
-                                      Run Auto Setup
+                                      {t('bridge.runAutoSetup')}
                                     </p>
                                     <p className="text-muted-foreground text-xs">
-                                      Points the panel at the correct server
-                                      data folder and starts the watcher.
+                                      {t('bridge.runAutoSetupDescription')}
                                     </p>
                                   </div>
                                 </li>
@@ -3505,19 +3470,18 @@ export default function Settings() {
                                   </span>
                                   <div>
                                     <p className="font-medium">
-                                      Start the PZ server
+                                      {t('bridge.startPzServer')}
                                     </p>
                                     <p className="text-muted-foreground text-xs">
-                                      When the game loads the mod, status
-                                      changes from{" "}
+                                      {t('bridge.startPzServerDescription')}{" "}
                                       <strong className="text-warning">
-                                        Waiting
+                                        {t('bridge.waiting')}
                                       </strong>{" "}
-                                      to{" "}
+                                      {t('bridge.statusTransitionTo')} {" "}
                                       <strong className="text-primary">
-                                        Connected
+                                        {t('bridge.connected')}
                                       </strong>
-                                      .
+                                      。
                                     </p>
                                   </div>
                                 </li>
@@ -3527,9 +3491,9 @@ export default function Settings() {
                             {/* Requirement */}
                             <div className="rounded-lg border border-warning/35 bg-warning/10 px-3 py-2 text-xs">
                               <p>
-                                <strong>Requires LuaChecksum=false</strong> in
-                                your server INI. Commands can fail with checksum
-                                enabled.
+                                {t('bridge.checksumRequirement', {
+                                  setting: t('requiresLuachecksumfalse'),
+                                })}
                               </p>
                             </div>
                           </div>
@@ -3558,33 +3522,31 @@ export default function Settings() {
                     <div className="flex items-center gap-3 mb-3">
                       <CheckCircle2 className="w-5 h-5 text-primary" />
                       <span className="font-semibold text-primary">
-                        Connected to{" "}
-                        {bridgeStatus.modStatus.serverName || "server"}
+                        {t('bridge.connectedTo', { server: bridgeStatus.modStatus.serverName || t('messages.server') })}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">
-                          Mod Version:
+                          {t('bridge.modVersion')}:
                         </span>{" "}
                         <span className="font-medium">
-                          {bridgeStatus.modStatus.version || "Unknown"}
+                            {bridgeStatus.modStatus.version || t('bridge.unknown')}
                         </span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">
-                          Players Online:
+                          {t('bridge.playersOnline')}:
                         </span>{" "}
                         <span className="font-medium">
                           {bridgeStatus.modStatus.alive
                             ? (bridgeStatus.modStatus.playerCount ?? 0)
-                            : "Offline"}
+                            : t('bridge.offline')}
                         </span>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Advanced features on Events, Players, and Chat are now
-                      available.
+                      {t('bridge.advancedFeatures')}
                     </p>
                   </Alert>
                 )}
@@ -3592,28 +3554,28 @@ export default function Settings() {
                 {/* Not running - setup flow */}
                 {!bridgeStatus?.isRunning && (
                   <div className="p-4 bg-muted rounded-xl space-y-3">
-                    <p className="text-sm font-medium">Get Started</p>
+                    <p className="text-sm font-medium">{t('getStarted')}</p>
                     <ol className="space-y-1.5 text-sm text-muted-foreground list-decimal list-inside">
                       <li>
-                        Install{" "}
+                        {t('bridge.install')} {" "}
                         <strong className="text-foreground">
                           PanelBridge.lua
                         </strong>{" "}
-                        using the section below
+                        {t('bridge.installUsingSection')}
                       </li>
                       <li>
-                        Set{" "}
+                        {t('bridge.set')} {" "}
                         <strong className="text-foreground">
                           LuaChecksum=false
                         </strong>{" "}
-                        in your server INI
+                        {t('bridge.inServerIni')}
                       </li>
                       <li>
-                        Click{" "}
-                        <strong className="text-foreground">Auto Setup</strong>{" "}
-                        to start the bridge watcher
+                        {t('bridge.click')} {" "}
+                        <strong className="text-foreground">{t('autoSetup')}</strong>{" "}
+                        {t('bridge.toStartWatcher')}
                       </li>
-                      <li>Start or restart the PZ server</li>
+                      <li>{t('startOrRestartThePzServer')}</li>
                     </ol>
                     <Button
                       onClick={() => handleAutoConfigure()}
@@ -3625,19 +3587,18 @@ export default function Settings() {
                       ) : (
                         <Zap className="w-4 h-4" />
                       )}
-                      Auto Setup
+                      {t('bridge.autoSetupButton')}
                     </Button>
 
                     <div className="border-t border-border/50 pt-3 mt-1 space-y-2">
                       <p className="text-xs text-muted-foreground">
-                        Or set the bridge path manually (Linux / VPS / custom
-                        installs):
+                        {t('bridge.manualPathDescription')}
                       </p>
                       <div className="flex gap-2">
                         <Input
                           value={manualBridgePath}
                           onChange={(e) => setManualBridgePath(e.target.value)}
-                          placeholder="/home/pzuser/Zomboid/Lua/panelbridge/MyServer"
+                          placeholder={t('placeholders.bridgePath')}
                           className="text-xs h-9"
                         />
                         <Button
@@ -3652,11 +3613,80 @@ export default function Settings() {
                           ) : (
                             <FolderOpen className="w-3.5 h-3.5" />
                           )}
-                          Connect
+                          {t('bridge.connect')}
                         </Button>
                       </div>
                     </div>
 
+                    <div className="border-t border-border/50 pt-4 space-y-3">
+                      <div>
+                        <p className="text-sm font-medium">{t('remoteServerViaSftp')}</p>
+                        <p className="text-xs text-muted-foreground">{t('syncsOnlyBridgeStatusQueueStateAndCommandResultFilesCommandDeliveryRunsEvery2To10Seconds')}</p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5"><Label htmlFor="sftp-host">{t('host')}</Label><Input id="sftp-host" value={settings.panelBridgeSftpHost} onChange={(event) => updateSetting("panelBridgeSftpHost", event.target.value)} placeholder={t('placeholders.hostname')} /></div>
+                        <div className="space-y-1.5"><Label htmlFor="sftp-port">{t('port')}</Label><Input id="sftp-port" inputMode="numeric" value={settings.panelBridgeSftpPort} onChange={(event) => updateSetting("panelBridgeSftpPort", event.target.value)} /></div>
+                        <div className="space-y-1.5"><Label htmlFor="sftp-user">{t('username')}</Label><Input id="sftp-user" autoComplete="username" value={settings.panelBridgeSftpUsername} onChange={(event) => updateSetting("panelBridgeSftpUsername", event.target.value)} /></div>
+                        <div className="space-y-1.5"><Label htmlFor="sftp-password">{t('password')}</Label><Input id="sftp-password" type="password" autoComplete="current-password" value={settings.panelBridgeSftpPassword} onChange={(event) => updateSetting("panelBridgeSftpPassword", event.target.value)} placeholder={t('placeholders.storedSecurely')} /></div>
+                      </div>
+                      <div className="space-y-1.5"><Label htmlFor="sftp-bridge-path">{t('remoteAbsoluteBridgeFolder')}</Label><Input id="sftp-bridge-path" value={settings.panelBridgeSftpBridgePath} onChange={(event) => updateSetting("panelBridgeSftpBridgePath", event.target.value)} placeholder={t('placeholders.bridgePathExample')} /></div>
+                      <div className="space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
+                        <div>
+                          <Label htmlFor="sftp-log-path">{t('latest.remoteLogFolder')}</Label>
+                          <p className="text-xs text-muted-foreground">{t('latest.remoteLogFolderDescription')}</p>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Input
+                            id="sftp-log-path"
+                            value={settings.panelBridgeSftpLogPath}
+                            onChange={(event) => updateSetting("panelBridgeSftpLogPath", event.target.value)}
+                            placeholder={t('latest.remoteLogFolderPlaceholder')}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleListRemoteLogs}
+                            disabled={loadingRemoteLogs || !settings.panelBridgeSftpLogPath.trim()}
+                            className="shrink-0"
+                          >
+                            {loadingRemoteLogs && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {t('latest.listLogs')}
+                          </Button>
+                        </div>
+                        {remoteLogError && <p className="text-xs text-destructive">{remoteLogError}</p>}
+                        {remoteLogs.length > 0 && (
+                          <div className="space-y-1">
+                            {remoteLogs.map((file) => (
+                              <button
+                                key={file.name}
+                                type="button"
+                                className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted"
+                                onClick={() => void handleTailRemoteLog(file.name)}
+                              >
+                                <span className="min-w-0 truncate font-mono">{file.name}</span>
+                                <span className="shrink-0 text-muted-foreground">{file.size} B</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {remoteLogContent && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">{remoteLogContent.name}</p>
+                            <pre className="max-h-72 overflow-auto rounded-md bg-muted p-3 text-[11px] leading-5 whitespace-pre-wrap break-words">{remoteLogContent.content}</pre>
+                            <p className="text-[11px] text-muted-foreground">
+                              {t('latest.logBytesReturned', { bytes: remoteLogContent.bytesReturned })}
+                              {remoteLogContent.truncated ? ` · ${t('latest.logTailTruncated')}` : ""}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="w-36 space-y-1.5"><Label htmlFor="sftp-poll">{t('syncIntervalSeconds')}</Label><Input id="sftp-poll" inputMode="numeric" value={settings.panelBridgeSftpPollIntervalSeconds} onChange={(event) => updateSetting("panelBridgeSftpPollIntervalSeconds", event.target.value)} /></div>
+                        <Button type="button" variant="outline" onClick={handleTestSftp} disabled={testingSftp || bridgeLoading}>{testingSftp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link className="mr-2 h-4 w-4" />}{t('bridge.testSftp')}</Button>
+                        <Button type="button" onClick={handleConfigureSftp} disabled={bridgeLoading}>{bridgeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}{t('bridge.startSftpBridge')}</Button>
+                      </div>
+                      {bridgeStatus?.transport?.type === "sftp" && <p className="text-xs text-muted-foreground">SFTP {bridgeStatus.transport.running ? t('bridge.running') : t('bridge.stopped')}{bridgeStatus.transport.lastLatencyMs != null ? `, ${t('bridge.lastSync')} ${bridgeStatus.transport.lastLatencyMs} ms` : ""}{bridgeStatus.transport.lastError ? `, ${t('bridge.lastError')}: ${bridgeStatus.transport.lastError}` : ""}</p>}
+                    </div>
                   </div>
                 )}
 
@@ -3668,20 +3698,19 @@ export default function Settings() {
                   >
                     <Cloud className="h-4 w-4 text-warning" />
                     <AlertTitle className="text-warning">
-                      Waiting for PZ mod
+                      {t('bridge.waitingForPzMod')}
                     </AlertTitle>
                     <AlertDescription className="space-y-2">
                       <p>
-                        The panel is ready. Start the PZ server with
-                        PanelBridge.lua installed and{" "}
+                        {t('bridge.waitingDescription')}{" "}
                         <strong className="text-foreground">
                           LuaChecksum=false
                         </strong>{" "}
-                        set.
+                        {t('bridge.setSuffix')}
                       </p>
                       {bridgeStatus?.bridgePath && (
                         <p className="text-xs text-muted-foreground break-words">
-                          Watching:{" "}
+                          {t('bridge.watching')} {" "}
                           <code className="rounded bg-background px-1 break-all">
                             {bridgeStatus.bridgePath}
                           </code>
@@ -3699,13 +3728,12 @@ export default function Settings() {
                       <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b border-border/40">
                         <Info className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium text-foreground">
-                          Connection Diagnostics
+                          {t('bridge.connectionDiagnostics')}
                         </span>
                         {bridgeStatus.consecutiveFailures != null &&
                           bridgeStatus.consecutiveFailures > 0 && (
                             <span className="ml-auto text-[10px] tabular-nums text-warning">
-                              {bridgeStatus.consecutiveFailures} consecutive
-                              failures
+                              {t('bridge.consecutiveFailures', { count: bridgeStatus.consecutiveFailures })}
                             </span>
                           )}
                       </div>
@@ -3780,7 +3808,7 @@ export default function Settings() {
                         {bridgeStatus.statusFile && (
                           <div className="text-[11px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/30">
                             <div className="flex items-center gap-1.5">
-                              <span className="opacity-60">Status file:</span>
+                              <span className="opacity-60">{t('statusFile')}</span>
                               <span
                                 className={
                                   bridgeStatus.statusFile.exists
@@ -3789,16 +3817,17 @@ export default function Settings() {
                                 }
                               >
                                 {bridgeStatus.statusFile.exists
-                                  ? "Present"
-                                  : "Not found"}
+                                  ? t('bridge.present')
+                                  : t('bridge.notFound')}
                               </span>
                               {bridgeStatus.statusFile.ageSeconds != null && (
                                 <span className="opacity-50">
                                   (
                                   {formatBridgeAge(
                                     bridgeStatus.statusFile.ageSeconds,
+                                    t('bridge.unknown'),
                                   )}{" "}
-                                  ago)
+                                  {t('bridge.ago')})
                                 </span>
                               )}
                             </div>
@@ -3815,16 +3844,16 @@ export default function Settings() {
                         {/* File watcher status */}
                         <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-1 border-t border-border/30">
                           <span>
-                            File watcher:{" "}
+                            {t('bridge.fileWatcher')}: {" "}
                             {bridgeStatus.hasFileWatcher ? (
-                              <span className="text-primary">Active</span>
+                              <span className="text-primary">{t('active')}</span>
                             ) : (
-                              <span className="text-warning">Polling only</span>
+                              <span className="text-warning">{t('pollingOnly')}</span>
                             )}
                           </span>
                           {bridgeStatus.pendingCommands > 0 && (
                             <span>
-                              Pending:{" "}
+                              {t('bridge.pending')}: {" "}
                               <span className="text-warning tabular-nums">
                                 {bridgeStatus.pendingCommands}
                               </span>
@@ -3839,7 +3868,7 @@ export default function Settings() {
                 {bridgeError && (
                   <Alert variant="destructive" aria-live="assertive">
                     <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Panel Bridge Error</AlertTitle>
+                    <AlertTitle>{t('panelBridgeError')}</AlertTitle>
                     <AlertDescription>{bridgeError}</AlertDescription>
                   </Alert>
                 )}
@@ -3859,7 +3888,7 @@ export default function Settings() {
                       ) : (
                         <XCircle className="w-4 h-4" />
                       )}
-                      Stop Bridge
+                      {t('bridge.stopBridge')}
                     </Button>
                     <Button
                       onClick={handlePingMod}
@@ -3873,7 +3902,7 @@ export default function Settings() {
                       ) : (
                         <RefreshCw className="w-4 h-4" />
                       )}
-                      {pinging ? "Pinging..." : "Ping Mod"}
+                      {pinging ? t('bridge.pinging') : t('bridge.pingMod')}
                     </Button>
                     <Button
                       onClick={fetchBridgeStatus}
@@ -3882,164 +3911,19 @@ export default function Settings() {
                       className="gap-2"
                     >
                       <RefreshCw className="w-4 h-4" />
-                      Refresh Status
+                      {t('bridge.refreshStatus')}
                     </Button>
                   </div>
                 )}
-
-                <div className="border-t border-border/60 pt-5 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium">Remote connection</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      PanelBridge and RCON are separate transports. Configure both for a remote server so every Events, Players, and bridge action has the path it needs.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-md border border-border/60 p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">RCON command connection</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Used for console commands and RCON-backed event actions. It is stored with the active server profile, not with PanelBridge.
-                          </p>
-                        </div>
-                        <Link className="h-4 w-4 shrink-0 text-primary" />
-                      </div>
-                      {activeServer ? (
-                        <div className="rounded border border-border/50 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-                          <p className="font-medium text-foreground">{activeServer.name}</p>
-                          <p className="mt-1 font-mono">{activeServer.rconHost || "Host not configured"}:{activeServer.rconPort || "port not configured"}</p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-warning">No active server profile is available.</p>
-                      )}
-                      <RouterLink
-                        to="/servers"
-                        className="inline-flex text-xs font-medium text-primary hover:underline underline-offset-2"
-                      >
-                        Edit active server RCON connection
-                      </RouterLink>
-                    </div>
-
-                    <div className="rounded-md border border-border/60 p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">SFTP PanelBridge files</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Syncs only the bridge status, command queue, and results folder. It does not read general server files.
-                          </p>
-                        </div>
-                        <Cloud className="h-4 w-4 shrink-0 text-primary" />
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5"><Label htmlFor="sftp-host">SFTP host</Label><Input id="sftp-host" value={settings.panelBridgeSftpHost} onChange={(event) => updateSetting("panelBridgeSftpHost", event.target.value)} placeholder="pz.example.net" /></div>
-                        <div className="space-y-1.5"><Label htmlFor="sftp-port">Port</Label><Input id="sftp-port" inputMode="numeric" value={settings.panelBridgeSftpPort} onChange={(event) => updateSetting("panelBridgeSftpPort", event.target.value)} /></div>
-                        <div className="space-y-1.5"><Label htmlFor="sftp-user">Username</Label><Input id="sftp-user" autoComplete="username" value={settings.panelBridgeSftpUsername} onChange={(event) => updateSetting("panelBridgeSftpUsername", event.target.value)} /></div>
-                        <div className="space-y-1.5"><Label htmlFor="sftp-password">Password</Label><Input id="sftp-password" type="password" autoComplete="current-password" value={settings.panelBridgeSftpPassword} onChange={(event) => updateSetting("panelBridgeSftpPassword", event.target.value)} placeholder="Stored securely" /></div>
-                      </div>
-                      <div className="space-y-1.5"><Label htmlFor="sftp-bridge-path">Remote bridge folder</Label><Input id="sftp-bridge-path" value={settings.panelBridgeSftpBridgePath} onChange={(event) => updateSetting("panelBridgeSftpBridgePath", event.target.value)} placeholder="/home/pz/Zomboid/Lua/panelbridge/MyServer" /></div>
-                      <div className="flex flex-wrap items-end gap-3">
-                        <div className="w-36 space-y-1.5"><Label htmlFor="sftp-poll">Sync interval (seconds)</Label><Input id="sftp-poll" inputMode="numeric" value={settings.panelBridgeSftpPollIntervalSeconds} onChange={(event) => updateSetting("panelBridgeSftpPollIntervalSeconds", event.target.value)} /></div>
-                        <Button type="button" variant="outline" onClick={handleTestSftp} disabled={testingSftp || bridgeLoading}>{testingSftp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link className="mr-2 h-4 w-4" />}Test SFTP</Button>
-                        <Button type="button" onClick={handleConfigureSftp} disabled={bridgeLoading}>{bridgeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}Start SFTP bridge</Button>
-                      </div>
-                      {bridgeStatus?.transport?.type === "sftp" && <p className="text-xs text-muted-foreground">SFTP {bridgeStatus.transport.running ? "running" : "stopped"}{bridgeStatus.transport.lastLatencyMs != null ? `, last sync ${bridgeStatus.transport.lastLatencyMs} ms` : ""}{bridgeStatus.transport.lastError ? `, last error: ${bridgeStatus.transport.lastError}` : ""}</p>}
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-foreground">Server logs:</strong> read-only. The panel lists the remote log folder and fetches the tail of a file on demand. Nothing is written to the remote host and whole files are never mirrored to disk.
-                  </p>
-
-                  <div className="rounded-md border border-border/60 p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">Remote server logs</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Absolute path to the Zomboid <code>Logs</code> folder on the remote host. Only <code>.txt</code> and <code>.log</code> files are listed.
-                        </p>
-                      </div>
-                      <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-                    </div>
-                    <div className="flex flex-wrap items-end gap-3">
-                      <div className="min-w-[18rem] flex-1 space-y-1.5">
-                        <Label htmlFor="sftp-log-path">Remote log folder</Label>
-                        <Input
-                          id="sftp-log-path"
-                          value={settings.panelBridgeSftpLogPath}
-                          onChange={(event) => updateSetting("panelBridgeSftpLogPath", event.target.value)}
-                          placeholder="/home/pz/Zomboid/Logs"
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleListRemoteLogs}
-                        disabled={loadingRemoteLogs || !settings.panelBridgeSftpLogPath.trim()}
-                      >
-                        {loadingRemoteLogs ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FolderOpen className="mr-2 h-4 w-4" />}
-                        List logs
-                      </Button>
-                    </div>
-
-                    {remoteLogError && (
-                      <p className="text-xs text-destructive">{remoteLogError}</p>
-                    )}
-
-                    {remoteLogs.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="max-h-48 overflow-auto rounded border border-border/50">
-                          <ul className="divide-y divide-border/40">
-                            {remoteLogs.map((file) => (
-                              <li key={file.name} className="flex items-center justify-between gap-3 px-3 py-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleTailRemoteLog(file.name)}
-                                  className="min-w-0 flex-1 truncate text-left text-xs font-mono text-primary hover:underline"
-                                >
-                                  {file.name}
-                                </button>
-                                <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                                  {(file.size / 1024).toFixed(0)} KB
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Select a file to load the last 256 KB.
-                        </p>
-                      </div>
-                    )}
-
-                    {remoteLogContent && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-medium">{remoteLogContent.name}</p>
-                          <span className="text-[11px] text-muted-foreground">
-                            {remoteLogContent.truncated ? "tail of " : ""}
-                            {(remoteLogContent.bytesReturned / 1024).toFixed(0)} KB
-                          </span>
-                        </div>
-                        <pre className="max-h-72 overflow-auto rounded border border-border/50 bg-background/60 p-3 text-[11px] leading-relaxed font-mono whitespace-pre-wrap break-words">
-                          {remoteLogContent.content}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </div>
 
                 {/* Auto-update toggle */}
                 <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/25 p-4">
                   <div>
                     <Label className="text-sm font-medium">
-                      Auto-update mod on panel startup
+                      {t('bridge.autoUpdateTitle')}
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      When the panel starts, automatically copy the latest
-                      bundled PanelBridge.lua to the PZ server if versions
-                      differ.
+                      {t('bridge.autoUpdateDescription')}
                     </p>
                   </div>
                   <Switch
@@ -4047,25 +3931,25 @@ export default function Settings() {
                     onCheckedChange={(value) =>
                       updateSetting("panelBridgeAutoUpdate", value)
                     }
-                    aria-label="Auto-update PanelBridge mod"
+                    aria-label={t('labels.autoUpdateBridge')}
                   />
                 </div>
 
                 {/* Install Mod */}
                 <div className="p-4 bg-muted rounded-xl space-y-3">
-                  <p className="text-sm font-medium">Install PanelBridge.lua</p>
+                  <p className="text-sm font-medium">{t('installPanelbridgelua')}</p>
                   <div className="flex flex-wrap gap-3 items-center">
                     <Select
                       value={selectedInstallServerId}
                       onValueChange={setSelectedInstallServerId}
                     >
                       <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Select server..." />
+                        <SelectValue placeholder={t('placeholders.selectServer')} />
                       </SelectTrigger>
                       <SelectContent>
                         {servers.length === 0 ? (
                           <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                            No servers configured
+                            {t('bridge.noServersConfigured')}
                           </div>
                         ) : (
                           servers.map((server) => (
@@ -4073,7 +3957,7 @@ export default function Settings() {
                               key={String(server.id)}
                               value={String(server.id)}
                             >
-                              {server.name} {server.isActive ? "(Active)" : ""}
+                              {server.name} {server.isActive ? `(${t('active')})` : ""}
                             </SelectItem>
                           ))
                         )}
@@ -4090,12 +3974,12 @@ export default function Settings() {
                       ) : (
                         <Download className="w-4 h-4" />
                       )}
-                      Install Mod
+                      {t('bridge.installMod')}
                     </Button>
                   </div>
                   {selectedInstallTarget && (
                     <p className="text-xs text-muted-foreground break-all">
-                      Destination:{" "}
+                      {t('bridge.destination')}:{" "}
                       <code className="bg-background px-1 rounded">
                         {selectedInstallTarget}
                       </code>
@@ -4106,25 +3990,24 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="mods" className="mt-0 space-y-5">
+          <TabsContent value="mods" className="mt-0">
             {/* Mod Update Settings */}
             <Card id="settings-mods">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" />
-                    Mod Update Settings
+                      {t('ui.modUpdateSettings')}
                   </CardTitle>
                 </div>
                 <CardDescription>
-                  How often to check for Workshop updates and whether to
-                  auto-restart when updates arrive.
+                  {t('ui.modUpdateSettingsDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="max-w-xs space-y-2">
                   <Label htmlFor="mod-check-interval" className="text-base">
-                    Check Interval (minutes)
+                    {t('ui.checkIntervalMinutes')}
                   </Label>
                   <Input
                     id="mod-check-interval"
@@ -4141,8 +4024,7 @@ export default function Settings() {
                     inputMode="numeric"
                   />
                   <p className="text-sm text-muted-foreground">
-                    Check every 1-120 minutes. Changes take effect as soon as
-                    you save.
+                    {t('ui.checkIntervalDescription')}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50">
@@ -4151,22 +4033,21 @@ export default function Settings() {
                     onCheckedChange={(value) =>
                       updateSetting("modAutoRestart", value)
                     }
-                    aria-label="Auto-restart server when mods update"
+                    aria-label={t('labels.autoRestartOnModUpdate')}
                   />
                   <div>
                     <Label className="text-base">
-                      Auto-restart server when mods update
+                      {t('ui.autoRestartOnModUpdate')}
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      Automatically restart the server when mod updates are
-                      detected
+                      {t('ui.autoRestartOnModUpdateDescription')}
                     </p>
                   </div>
                 </div>
                 {settings.modAutoRestart && (
                   <div className="max-w-xs space-y-2 pl-4 border-l-2 border-primary/30">
                     <Label htmlFor="mod-restart-delay" className="text-base">
-                      Restart Delay (minutes)
+                      {t('ui.restartDelayMinutes')}
                     </Label>
                     <Input
                       id="mod-restart-delay"
@@ -4182,52 +4063,10 @@ export default function Settings() {
                       inputMode="numeric"
                     />
                     <p className="text-sm text-muted-foreground">
-                      Players are warned before the restart happens.
+                      {t('ui.restartDelayDescription')}
                     </p>
                   </div>
                 )}
-                <div className="border-t border-border/60 pt-6">
-                  <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50">
-                    <Switch
-                      checked={settings.serverAutoUpdate}
-                      onCheckedChange={(value) =>
-                        updateSetting("serverAutoUpdate", value)
-                      }
-                      aria-label="Automatically update the server when a new build is detected"
-                    />
-                    <div>
-                      <Label className="text-base">
-                        Automatically update the game server
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Save, stop, update through SteamCMD, then start again when a new build is detected.
-                      </p>
-                    </div>
-                  </div>
-                  {settings.serverAutoUpdate && (
-                    <div className="max-w-xs space-y-2 pl-4 pt-4 border-l-2 border-primary/30">
-                      <Label htmlFor="server-update-warning-minutes" className="text-base">
-                        Player warning (minutes)
-                      </Label>
-                      <Input
-                        id="server-update-warning-minutes"
-                        type="number"
-                        value={settings.serverAutoUpdateWarningMinutes}
-                        onChange={(e) =>
-                          updateSetting("serverAutoUpdateWarningMinutes", e.target.value)
-                        }
-                        onWheel={(e) => e.currentTarget.blur()}
-                        min="0"
-                        max="60"
-                        className="h-11"
-                        inputMode="numeric"
-                      />
-                      <p className="text-sm text-muted-foreground">
-                        Defaults to 15 minutes. Set 0 to update immediately when no players are online.
-                      </p>
-                    </div>
-                  )}
-                </div>
               </CardContent>
             </Card>
 
@@ -4235,31 +4074,26 @@ export default function Settings() {
             <WorkshopCollectionSyncCard
               settings={settings}
               updateSetting={updateSetting}
-              persistCookies={async (cookies) => {
-                await configApi.updateAppSettings(cookies);
-                setSettings((current) => ({ ...current, ...cookies }));
-                setOriginalSettings((current) =>
-                  current ? { ...current, ...cookies } : current,
-                );
-              }}
             />
+          </TabsContent>
 
+          <TabsContent value="api-keys" className="mt-0">
             {/* API Keys */}
             <Card id="settings-api-keys">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Key className="w-4 h-4 text-primary" />
-                  API Keys
+                      {t('apiKeys.title')}
                 </CardTitle>
                 <CardDescription>
-                  Keys used for Steam Workshop lookups and the server finder.
+                  {t('ui.apiKeysDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Label htmlFor="steam-api-key" className="text-base">
-                      Steam Web API Key
+                      {t('ui.steamWebApiKey')}
                     </Label>
                     {/* Configured indicator — the API masks the value as "••••••••XXXX"
                   when set, so the presence of the bullets is a reliable signal
@@ -4268,16 +4102,16 @@ export default function Settings() {
                     settings.steamApiKey.startsWith("•") ? (
                       <span className="inline-flex items-center gap-1 rounded border border-success/40 bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
                         <Check className="w-3 h-3" aria-hidden="true" />{" "}
-                        Configured
+                        {t('ui.configured')}
                       </span>
                     ) : settings.steamApiKey ? (
                       <span className="inline-flex items-center gap-1 rounded border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning">
                         <AlertTriangle className="w-3 h-3" aria-hidden="true" />{" "}
-                        Pending save
+                        {t('ui.pendingSave')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 rounded border border-muted-foreground/30 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        Not configured
+                        {t('ui.notConfigured')}
                       </span>
                     )}
                   </div>
@@ -4289,7 +4123,7 @@ export default function Settings() {
                       onChange={(e) =>
                         updateSetting("steamApiKey", e.target.value)
                       }
-                      placeholder="Your Steam API key"
+                      placeholder={t('placeholders.steamApiKey')}
                       className="h-11 pr-10"
                       maxLength={128}
                     />
@@ -4298,7 +4132,7 @@ export default function Settings() {
                       onClick={() => setShowSteamApiKey(!showSteamApiKey)}
                       className="absolute right-3 inset-y-0 flex items-center text-muted-foreground hover:text-foreground"
                       aria-label={
-                        showSteamApiKey ? "Hide API key" : "Show API key"
+                        showSteamApiKey ? t('ui.hideApiKey') : t('ui.showApiKey')
                       }
                     >
                       {showSteamApiKey ? (
@@ -4309,32 +4143,30 @@ export default function Settings() {
                     </button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Used for Steam Workshop mod information and server finder
-                    features.
+                    {t('ui.steamApiKeyDescription')}
                   </p>
                   <div className="p-4 bg-muted rounded-xl text-sm mt-3">
                     <p className="font-medium mb-2">
-                      How to get a Steam API Key:
+                      {t('ui.howToGetSteamApiKey')}
                     </p>
                     <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
                       <li>
-                        Go to{" "}
+                        {t('ui.goToRegistration')}{" "}
                         <a
                           href="https://steamcommunity.com/dev/apikey"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"
                         >
-                          Steam API Key Registration{" "}
-                          <span className="sr-only">(opens in new tab)</span>
+                          {t('ui.steamApiKeyRegistration')} {" "}
+                          <span className="sr-only">({t('ui.opensInNewTab')})</span>
                         </a>
                       </li>
-                      <li>Log in with your Steam account</li>
+                      <li>{t('logInWithYourSteamAccount')}</li>
                       <li>
-                        Enter a domain name (can be "localhost" for personal
-                        use)
+                        {t('ui.enterSteamApiDomain')}
                       </li>
-                      <li>Copy the key and paste it here</li>
+                      <li>{t('copyTheKeyAndPasteItHere')}</li>
                     </ol>
                   </div>
                 </div>
@@ -4342,7 +4174,7 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="backups" className="mt-0 space-y-5">
+          <TabsContent value="backups" className="mt-0">
             {/* World Backups */}
             <Card id="settings-backups">
               <CardHeader className="pb-4">
@@ -4350,11 +4182,10 @@ export default function Settings() {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <Archive className="w-4 h-4 text-primary" />
-                      World Backups
+                      {t('ui.worldBackups')}
                     </CardTitle>
                     <CardDescription>
-                      Save and restore your server's world, map, and player
-                      data.
+                      {t('ui.worldBackupsDescription')}
                     </CardDescription>
                   </div>
                   <Button
@@ -4367,7 +4198,7 @@ export default function Settings() {
                     ) : (
                       <Archive className="w-4 h-4" />
                     )}
-                    {creatingBackup ? "Creating..." : "Backup Now"}
+                    {creatingBackup ? t('ui.creating') : t('ui.backupNow')}
                   </Button>
                 </div>
               </CardHeader>
@@ -4380,11 +4211,11 @@ export default function Settings() {
                       <span className="text-sm">
                         {backupStatus.savesExists ? (
                           <span className="text-primary">
-                            Saves folder found
+                            {t('ui.savesFolderFound')}
                           </span>
                         ) : (
                           <span className="text-destructive">
-                            Saves folder not found
+                            {t('ui.savesFolderNotFound')}
                           </span>
                         )}
                       </span>
@@ -4392,16 +4223,15 @@ export default function Settings() {
                     <div className="flex items-center gap-2">
                       <Archive className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm">
-                        {backupStatus.backupCount} backup
-                        {backupStatus.backupCount !== 1 ? "s" : ""} stored
+                        {t('ui.backupsStored', { count: backupStatus.backupCount })}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm">
                         {backupStatus.lastBackup
-                          ? `Last: ${new Date(backupStatus.lastBackup.created).toLocaleString()}`
-                          : "No backups yet"}
+                          ? t('ui.lastBackup', { time: new Date(backupStatus.lastBackup.created).toLocaleString() })
+                          : t('ui.noBackupsYet')}
                       </span>
                     </div>
                   </div>
@@ -4411,38 +4241,37 @@ export default function Settings() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label className="text-base">Scheduled Backups</Label>
+                      <Label className="text-base">{t('scheduledBackups')}</Label>
                       <p className="text-sm text-muted-foreground">
-                        Automatically backup your world on a schedule
+                        {t('ui.scheduledBackupsDescription')}
                       </p>
                     </div>
                     <Switch
                       checked={backupStatus?.enabled || false}
                       onCheckedChange={toggleBackupEnabled}
                       disabled={backupLoading}
-                      aria-label="Enable scheduled backups"
+                      aria-label={t('labels.enableScheduledBackups')}
                     />
                   </div>
 
                   {backupStatus?.enabled && (
                     <div className="grid grid-cols-1 gap-4 border-l-2 border-primary/20 pl-4 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label htmlFor="backup-schedule">Schedule</Label>
+                        <Label htmlFor="backup-schedule">{t('schedule')}</Label>
                         <Input
                           id="backup-schedule"
                           value={backupSchedule}
                           onChange={(e) => setBackupSchedule(e.target.value)}
-                          placeholder="0 */6 * * *"
+                          placeholder={t('placeholders.cronSchedule')}
                           className="font-mono"
                           maxLength={100}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Default: every 6 hours. Uses cron format: minute hour
-                          day month weekday.
+                          {t('ui.cronDescription')}
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="backup-max">Max Backups to Keep</Label>
+                        <Label htmlFor="backup-max">{t('maxBackupsToKeep')}</Label>
                         <Input
                           id="backup-max"
                           type="number"
@@ -4463,8 +4292,7 @@ export default function Settings() {
                           inputMode="numeric"
                         />
                         <p className="text-xs text-muted-foreground">
-                          The panel deletes the oldest backups when this limit
-                          is reached.
+                          {t('ui.maxBackupsDescription')}
                         </p>
                       </div>
                       <div className="sm:col-span-2">
@@ -4477,7 +4305,7 @@ export default function Settings() {
                           {backupLoading && (
                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           )}
-                          Save Schedule Settings
+                          {t('ui.saveScheduleSettings')}
                         </Button>
                       </div>
                     </div>
@@ -4486,13 +4314,13 @@ export default function Settings() {
 
                 {/* Backup List */}
                 <div className="space-y-2">
-                  <p className="text-base font-medium">Existing Backups</p>
+                  <p className="text-base font-medium">{t('existingBackups')}</p>
                   {backups.length === 0 ? (
                     <EmptyState
                       compact
                       type="empty"
-                      title="No backups yet"
-                      description='Click "Backup Now" to create one.'
+                      title={t('backups.noBackups')}
+                      description={t('ui.noBackupsDescription')}
                     />
                   ) : (
                     <ScrollArea className="h-[200px] rounded-lg border">
@@ -4530,7 +4358,7 @@ export default function Settings() {
                                     }
                                     disabled={restoringBackup !== null}
                                     className="text-warning hover:text-warning hover:bg-warning/10"
-                                    title="Restore this backup (server must be stopped)"
+                                    title={t('backups.restoreTooltip')}
                                   >
                                     {restoringBackup === backup.name ? (
                                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -4543,30 +4371,29 @@ export default function Settings() {
                                   <AlertDialogHeader>
                                     <AlertDialogTitle className="flex items-center gap-2">
                                       <AlertTriangle className="w-5 h-5 text-warning" />
-                                      Restore Backup
+                                      {t('ui.restoreBackup')}
                                     </AlertDialogTitle>
                                     <AlertDialogDescription className="text-left space-y-2">
                                       <p>
-                                        This will restore{" "}
-                                        <strong>{backup.name}</strong> and{" "}
-                                        <strong>OVERWRITE</strong> the current
-                                        world data.
+                                        {t('ui.restoreBackupPrefix')}{" "}
+                                         <strong>{backup.name}</strong> {t('and')}{" "}
+                                         <strong>{t('overwrite')}</strong> {t('ui.currentWorldData')}.
                                       </p>
                                       <ul className="list-disc list-inside text-sm space-y-1">
                                         <li>
-                                          Server must be{" "}
-                                          <strong>STOPPED</strong>
+                                          {t('ui.serverMustBe')}{" "}
+                                          <strong>{t('stopped')}</strong>
                                         </li>
                                         <li>
-                                          A pre-restore backup will be created
+                                          {t('ui.preRestoreBackupCreated')}
                                         </li>
-                                        <li>This cannot be undone</li>
+                                        <li>{t('thisCannotBeUndone')}</li>
                                       </ul>
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>
-                                      Cancel
+                                      {t('cancel')}
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() =>
@@ -4574,7 +4401,7 @@ export default function Settings() {
                                       }
                                       className="bg-warning text-warning-foreground hover:bg-warning/90"
                                     >
-                                      Restore Backup
+                                      {t('ui.restoreBackup')}
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -4601,17 +4428,15 @@ export default function Settings() {
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>
-                                      Delete Backup
+                                      {t('ui.deleteBackup')}
                                     </AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete "
-                                      {backup.name}"? This action cannot be
-                                      undone.
+                                      {t('ui.deleteBackupConfirm', { name: backup.name })}
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>
-                                      Cancel
+                                      {t('cancel')}
                                     </AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() =>
@@ -4619,7 +4444,7 @@ export default function Settings() {
                                       }
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
-                                      Delete
+                                      {t('ui.deleteBackup')}
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -4636,71 +4461,10 @@ export default function Settings() {
                 {backupStatus?.savesPath && (
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>
-                      <strong>Saves:</strong> {backupStatus.savesPath}
+                      <strong>{t('saves')}</strong> {backupStatus.savesPath}
                     </p>
                     <p>
-                      <strong>Backups:</strong> {backupStatus.backupsPath}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card id="settings-character-exports">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-primary" />
-                  Character Exports
-                </CardTitle>
-                <CardDescription>
-                  Per-player character copies, saved separately from world
-                  backups.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-muted/25 p-3">
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="auto-export-on-login"
-                      className="text-sm font-medium"
-                    >
-                      Export a character when a player joins
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Runs about ten seconds after the player loads, so one
-                      character can be restored without rolling back the world.
-                      Needs PanelBridge connected.
-                    </p>
-                  </div>
-                  <Switch
-                    id="auto-export-on-login"
-                    checked={settings.autoExportOnLogin}
-                    onCheckedChange={(value) =>
-                      updateSetting("autoExportOnLogin", value)
-                    }
-                    aria-label="Export a character when a player joins"
-                  />
-                </div>
-                {settings.autoExportOnLogin && (
-                  <div className="max-w-xs space-y-1.5">
-                    <Label htmlFor="auto-export-max">
-                      Copies kept per player
-                    </Label>
-                    <Input
-                      id="auto-export-max"
-                      type="number"
-                      min="1"
-                      max="50"
-                      inputMode="numeric"
-                      value={settings.autoExportMaxPerPlayer}
-                      onChange={(e) =>
-                        updateSetting("autoExportMaxPerPlayer", e.target.value)
-                      }
-                      onWheel={(e) => e.currentTarget.blur()}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Oldest exports are deleted once a player passes this
-                      count. Restore them from the Players page.
+                      <strong>{t('backupsLabel')}</strong> {backupStatus.backupsPath}
                     </p>
                   </div>
                 )}
@@ -4714,10 +4478,10 @@ export default function Settings() {
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-primary" />
-                  Security & Authentication
+                  {t('ui.securityAuthentication')}
                 </CardTitle>
                 <CardDescription>
-                  Change your password and review access details.
+                  {t('ui.securityAuthenticationDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -4741,7 +4505,7 @@ export default function Settings() {
                 {/* Change Password */}
                 {authEnabled && (
                   <div className="space-y-4">
-                    <p className="text-base font-medium">Change Password</p>
+                    <p className="text-base font-medium">{t('changePassword')}</p>
                     <form
                       className="max-w-sm space-y-3"
                       onSubmit={(e) => {
@@ -4772,11 +4536,11 @@ export default function Settings() {
                           type={showCurrentPassword ? "text" : "password"}
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Current password"
+                          placeholder={t('placeholders.currentPassword')}
                           className="h-11 pr-10"
                           maxLength={128}
                           autoComplete="current-password"
-                          aria-label="Current password"
+                          aria-label={t('labels.currentPassword')}
                         />
                         <button
                           type="button"
@@ -4786,8 +4550,8 @@ export default function Settings() {
                           className="absolute right-3 inset-y-0 flex items-center text-muted-foreground hover:text-foreground"
                           aria-label={
                             showCurrentPassword
-                              ? "Hide password"
-                              : "Show password"
+                              ? t('ui.hidePassword')
+                              : t('ui.showPassword')
                           }
                         >
                           {showCurrentPassword ? (
@@ -4802,18 +4566,18 @@ export default function Settings() {
                           type={showNewPassword ? "text" : "password"}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="New password"
+                          placeholder={t('placeholders.newPassword')}
                           className="h-11 pr-10"
                           maxLength={128}
                           autoComplete="new-password"
-                          aria-label="New password"
+                          aria-label={t('labels.newPassword')}
                         />
                         <button
                           type="button"
                           onClick={() => setShowNewPassword(!showNewPassword)}
                           className="absolute right-3 inset-y-0 flex items-center text-muted-foreground hover:text-foreground"
                           aria-label={
-                            showNewPassword ? "Hide password" : "Show password"
+                            showNewPassword ? t('ui.hidePassword') : t('ui.showPassword')
                           }
                         >
                           {showNewPassword ? (
@@ -4827,11 +4591,11 @@ export default function Settings() {
                         type={showNewPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm new password"
+                        placeholder={t('placeholders.confirmPassword')}
                         className="h-11"
                         maxLength={128}
                         autoComplete="new-password"
-                        aria-label="Confirm new password"
+                        aria-label={t('labels.confirmPassword')}
                       />
                       {newPassword &&
                         confirmPassword &&
@@ -4840,8 +4604,7 @@ export default function Settings() {
                             className="text-xs text-destructive flex items-center gap-1"
                             role="alert"
                           >
-                            <XCircle className="w-3 h-3" /> Passwords do not
-                            match
+                            <XCircle className="w-3 h-3" /> {t('ui.passwordsDoNotMatch')}
                           </p>
                         )}
                       {newPassword && newPassword.length < 6 && (
@@ -4849,8 +4612,7 @@ export default function Settings() {
                           className="text-xs text-destructive flex items-center gap-1"
                           role="alert"
                         >
-                          <XCircle className="w-3 h-3" /> Password must be at
-                          least 6 characters
+                          <XCircle className="w-3 h-3" /> {t('ui.passwordMinLength')}
                         </p>
                       )}
                       <Button
@@ -4870,107 +4632,71 @@ export default function Settings() {
                         ) : (
                           <Key className="w-4 h-4" />
                         )}
-                        {changingPassword ? "Changing..." : "Change Password"}
+                        {changingPassword ? t('ui.changing') : t('changePassword')}
                       </Button>
                     </form>
 
-                    <div className="max-w-2xl rounded-xl border border-border/70 p-4 space-y-3">
-                      <div className="flex items-start justify-between gap-3">
+                    <div className="max-w-2xl rounded-xl border border-border/70 bg-muted/35 p-4 text-sm">
+                      <div className="space-y-2">
                         <div>
-                          <p className="text-sm font-medium text-foreground">
-                            Recovery codes
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Save these now while you can still sign in. If you forget the
-                            password, enter one on the login screen to set a new one. No
-                            server or file access needed.
-                          </p>
+                          <p className="font-medium">{t('latest.recoveryCodes')}</p>
+                          <p className="text-sm text-muted-foreground">{t('latest.recoveryCodesDescription')}</p>
                         </div>
-                        <Key className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-3">
+                        {recoveryCodeStatus && (
+                          <p className="text-xs text-muted-foreground">
+                            {t('latest.recoveryCodesStatus', {
+                              remaining: recoveryCodeStatus.remaining,
+                              total: recoveryCodeStatus.total,
+                            })}
+                          </p>
+                        )}
                         <Button
                           type="button"
                           variant="outline"
                           onClick={() => void handleGenerateRecoveryCodes()}
                           disabled={generatingRecoveryCodes}
+                          className="gap-2"
                         >
                           {generatingRecoveryCodes ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <Key className="mr-2 h-4 w-4" />
+                            <Key className="h-4 w-4" />
                           )}
-                          {recoveryCodeStatus?.configured
-                            ? "Generate new codes"
-                            : "Generate recovery codes"}
+                          {generatingRecoveryCodes
+                            ? t('latest.generatingRecoveryCodes')
+                            : t('latest.generateRecoveryCodes')}
                         </Button>
-                        {recoveryCodeStatus && (
-                          <span className="text-xs text-muted-foreground">
-                            {recoveryCodeStatus.configured
-                              ? `${recoveryCodeStatus.remaining} of ${recoveryCodeStatus.total} unused`
-                              : "No codes generated yet"}
-                          </span>
-                        )}
-                      </div>
-
-                      {recoveryCodeStatus?.configured && (
-                        <p className="text-xs text-muted-foreground">
-                          Generating new codes replaces every existing code.
-                        </p>
-                      )}
-
-                      {generatedRecoveryCodes.length > 0 && (
-                        <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3">
-                          <p className="text-xs font-medium text-warning">
-                            Copy these now. They are shown once and cannot be retrieved later.
-                          </p>
-                          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                            {generatedRecoveryCodes.map((code) => (
-                              <code
-                                key={code}
-                                className="rounded bg-background/70 px-2 py-1 font-mono text-xs tracking-wider"
-                              >
-                                {code}
-                              </code>
-                            ))}
-                          </div>
-                          <div className="flex flex-wrap gap-2 pt-1">
+                        {generatedRecoveryCodes.length > 0 && (
+                          <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 p-3">
+                            <p className="text-xs font-medium text-warning">{t('latest.recoveryCodesSaveNow')}</p>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                              {generatedRecoveryCodes.map((code) => (
+                                <code key={code} className="rounded bg-background px-2 py-1 text-center text-xs">
+                                  {code}
+                                </code>
+                              ))}
+                            </div>
                             <Button
                               type="button"
+                              variant="ghost"
                               size="sm"
-                              variant="outline"
+                              className="gap-2"
                               onClick={() => {
-                                const blob = new Blob(
-                                  [
-                                    `Zomboid Control Panel recovery codes\nGenerated: ${new Date().toISOString()}\nEach code works once.\n\n${generatedRecoveryCodes.join("\n")}\n`,
-                                  ],
-                                  { type: "text/plain" },
-                                );
+                                const blob = new Blob([generatedRecoveryCodes.join("\\n")], { type: "text/plain;charset=utf-8" });
                                 const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                a.download = "zomboid-panel-recovery-codes.txt";
-                                document.body.appendChild(a);
-                                a.click();
-                                a.remove();
-                                window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+                                const link = document.createElement("a");
+                                link.href = url;
+                                link.download = "zomboid-panel-recovery-codes.txt";
+                                link.click();
+                                URL.revokeObjectURL(url);
                               }}
                             >
-                              <Download className="mr-1.5 h-3.5 w-3.5" />
-                              Download
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setGeneratedRecoveryCodes([])}
-                            >
-                              Done
+                              <Download className="h-4 w-4" />
+                              {t('latest.downloadRecoveryCodes')}
                             </Button>
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                     <div className="max-w-2xl rounded-xl border border-border/70 bg-muted/35 p-4 text-sm text-muted-foreground">
@@ -4978,14 +4704,12 @@ export default function Settings() {
                         <Info className="mt-0.5 h-4 w-4 text-primary" />
                         <div className="space-y-1.5 leading-6">
                           <p className="font-medium text-foreground">
-                            Recovery when the current password is lost
+                            {t('ui.recoveryWhenPasswordLost')}
                           </p>
                           {localPasswordResetSupported ? (
                             <>
                               <p>
-                                This panel session is running from the server
-                                itself, so you can reset the password here
-                                without typing the current one.
+                                {t('ui.localPasswordRecoveryDescription')}
                               </p>
                               <div className="flex flex-col gap-2 pt-1 sm:flex-row">
                                 <Button
@@ -5006,8 +4730,8 @@ export default function Settings() {
                                     <Key className="mr-2 h-4 w-4" />
                                   )}
                                   {showLocalPasswordReset
-                                    ? "Refresh Local Recovery"
-                                    : "Reset Password On This Server"}
+                                    ? t('ui.refreshLocalRecovery')
+                                    : t('ui.resetPasswordOnThisServer')}
                                 </Button>
                                 {showLocalPasswordReset && (
                                   <Button
@@ -5025,7 +4749,7 @@ export default function Settings() {
                                       resettingLocalPassword
                                     }
                                   >
-                                    Hide
+                                    {t('ui.hide')}
                                   </Button>
                                 )}
                               </div>
@@ -5051,11 +4775,11 @@ export default function Settings() {
                                           e.target.value,
                                         )
                                       }
-                                      placeholder="New password"
+                                      placeholder={t('placeholders.newPassword')}
                                       className="h-11 pr-10"
                                       maxLength={128}
                                       autoComplete="new-password"
-                                      aria-label="New password for local reset"
+                                      aria-label={t('labels.newPasswordLocalReset')}
                                     />
                                     <button
                                       type="button"
@@ -5067,8 +4791,8 @@ export default function Settings() {
                                       className="absolute right-3 inset-y-0 flex items-center text-muted-foreground hover:text-foreground"
                                       aria-label={
                                         showLocalResetPassword
-                                          ? "Hide password"
-                                          : "Show password"
+                                          ? t('ui.hidePassword')
+                                          : t('ui.showPassword')
                                       }
                                     >
                                       {showLocalResetPassword ? (
@@ -5090,11 +4814,11 @@ export default function Settings() {
                                         e.target.value,
                                       )
                                     }
-                                    placeholder="Confirm new password"
+                                    placeholder={t('placeholders.confirmPassword')}
                                     className="h-11"
                                     maxLength={128}
                                     autoComplete="new-password"
-                                    aria-label="Confirm new password for local reset"
+                                    aria-label={t('labels.confirmNewPasswordLocalReset')}
                                   />
                                   {localPasswordResetPassword &&
                                     localPasswordResetConfirm &&
@@ -5105,7 +4829,7 @@ export default function Settings() {
                                         role="alert"
                                       >
                                         <XCircle className="w-3 h-3" />{" "}
-                                        Passwords do not match
+                                        {t('ui.passwordsDoNotMatch')}
                                       </p>
                                     )}
                                   {localPasswordResetPassword &&
@@ -5114,8 +4838,7 @@ export default function Settings() {
                                         className="text-xs text-destructive flex items-center gap-1"
                                         role="alert"
                                       >
-                                        <XCircle className="w-3 h-3" /> Password
-                                        must be at least 6 characters
+                                        <XCircle className="w-3 h-3" /> {t('ui.passwordMinLength')}
                                       </p>
                                     )}
                                   <Button
@@ -5137,8 +4860,8 @@ export default function Settings() {
                                       <Key className="w-4 h-4" />
                                     )}
                                     {resettingLocalPassword
-                                      ? "Resetting..."
-                                      : "Reset Password and Sign Out"}
+                                      ? t('ui.resetting')
+                                      : t('ui.resetPasswordAndSignOut')}
                                   </Button>
                                 </form>
                               )}
@@ -5146,22 +4869,18 @@ export default function Settings() {
                           ) : (
                             <>
                               <p>
-                                The panel cannot show existing passwords. If you
-                                still have filesystem access to the panel host,
-                                sign out and either create{" "}
+                                {t('ui.passwordRecoveryUnavailable')}{" "}
                                 <span className="font-mono text-foreground/85">
                                   data/reset-token.txt
                                 </span>{" "}
-                                or start the panel with{" "}
+                                {t('ui.passwordRecoveryOrStart')}{" "}
                                 <span className="font-mono text-foreground/85">
                                   --reset-password
                                 </span>
-                                .
+                                。
                               </p>
                               <p>
-                                Once the token file exists, the login screen
-                                will show a recovery option so you can set a new
-                                admin password without knowing the old one.
+                                {t('ui.passwordRecoveryTokenDescription')}
                               </p>
                             </>
                           )}
@@ -5174,23 +4893,19 @@ export default function Settings() {
                 {/* Security Tips */}
                 <div className="space-y-3 text-sm text-muted-foreground pt-2 border-t">
                   <p>
-                    <strong className="text-foreground">RCON Security:</strong>{" "}
-                    Your RCON password is stored locally and is never
-                    transmitted outside of the RCON connection to your server.
+                    <strong className="text-foreground">{t('rconSecurity')}</strong>{" "}
+                    {t('ui.rconSecurityDescription')}
                   </p>
                   <p>
-                    <strong className="text-foreground">Admin Commands:</strong>{" "}
-                    Be careful with admin commands. Some actions like banning or
-                    kicking players cannot be easily undone.
+                    <strong className="text-foreground">{t('adminCommands')}</strong>{" "}
+                    {t('ui.adminCommandsDescription')}
                   </p>
                   {!authEnabled && (
                     <p>
                       <strong className="text-foreground">
-                        Authentication:
+                        {t('ui.authenticationLabel')}
                       </strong>{" "}
-                      Authentication is not configured. Create an account via
-                      the setup wizard on first launch to protect access to this
-                      panel.
+                      {t('ui.authenticationNotConfigured')}
                     </p>
                   )}
                 </div>
@@ -5198,82 +4913,16 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="about" className="mt-0 space-y-5">
-            <Card id="settings-elsewhere">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2">
-                  <ExternalLink className="w-4 h-4 text-primary" />
-                  Settings kept on other pages
-                </CardTitle>
-                <CardDescription>
-                  These features own their own configuration, so it lives with
-                  the feature instead of here.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="divide-y divide-border/50">
-                  {[
-                    {
-                      href: "/servers",
-                      label: "Server profiles",
-                      detail:
-                        "Install paths, RCON host and password, memory, and SteamCMD.",
-                    },
-                    {
-                      href: "/discord",
-                      label: "Discord bot",
-                      detail:
-                        "Bot token, channels, event notifications, and the chat bridge.",
-                    },
-                    {
-                      href: "/scheduler",
-                      label: "Scheduled tasks",
-                      detail: "Restarts, announcements, and recurring commands.",
-                    },
-                    {
-                      href: "/server-config",
-                      label: "Game server config",
-                      detail: "Server INI options and sandbox rules.",
-                    },
-                    {
-                      href: "/chat",
-                      label: "Chat quick messages",
-                      detail: "Preset messages shown above the chat input.",
-                    },
-                  ].map((item) => (
-                    <li key={item.href}>
-                      <RouterLink
-                        to={item.href}
-                        className="flex items-center justify-between gap-4 py-2.5 group"
-                      >
-                        <span className="min-w-0">
-                          <span className="block text-sm font-medium text-foreground group-hover:text-primary">
-                            {item.label}
-                          </span>
-                          <span className="block text-xs text-muted-foreground">
-                            {item.detail}
-                          </span>
-                        </span>
-                        <ExternalLink
-                          className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60 group-hover:text-primary"
-                          aria-hidden="true"
-                        />
-                      </RouterLink>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
+          <TabsContent value="about" className="mt-0">
             {/* About */}
             <Card id="settings-about">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center gap-2">
                   <Server className="w-4 h-4 text-primary" />
-                  About
+                  {t('about.title')}
                 </CardTitle>
                 <CardDescription>
-                  Panel version, runtime info, and helpful links.
+                  {t('ui.aboutDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -5282,7 +4931,7 @@ export default function Settings() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
-                        Installed version
+                        {t('ui.installedVersion')}
                       </p>
                       <p className="text-lg font-semibold tabular-nums">
                         v{panelUpdateStatus?.currentVersion || "—"}
@@ -5290,7 +4939,7 @@ export default function Settings() {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
-                        Latest available
+                        {t('ui.latestAvailable')}
                       </p>
                       <p className="text-lg font-semibold tabular-nums flex items-center gap-2">
                         {panelUpdateStatus?.latestVersion ? (
@@ -5298,13 +4947,13 @@ export default function Settings() {
                             v{panelUpdateStatus.latestVersion}
                             {panelUpdateStatus.updateAvailable && (
                               <span className="inline-flex items-center gap-1 rounded-full border border-warning/50 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">
-                                Update available
+                                {t('ui.updateAvailableStatus')}
                               </span>
                             )}
                           </>
                         ) : (
                           <span className="text-muted-foreground text-base font-normal">
-                            Not checked yet
+                            {t('ui.notCheckedYet')}
                           </span>
                         )}
                       </p>
@@ -5314,10 +4963,7 @@ export default function Settings() {
 
                 {/* Description */}
                 <p className="text-sm text-muted-foreground">
-                  A web-based management panel for Project Zomboid dedicated
-                  servers. Includes RCON, player management, mod update
-                  detection, scheduled restarts, world backups, Discord
-                  integration, and the PanelBridge Lua mod for in-world actions.
+                  {t('ui.aboutProductDescription')}
                 </p>
 
                 {/* Support */}
@@ -5330,10 +4976,9 @@ export default function Settings() {
                       />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium">Enjoying the panel?</p>
+                      <p className="text-sm font-medium">{t('enjoyingThePanel')}</p>
                       <p className="text-xs text-muted-foreground">
-                        Support development to keep updates and new features
-                        coming.
+                        {t('ui.supportDescription')}
                       </p>
                     </div>
                   </div>
@@ -5342,10 +4987,10 @@ export default function Settings() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#FF5E5B] px-4 py-2 text-sm font-medium text-white hover:bg-[#FF4541] transition-colors shrink-0 shadow-sm"
-                    aria-label="Buy me a coffee on Ko-fi"
+                    aria-label={t('about.buyMeCoffee')}
                   >
                     <Coffee className="w-3.5 h-3.5" aria-hidden="true" />
-                    Buy me a coffee
+                    {t('about.buyMeCoffee')}
                   </a>
                 </div>
 
@@ -5358,7 +5003,7 @@ export default function Settings() {
                     className="flex items-center justify-center gap-2 rounded-lg border border-[#5865F2]/40 bg-[#5865F2]/10 px-3 py-2 text-sm text-[#5865F2] hover:bg-[#5865F2]/20 transition-colors"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
-                    Join Discord
+                    {t('ui.joinDiscord')}
                   </a>
                   <a
                     href="https://github.com/fpsacha/zomboid-control-panel"
@@ -5367,7 +5012,7 @@ export default function Settings() {
                     className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                    GitHub repository
+                    {t('ui.githubRepository')}
                   </a>
                   <a
                     href="https://github.com/fpsacha/zomboid-control-panel/releases"
@@ -5376,7 +5021,7 @@ export default function Settings() {
                     className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                    Releases &amp; changelog
+                    {t('ui.releasesChangelog')}
                   </a>
                   <a
                     href="https://github.com/fpsacha/zomboid-control-panel/issues"
@@ -5385,14 +5030,14 @@ export default function Settings() {
                     className="flex items-center justify-center gap-2 rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
                   >
                     <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
-                    Report an issue
+                    {t('about.reportIssue')}
                   </a>
                 </div>
 
                 <div className="pt-4 border-t border-border/40 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span>Built with React, Node.js, and Socket.IO</span>
+                  <span>{t('builtWithReactNodejsAndSocketio')}</span>
                   <span aria-hidden="true">·</span>
-                  <span>MIT licensed</span>
+                  <span>{t('mitLicensed')}</span>
                 </div>
               </CardContent>
             </Card>
@@ -5406,26 +5051,25 @@ export default function Settings() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Lock yourself out of the panel?</AlertDialogTitle>
+            <AlertDialogTitle>{t('lockYourselfOutOfThePanel')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Disabling <strong>Allow Private/LAN Origins</strong> with no
-              explicit origins listed and <strong>Allow All Origins</strong> off
-              will block every browser connection — including the one
-              you&apos;re using right now — after the next CORS reload.
+              {t('ui.corsLockoutDescription', {
+                privateOrigins: t('allowPrivatelanOrigins'),
+                allOrigins: t('allowAllOrigins'),
+              })}
               <br />
               <br />
-              To recover, you would need to restart the panel with the
-              <code className="mx-1">CORS_ORIGINS</code> environment variable
-              set to a valid origin (e.g.{" "}
+              {t('ui.corsLockoutRecovery')}
+              <code className="mx-1">CORS_ORIGINS</code>{" "}
+              {t('ui.corsLockoutRecoverySuffix')} ({t('ui.example')}{" "}
               <code>CORS_ORIGINS=https://panel.example.com</code>).
               <br />
               <br />
-              Add at least one origin in the box above first, then disable LAN
-              access.
+              {t('ui.corsLockoutOriginHint')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep LAN access on</AlertDialogCancel>
+            <AlertDialogCancel>{t('keepLanAccessOn')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -5433,7 +5077,7 @@ export default function Settings() {
                 setPendingCorsLanDisable(false);
               }}
             >
-              Disable anyway
+              {t('ui.disableAnyway')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -5458,15 +5102,14 @@ export default function Settings() {
 function WorkshopCollectionSyncCard({
   settings,
   updateSetting,
-  persistCookies,
 }: {
   settings: AppSettings;
   updateSetting: (
     key: keyof AppSettings,
     value: AppSettings[keyof AppSettings],
   ) => void;
-  persistCookies: (cookies: Pick<AppSettings, "steamSessionId" | "steamLoginSecure">) => Promise<void>;
 }) {
+  const { t } = useTranslation('settings');
   const { toast } = useToast();
   const [diff, setDiff] = useState<Awaited<
     ReturnType<typeof modsApi.collectionDiff>
@@ -5479,7 +5122,9 @@ function WorkshopCollectionSyncCard({
     ReturnType<typeof modsApi.collectionBrowsers>
   > | null>(null);
   const [extractingFrom, setExtractingFrom] = useState<string | null>(null);
-  const [savingCookies, setSavingCookies] = useState(false);
+  const [extensionInfoOpen, setExtensionInfoOpen] = useState(false);
+  const [downloadingExt, setDownloadingExt] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
 
@@ -5548,7 +5193,7 @@ function WorkshopCollectionSyncCard({
   const parseCookieBlob = (
     raw: string,
   ): { sessionId?: string; loginSecure?: string; error?: string } => {
-    if (!raw || !raw.trim()) return { error: "Nothing to parse" };
+    if (!raw || !raw.trim()) return { error: t('collection.nothingToParse') };
     const text = raw.replace(/\r/g, "");
     // Accept any of: full cURL command, raw `Cookie:` header line,
     // a `sessionid=...; steamLoginSecure=...` snippet, DevTools
@@ -5561,7 +5206,7 @@ function WorkshopCollectionSyncCard({
       /(?:^|[;\s'"])steamLoginSecure\s*[=:\t]\s*([A-Za-z0-9_%|+/=.-]+)/i,
     );
     if (!sessionMatch && !loginMatch) {
-      return { error: "No sessionid or steamLoginSecure found in pasted text" };
+      return { error: t('collection.cookiesNotFoundInText') };
     }
     const result: { sessionId?: string; loginSecure?: string } = {};
     if (sessionMatch) result.sessionId = safeDecode(sessionMatch[1]);
@@ -5569,35 +5214,7 @@ function WorkshopCollectionSyncCard({
     return result;
   };
 
-  const saveExtractedCookies = async (
-    sessionId: string,
-    loginSecure: string,
-  ) => {
-    setSavingCookies(true);
-    try {
-      await persistCookies({
-        steamSessionId: sessionId,
-        steamLoginSecure: loginSecure,
-      });
-      toast({
-        title: "Cookies saved",
-        description: "Your Steam session is ready for collection sync.",
-        variant: "success" as const,
-      });
-      return true;
-    } catch (error) {
-      setPasteError(
-        error instanceof Error
-          ? error.message
-          : "Could not save cookies. Try again.",
-      );
-      return false;
-    } finally {
-      setSavingCookies(false);
-    }
-  };
-
-  const handlePasteApply = async () => {
+  const handlePasteApply = () => {
     setPasteError(null);
     const parsed = parseCookieBlob(pasteText);
     if (parsed.error) {
@@ -5605,23 +5222,19 @@ function WorkshopCollectionSyncCard({
       return;
     }
     if (!parsed.sessionId && !parsed.loginSecure) {
-      setPasteError("Nothing usable found");
-      return;
-    }
-    const { sessionId, loginSecure } = parsed;
-    if (sessionId && loginSecure) {
-      if (await saveExtractedCookies(sessionId, loginSecure)) {
-        setPasteText("");
-        setPasteOpen(false);
-      }
+      setPasteError(t('collection.nothingUsable'));
       return;
     }
     if (parsed.sessionId) updateSetting("steamSessionId", parsed.sessionId);
-    if (parsed.loginSecure) updateSetting("steamLoginSecure", parsed.loginSecure);
+    if (parsed.loginSecure)
+      updateSetting("steamLoginSecure", parsed.loginSecure);
+    const both = parsed.sessionId && parsed.loginSecure;
     toast({
-      title: "Partial extraction",
-      description: `Only ${parsed.sessionId ? "sessionid" : "steamLoginSecure"} found — paste a request that includes both, or fill the other field manually.`,
-      variant: "destructive",
+      title: both ? t('collection.cookiesExtracted') : t('collection.partialExtraction'),
+      description: both
+        ? t('collection.cookiesExtractedDescription')
+        : t('collection.partialExtractionDescription', { cookie: parsed.sessionId ? 'sessionid' : 'steamLoginSecure' }),
+      variant: both ? "default" : "destructive",
     });
     setPasteText("");
     setPasteOpen(false);
@@ -5632,7 +5245,7 @@ function WorkshopCollectionSyncCard({
     if (!clipboardReadAvailable) {
       setPasteOpen(true);
       setPasteError(
-        "Clipboard read needs HTTPS or localhost. Use manual paste below.",
+        t('collection.clipboardNeedsSecureContext'),
       );
       return;
     }
@@ -5640,16 +5253,19 @@ function WorkshopCollectionSyncCard({
       const text = await navigator.clipboard.readText();
       if (!text) {
         setPasteOpen(true);
-        setPasteError("Clipboard is empty");
+        setPasteError(t('collection.clipboardEmpty'));
         return;
       }
       const parsed = parseCookieBlob(text);
-      const { sessionId, loginSecure } = parsed;
-      if (sessionId && loginSecure) {
-        if (await saveExtractedCookies(sessionId, loginSecure)) {
-          setPasteText("");
-          setPasteOpen(false);
-        }
+      if (parsed.sessionId && parsed.loginSecure) {
+        updateSetting("steamSessionId", parsed.sessionId);
+        updateSetting("steamLoginSecure", parsed.loginSecure);
+        toast({
+          title: t('collection.cookiesExtractedFromClipboard'),
+          description: t('collection.saveSettingsReminder'),
+        });
+        setPasteText("");
+        setPasteOpen(false);
         return;
       }
       // Partial / no match: surface the textarea so the user can see what
@@ -5657,13 +5273,12 @@ function WorkshopCollectionSyncCard({
       setPasteText(text);
       setPasteOpen(true);
       setPasteError(
-        parsed.error ||
-          "Couldn\u2019t find both cookies in the clipboard. Paste a request that includes them.",
+        parsed.error || t('collection.cookiesNotFoundInClipboard'),
       );
     } catch (err: any) {
       setPasteOpen(true);
       setPasteError(
-        err?.message || "Could not read clipboard. Paste manually instead.",
+        err?.message || t('collection.clipboardReadFailed'),
       );
     }
   };
@@ -5683,11 +5298,11 @@ function WorkshopCollectionSyncCard({
       if (!r.ok && r.error) setDiffError(r.error);
     } catch (err: any) {
       if (seq !== refreshDiffSeqRef.current) return;
-      setDiffError(err?.message || "Failed to read collection");
+      setDiffError(err?.message || t('collection.readFailed'));
     } finally {
       if (seq === refreshDiffSeqRef.current) setDiffLoading(false);
     }
-  }, [collectionIdValid]);
+  }, [collectionIdValid, t]);
 
   // Auto-load the diff once when the card mounts with a valid collection ID.
   // Cheap public API, gives the user immediate context without clicking.
@@ -5721,25 +5336,187 @@ function WorkshopCollectionSyncCard({
     try {
       const r = await modsApi.collectionExtractCookies(browserId);
       if (r.ok && r.sessionid && r.steamLoginSecure) {
-        const saved = await saveExtractedCookies(r.sessionid, r.steamLoginSecure);
-        if (saved && r.notes && r.notes.length > 0) {
-          toast({ title: `Cookies extracted from ${label}`, description: r.notes[0] });
-        }
+        updateSetting("steamSessionId", r.sessionid);
+        updateSetting("steamLoginSecure", r.steamLoginSecure);
+        toast({
+          title: t('collection.cookiesExtractedFromBrowser', { browser: label }),
+          description:
+            r.notes && r.notes.length > 0
+              ? r.notes[0]
+              : t('collection.saveSettingsReminder'),
+        });
       } else {
         toast({
           variant: "destructive",
-          title: `Couldn't extract from ${label}`,
-          description: r.error || "Unknown failure",
+          title: t('collection.browserExtractionFailed', { browser: label }),
+          description: r.error || t('collection.unknownFailure'),
         });
       }
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: `Couldn't extract from ${label}`,
-        description: err?.message || "Request failed",
+        title: t('collection.browserExtractionFailed', { browser: label }),
+        description: err?.message || t('collection.requestFailed'),
       });
     } finally {
       setExtractingFrom(null);
+    }
+  };
+
+  // Browser detection from User-Agent — used to tailor the extension
+  // install instructions to whatever the admin is using right now.
+  // Order matters: Edge/Brave/Opera UA also contain "Chrome".
+  const detectedBrowser:
+    | "firefox"
+    | "edge"
+    | "brave"
+    | "opera"
+    | "chrome"
+    | "safari"
+    | "other" = (() => {
+    if (typeof navigator === "undefined") return "other";
+    const ua = navigator.userAgent;
+    if (/Firefox\//i.test(ua)) return "firefox";
+    // Brave only differentiates via navigator.brave at runtime — UA mimics Chrome.
+    const nav: any = navigator;
+    if (nav?.brave?.isBrave) return "brave";
+    if (/Edg\//i.test(ua)) return "edge";
+    if (/OPR\/|Opera/i.test(ua)) return "opera";
+    if (/Chrome\//i.test(ua)) return "chrome";
+    if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "safari";
+    return "other";
+  })();
+
+  const extensionsUrl = ((): string => {
+    switch (detectedBrowser) {
+      case "firefox":
+        return "about:debugging#/runtime/this-firefox";
+      case "edge":
+        return "edge://extensions";
+      case "brave":
+        return "brave://extensions";
+      case "opera":
+        return "opera://extensions";
+      case "chrome":
+        return "chrome://extensions";
+      default:
+        return "chrome://extensions";
+    }
+  })();
+
+  const extensionsUrlLabel = ((): string => {
+    switch (detectedBrowser) {
+      case "firefox":
+        return "about:debugging";
+      case "edge":
+        return "edge://extensions";
+      case "brave":
+        return "brave://extensions";
+      case "opera":
+        return "opera://extensions";
+      case "chrome":
+        return "chrome://extensions";
+      default:
+        return "chrome://extensions";
+    }
+  })();
+
+  const browserLabel = ((): string => {
+    switch (detectedBrowser) {
+      case "firefox":
+        return "Firefox";
+      case "edge":
+        return "Edge";
+      case "brave":
+        return "Brave";
+      case "opera":
+        return "Opera";
+      case "chrome":
+        return "Chrome";
+      case "safari":
+        return "Safari";
+      default:
+        return "your browser";
+    }
+  })();
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      let copiedToClipboard = false;
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          copiedToClipboard = true;
+        } catch {
+          // Firefox on an HTTP panel exposes this API but rejects the write.
+          // Fall through to the user-gesture-compatible legacy command.
+        }
+      }
+      if (!copiedToClipboard) {
+        const input = document.createElement("textarea");
+        input.value = text;
+        input.setAttribute("readonly", "");
+        input.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+        if (!copied) throw new Error(t('collection.clipboardAccessDenied'));
+      }
+      setCopied(label);
+      window.setTimeout(() => setCopied((c) => (c === label ? null : c)), 1800);
+    } catch {
+      toast({
+        variant: "destructive",
+        title: t('collection.copyFailed'),
+        description: t('collection.copyFailedDescription'),
+      });
+    }
+  };
+
+  // Pulls the bundled extension .zip from the panel itself so the user can
+  // install it without going to GitHub. Auth'd via the same bearer token as
+  // every other API call.
+  const handleDownloadExtension = async () => {
+    if (downloadingExt) return;
+    setDownloadingExt(true);
+    try {
+      const token = getAccessToken();
+      const res = await fetch("/api/mods/collection/extension-bundle", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        let detail = "";
+        try {
+          detail = ((await res.json()) as any)?.error || "";
+        } catch {
+          /* ignore */
+        }
+        throw new Error(
+          detail || t('collection.downloadFailedWithStatus', { status: res.status }),
+        );
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "zomboid-panel-extension.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+      toast({
+        title: t('collection.extensionDownloaded'),
+        description: t('collection.extensionDownloadedDescription', { browser: browserLabel }),
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: t('collection.downloadFailed'),
+        description: err?.message || t('collection.unknownError'),
+      });
+    } finally {
+      setDownloadingExt(false);
     }
   };
 
@@ -5749,14 +5526,14 @@ function WorkshopCollectionSyncCard({
     try {
       const r = await modsApi.collectionSync();
       if (r.success) {
-        toast({ title: "Collection synced", description: r.message });
+        toast({ title: t('collection.collectionSynced'), description: r.message });
       } else {
         const failedItems = Array.isArray(r.errors)
           ? r.errors.map((entry: { title?: string | null; id?: string }) => entry.title || entry.id).filter(Boolean)
           : [];
         toast({
           variant: "destructive",
-          title: "Steam rejected items",
+          title: t('collection.steamRejectedItems'),
           description: failedItems.length > 0 ? `${r.message}: ${failedItems.join(", ")}` : r.message,
         });
       }
@@ -5764,8 +5541,8 @@ function WorkshopCollectionSyncCard({
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: "Sync failed",
-        description: err?.message || "Unknown error",
+        title: t('collection.syncFailed'),
+        description: err?.message || t('collection.unknownError'),
       });
     } finally {
       setSyncing(false);
@@ -5777,13 +5554,13 @@ function WorkshopCollectionSyncCard({
     setTesting(true);
     try {
       const r = await modsApi.collectionTest();
-      toast({ title: "Connection OK", description: r.message });
+      toast({ title: t('collection.connectionOk'), description: r.message });
       await refreshDiff();
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: "Test failed",
-        description: err?.message || "Could not reach collection",
+        title: t('collection.testFailed'),
+        description: err?.message || t('collection.couldNotReach'),
       });
     } finally {
       setTesting(false);
@@ -5824,13 +5601,13 @@ function WorkshopCollectionSyncCard({
       if (action === "add") {
         if (!credsConfigured)
           throw new Error(
-            "Add Steam cookies first to write to the collection.",
+            t('collection.addCookiesFirst'),
           );
         await modsApi.collectionAddItem(workshopId);
       } else if (action === "remove") {
         if (!credsConfigured)
           throw new Error(
-            "Add Steam cookies first to write to the collection.",
+            t('collection.addCookiesFirst'),
           );
         await modsApi.collectionRemoveItem(workshopId);
       } else if (action === "track") {
@@ -5842,8 +5619,8 @@ function WorkshopCollectionSyncCard({
     } catch (err: any) {
       toast({
         variant: "destructive",
-        title: "Action failed",
-        description: err?.message || "Steam rejected the change",
+        title: t('collection.actionFailed'),
+        description: err?.message || t('collection.steamRejectedChange'),
       });
     } finally {
       setRowBusy((prev) => {
@@ -5859,19 +5636,17 @@ function WorkshopCollectionSyncCard({
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2">
           <RefreshCw className="w-4 h-4 text-primary" />
-          Workshop Collection Sync
+          {t('collection.title')}
         </CardTitle>
         <CardDescription>
-          Mirror your tracked-mod list into a Steam Workshop collection so
-          add/remove only happens in one place.
+          {t('collection.description')}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-7">
-        <div className="grid gap-6 border-b border-border/40 pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.8fr)]">
+      <CardContent className="space-y-6">
         {/* Collection ID */}
         <div className="space-y-2">
           <Label htmlFor="ws-collection-id" className="text-base">
-            Collection ID
+            {t('collection.collectionId')}
           </Label>
           <Input
             id="ws-collection-id"
@@ -5879,42 +5654,38 @@ function WorkshopCollectionSyncCard({
             onChange={(e) =>
               updateSetting("workshopCollectionId", e.target.value.trim())
             }
-            placeholder="e.g. 3123456789"
+            placeholder={t('placeholders.phoneExample')}
             className="h-11 max-w-md font-mono"
             maxLength={20}
           />
           <p className="text-sm text-muted-foreground">
-            Open your collection on Steam and copy the numeric ID from the URL
-            (the digits after <code>?id=</code>). You must own the collection.
+            {t('collection.collectionIdDescription')}
           </p>
         </div>
 
         {/* Auto-sync toggle */}
         <div
-          className={`flex items-start justify-between gap-4 lg:border-l lg:border-border/40 lg:pl-6 ${
+          className={`flex items-start justify-between gap-4 rounded-lg border p-4 transition-colors ${
             autoSyncOn && !credsConfigured
-              ? "text-warning"
+              ? "border-warning/40 bg-warning/5"
               : ""
           }`}
         >
           <div className="space-y-1">
-            <Label className="text-base">Auto-sync on add / remove</Label>
+            <Label className="text-base">{t('autosyncOnAddRemove')}</Label>
             <p className="text-sm text-muted-foreground">
-              When you track or untrack a mod, the panel updates the collection
-              in the background. Failures are logged but don't block your
-              action.
+              {t('collection.autoSyncDescription')}
             </p>
             {autoSyncOn && !credsConfigured && (
               <p className="text-xs text-warning flex items-center gap-1 pt-1">
                 <AlertTriangle className="w-3 h-3" />
-                Auto-sync needs Steam session cookies below to actually push
-                changes.
+                {t('collection.autoSyncCookiesRequired')}
               </p>
             )}
             {autoSyncOn && !collectionIdValid && (
               <p className="text-xs text-warning flex items-center gap-1 pt-1">
                 <AlertTriangle className="w-3 h-3" />
-                Set a Collection ID first — nothing to sync to yet.
+                {t('collection.collectionIdRequired')}
               </p>
             )}
           </div>
@@ -5925,39 +5696,23 @@ function WorkshopCollectionSyncCard({
             }
           />
         </div>
-        </div>
 
         {/* Steam session cookies */}
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Label className="text-base">Steam Session Cookies</Label>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Label className="text-base">{t('steamSessionCookies')}</Label>
             {credsConfigured ? (
               <span className="inline-flex items-center gap-1 rounded border border-success/40 bg-success/10 px-1.5 py-0.5 text-[11px] font-medium text-success">
-                <Check className="w-3 h-3" /> Configured
+                <Check className="w-3 h-3" /> {t('ui.configured')}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded border border-muted-foreground/30 bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                Not configured
+                {t('ui.notConfigured')}
               </span>
             )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCookies((v) => !v)}
-              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-            >
-              {showCookies ? (
-                <EyeOff className="w-3.5 h-3.5" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" />
-              )}
-              {showCookies ? "Hide" : "Show"}
-            </button>
           </div>
           <p className="text-sm text-muted-foreground">
-            Required to <strong>write</strong> to the collection. Reading is
-            free without these.
+            {t('collection.cookiesRequiredDescription')}
           </p>
           <div className="grid gap-3 sm:grid-cols-2 max-w-3xl">
             <div className="space-y-1">
@@ -5974,7 +5729,7 @@ function WorkshopCollectionSyncCard({
                 onChange={(e) =>
                   updateSetting("steamSessionId", e.target.value.trim())
                 }
-                placeholder="24-char hex from cookie"
+                placeholder={t('placeholders.cookieHex')}
                 className="h-10 font-mono"
                 maxLength={64}
               />
@@ -5993,29 +5748,40 @@ function WorkshopCollectionSyncCard({
                 onChange={(e) =>
                   updateSetting("steamLoginSecure", e.target.value.trim())
                 }
-                placeholder="long token from cookie"
+                placeholder={t('placeholders.longToken')}
                 className="h-10 font-mono"
                 maxLength={512}
               />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCookies((v) => !v)}
+            className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            {showCookies ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+            {showCookies ? t('collection.hideCookies') : t('collection.showCookies')}
+          </button>
+
           {/* Auto-detect from local browser — fastest path when Steam is
               logged in on the same machine the panel runs on. */}
           {browsers &&
             browsers.supported &&
             browsers.browsers.some((b) => b.detected) && (
-              <div className="border-t border-border/40 pt-4 space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 mt-3 space-y-3">
                 <div className="flex items-start gap-3">
                   <Zap className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                   <div className="flex-1 space-y-1">
                     <p className="font-medium text-sm">
-                      Auto-detect from this machine's browser
+                      {t('collection.autoDetectBrowser')}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Reads cookies directly from a browser installed on the
-                      panel host. Works for browsers logged into Steam on{" "}
-                      <strong>this machine</strong>. Close the browser first for
-                      best results.
+                      {t('collection.autoDetectBrowserDescription')}{" "}
+                      <strong>{t('thisMachine')}</strong>{t('collection.autoDetectBrowserCloseHint')}
                     </p>
                   </div>
                 </div>
@@ -6041,43 +5807,207 @@ function WorkshopCollectionSyncCard({
                     ))}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Chrome 127+ may seal <code>steamLoginSecure</code> away from
-                  this method (App-Bound Encryption). Paste a Steam request if
-                  extraction returns nothing.
+                  {t('collection.browserExtractionNote')}
                 </p>
               </div>
             )}
 
+          {/* Browser extension — works regardless of platform or which
+              machine Steam is logged in on. Guided install with one-button
+              download and copy-to-clipboard helpers for the bits browsers
+              won't let us automate (chrome:// nav, extension load). */}
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 mt-3 space-y-3">
+            <div className="flex items-start gap-3">
+              <ExternalLink className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+              <div className="flex-1 space-y-1">
+                <p className="font-medium text-sm">
+                  {t('collection.installExtensionRecommended')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t('collection.extensionDescription', { browser: browserLabel })}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={handleDownloadExtension}
+                disabled={downloadingExt}
+              >
+                {downloadingExt ? (
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {t('collection.downloadExtension')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => copyToClipboard(extensionsUrl, "ext-url")}
+                title={t('collection.copyExtensionUrlTooltip', { url: extensionsUrlLabel })}
+              >
+                {copied === "ext-url" ? (
+                  <Check className="w-3.5 h-3.5 mr-1.5 text-green-500" />
+                ) : (
+                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {t('collection.copyExtensionUrl', { url: extensionsUrlLabel })}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  copyToClipboard(
+                    typeof window !== "undefined" ? window.location.origin : "",
+                    "panel-url",
+                  )
+                }
+                title={t('browserExtension.copyUrlTooltip')}
+              >
+                {copied === "panel-url" ? (
+                  <Check className="w-3.5 h-3.5 mr-1.5 text-green-500" />
+                ) : (
+                  <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                {t('collection.copyPanelUrl')}
+              </Button>
+            </div>
+
+            {/* Browser-specific load steps. Kept terse — long walls of text
+                kill momentum at the "I almost have this working" phase. */}
+            <div className="rounded-md border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground space-y-2">
+              {detectedBrowser === "firefox" ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    {t('collection.loadIntoFirefox')}
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 pl-1">
+                    <li>
+                      {t('collection.unzipExtension')}
+                    </li>
+                    <li>
+                      {t('collection.pasteFirefoxUrl')}
+                    </li>
+                    <li>
+                      {t('collection.selectManifest', { action: t('loadTemporaryAddon') })}
+                    </li>
+                    <li>
+                      {t('collection.pinExtension')}
+                    </li>
+                  </ol>
+                  <p className="text-[11px]">
+                    {t('collection.firefoxNote')}{" "}
+                    <a
+                      className="underline"
+                      href="https://addons.mozilla.org/developers/"
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      addons.mozilla.org
+                    </a>{" "}
+                    {t('collection.firefoxDeveloperNote')}{" "}
+                    <code>xpinstall.signatures.required = false</code>.
+                  </p>
+                </>
+              ) : detectedBrowser === "safari" ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    {t('collection.safariUnsupported')}
+                  </p>
+                  <p>
+                    {t('collection.safariDescription')}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-foreground">
+                    {t('collection.loadIntoBrowser', { browser: browserLabel })}
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 pl-1">
+                    <li>
+                      {t('collection.unzipExtension')}
+                    </li>
+                    <li>
+                      {t('collection.pasteBrowserUrl', { url: extensionsUrlLabel })}
+                    </li>
+                    <li>
+                      {t('collection.toggleDeveloperMode', { mode: t('developerMode') })}
+                    </li>
+                    <li>
+                      {t('collection.loadUnpackedFolder', { action: t('loadUnpacked') })}
+                    </li>
+                    <li>
+                      {t('collection.pinExtension')}
+                    </li>
+                  </ol>
+                </>
+              )}
+              <div className="pt-1 border-t border-border/30 mt-2">
+                <p className="font-medium text-foreground mb-1">
+                  {t('collection.extensionPopup')}
+                </p>
+                <ol className="list-decimal list-inside space-y-1 pl-1">
+                  <li>
+                    {t('collection.pastePanelUrl')}
+                  </li>
+                  <li>
+                    {t('collection.testSteamLogin', { action: t('steamExtension.testLogin') })}
+                  </li>
+                  <li>
+                    {t('collection.sendCookies', { action: t('steamExtension.sendCookies') })}
+                  </li>
+                </ol>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setExtensionInfoOpen((v) => !v)}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+            >
+              {extensionInfoOpen
+                ? t('collection.hidePrivacy')
+                : t('collection.privacyPermissions')}
+            </button>
+            {extensionInfoOpen && (
+              <p className="text-[11px] text-muted-foreground">
+                {t('collection.privacyDescription', { not: t('not') })}
+              </p>
+            )}
+          </div>
+
           {/* Paste helper — much faster than copying two cookies by hand */}
-          <div className="border-t border-border/40 pt-4 space-y-3">
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 mt-3 space-y-3">
             <div className="flex items-start gap-3">
               <Zap className="w-4 h-4 text-primary mt-0.5 shrink-0" />
               <div className="flex-1 space-y-1">
                 <p className="font-medium text-sm">
-                  Quick setup: paste a Steam request
+                  {t('collection.quickSetup')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Steam marks <code>steamLoginSecure</code> as HttpOnly, so the
-                  cookies tab works but a one-click button can't read it.
-                  Easiest path: copy any logged-in Steam request and let us
-                  extract the cookies.
+                  {t('collection.httpOnlyDescription')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Prefer a cookie exporter?{" "}
+                  {t('collection.preferCookieExporter')}{" "}
                   <a
                     href="https://github.com/kairi003/Get-cookies.txt-LOCALLY"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-primary hover:underline"
                   >
-                    Get cookies.txt LOCALLY
+                    {t('collection.cookieExporterName')}
                     <ExternalLink className="w-3 h-3" />
                   </a>{" "}
-                  (Chrome/Firefox, open source) works well on Steam. Open{" "}
-                  <code>steamcommunity.com</code> while signed in, click its
-                  icon, copy, and paste the result below — both its{" "}
-                  <em>Netscape</em> and <em>Header String</em> formats are
-                  understood.
+                  {t('collection.cookieExporterDescription', {
+                    netscape: t('steamExtension.netscapeFormat'),
+                    header: t('steamExtension.headerStringFormat'),
+                  })}
                 </p>
               </div>
             </div>
@@ -6090,10 +6020,9 @@ function WorkshopCollectionSyncCard({
                     size="sm"
                     variant="default"
                     onClick={handlePasteFromClipboard}
-                    disabled={savingCookies}
                   >
                     <Cloud className="w-3.5 h-3.5 mr-1.5" />
-                    Paste from clipboard
+                    {t('collection.pasteFromClipboard')}
                   </Button>
                 )}
                 <Button
@@ -6106,8 +6035,8 @@ function WorkshopCollectionSyncCard({
                   }}
                 >
                   {clipboardReadAvailable
-                    ? "Paste manually…"
-                    : "Paste cookies…"}
+                    ? t('collection.pasteManually')
+                    : t('collection.pasteCookies')}
                 </Button>
                 <a
                   href="https://steamcommunity.com/my/myworkshopfiles/?section=collections"
@@ -6115,7 +6044,7 @@ function WorkshopCollectionSyncCard({
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline self-center"
                 >
-                  Open Steam collections <ExternalLink className="w-3 h-3" />
+                  {t('collection.openSteamCollections')} <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             ) : (
@@ -6126,7 +6055,7 @@ function WorkshopCollectionSyncCard({
                     setPasteText(e.target.value);
                     setPasteError(null);
                   }}
-                  placeholder='Paste a "Copy as cURL" command, a Cookie header, a cookies.txt export, or "sessionid=...; steamLoginSecure=..."'
+                  placeholder={t('collection.pastePlaceholder')}
                   rows={4}
                   className="font-mono text-xs"
                 />
@@ -6135,14 +6064,10 @@ function WorkshopCollectionSyncCard({
                     type="button"
                     size="sm"
                     onClick={handlePasteApply}
-                    disabled={!pasteText.trim() || savingCookies}
+                    disabled={!pasteText.trim()}
                   >
-                    {savingCookies ? (
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    ) : (
-                      <Check className="w-3.5 h-3.5 mr-1.5" />
-                    )}
-                    {savingCookies ? "Saving…" : "Extract & save"}
+                    <Check className="w-3.5 h-3.5 mr-1.5" />
+                    {t('collection.extractCookies')}
                   </Button>
                   <Button
                     type="button"
@@ -6154,7 +6079,7 @@ function WorkshopCollectionSyncCard({
                       setPasteError(null);
                     }}
                   >
-                    Cancel
+                    {t('cancel')}
                   </Button>
                 </div>
                 {pasteError && (
@@ -6167,11 +6092,11 @@ function WorkshopCollectionSyncCard({
 
             <details className="text-xs">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                How to get a Steam request to copy
+                {t('collection.howToGetSteamRequest')}
               </summary>
               <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground pl-1">
                 <li>
-                  Open{" "}
+                  {t('open')}{" "}
                   <a
                     href="https://steamcommunity.com/"
                     target="_blank"
@@ -6180,40 +6105,37 @@ function WorkshopCollectionSyncCard({
                   >
                     steamcommunity.com
                   </a>{" "}
-                  in your browser, logged in.
+                  {t('collection.openSteamLoggedIn')}
                 </li>
                 <li>
-                  Press{" "}
+                  {t('press')}{" "}
                   <kbd className="px-1 py-0.5 rounded border bg-muted text-[10px]">
                     F12
                   </kbd>{" "}
-                  → <strong>Network</strong> tab.
+                  → <strong>{t('network')}</strong> {t('tab')}.
                 </li>
-                <li>Reload the page so requests show up.</li>
+                <li>{t('reloadThePageSoRequestsShowUp')}</li>
                 <li>
-                  Right-click <em>any</em> request → <strong>Copy</strong> →{" "}
-                  <strong>Copy as cURL</strong>.
+                  {t('rightClick')} <em>{t('any')}</em> {t('request')} → <strong>{t('copy')}</strong> →{" "}
+                  <strong>{t('copyAsCurl')}</strong>.
                 </li>
                 <li>
-                  Come back here and click <strong>Paste from clipboard</strong>
-                  .
+                  {t('collection.comeBackAndClick')} <strong>{t('pasteFromClipboard')}</strong>.
                 </li>
               </ol>
               <p className="mt-2 text-muted-foreground">
-                Or, if you prefer the manual route: F12 →{" "}
-                <strong>Application</strong> → <strong>Cookies</strong> →
-                <code className="mx-1">https://steamcommunity.com</code>, copy{" "}
-                <code>sessionid</code> and <code>steamLoginSecure</code>
-                into the fields above directly.
+                {t('or')}, {t('manualRoute')}: F12 →{" "}
+                <strong>{t('application')}</strong> → <strong>{t('cookies')}</strong> →
+                <code className="mx-1">https://steamcommunity.com</code>, {t('copy').toLowerCase()}{" "}
+                <code>sessionid</code> {t('and')} <code>steamLoginSecure</code>
+                {" "}{t('intoFieldsDirectly')}.
               </p>
             </details>
 
             <p className="text-[11px] text-warning/90 flex items-start gap-1 pt-1 border-t border-border/30">
               <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
               <span>
-                These cookies grant Steam login access — treat them like a
-                password. Steam rotates the token every few weeks, so you'll
-                need to re-paste when sync starts failing.
+                {t('collection.cookiesWarning')}
               </span>
             </p>
           </div>
@@ -6229,8 +6151,8 @@ function WorkshopCollectionSyncCard({
               disabled={!collectionIdValid || !credsConfigured || testing}
               title={
                 !credsConfigured
-                  ? "Add Steam session cookies first"
-                  : "Verify the collection is readable with these cookies"
+                  ? t('collection.addCookiesFirst')
+                  : t('collection.verifyCollection')
               }
             >
               {testing ? (
@@ -6238,7 +6160,7 @@ function WorkshopCollectionSyncCard({
               ) : (
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Test connection
+              {t('collection.testConnection')}
             </Button>
             <Button
               variant="outline"
@@ -6251,7 +6173,7 @@ function WorkshopCollectionSyncCard({
               ) : (
                 <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Check drift
+              {t('collection.checkDrift')}
             </Button>
             <Button
               variant={driftCount > 0 ? "default" : "outline"}
@@ -6266,8 +6188,8 @@ function WorkshopCollectionSyncCard({
               }
               title={
                 !credsConfigured
-                  ? "Add Steam session cookies to write to the collection"
-                  : `Push ${driftCount} change${driftCount === 1 ? "" : "s"} to Steam`
+                  ? t('collection.addCookiesToWrite')
+                  : t('collection.pushChanges', { count: driftCount })
               }
             >
               {syncing ? (
@@ -6275,7 +6197,7 @@ function WorkshopCollectionSyncCard({
               ) : (
                 <Cloud className="w-3.5 h-3.5 mr-1.5" />
               )}
-              Sync now {driftCount > 0 && `(${driftCount})`}
+              {t('collection.syncNow')} {driftCount > 0 && `(${driftCount})`}
             </Button>
 
             <div className="ml-auto text-xs text-muted-foreground">
@@ -6284,32 +6206,33 @@ function WorkshopCollectionSyncCard({
                   <AlertTriangle className="w-3 h-3" /> {diffError}
                 </span>
               ) : !collectionIdValid ? (
-                <span>Enter a Collection ID to begin.</span>
+                <span>{t('enterACollectionIdToBegin')}</span>
               ) : !diff ? (
                 <span>
                   {diffLoading
-                    ? "Reading collection…"
-                    : 'Click "Check drift" to compare.'}
+                    ? t('collection.readingCollection')
+                    : t('collection.clickCheckDrift')}
                 </span>
               ) : !diff.ok ? (
-                <span>Could not read collection.</span>
+                <span>{t('couldNotReadCollection')}</span>
               ) : inSync ? (
                 <span className="text-success flex items-center gap-1">
-                  <Check className="w-3 h-3" /> In sync —{" "}
-                  {diff.inCollection.length} item
-                  {diff.inCollection.length === 1 ? "" : "s"}
+                  <Check className="w-3 h-3" /> {t('collection.inSync', { count: diff.inCollection.length })}
                 </span>
               ) : (
                 <span className="text-warning flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" />
-                  {diff.toAdd.length} to add, {diff.toRemove.length} to remove
+                  {t('collection.driftSummary', {
+                    add: diff.toAdd.length,
+                    remove: diff.toRemove.length,
+                  })}
                 </span>
               )}
             </div>
           </div>
           {diffCheckedAt && (
             <p className="text-[11px] text-muted-foreground/70">
-              Last checked {diffCheckedAt.toLocaleTimeString()}
+              {t('collection.lastChecked')} {diffCheckedAt.toLocaleTimeString()}
               {diff?.title && (
                 <>
                   {" "}
@@ -6325,7 +6248,7 @@ function WorkshopCollectionSyncCard({
                 </>
               )}
               {" · "}
-              <span>{diff?.trackedCount ?? 0} tracked locally</span>
+              <span>{t('collection.trackedLocally', { count: diff?.trackedCount ?? 0 })}</span>
             </p>
           )}
         </div>
@@ -6340,16 +6263,16 @@ function WorkshopCollectionSyncCard({
               <div className="flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 p-0.5 text-xs">
                 {(
                   [
-                    ["mismatch", "Mismatch", driftCount],
-                    ["all", "All", allItems.length],
+                    ["mismatch", t('collection.mismatch'), driftCount],
+                    ["all", t('collection.all'), allItems.length],
                     [
                       "tracked",
-                      "Tracked",
+                      t('collection.tracked'),
                       allItems.filter((i) => i.inTracked).length,
                     ],
                     [
                       "collection",
-                      "Collection",
+                      t('collection.collection'),
                       allItems.filter((i) => i.inCollection).length,
                     ],
                   ] as const
@@ -6376,7 +6299,7 @@ function WorkshopCollectionSyncCard({
                 <Input
                   value={itemSearch}
                   onChange={(e) => setItemSearch(e.target.value)}
-                  placeholder="Filter by name or ID…"
+                  placeholder={t('placeholders.filterByName')}
                   className="h-8 pl-7 pr-7 text-xs w-56"
                 />
                 {itemSearch && (
@@ -6384,7 +6307,7 @@ function WorkshopCollectionSyncCard({
                     type="button"
                     onClick={() => setItemSearch("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label="Clear search"
+                    aria-label={t('labels.clearSearch')}
                   >
                     <XCircle className="w-3.5 h-3.5" />
                   </button>
@@ -6398,19 +6321,19 @@ function WorkshopCollectionSyncCard({
                 {filteredItems.length === 0 ? (
                   <div className="px-3 py-6 text-center text-xs text-muted-foreground">
                     {itemSearch
-                      ? "No mods match your search."
-                      : "Nothing in this filter."}
+                      ? t('collection.noModsMatch')
+                      : t('collection.nothingInFilter')}
                   </div>
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-muted/80 backdrop-blur z-10">
                       <tr className="text-left text-muted-foreground border-b border-border/50">
                         <th className="font-medium px-3 py-2 w-[120px]">
-                          Status
+                          {t('collection.status')}
                         </th>
-                        <th className="font-medium px-3 py-2">Mod</th>
+                        <th className="font-medium px-3 py-2">{t('mod')}</th>
                         <th className="font-medium px-3 py-2 w-[300px] text-right">
-                          Actions
+                          {t('collection.actions')}
                         </th>
                       </tr>
                     </thead>
@@ -6420,18 +6343,18 @@ function WorkshopCollectionSyncCard({
                         const statusMeta =
                           it.status === "synced"
                             ? {
-                                label: "In sync",
+                                label: t('collection.inSyncLabel'),
                                 cls: "text-success border-success/40 bg-success/10",
                                 icon: <Check className="w-3 h-3" />,
                               }
                             : it.status === "to-add"
                               ? {
-                                  label: "Missing in collection",
+                                  label: t('collection.missingInCollection'),
                                   cls: "text-warning border-warning/40 bg-warning/10",
                                   icon: <Plus className="w-3 h-3" />,
                                 }
                               : {
-                                  label: "Not tracked",
+                                  label: t('collection.notTracked'),
                                   cls: "text-destructive border-destructive/40 bg-destructive/10",
                                   icon: <AlertTriangle className="w-3 h-3" />,
                                 };
@@ -6470,13 +6393,13 @@ function WorkshopCollectionSyncCard({
                                   <span>{it.workshopId}</span>
                                   <span>·</span>
                                   <span>
-                                    {it.inTracked ? "tracked" : "not tracked"}
+                                    {it.inTracked ? t('collection.trackedLower') : t('collection.notTrackedLower')}
                                   </span>
                                   <span>·</span>
                                   <span>
                                     {it.inCollection
-                                      ? "in collection"
-                                      : "not in collection"}
+                                      ? t('collection.inCollectionLower')
+                                      : t('collection.notInCollectionLower')}
                                   </span>
                                 </div>
                               </div>
@@ -6495,8 +6418,8 @@ function WorkshopCollectionSyncCard({
                                     disabled={!!busy || !credsConfigured}
                                     title={
                                       !credsConfigured
-                                        ? "Need Steam cookies"
-                                        : "Remove from Steam collection"
+                                        ? t('collection.needSteamCookies')
+                                        : t('collection.removeFromCollection')
                                     }
                                   >
                                     {busy === "remove" ? (
@@ -6505,7 +6428,7 @@ function WorkshopCollectionSyncCard({
                                       <Minus className="w-3 h-3" />
                                     )}
                                     <span className="ml-1">
-                                      From collection
+                                      {t('collection.fromCollection')}
                                     </span>
                                   </Button>
                                 ) : (
@@ -6519,8 +6442,8 @@ function WorkshopCollectionSyncCard({
                                     disabled={!!busy || !credsConfigured}
                                     title={
                                       !credsConfigured
-                                        ? "Need Steam cookies"
-                                        : "Add to Steam collection"
+                                        ? t('collection.needSteamCookies')
+                                        : t('collection.addToCollection')
                                     }
                                   >
                                     {busy === "add" ? (
@@ -6528,7 +6451,7 @@ function WorkshopCollectionSyncCard({
                                     ) : (
                                       <Plus className="w-3 h-3" />
                                     )}
-                                    <span className="ml-1">To collection</span>
+                                    <span className="ml-1">{t('toCollection')}</span>
                                   </Button>
                                 )}
                                 {/* Tracked side */}
@@ -6541,14 +6464,14 @@ function WorkshopCollectionSyncCard({
                                       runRowAction(it.workshopId, "untrack")
                                     }
                                     disabled={!!busy}
-                                    title="Untrack locally (panel stops watching this mod)"
+                                    title={t('modsTracking.untrackTooltip')}
                                   >
                                     {busy === "untrack" ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
                                     ) : (
                                       <Bookmark className="w-3 h-3" />
                                     )}
-                                    <span className="ml-1">Untrack</span>
+                                    <span className="ml-1">{t('untrack')}</span>
                                   </Button>
                                 ) : (
                                   <Button
@@ -6559,14 +6482,14 @@ function WorkshopCollectionSyncCard({
                                       runRowAction(it.workshopId, "track")
                                     }
                                     disabled={!!busy}
-                                    title="Track locally (panel will watch this mod for updates)"
+                                    title={t('modsTracking.trackTooltip')}
                                   >
                                     {busy === "track" ? (
                                       <Loader2 className="w-3 h-3 animate-spin" />
                                     ) : (
                                       <BookmarkPlus className="w-3 h-3" />
                                     )}
-                                    <span className="ml-1">Track</span>
+                                    <span className="ml-1">{t('track')}</span>
                                   </Button>
                                 )}
                               </div>
@@ -6580,11 +6503,10 @@ function WorkshopCollectionSyncCard({
               </div>
               <div className="flex items-center justify-between px-3 py-1.5 border-t border-border/40 bg-muted/20 text-[10px] text-muted-foreground">
                 <span>
-                  {filteredItems.length} of {allItems.length} shown
+                  {t('collection.shownOf', { shown: filteredItems.length, total: allItems.length })}
                 </span>
                 <span className="hidden sm:inline">
-                  Per-row actions apply immediately · &ldquo;Sync now&rdquo;
-                  pushes every mismatch at once
+                  {t('collection.perRowActions')}
                 </span>
               </div>
             </div>

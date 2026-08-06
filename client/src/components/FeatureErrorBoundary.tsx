@@ -4,6 +4,7 @@ import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
 import { Link } from 'react-router-dom'
 import { reportClientError } from '@/lib/client-errors'
+import i18n from '@/i18n'
 
 // ============================================================================
 // Base Error Boundary with customizable props
@@ -51,18 +52,19 @@ export class FeatureErrorBoundary extends React.Component<FeatureErrorBoundaryPr
         return this.props.fallback
       }
 
-      const { featureName = 'This feature', compact = false } = this.props
+      const { featureName = 'thisFeature', compact = false } = this.props
+      const featureLabel = i18n.t(`common:features.${featureName}`)
 
       if (compact) {
         return (
           <div className="p-4 border border-destructive/50 bg-destructive/10 rounded-lg">
             <div className="flex items-center gap-2 text-destructive mb-2">
               <AlertTriangle className="w-4 h-4" />
-              <span className="font-medium">{featureName} encountered an error</span>
+              <span className="font-medium">{i18n.t('common:errorBoundary.featureCompact', { feature: featureLabel })}</span>
             </div>
             <Button size="sm" variant="outline" onClick={this.handleReset}>
               <RefreshCw className="w-3 h-3 mr-1" />
-              Retry
+              {i18n.t('common:actions.retry')}
             </Button>
           </div>
         )
@@ -73,10 +75,10 @@ export class FeatureErrorBoundary extends React.Component<FeatureErrorBoundaryPr
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="w-5 h-5" />
-              {featureName} Error
+              {i18n.t('common:errorBoundary.featureTitle', { feature: featureLabel })}
             </CardTitle>
             <CardDescription>
-              An error occurred while loading this section
+              {i18n.t('common:errorBoundary.featureDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -88,12 +90,12 @@ export class FeatureErrorBoundary extends React.Component<FeatureErrorBoundaryPr
             <div className="flex gap-2">
               <Button variant="outline" onClick={this.handleReset}>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Try Again
+                {i18n.t('common:errorBoundary.retry')}
               </Button>
               <Button variant="ghost" asChild>
                 <Link to="/">
                   <Home className="w-4 h-4 mr-2" />
-                  Dashboard
+                  {i18n.t('common:errorBoundary.dashboard')}
                 </Link>
               </Button>
             </div>

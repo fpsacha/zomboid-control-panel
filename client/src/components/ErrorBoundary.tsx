@@ -3,6 +3,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { reportClientError } from '@/lib/client-errors'
+import i18n from '@/i18n'
 
 interface Props {
   children: React.ReactNode
@@ -39,12 +40,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="w-6 h-6" />
-                Something went wrong
+                {i18n.t('common:errorBoundary.title')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                An unexpected error occurred. Please try refreshing the page.
+                {i18n.t('common:errorBoundary.description')}
               </p>
               {this.state.error && (
                 <pre className="p-3 bg-muted rounded-lg text-sm overflow-auto max-h-32">
@@ -54,10 +55,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <div className="flex gap-2">
                 <Button onClick={() => window.location.reload()}>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh Page
+                  {i18n.t('common:errorBoundary.refresh')}
                 </Button>
                 <Button variant="outline" onClick={this.handleReset}>
-                  Try Again
+                  {i18n.t('common:errorBoundary.retry')}
                 </Button>
               </div>
             </CardContent>

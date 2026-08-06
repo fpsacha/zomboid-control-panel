@@ -1,0 +1,101 @@
+{
+    "title":  "Browse Public Servers",
+    "description":  "Search the public Project Zomboid server list and copy a server address to join quickly",
+    "empty":  {
+                  "noServers":  "No servers match your filters",
+                  "tryAdjusting":  "Try adjusting your search filters or refresh the server list",
+                  "noPublicServers": "No public servers found",
+                  "refreshLater": "Try refreshing the list in a moment.",
+                  "addApiKey": "Add your Steam API key in Settings to load the public Project Zomboid server list."
+              },
+    "labels":  {
+                   "search":  "Search public servers",
+                   "name":  "Name",
+                   "players":  "Players",
+                   "ping":  "Ping",
+                   "pagination":  "Server list pagination",
+                   "firstPage":  "Go to first page",
+                   "prevPage":  "Go to previous page",
+                   "nextPage":  "Go to next page",
+                   "lastPage":  "Go to last page",
+                   "version":  "Version",
+                   "sortBy":  "Sort by",
+                   "maxPlayers":  "Max Players",
+                   "ascending":  "Ascending",
+                   "descending":  "Descending",
+                   "passwordProtected":  "Password Protected",
+                   "vacSecured":  "VAC Secured",
+                   "connectTooltip":  "Launch game and connect to server",
+                   "sortAriaCurrent": "Sort by {{label}}, {{direction}}",
+                   "sortAria": "Sort by {{label}}",
+                   "notAvailable": "N/A",
+                   "pingAction": "Ping",
+                   "connect": "Connect"
+               },
+    "placeholders":  {
+                         "search":  "Search by name, IP, map, or keywords...",
+                         "version":  "All versions"
+                     },
+    "status":  {
+                   "loading":  "Loading servers..."
+               },
+    "errors":  {
+                   "steamApiKeyMissing":  "Steam API Key Missing",
+                   "loadFailed":  "Can\u0027t load public servers",
+                   "apiKeyInstructions":  "Go to \u003c1\u003eSettings\u003c/1\u003e and paste your API key in the \"Steam Web API Key\" field",
+                   "saveAndRefresh":  "Click \"Save Settings\" and refresh this page",
+                   "addApiKeyHint":  "Add a Steam Web API key in Settings to browse public servers.",
+                   "registerKey":  "Register for a Steam Web API key",
+                   "goTo":  "Go to",
+                   "opensInNewTab":  "(opens in a new tab)",
+                   "andRegister":  "and register for a key",
+                   "fetchFailed":  "Failed to fetch servers",
+                   "unknown":  "Unknown error"
+               }
+  ,
+  "actions": {
+    "refreshList": "Refresh List",
+    "reloadFromSteam": "Reload from Steam",
+    "tryAgain": "Try Again"
+  },
+  "toast": {
+    "serversLoaded": "Servers loaded",
+    "serversLoadedCached": "Servers loaded (cached)",
+    "serversLoadedDescription": "Found {{count}} servers with {{players}} players online"
+  },
+  "stats": {
+    "totalServers": "Total Servers",
+    "viaSteamApi": "via Steam API",
+    "viaMasterServer": "via Master Server",
+    "cached": "cached",
+    "activeServers": "Active Servers",
+    "withPlayersOnline": "with players online",
+    "totalPlayers": "Total Players",
+    "playingNow": "playing right now",
+    "showing": "Showing",
+    "filteredOf": "of {{count}} · filtered",
+    "matchingFilters": "matching filters"
+  },
+  "filters": {
+    "title": "Search & Filters",
+    "show": "Show Filters",
+    "hide": "Hide Filters",
+    "hideEmpty": "Hide empty servers",
+    "hideFull": "Hide full servers",
+    "hidePrivate": "Hide private servers",
+    "vacOnly": "VAC secured only",
+    "clearAll": "Clear all filters"
+  },
+  "serverList": {
+    "title": "Server List",
+    "description": "Click on a server to see more details or copy the address"
+  },
+  "pagination": {
+    "showing": "Showing {{start}} - {{end}} of {{count}} servers",
+    "first": "First",
+    "previous": "Prev",
+    "page": "Page {{current}} of {{total}}",
+    "next": "Next",
+    "last": "Last"
+  }
+}

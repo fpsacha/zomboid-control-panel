@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import {
@@ -42,8 +43,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Link } from 'react-router-dom'
 import { useToast } from '@/components/ui/use-toast'
+
+
 import { apiFetch } from '@/lib/api'
 
 interface GameServer {
@@ -69,6 +71,9 @@ type SortField = 'name' | 'players' | 'maxPlayers' | 'ping'
 type SortDirection = 'asc' | 'desc'
 
 export default function ServerFinder() {
+  const { t } = useTranslation('serverFinder');
+  
+  
   const [servers, setServers] = useState<GameServer[]>([])
   const [filteredServers, setFilteredServers] = useState<GameServer[]>([])
   const [loading, setLoading] = useState(false)
@@ -112,7 +117,7 @@ export default function ServerFinder() {
       const data = await response.json()
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch servers')
+        throw new Error(data.error || t('errors.fetchFailed'))
       }
 
       setServers(data.servers || [])
@@ -126,22 +131,22 @@ export default function ServerFinder() {
       })
 
       if (data.apiKeyConfigured === false) {
-        setError('Steam API key missing')
+        setError(t('errors.steamApiKeyMissing'))
       }
       
       if (data.servers?.length > 0) {
         toast({
-          title: data.cached ? 'Servers loaded (cached)' : 'Servers loaded',
-          description: `Found ${data.count} servers with ${data.totalPlayers || 0} players online`,
+          title: data.cached ? t('toast.serversLoadedCached') : t('toast.serversLoaded'),
+          description: t('toast.serversLoadedDescription', { count: data.count, players: data.totalPlayers || 0 }),
         })
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
+      const message = err instanceof Error ? err.message : t('errors.unknown')
       setError(message)
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [t, toast])
 
   // Initial fetch
   useEffect(() => {
@@ -316,7 +321,9 @@ export default function ServerFinder() {
       size="sm"
       onClick={() => toggleSort(field)}
       className="h-8 px-2 flex items-center gap-1"
-      aria-label={sortField === field ? `Sort by ${label}, ${sortDirection === 'asc' ? 'ascending' : 'descending'}` : `Sort by ${label}`}
+      aria-label={sortField === field
+        ? t('labels.sortAriaCurrent', { label, direction: sortDirection === 'asc' ? t('labels.ascending') : t('labels.descending') })
+        : t('labels.sortAria', { label })}
     >
       {label}
       {sortField === field ? (
@@ -343,8 +350,8 @@ export default function ServerFinder() {
     <div className="space-y-6 page-transition">
       {/* Header */}
       <PageHeader
-        title="Browse Public Servers"
-        description="Search the public Project Zomboid server list and copy a server address to join quickly"
+        title={t("title")}
+        description={t("description")}
         icon={<Globe className="w-5 h-5" />}
         actions={
           <div className="flex gap-2">
@@ -354,11 +361,11 @@ export default function ServerFinder() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              Refresh List
+              {t('actions.refreshList')}
             </Button>
             <Button onClick={() => fetchServers(true)} disabled={loading}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Reload from Steam
+              {t('actions.reloadFromSteam')}
             </Button>
           </div>
         }
@@ -370,14 +377,14 @@ export default function ServerFinder() {
           <CardContent className="flex items-start gap-4 py-4">
             <AlertCircle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="font-medium text-warning">Steam API Key Missing</p>
+              <p className="font-medium text-warning">{t('errors.steamApiKeyMissing')}</p>
               <p className="text-sm text-muted-foreground">
-                Add your Steam API key in Settings before this page can load the public server list.
+                {t('errors.addApiKeyHint')}
               </p>
               <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 mt-2">
-                <li>Go to <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Steam API Key page <span className="sr-only">(opens in new tab)</span></a> and register for a key</li>
-                <li>Go to <Link to="/settings" className="text-primary hover:underline">Settings</Link> and paste your API key in the "Steam Web API Key" field</li>
-                <li>Click "Save Settings" and refresh this page</li>
+                <li>{t('errors.goTo')} <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{t('errors.registerKey')} <span className="sr-only">{t('errors.opensInNewTab')}</span></a> {t('errors.andRegister')}</li>
+                <li>{t('errors.apiKeyInstructions', { Link: '/settings' })}</li>
+                <li>{t('errors.saveAndRefresh')}</li>
               </ol>
             </div>
           </CardContent>
@@ -390,30 +397,30 @@ export default function ServerFinder() {
         const tiles = [
           {
             icon: Server,
-            label: 'Total Servers',
+            label: t('stats.totalServers'),
             value: servers.length.toLocaleString(),
-            sub: `${source === 'steam_api' ? 'via Steam API' : 'via Master Server'}${cached ? ' \u00b7 cached' : ''}`,
+            sub: `${source === 'steam_api' ? t('stats.viaSteamApi') : t('stats.viaMasterServer')}${cached ? ` · ${t('stats.cached')}` : ''}`,
             tone: 'muted' as const,
           },
           {
             icon: Globe,
-            label: 'Active Servers',
+            label: t('stats.activeServers'),
             value: stats.activeServers.toLocaleString(),
-            sub: 'with players online',
+            sub: t('stats.withPlayersOnline'),
             tone: 'primary' as const,
           },
           {
             icon: Users,
-            label: 'Total Players',
+            label: t('stats.totalPlayers'),
             value: stats.totalPlayers.toLocaleString(),
-            sub: 'playing right now',
+            sub: t('stats.playingNow'),
             tone: 'primary' as const,
           },
           {
             icon: Filter,
-            label: 'Showing',
+            label: t('stats.showing'),
             value: filteredServers.length.toLocaleString(),
-            sub: isFiltered ? `of ${servers.length.toLocaleString()} \u00b7 filtered` : 'matching filters',
+            sub: isFiltered ? t('stats.filteredOf', { count: servers.length.toLocaleString() }) : t('stats.matchingFilters'),
             tone: isFiltered ? ('warning' as const) : ('muted' as const),
           },
         ]
@@ -447,10 +454,10 @@ export default function ServerFinder() {
       <Card className="border-border/70 bg-card/92 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Search & Filters</CardTitle>
+            <CardTitle className="text-lg">{t('filters.title')}</CardTitle>
             <Button variant="ghost" size="sm" onClick={() => setFiltersOpen(!filtersOpen)}>
               <Filter className="h-4 w-4 mr-2" />
-              {filtersOpen ? 'Hide Filters' : 'Show Filters'}
+              {filtersOpen ? t('filters.hide') : t('filters.show')}
             </Button>
           </div>
         </CardHeader>
@@ -458,11 +465,11 @@ export default function ServerFinder() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, IP, map, or keywords..."
+              placeholder={t('placeholders.search')}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="pl-9"
-              aria-label="Search public servers"
+              aria-label={t('labels.search')}
               maxLength={128}
             />
           </div>
@@ -477,7 +484,7 @@ export default function ServerFinder() {
                     onCheckedChange={(checked) => setHideEmpty(checked === true)}
                   />
                   <Label htmlFor="hideEmpty" className="text-sm cursor-pointer">
-                    Hide empty servers
+                    {t('filters.hideEmpty')}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -487,7 +494,7 @@ export default function ServerFinder() {
                     onCheckedChange={(checked) => setHideFull(checked === true)}
                   />
                   <Label htmlFor="hideFull" className="text-sm cursor-pointer">
-                    Hide full servers
+                    {t('filters.hideFull')}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -497,7 +504,7 @@ export default function ServerFinder() {
                     onCheckedChange={(checked) => setHidePrivate(checked === true)}
                   />
                   <Label htmlFor="hidePrivate" className="text-sm cursor-pointer">
-                    Hide private servers
+                    {t('filters.hidePrivate')}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -507,7 +514,7 @@ export default function ServerFinder() {
                     onCheckedChange={(checked) => setShowVacOnly(checked === true)}
                   />
                   <Label htmlFor="showVacOnly" className="text-sm cursor-pointer">
-                    VAC secured only
+                    {t('filters.vacOnly')}
                   </Label>
                 </div>
               </div>
@@ -516,13 +523,13 @@ export default function ServerFinder() {
 
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm">Version:</Label>
+                  <Label className="text-sm">{t('labels.version')}:</Label>
                   <Select value={versionFilter} onValueChange={setVersionFilter}>
                     <SelectTrigger className="w-32">
-                      <SelectValue placeholder="All versions" />
+                      <SelectValue placeholder={t('placeholders.version')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All versions</SelectItem>
+                      <SelectItem value="all">{t('placeholders.version')}</SelectItem>
                       {availableVersions.map(v => (
                         <SelectItem key={v} value={v}>{v}</SelectItem>
                       ))}
@@ -533,16 +540,16 @@ export default function ServerFinder() {
                 <Separator orientation="vertical" className="h-6 hidden md:block" />
                 
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm">Sort by:</Label>
+                  <Label className="text-sm">{t('labels.sortBy')}:</Label>
                   <Select value={sortField} onValueChange={(v) => setSortField(v as SortField)}>
                     <SelectTrigger className="w-40">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="players">Players</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="maxPlayers">Max Players</SelectItem>
-                      <SelectItem value="ping">Ping</SelectItem>
+                      <SelectItem value="players">{t('labels.players')}</SelectItem>
+                      <SelectItem value="name">{t('labels.name')}</SelectItem>
+                      <SelectItem value="maxPlayers">{t('labels.maxPlayers')}</SelectItem>
+                      <SelectItem value="ping">{t('labels.ping')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={sortDirection} onValueChange={(v) => setSortDirection(v as SortDirection)}>
@@ -550,8 +557,8 @@ export default function ServerFinder() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="asc">Ascending</SelectItem>
-                      <SelectItem value="desc">Descending</SelectItem>
+                      <SelectItem value="asc">{t('labels.ascending')}</SelectItem>
+                      <SelectItem value="desc">{t('labels.descending')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -567,11 +574,11 @@ export default function ServerFinder() {
           <CardContent className="flex items-center gap-4 py-4">
             <AlertCircle className="h-8 w-8 text-destructive" />
             <div>
-              <p className="font-medium text-destructive">Can't load public servers</p>
+              <p className="font-medium text-destructive">{t('errors.loadFailed')}</p>
               <p className="text-sm text-muted-foreground">{error}</p>
             </div>
             <Button variant="outline" onClick={() => fetchServers()} className="ml-auto">
-              Try Again
+              {t('actions.tryAgain')}
             </Button>
           </CardContent>
         </Card>
@@ -581,38 +588,38 @@ export default function ServerFinder() {
       <Card className="border-border/70 bg-card/92 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Server List</CardTitle>
+            <CardTitle>{t('serverList.title')}</CardTitle>
             <div className="flex items-center gap-2">
-              <SortButton field="name" label="Name" />
-              <SortButton field="players" label="Players" />
-              <SortButton field="ping" label="Ping" />
+              <SortButton field="name" label={t('labels.name')} />
+              <SortButton field="players" label={t('labels.players')} />
+              <SortButton field="ping" label={t('labels.ping')} />
             </div>
           </div>
           <CardDescription>
-            Click on a server to see more details or copy the address
+            {t('serverList.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-3 text-muted-foreground">Loading servers...</span>
+              <span className="ml-3 text-muted-foreground">{t('status.loading')}</span>
             </div>
           ) : filteredServers.length === 0 ? (
             <div className="text-center py-12">
               {servers.length === 0 ? (
                 <EmptyState
                   type="noResults"
-                  title={apiKeyConfigured ? 'No public servers found' : 'Steam API key missing'}
-                  description={apiKeyConfigured ? 'Try refreshing the list in a moment.' : 'Add your Steam API key in Settings to load the public Project Zomboid server list.'}
+                  title={apiKeyConfigured ? t('empty.noPublicServers') : t('errors.steamApiKeyMissing')}
+                  description={apiKeyConfigured ? t('empty.refreshLater') : t('empty.addApiKey')}
                 />
               ) : (
                 <EmptyState
                   type="noResults"
-                  title="No servers match your filters"
-                  description="Try adjusting your search filters or refresh the server list"
+                  title={t('empty.noServers')}
+                  description={t('empty.tryAdjusting')}
                   action={{
-                    label: "Clear all filters",
+                    label: t('filters.clearAll'),
                     onClick: () => {
                       setSearchQuery('')
                       setHideEmpty(false)
@@ -658,7 +665,7 @@ export default function ServerFinder() {
                               <TooltipTrigger>
                                 <Lock className="h-4 w-4 text-warning" />
                               </TooltipTrigger>
-                              <TooltipContent>Password Protected</TooltipContent>
+                              <TooltipContent>{t('labels.passwordProtected')}</TooltipContent>
                             </Tooltip>
                           )}
                           {server.vac && (
@@ -666,7 +673,7 @@ export default function ServerFinder() {
                               <TooltipTrigger>
                                 <Shield className="h-4 w-4 text-primary" />
                               </TooltipTrigger>
-                              <TooltipContent>VAC Secured</TooltipContent>
+                              <TooltipContent>{t('labels.vacSecured')}</TooltipContent>
                             </Tooltip>
                           )}
                         </div>
@@ -725,7 +732,7 @@ export default function ServerFinder() {
                           <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
                         ) : ping !== undefined ? (
                           <span className={`text-sm font-medium ${getPingColor(ping)}`}>
-                            {ping !== null ? `${ping}ms` : 'N/A'}
+                            {ping !== null ? `${ping}ms` : t('labels.notAvailable')}
                           </span>
                         ) : (
                           <Button
@@ -737,7 +744,7 @@ export default function ServerFinder() {
                             }}
                             className="h-9 px-3 text-xs"
                           >
-                            Ping
+                            {t('labels.pingAction')}
                           </Button>
                         )}
                       </div>
@@ -755,10 +762,10 @@ export default function ServerFinder() {
                                 window.open(`steam://connect/${addr}`, '_self')
                               }}
                             >
-                              Connect
+                              {t('labels.connect')}
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Launch game and connect to server</TooltipContent>
+                          <TooltipContent>{t('labels.connectTooltip')}</TooltipContent>
                         </Tooltip>
                       </div>
                     </div>
@@ -773,40 +780,40 @@ export default function ServerFinder() {
         {filteredServers.length > ITEMS_PER_PAGE && (
           <div className="flex items-center justify-between p-4 border-t bg-card">
             <div className="text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredServers.length)} of {filteredServers.length.toLocaleString()} servers
+              {t('pagination.showing', { start: ((currentPage - 1) * ITEMS_PER_PAGE) + 1, end: Math.min(currentPage * ITEMS_PER_PAGE, filteredServers.length), count: filteredServers.length.toLocaleString() })}
             </div>
-            <nav aria-label="Server list pagination" className="flex items-center gap-2">
+            <nav aria-label={t('labels.pagination')} className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => goToPage(1)}
                 disabled={currentPage <= 1}
-                aria-label="Go to first page"
+                aria-label={t('labels.firstPage')}
               >
                 <ChevronsLeft className="h-4 w-4" />
-                First
+                {t('pagination.first')}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage <= 1}
-                aria-label="Go to previous page"
+                aria-label={t('labels.prevPage')}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Prev
+                {t('pagination.previous')}
               </Button>
               <div className="flex items-center gap-2 px-2" aria-current="page">
-                <span className="text-sm font-medium">Page {currentPage} of {totalPages}</span>
+                <span className="text-sm font-medium">{t('pagination.page', { current: currentPage, total: totalPages })}</span>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
-                aria-label="Go to next page"
+                aria-label={t('labels.nextPage')}
               >
-                Next
+                {t('pagination.next')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
@@ -814,9 +821,9 @@ export default function ServerFinder() {
                 size="sm"
                 onClick={() => goToPage(totalPages)}
                 disabled={currentPage >= totalPages}
-                aria-label="Go to last page"
+                aria-label={t('labels.lastPage')}
               >
-                Last
+                {t('pagination.last')}
                 <ChevronsRight className="h-4 w-4" />
               </Button>
             </nav>

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { serverApi } from '@/lib/api'
+import { useTranslation } from 'react-i18next'
 
 interface DirEntry {
   name: string
@@ -22,7 +23,8 @@ interface FolderBrowserProps {
   title?: string
 }
 
-export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title = 'Select Folder' }: FolderBrowserProps) {
+export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title }: FolderBrowserProps) {
+  const { t } = useTranslation('common')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [currentPath, setCurrentPath] = useState<string | null>(null)
   const [parentPath, setParentPath] = useState<string | null>(null)
@@ -42,12 +44,12 @@ export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title
       setParentPath(data.parentPath)
       setPathInput(data.currentPath || '')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to read directory')
+      setError(e instanceof Error ? e.message : t('folderBrowser.readFailed'))
       setEntries([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   // Load initial directory when opening
   useEffect(() => {
@@ -105,9 +107,9 @@ export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title
         <DialogHeader className="px-4 pt-4 pb-3 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base">
             <FolderOpen className="w-4 h-4 text-primary" />
-            {title}
+            {title || t('folderBrowser.selectFolder')}
           </DialogTitle>
-          <DialogDescription className="sr-only">Browse server filesystem and select a folder</DialogDescription>
+          <DialogDescription className="sr-only">{t('folderBrowser.browseDescription')}</DialogDescription>
         </DialogHeader>
 
         {/* Address bar */}
@@ -119,18 +121,18 @@ export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title
             className="h-7 w-7 shrink-0"
             onClick={handleGoUp}
             disabled={isDriveList || loading}
-            aria-label="Go to parent directory"
+            aria-label={t('folderBrowser.goToParent')}
           >
             <ArrowUp className="w-3.5 h-3.5" />
           </Button>
           <Input
             value={pathInput}
             onChange={(e) => setPathInput(e.target.value)}
-            placeholder={isDriveList ? 'This PC' : 'Enter path...'}
+            placeholder={isDriveList ? t('folderBrowser.thisPc') : t('folderBrowser.enterPath')}
             className="h-7 text-xs font-mono bg-background/60 border-border/50"
           />
           <Button type="submit" variant="ghost" size="sm" className="h-7 px-2 text-xs shrink-0" disabled={loading}>
-            Go
+            {t('folderBrowser.go')}
           </Button>
         </form>
 
@@ -145,13 +147,13 @@ export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title
               <AlertCircle className="w-5 h-5 text-destructive" />
               <p className="text-sm">{error}</p>
               <Button variant="ghost" size="sm" onClick={() => loadDirectory(undefined)} className="text-xs mt-1">
-                Back to drives
+                {t('folderBrowser.backToDrives')}
               </Button>
             </div>
           ) : entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-16 gap-1 text-muted-foreground">
               <Folder className="w-5 h-5" />
-              <p className="text-sm">Empty folder</p>
+              <p className="text-sm">{t('folderBrowser.emptyFolder')}</p>
             </div>
           ) : (
             <div className="py-1">
@@ -189,14 +191,14 @@ export function FolderBrowser({ open, onOpenChange, onSelect, initialPath, title
         <DialogFooter className="px-4 py-3 border-t border-border/50 bg-muted/20">
           <div className="flex items-center justify-between w-full gap-3">
             <p className="text-xs text-muted-foreground truncate min-w-0 flex-1 font-mono">
-              {selectedPath || currentPath || 'No folder selected'}
+              {selectedPath || currentPath || t('folderBrowser.noFolderSelected')}
             </p>
             <div className="flex gap-2 shrink-0">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
-                Cancel
+                {t('folderBrowser.cancel')}
               </Button>
               <Button size="sm" onClick={handleConfirm} disabled={!selectedPath && !currentPath}>
-                Select Folder
+                {t('folderBrowser.selectFolder')}
               </Button>
             </div>
           </div>

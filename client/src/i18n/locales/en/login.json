@@ -1,0 +1,71 @@
+{
+  "title": "Sign in to your panel",
+  "description": "Access your Zomboid server dashboard",
+  "badge": "Welcome back",
+  "cardTitle": "Sign in",
+  "cardDescription": "Enter your credentials to access the control panel.",
+  "labels": {
+    "username": "Username",
+    "password": "Password",
+    "keepSignedIn": "Keep me signed in"
+  },
+  "actions": {
+    "signIn": "Sign in",
+    "signingIn": "Signing in...",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "skipToForm": "Skip to form"
+  },
+  "page": {
+    "accountRecovery": "Account recovery",
+    "secureSignIn": "Secure sign in",
+    "resetPassword": "Reset your password",
+    "resetDescription": "Use the recovery token from the panel host to choose a new admin password.",
+    "loginDescription": "Use your admin account to manage this server."
+  },
+  "status": {
+    "checking": "Checking",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "recovery": {
+    "title": "Account recovery",
+    "useToken": "Use recovery token",
+    "createFile": "Create recovery file",
+    "recoverAccount": "Recover account",
+    "preparing": "Preparing recovery...",
+    "localDescription": "This browser is running on the panel host. Create a recovery file, then use its token to reset the admin password.",
+    "remoteDescription": "Create data/reset-token.txt on the panel host with any token at least 8 characters long.",
+    "altMethod": "You can also start the panel with",
+    "altMethodSuffix": "from the server terminal.",
+    "createFileButton": "Create file",
+    "preparingFile": "Preparing...",
+    "checkToken": "Check token",
+    "checking": "Checking...",
+    "cancel": "Cancel",
+    "tokenLabel": "Reset token",
+    "tokenPlaceholder": "Paste token",
+    "newPasswordLabel": "New password",
+    "newPasswordPlaceholder": "Minimum 6 characters",
+    "confirmPasswordLabel": "Confirm new password",
+    "confirmPasswordPlaceholder": "Repeat new password",
+    "resetButton": "Reset password",
+    "resetting": "Resetting...",
+    "backToLogin": "Back to sign in",
+    "resetSuccess": "Password reset successful! Redirecting to sign in...",
+    "tokenCreated": "Recovery token created at data/reset-token.txt. Paste it below to continue."
+  },
+  "errors": {
+    "loginFailed": "Login failed",
+    "tokenTooShort": "Reset token must be at least 8 characters",
+    "passwordTooShort": "Password must be at least 6 characters",
+    "passwordsNoMatch": "Passwords do not match",
+    "resetFailed": "Reset failed",
+    "recoveryTokenNotFound": "No recovery token found yet. Create data/reset-token.txt on the panel host, then try again.",
+    "recoveryStatusCheckFailed": "Could not check recovery status. Try again in a moment.",
+    "createTokenFailed": "Could not create a recovery token"
+  },
+  "projectZomboidControlPanel": "Project Zomboid Control Panel",
+  "adminAccess": "Admin access",
+  "storedAtDataresettokentxtOnThePanelHost": "Stored at data/reset-token.txt on the panel host."
+}

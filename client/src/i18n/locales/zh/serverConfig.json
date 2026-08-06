@@ -1,0 +1,2744 @@
+{
+    "title": "服务器配置",
+    "description": "编辑此服务器的实时 INI、沙盒、生成点和模组设置。",
+    "raw": {
+        "unknownKeys": "您的 INI 文件中存在但架构中没有的键（较新的原版键、模组注入的键或自定义键）",
+        "trySwitching": "尝试切换到原始模式以查看文件内容"
+    },
+    "sandbox": {
+        "notGrouped": "沙盒设置尚未按编辑器分组",
+        "loadDescription": "点击加载以通过 PanelBridge 从所有已安装的模组获取沙盒选项。PZ 服务器必须运行且 PanelBridge 处于活动状态。",
+        "noOptions": "服务器未返回沙盒选项。如果没有任何模组注册自定义沙盒设置，或者此 PZ 版本中 API 不可用，可能会发生这种情况。",
+        "build42Optimized": "Build 42 优化版",
+        "noModifiedOptions": "没有选项被修改过。"
+    },
+    "spawn": {
+        "noRegions": "未找到生成区域",
+        "modManagedTitle": "出生点由模组管理",
+        "switchToRaw": "切换到<1>原始模式</1>以直接查看或编辑文件。"
+    },
+    "mods": {
+        "notLoaded": "模组设置未加载",
+        "noOptions": "未找到沙盒选项"
+    },
+    "diff": {
+        "title": "与默认值不同的选项"
+    },
+    "backups": {
+        "noBackups": "暂无可用备份",
+        "description": "保存任何配置文件时会自动创建备份"
+    },
+    "templates": {
+        "noTemplates": "暂无保存的模板",
+        "description": "点击'将当前保存为模板'以创建您的第一个模板"
+    },
+    "actions": {
+        "undoChange": "撤销更改",
+        "resetToLoaded": "重置为已加载的值",
+        "replaceWithBackup": "用此备份替换当前文件",
+        "loadTemplate": "加载此模板（会先创建备份）",
+        "deleteTemplate": "删除此模板",
+        "deleteTemplateAriaLabel": "删除模板 {{name}}"
+    },
+    "labels": {
+        "noImage": "未选择图片",
+        "browseFile": "浏览文件",
+        "clearImage": "清除图片",
+        "notFound": "未找到",
+        "fileNotFound": "文件未找到",
+        "fileTypeConfig": "配置",
+        "fileTypeIni": "INI",
+        "fileTypeSandbox": "沙盒",
+        "fileTypeSpawnPoints": "出生点",
+        "fileTypeSpawnRegions": "生成区域",
+        "backupFilterIni": "ini",
+        "backupFilterSandbox": "沙盒",
+        "backupFilterSpawnpoints": "出生点",
+        "backupFilterSpawnregions": "生成区域",
+        "ini": "ini",
+        "sandbox": "sandbox",
+        "sandboxLabel": "sandbox",
+        "regions": "regions",
+        "unsavedChanges": "未保存的更改",
+        "fileMissing": "文件缺失",
+        "serverBehavior": "服务器行为、网络、玩家",
+        "downloadIniBackup": "下载INI备份",
+        "searchServerSettings": "搜索服务器设置",
+        "clearSearch": "清除搜索",
+        "filterSettings": "筛选设置",
+        "serverSettingsCategories": "服务器设置分类",
+        "worldZombies": "世界、僵尸、生存",
+        "downloadSandboxBackup": "下载Sandbox备份",
+        "searchSandboxSettings": "搜索Sandbox设置",
+        "sandboxCategories": "Sandbox分类",
+        "spawnPoints": "出生点",
+        "spawnRegions": "生成区域",
+        "modSandboxOptions": "模组沙盒选项",
+        "modManaged": "模组管理 - 玩家起始位置",
+        "includeSandbox": "在模板中包含沙盒设置",
+        "includeServer": "在模板中包含服务器设置",
+        "downloadSpawnPoints": "下载出生点备份",
+        "downloadSpawnRegions": "下载生成区域备份",
+        "active": "活跃",
+        "noServerSelected": "未选择服务器",
+        "uncategorized": "未分类 / 未知",
+        "additionalSettings": "附加设置",
+        "displayName": "显示名称",
+        "mapFilePath": "地图文件路径",
+        "templateName": "模板名称",
+        "templateDescription": "描述（可选）",
+        "includeInTemplate": "包含在模板中",
+        "serverSettingsIni": "服务器设置 (INI)",
+        "serverSettingsDesc": "网络、玩家、RCON、服务器行为",
+        "sandboxSettings": "沙盒设置",
+        "sandboxSettingsDesc": "世界、僵尸、战利品、生存设置",
+        "preview": "预览"
+    },
+    "placeholders": {
+        "searchServer": "搜索服务器设置...",
+        "searchSandbox": "搜索Sandbox设置...",
+        "searchMod": "搜索模组设置...（按 /）",
+        "locationExample": "例如：Muldraugh, KY",
+        "templateName": "例如：PvE Casual, Hardcore Survival...",
+        "templateDescription": "描述此模板的用途..."
+    },
+    "warnings": {
+        "luaChecksumEnabled": "Lua 校验已启用",
+        "luaChecksumDesc": "PanelBridge 会修改服务端 Lua 文件。启用 Lua 校验后，客户端将无法通过验证，无法连接。在模组分类中禁用 <1>DoLuaChecksum</1> 以允许玩家加入。"
+    },
+    "errors": {
+        "configLoadFailed": "配置数据无法完整加载"
+    },
+    "status": {
+        "loadingSandbox": "正在从服务器加载沙盒选项..."
+    },
+    "toast": {
+        "error": "错误",
+        "downloaded": "已下载",
+        "downloadedDesc": "备份已保存：{{filename}}",
+        "copied": "已复制",
+        "copiedDesc": "内容已复制到剪贴板",
+        "optionUpdated": "选项已更新",
+        "optionUpdatedDesc": "{{name}} 设置成功",
+        "appliedButNotSaved": "已应用，但未保存",
+        "appliedButNotSavedDesc": "{{name}} 不在 SandboxVars.lua 中，服务器重启后将重置。",
+        "failedToUpdate": "更新失败",
+        "savedAndReloaded": "已保存并重载",
+        "savedAndReloadedServerDesc": "服务器设置已保存并重载。",
+        "savedAndReloadedSandboxDesc": "沙盒设置已保存并重载。",
+        "saved": "已保存",
+        "savedDesc": "设置已保存。请重启服务器以应用更改。",
+        "savedSpawnPoints": "出生点已保存",
+        "savedSpawnRegions": "生成区域已保存",
+        "restored": "已恢复",
+        "restoredDesc": "已从 {{filename}} 恢复",
+        "deleted": "已删除",
+        "deletedDesc": "模板 \"{{name}}\" 已删除",
+        "applied": "已应用",
+        "failedToLoadConfig": "加载服务器配置失败。",
+        "failedToLoadRaw": "加载原始内容失败。",
+        "failedToDownloadBackup": "下载备份失败。",
+        "failedToCopy": "复制内容到剪贴板失败。",
+        "failedToSetOption": "设置选项失败",
+        "failedToBrowseFiles": "浏览文件失败",
+        "failedToNavigate": "导航失败",
+        "failedToSaveSettings": "保存设置失败。",
+        "failedToSaveSpawnPoints": "保存出生点失败。",
+        "failedToSaveSpawnRegions": "保存生成区域失败。",
+        "failedToLoadBackups": "加载备份失败。",
+        "failedToRestoreBackup": "恢复备份失败。",
+        "failedToLoadTemplates": "加载模板失败。",
+        "failedToSaveTemplate": "保存模板失败。",
+        "failedToApplyTemplate": "应用模板失败。",
+        "failedToDeleteTemplate": "删除模板失败。",
+        "templateNameRequired": "模板名称为必填项",
+        "failedToLoadModSettings": "加载模组设置失败",
+        "unknownError": "未知错误"
+    },
+    "ui": {
+        "reset": "重置",
+        "default": "默认：",
+        "modified": "已修改",
+        "on": "开",
+        "off": "关",
+        "loading": "正在加载配置…",
+        "retry": "重试",
+        "config": "配置",
+        "unsaved": "未保存",
+        "templates": "模板",
+        "backups": "备份",
+        "refresh": "刷新",
+        "spawnsStat": "出生点 · {{count}} 职业",
+        "tabServerSettings": "服务器设置",
+        "tabSandbox": "沙盒",
+        "tabSpawnPoints": "出生点",
+        "tabSpawnRegions": "生成区域",
+        "tabModSettings": "模组设置",
+        "form": "表单",
+        "raw": "原始",
+        "info": "信息",
+        "wiki": "百科",
+        "map": "地图",
+        "saveAndReload": "保存并重载",
+        "save": "保存",
+        "disableNow": "立即禁用",
+        "copied": "已复制！",
+        "copyToClipboard": "复制到剪贴板",
+        "all": "全部",
+        "nondefault": "未保存",
+        "matchCount": "{{count}} 个匹配",
+        "noMatch": "没有匹配 \"{{query}}\" 的设置。",
+        "categories": "分类",
+        "expandAllGroups": "展开所有分类组",
+        "collapseAllGroups": "折叠所有分类组",
+        "expandAll": "全部展开",
+        "collapseAll": "全部折叠",
+        "unsavedChangeCount": "{{count}} 个未保存的更改",
+        "settingCount": "{{count}} 个设置",
+        "noUncategorizedKeys": "没有未分类的键。",
+        "uncategorizedKeysTitle": "未分类 / 未知键",
+        "keyCount": "{{count}} 个键",
+        "uncategorizedKeysDesc": "这些键存在于您的 INI 文件中但未被架构识别。可能是较新的原版设置或模组注入的键。保存时会保留值 — 请谨慎编辑。",
+        "noModifiedInCategory": "此分类中没有与 Project Zomboid 默认值不同的设置。",
+        "noUnsavedInCategory": "此分类中没有未保存的设置。",
+        "noSettingsInCategory": "此分类中没有设置。",
+        "sandboxBuild42Desc": "此编辑器中的沙盒值和选项措辞已对齐到 Project Zomboid Build 42 默认值。",
+        "spawnLocationsDesc": "出生点通常由 \"Spawn Select\" 等模组处理。",
+        "openRawFile": "打开原始文件",
+        "regionCount": "{{count}} 个区域 · 城镇",
+        "serverFile": "服务器文件",
+        "mapFilePath": "地图文件路径",
+        "serverfileBadge": "服务器文件",
+        "serverNamePlaceholder": "ServerName_spawnpoints.lua",
+        "mapFilePlaceholder": "media/maps/Muldraugh, KY/spawnpoints.lua",
+        "regionDisplayName": "区域 {{index}} 显示名称",
+        "regionFileLabel": "区域 {{index}} {{type}}",
+        "deleteRegion": "删除生成区域 {{name}}",
+        "addRegion": "添加区域",
+        "modCount": "{{count}} 个模组 · 桥接实时",
+        "panelbridgeLive": "panelbridge · 实时",
+        "modifiedCount": "{{count}} 个已修改",
+        "load": "加载",
+        "noDiffFromDefault": "没有与默认值不同的选项",
+        "showDiffFromDefault": "仅显示与默认值不同的选项",
+        "collapseAllMod": "全部折叠",
+        "expandAllMod": "全部展开",
+        "refreshFailed": "刷新失败 — 显示之前的数据",
+        "failedToLoadModSettings": "加载模组设置失败",
+        "groups": "个组",
+        "options": "个选项",
+        "loadedTime": "加载于 {{time}}",
+        "groupModCount": "{{count}} 个已修改",
+        "optionDiffTitle": "{{count}} 个选项与默认值不同",
+        "optionFallback": "选项 {{index}}",
+        "boolAriaLabel": "{{name}}：{{state}}",
+        "onState": "开",
+        "offState": "关",
+        "resetToDefault": "重置为默认值：{{value}}",
+        "defaultLabel": "默认：{{value}}",
+        "showAllOptions": "显示所有选项",
+        "noMatchMod": "没有匹配 \"{{query}}\" 的设置{{context}}",
+        "inModifiedOptions": "（在已修改的选项中）",
+        "clearSearch": "清除搜索",
+        "unsavedChanges": "未保存 {{count}} 个更改",
+        "serverIni": "服务器 INI",
+        "sandboxLua": "沙盒 Lua",
+        "ctrlSToSave": "ctrl+s 保存",
+        "appliesOnReload": "重载后生效",
+        "discard": "丢弃"
+    },
+    "dialogs": {
+        "backupsTitle": "配置备份",
+        "backupsDesc": "恢复配置文件的先前版本。保存时会自动创建备份。",
+        "filter": "筛选：",
+        "allFiles": "所有文件",
+        "restore": "恢复",
+        "noBackupsForFilter": "未找到 \"{{filter}}\" 文件的备份。",
+        "showAllBackups": "显示所有备份",
+        "backupCount": "共 {{count}} 个备份",
+        "close": "关闭",
+        "templatesTitle": "配置模板",
+        "templatesDesc": "将当前配置保存为模板或加载已保存的模板。",
+        "templateCount": "已保存 {{count}} 个模板",
+        "saveCurrentAsTemplate": "将当前保存为模板",
+        "iniSandbox": "INI + 沙盒",
+        "created": "创建于：{{date}}",
+        "ini": "INI",
+        "sandbox": "沙盒",
+        "apply": "应用",
+        "saveTemplateTitle": "保存为模板",
+        "saveTemplateDesc": "将当前 INI 和/或沙盒设置保存为可重用模板。",
+        "characters": "{{count}}/60 个字符",
+        "charactersLong": "{{count}}/240 个字符",
+        "cancel": "取消",
+        "saveTemplate": "保存模板",
+        "selectImageTitle": "选择图片文件",
+        "selectImageDesc": "浏览查找服务器的 PNG 图片文件。",
+        "loadingPath": "加载中...",
+        "noImageFiles": "此目录中未找到图片文件",
+        "noImageFilesHere": "此处没有图片文件 — 请尝试其他文件夹",
+        "selectFile": "选择文件",
+        "deleteTemplateConfirmTitle": "删除模板？",
+        "deleteTemplateConfirmDesc": "删除模板 \"{{name}}\"？此操作不可撤销。",
+        "delete": "删除"
+    },
+    "categories": {
+        "groups": {
+            "identity": "身份",
+            "connectivity": "连接",
+            "players": "玩家",
+            "gameplay": "玩法",
+            "ops": "运维",
+            "world": "世界",
+            "zombies": "僵尸",
+            "survival": "生存",
+            "resources": "资源",
+            "advanced": "高级"
+        },
+        "general": "通用",
+        "network": "网络与端口",
+        "steam": "Steam 集成",
+        "discord": "Discord",
+        "rcon": "RCON",
+        "voice": "语音聊天",
+        "players": "玩家与账户",
+        "safehouse": "安全屋",
+        "chat": "聊天与通讯",
+        "pvp": "PvP 与安全",
+        "moderation": "管理",
+        "anticheat": "反作弊",
+        "loot": "战利品与物品",
+        "vehicles": "载具",
+        "mods": "模组与工坊",
+        "radio": "无线电",
+        "war": "阵营战",
+        "backups": "备份",
+        "logging": "日志",
+        "advanced": "高级",
+        "time": "时间与季节",
+        "environment": "环境与天气",
+        "world": "世界与故事",
+        "map": "地图与导航",
+        "zombieLore": "僵尸行为",
+        "zombiePopulation": "僵尸人口",
+        "population": "人口与分布",
+        "survival": "生存与健康",
+        "combat": "战斗与枪械",
+        "lootRarity": "战利品稀有度",
+        "animals": "动物与农业",
+        "xpMultipliers": "经验倍数",
+        "basement": "地下室"
+    },
+    "settings": {
+        "PublicName": {
+            "label": "服务器名称",
+            "description": "向公众显示的服务器名称。"
+        },
+        "PublicDescription": {
+            "label": "服务器描述",
+            "description": "人们在浏览服务器时可以看到的描述。"
+        },
+        "Public": {
+            "label": "公开服务器",
+            "description": "服务器是否可以在 Steam 服务器浏览器中被看到。"
+        },
+        "Open": {
+            "label": "开放（无白名单）",
+            "description": "无需白名单即可加入。"
+        },
+        "Password": {
+            "label": "服务器密码",
+            "description": "加入服务器所需的密码。留空表示无密码。"
+        },
+        "MaxPlayers": {
+            "label": "最大玩家数",
+            "description": "允许的最大玩家数量。"
+        },
+        "PauseEmpty": {
+            "label": "空闲时暂停",
+            "description": "没有玩家登录时服务器将暂停。"
+        },
+        "ServerWelcomeMessage": {
+            "label": "欢迎消息",
+            "description": "玩家连接后显示的欢迎消息。使用 <LINE> 换行。"
+        },
+        "Map": {
+            "label": "地图",
+            "description": "正在游玩的地图。默认为 Muldraugh, KY。"
+        },
+        "SaveWorldEveryMinutes": {
+            "label": "自动保存间隔",
+            "description": "每 X 分钟自动保存世界。0 = 从不。"
+        },
+        "AnnounceDeath": {
+            "label": "死亡公告",
+            "description": "角色死亡时全服公告。"
+        },
+        "DefaultPort": {
+            "label": "游戏端口",
+            "description": "玩家连接服务器使用的端口。必须在路由器上开放。"
+        },
+        "UPnP": {
+            "label": "启用 UPnP",
+            "description": "启用 UPnP 自动端口转发。"
+        },
+        "PingFrequency": {
+            "label": "Ping 频率",
+            "description": "服务器检查与玩家连接的频率（秒）。"
+        },
+        "PingLimit": {
+            "label": "Ping 限制",
+            "description": "被踢出前的 Ping 限制（毫秒）。100 表示禁用。"
+        },
+        "DenyLoginOnOverloadedServer": {
+            "label": "过载时拒绝登录",
+            "description": "服务器过载时阻止新连接。"
+        },
+        "SpeedLimit": {
+            "label": "速度限制",
+            "description": "允许的最大移动速度。"
+        },
+        "UseTCPForMapDownloads": {
+            "label": "使用 TCP 下载地图",
+            "description": "使用 TCP 而非 UDP 下载地图。"
+        },
+        "MaxPacketsPerSecond": {
+            "label": "每秒最大数据包",
+            "description": "发送给已连接客户端的每秒数据包上限。越高带宽占用越大；过低可能导致卡顿。"
+        },
+        "PVP": {
+            "label": "启用 PvP",
+            "description": "允许玩家对战（每个玩家仍可切换自己的 PvP）。"
+        },
+        "SafetySystem": {
+            "label": "安全系统",
+            "description": "如果启用 PvP，允许玩家切换自己的 PvP 开/关。"
+        },
+        "ShowSafety": {
+            "label": "显示安全状态",
+            "description": "为关闭安全的玩家显示骷髅图标。"
+        },
+        "SafetyToggleTimer": {
+            "label": "安全切换计时器",
+            "description": "切换 PvP 开/关的冷却时间（秒）。"
+        },
+        "SafetyCooldownTimer": {
+            "label": "安全冷却计时器",
+            "description": "再次切换安全前的等待时间（秒）。"
+        },
+        "PVPMeleeWhileHitReaction": {
+            "label": "受击反应时近战",
+            "description": "在 PvP 中受击反应期间允许近战攻击。"
+        },
+        "PVPMeleeDamageModifier": {
+            "label": "PvP 近战伤害 %",
+            "description": "PvP 近战伤害修正（百分比）。"
+        },
+        "PVPFirearmDamageModifier": {
+            "label": "PvP 枪械伤害 %",
+            "description": "PvP 枪械伤害修正（百分比）。"
+        },
+        "PlayerBumpPlayer": {
+            "label": "玩家碰撞",
+            "description": "玩家可以互相碰撞。"
+        },
+        "GlobalChat": {
+            "label": "启用全局聊天",
+            "description": "启用 /all 命令进行全服聊天。"
+        },
+        "ChatStreams": {
+            "label": "聊天频道",
+            "description": "启用的聊天频道：s=说话, r=无线电, a=管理员, w=私聊, y=喊叫, sh=安全屋, f=阵营, all=全局。"
+        },
+        "DisplayUserName": {
+            "label": "显示用户名",
+            "description": "在玩家头顶和聊天中显示用户名。"
+        },
+        "ShowFirstAndLastName": {
+            "label": "显示角色名",
+            "description": "显示角色的名和姓而非用户名。"
+        },
+        "MouseOverToSeeDisplayName": {
+            "label": "鼠标悬停显示名称",
+            "description": "需要鼠标悬停才能看到玩家名称。"
+        },
+        "HidePlayersBehindYou": {
+            "label": "隐藏身后玩家",
+            "description": "隐藏角色身后玩家的名称。"
+        },
+        "AllowNonAsciiUsername": {
+            "label": "允许非 ASCII 用户名",
+            "description": "允许包含非 ASCII 字符的用户名。"
+        },
+        "BanKickGlobalSound": {
+            "label": "踢出/封禁音效",
+            "description": "玩家被踢出或封禁时播放全局音效。"
+        },
+        "MaxAccountsPerUser": {
+            "label": "每用户最大账户数",
+            "description": "每个 Steam 用户的账户限制。0 = 无限制。"
+        },
+        "DropOffWhiteListAfterDeath": {
+            "label": "死亡时移出白名单",
+            "description": "角色死亡时将玩家从白名单中移除。"
+        },
+        "KickFastPlayers": {
+            "label": "踢出速度作弊者",
+            "description": "踢出移动速度超过可能值的玩家。可能有误判。"
+        },
+        "SpawnPoint": {
+            "label": "出生点",
+            "description": "自定义出生点坐标 (X,Y,Z)。0,0,0 为默认。"
+        },
+        "SpawnItems": {
+            "label": "出生物品",
+            "description": "新角色出生时携带的物品（逗号分隔）。"
+        },
+        "SleepAllowed": {
+            "label": "允许睡眠",
+            "description": "是否允许睡眠。"
+        },
+        "SleepNeeded": {
+            "label": "需要睡眠",
+            "description": "玩家疲惫时是否需要睡眠。"
+        },
+        "PlayerRespawnWithSelf": {
+            "label": "在死亡位置重生",
+            "description": "允许在死亡位置重生。"
+        },
+        "PlayerRespawnWithOther": {
+            "label": "与搭档重生",
+            "description": "启用在分屏搭档位置重生。"
+        },
+        "PlayerSaveOnDamage": {
+            "label": "受伤时保存",
+            "description": "玩家受伤时保存玩家状态。"
+        },
+        "MinutesPerPage": {
+            "label": "Minutes Per Page",
+            "description": "In-game minutes to read one page of a skill book."
+        },
+        "PlayerSafehouse": {
+            "label": "启用安全屋",
+            "description": "允许玩家认领安全屋。"
+        },
+        "AdminSafehouse": {
+            "label": "管理员安全屋",
+            "description": "允许管理员拥有安全屋。"
+        },
+        "SafehouseAllowTrepass": {
+            "label": "允许入侵",
+            "description": "允许非成员未经邀请进入安全屋。"
+        },
+        "SafehouseAllowFire": {
+            "label": "允许火灾伤害",
+            "description": "允许火灾损坏安全屋。"
+        },
+        "SafehouseAllowLoot": {
+            "label": "允许掠夺",
+            "description": "允许非成员从安全屋拿走物品。"
+        },
+        "SafehouseAllowRespawn": {
+            "label": "允许安全屋重生",
+            "description": "玩家可以在安全屋重生。"
+        },
+        "SafehouseDaySurvivedToClaim": {
+            "label": "认领安全屋所需天数",
+            "description": "玩家认领安全屋前需要存活的天数。"
+        },
+        "SafeHouseRemovalTime": {
+            "label": "安全屋移除时间",
+            "description": "不活跃多少小时后从安全屋移除。"
+        },
+        "DisableSafehouseWhenOwnerConnected": {
+            "label": "所有者在线时禁用",
+            "description": "所有者连接时禁用安全屋保护。"
+        },
+        "HoursForLootRespawn": {
+            "label": "Loot Respawn Hours",
+            "description": "Hours after which containers respawn loot. 0 = never."
+        },
+        "MaxItemsForLootRespawn": {
+            "label": "Max Items for Respawn",
+            "description": "Containers with this many items or more will not respawn loot."
+        },
+        "ConstructionPreventsLootRespawn": {
+            "label": "Construction Blocks Respawn",
+            "description": "Player constructions near containers prevent loot respawn."
+        },
+        "HoursForWorldItemRemoval": {
+            "label": "World Item Removal Hours",
+            "description": "Hours before listed items disappear from world. 0 = disabled."
+        },
+        "ItemNumbersLimitPerContainer": {
+            "label": "容器物品限制",
+            "description": "每个容器的最大物品数。0 = 无限制。"
+        },
+        "TrashDeleteAll": {
+            "label": "删除所有垃圾",
+            "description": "放入垃圾桶时删除所有物品。"
+        },
+        "BloodSplatLifespanDays": {
+            "label": "Blood Splat Lifespan",
+            "description": "Days before blood splats disappear. 0 = never."
+        },
+        "RemovePlayerCorpsesOnCorpseRemoval": {
+            "label": "移除玩家尸体",
+            "description": "尸体清除运行时移除玩家尸体。"
+        },
+        "AllowDestructionBySledgehammer": {
+            "label": "大锤破坏",
+            "description": "允许玩家用大锤破坏世界物体。"
+        },
+        "NoFire": {
+            "label": "禁用火灾",
+            "description": "禁用除篝火外的所有火灾。"
+        },
+        "Faction": {
+            "label": "启用阵营",
+            "description": "允许创建和使用阵营。"
+        },
+        "FactionDaySurvivedToCreate": {
+            "label": "创建阵营所需天数",
+            "description": "玩家创建阵营需要存活的天数。"
+        },
+        "FactionPlayersRequiredForTag": {
+            "label": "阵营标签所需玩家数",
+            "description": "显示阵营标签所需的玩家数。"
+        },
+        "AllowTradeUI": {
+            "label": "允许交易",
+            "description": "允许玩家之间直接交易。"
+        },
+        "Mods": {
+            "label": "模组",
+            "description": "已安装的模组 ID 列表（分号分隔）。"
+        },
+        "WorkshopItems": {
+            "label": "创意工坊物品",
+            "description": "要下载的 Steam 创意工坊物品 ID（分号分隔）。"
+        },
+        "DoLuaChecksum": {
+            "label": "Lua 校验",
+            "description": "验证客户端 Lua 与服务器匹配。使用 PanelBridge 时必须禁用——该模组会修改服务端 Lua 文件，导致校验不匹配而无法连接。"
+        },
+        "SteamPort1": {
+            "label": "Steam 端口 1",
+            "description": "第一个 Steam 端口。"
+        },
+        "SteamPort2": {
+            "label": "Steam 端口 2",
+            "description": "第二个 Steam 端口。"
+        },
+        "SteamScoreboard": {
+            "label": "Steam 记分板",
+            "description": "显示 Steam 用户名和头像。true/false/admin。",
+            "options": {
+                "true": "所有人",
+                "false": "无人",
+                "admin": "仅管理员"
+            }
+        },
+        "SteamVAC": {
+            "label": "VAC 封禁检查",
+            "description": "检查连接的玩家是否有 VAC 封禁。"
+        },
+        "VoiceEnable": {
+            "label": "启用语音聊天",
+            "description": "启用游戏内语音聊天。"
+        },
+        "Voice3D": {
+            "label": "3D 语音",
+            "description": "启用 3D 定位语音聊天。"
+        },
+        "VoiceMinDistance": {
+            "label": "语音最小距离",
+            "description": "最小语音距离。"
+        },
+        "VoiceMaxDistance": {
+            "label": "语音最大距离",
+            "description": "最大语音距离。"
+        },
+        "DiscordEnable": {
+            "label": "启用 Discord",
+            "description": "启用内置 Discord 集成。"
+        },
+        "DiscordToken": {
+            "label": "Discord 令牌",
+            "description": "Discord 机器人令牌。"
+        },
+        "DiscordChannel": {
+            "label": "Discord 频道",
+            "description": "Discord 频道名称。"
+        },
+        "DiscordChannelID": {
+            "label": "Discord 频道 ID",
+            "description": "Discord 频道 ID。"
+        },
+        "RCONPort": {
+            "label": "RCON 端口",
+            "description": "RCON 连接的端口。"
+        },
+        "RCONPassword": {
+            "label": "RCON 密码",
+            "description": "RCON 连接的密码。"
+        },
+        "ResetID": {
+            "label": "重置 ID",
+            "description": "删除此项会重置僵尸和战利品（不含时间）。"
+        },
+        "ServerPlayerID": {
+            "label": "服务器玩家 ID",
+            "description": "识别角色是否来自其他服务器。"
+        },
+        "PhysicsDelay": {
+            "label": "物理延迟",
+            "description": "物理更新延迟（毫秒）。"
+        },
+        "FastForwardMultiplier": {
+            "label": "快进倍数",
+            "description": "快进时的速度倍数。"
+        },
+        "CarEngineAttractionModifier": {
+            "label": "汽车引擎吸引力",
+            "description": "僵尸对汽车引擎吸引力的修正。"
+        },
+        "ZombieUpdateMaxHighPriority": {
+            "label": "僵尸高优先级更新",
+            "description": "每次 tick 的最大高优先级僵尸更新数。"
+        },
+        "ZombieUpdateDelta": {
+            "label": "僵尸更新增量",
+            "description": "僵尸更新时间增量。"
+        },
+        "AnnounceAnimalDeath": {
+            "label": "动物死亡公告",
+            "description": "动物死亡时显示全局聊天消息。"
+        },
+        "ServerImageLoginScreen": {
+            "label": "登录界面图片",
+            "description": "登录界面显示的自定义图片。PNG 文件，推荐 1920x1080。"
+        },
+        "ServerImageLoadingScreen": {
+            "label": "加载界面图片",
+            "description": "加载服务器时显示的自定义图片。PNG 文件，推荐 1920x1080。"
+        },
+        "ServerImageIcon": {
+            "label": "服务器图标",
+            "description": "服务器浏览器中显示的自定义图标。正方形 PNG，推荐 256x256。"
+        },
+        "Seed": {
+            "label": "世界种子",
+            "description": "用于生成世界的种子。更改此值需要删除 map_worldgen.bin。"
+        },
+        "UDPPort": {
+            "label": "UDP 端口",
+            "description": "用于 UDP 连接的第二个端口。"
+        },
+        "LoginQueueEnabled": {
+            "label": "登录队列",
+            "description": "服务器满时启用登录队列。"
+        },
+        "LoginQueueConnectTimeout": {
+            "label": "登录队列超时",
+            "description": "排队连接超时的秒数。"
+        },
+        "server_browser_announced_ip": {
+            "label": "公告 IP",
+            "description": "广播到服务器浏览器的 IP 地址。用于多 IP 设置。"
+        },
+        "MultiplayerStatisticsPeriod": {
+            "label": "统计周期",
+            "description": "多人游戏统计更新周期（秒）。0 = 禁用。"
+        },
+        "PVPLogToolChat": {
+            "label": "PvP 日志到聊天",
+            "description": "PvP 事件记录到管理员聊天。"
+        },
+        "PVPLogToolFile": {
+            "label": "PvP 日志到文件",
+            "description": "PvP 事件记录到文件。"
+        },
+        "SafetyDisconnectDelay": {
+            "label": "安全断开延迟",
+            "description": "断开连接后 PvP 安全模式重置的秒数。"
+        },
+        "UsernameDisguises": {
+            "label": "用户名伪装",
+            "description": "允许玩家伪装用户名。"
+        },
+        "HideDisguisedUserName": {
+            "label": "隐藏伪装名称",
+            "description": "隐藏伪装玩家的真实用户名。"
+        },
+        "ChatMessageCharacterLimit": {
+            "label": "聊天字符限制",
+            "description": "每条聊天消息的最大字符数。"
+        },
+        "ChatMessageSlowModeTime": {
+            "label": "聊天慢速模式",
+            "description": "每个玩家允许发送聊天消息的间隔（秒）。"
+        },
+        "AllowCoop": {
+            "label": "允许合作",
+            "description": "允许合作/分屏玩家加入。"
+        },
+        "KnockedDownAllowed": {
+            "label": "允许击倒",
+            "description": "允许玩家被击倒。WIP：可能导致视觉不同步。"
+        },
+        "SneakModeHideFromOtherPlayers": {
+            "label": "潜行对玩家隐藏",
+            "description": "潜行模式的玩家对其他玩家隐藏。"
+        },
+        "MapRemotePlayerVisibility": {
+            "label": "地图玩家可见性",
+            "description": "谁可以在游戏地图上看到其他玩家。",
+            "options": {
+                "1": "隐藏",
+                "2": "仅好友",
+                "3": "所有人"
+            }
+        },
+        "DisableScoreboard": {
+            "label": "禁用记分板",
+            "description": "禁用游戏内记分板。"
+        },
+        "HideAdminsInPlayerList": {
+            "label": "在玩家列表中隐藏管理员",
+            "description": "从玩家列表中隐藏管理员账户。"
+        },
+        "SafehouseAllowNonResidential": {
+            "label": "允许非住宅",
+            "description": "允许玩家将非住宅建筑认领为安全屋。"
+        },
+        "SafehouseDisableDisguises": {
+            "label": "安全屋内禁用伪装",
+            "description": "在安全屋内禁用用户名伪装。"
+        },
+        "MaxSafezoneSize": {
+            "label": "最大安全区大小",
+            "description": "安全区的最大图块大小。"
+        },
+        "SafehousePreventsLootRespawn": {
+            "label": "安全屋阻止战利品重生",
+            "description": "被认领为安全屋的建筑中物品不会重生。"
+        },
+        "SledgehammerOnlyInSafehouse": {
+            "label": "仅安全屋内可用大锤",
+            "description": "将大锤破坏限制在安全屋内。需要启用大锤破坏。"
+        },
+        "DiscordChatChannel": {
+            "label": "Discord 聊天频道",
+            "description": "游戏聊天的 Discord 频道名称。"
+        },
+        "DiscordLogChannel": {
+            "label": "Discord 日志频道",
+            "description": "服务器日志的 Discord 频道名称。"
+        },
+        "DiscordCommandChannel": {
+            "label": "Discord 命令频道",
+            "description": "命令的 Discord 频道名称。"
+        },
+        "WebhookAddress": {
+            "label": "Webhook URL",
+            "description": "Slack/Discord 传入 Webhook URL，用于通知。"
+        },
+        "War": {
+            "label": "启用阵营战",
+            "description": "启用阵营战系统。"
+        },
+        "WarStartDelay": {
+            "label": "战争开始延迟",
+            "description": "宣战后战争开始的秒数。"
+        },
+        "WarDuration": {
+            "label": "战争持续时间",
+            "description": "战争持续时间（秒）。"
+        },
+        "WarSafehouseHitPoints": {
+            "label": "战争安全屋生命值",
+            "description": "阵营战期间安全屋的生命值。"
+        },
+        "DisableRadioStaff": {
+            "label": "禁用工作人员无线电",
+            "description": "禁用工作人员权限级别的无线电传输。"
+        },
+        "DisableRadioAdmin": {
+            "label": "禁用管理员无线电",
+            "description": "禁用管理员权限级别的无线电传输。"
+        },
+        "DisableRadioGM": {
+            "label": "禁用 GM 无线电",
+            "description": "禁用 GM 权限级别的无线电传输。"
+        },
+        "DisableRadioOverseer": {
+            "label": "禁用监督者无线电",
+            "description": "禁用监督者权限级别的无线电传输。"
+        },
+        "DisableRadioModerator": {
+            "label": "禁用版主无线电",
+            "description": "禁用版主权限级别的无线电传输。"
+        },
+        "DisableRadioInvisible": {
+            "label": "禁用隐形无线电",
+            "description": "禁用隐形玩家的无线电传输。"
+        },
+        "BackupsCount": {
+            "label": "备份数量",
+            "description": "保留的备份数量。"
+        },
+        "BackupsOnStart": {
+            "label": "启动时备份",
+            "description": "服务器启动时创建备份。"
+        },
+        "BackupsOnVersionChange": {
+            "label": "版本变更时备份",
+            "description": "游戏版本变更时创建备份。"
+        },
+        "BackupsPeriod": {
+            "label": "备份周期",
+            "description": "自动备份的间隔分钟数。0 = 禁用。"
+        },
+        "DisableVehicleTowing": {
+            "label": "禁用车辆拖曳",
+            "description": "禁用车辆拖曳。"
+        },
+        "DisableTrailerTowing": {
+            "label": "禁用拖车拖曳",
+            "description": "禁用拖车拖曳。"
+        },
+        "DisableBurntTowing": {
+            "label": "禁用烧毁车辆拖曳",
+            "description": "禁用烧毁车辆的拖曳。"
+        },
+        "BadWordListFile": {
+            "label": "禁词列表文件",
+            "description": "包含禁用词的文件路径，每行一个。"
+        },
+        "GoodWordListFile": {
+            "label": "允许词列表文件",
+            "description": "包含允许词的文件路径，每行一个。"
+        },
+        "BadWordPolicy": {
+            "label": "禁词策略",
+            "description": "检测到聊天中的禁词时采取的措施。",
+            "options": {
+                "1": "封禁",
+                "2": "踢出",
+                "3": "记录违规",
+                "4": "禁言"
+            }
+        },
+        "BadWordReplacement": {
+            "label": "禁词替换",
+            "description": "聊天中替换禁词的文本。"
+        },
+        "AntiCheatSafety": {
+            "label": "安全系统",
+            "description": "安全系统的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatMovement": {
+            "label": "移动",
+            "description": "玩家移动的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatHit": {
+            "label": "命中检测",
+            "description": "角色命中的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatPacket": {
+            "label": "数据包验证",
+            "description": "网络数据包的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatPermission": {
+            "label": "权限",
+            "description": "玩家权限的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatXP": {
+            "label": "经验验证",
+            "description": "玩家经验的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatFire": {
+            "label": "火灾检查",
+            "description": "火灾操作的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatSafeHouse": {
+            "label": "安全屋保护",
+            "description": "安全屋的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatRecipe": {
+            "label": "配方检查",
+            "description": "制作配方的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatPlayer": {
+            "label": "玩家验证",
+            "description": "玩家操作的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatChecksum": {
+            "label": "校验和验证",
+            "description": "文件校验和的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatItem": {
+            "label": "物品检查",
+            "description": "物品的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "AntiCheatServerCustomization": {
+            "label": "服务器自定义",
+            "description": "服务器自定义的反作弊保护。",
+            "options": {
+                "1": "1 - 禁用",
+                "2": "2 - 仅记录",
+                "3": "3 - 记录 + 踢出",
+                "4": "4 - 完全保护"
+            }
+        },
+        "ClientCommandFilter": {
+            "label": "命令日志过滤器",
+            "description": "从 cmd.txt 日志中排除的命令列表（分号分隔）。"
+        },
+        "ClientActionLogs": {
+            "label": "客户端操作日志",
+            "description": "写入 ClientActionLogs.txt 的操作列表（分号分隔）。"
+        },
+        "PerkLogs": {
+            "label": "技能等级日志",
+            "description": "在 PerkLog.txt 中跟踪玩家技能等级变化。"
+        },
+        "SwitchZombiesOwnershipEachUpdate": {
+            "label": "切换僵尸所有权",
+            "description": "每次更新 tick 在玩家之间切换僵尸所有权。"
+        },
+        "UltraSpeedDoesnotAffectToAnimals": {
+            "label": "超级速度忽略动物",
+            "description": "超级速度模式不影响动物模拟。"
+        },
+        "UsePhysicsHitReaction": {
+            "label": "物理受击反应",
+            "description": "使用基于物理的受击反应。"
+        },
+        "DayLength": {
+            "label": "一天时长",
+            "description": "一天的持续时间。",
+            "options": {
+                "1": "15分钟",
+                "2": "30分钟",
+                "3": "1小时",
+                "4": "1小时30分钟",
+                "5": "2小时",
+                "6": "3小时",
+                "7": "4小时",
+                "8": "5小时",
+                "9": "6小时",
+                "10": "7小时",
+                "11": "8小时",
+                "12": "9小时",
+                "13": "10小时",
+                "14": "11小时",
+                "15": "12小时",
+                "16": "13小时",
+                "17": "14小时",
+                "18": "15小时",
+                "19": "16小时",
+                "20": "17小时",
+                "21": "18小时",
+                "22": "19小时",
+                "23": "20小时",
+                "24": "21小时",
+                "25": "22小时",
+                "26": "23小时",
+                "27": "实时"
+            }
+        },
+        "StartYear": {
+            "label": "起始年份",
+            "description": "游戏开始的年份。"
+        },
+        "StartMonth": {
+            "label": "起始月份",
+            "description": "游戏开始的月份（1=一月，12=十二月）。",
+            "options": {
+                "1": "一月",
+                "2": "二月",
+                "3": "三月",
+                "4": "四月",
+                "5": "五月",
+                "6": "六月",
+                "7": "七月",
+                "8": "八月",
+                "9": "九月",
+                "10": "十月",
+                "11": "十一月",
+                "12": "十二月"
+            }
+        },
+        "StartDay": {
+            "label": "起始日",
+            "description": "游戏开始的日期。"
+        },
+        "StartTime": {
+            "label": "起始时间",
+            "description": "游戏开始的时间。",
+            "options": {
+                "1": "上午 7 点",
+                "2": "上午 9 点",
+                "3": "中午 12 点",
+                "4": "下午 2 点",
+                "5": "下午 5 点",
+                "6": "晚上 9 点",
+                "7": "午夜 12 点",
+                "8": "凌晨 2 点",
+                "9": "凌晨 5 点"
+            }
+        },
+        "Zombies": {
+            "label": "僵尸数量",
+            "description": "初始僵尸人口等级。",
+            "options": {
+                "1": "疯狂",
+                "2": "非常多",
+                "3": "多",
+                "4": "正常",
+                "5": "少",
+                "6": "无"
+            }
+        },
+        "Distribution": {
+            "label": "分布",
+            "description": "僵尸在地图上的分布方式。",
+            "options": {
+                "1": "城市集中",
+                "2": "均匀分布"
+            }
+        },
+        "ZombieVoronoiNoise": {
+            "label": "随机化分布",
+            "description": "对僵尸分布应用随机化。"
+        },
+        "ZombieRespawn": {
+            "label": "僵尸重生",
+            "description": "新僵尸添加到世界的频率。",
+            "options": {
+                "1": "高",
+                "2": "正常",
+                "3": "低",
+                "4": "无"
+            }
+        },
+        "ZombieMigrate": {
+            "label": "僵尸迁移",
+            "description": "僵尸可以迁移到空区域。"
+        },
+        "LootItemRemovalList": {
+            "label": "战利品移除列表",
+            "description": "战利品清理系统移除的逗号分隔物品类型。"
+        },
+        "FoodLootNew": {
+            "label": "食物战利品",
+            "description": "任何会腐烂或变质的食物。"
+        },
+        "CannedFoodLootNew": {
+            "label": "罐头食物战利品",
+            "description": "罐头和干燥食物、饮料。"
+        },
+        "LiteratureLootNew": {
+            "label": "文学战利品",
+            "description": "所有可阅读物品，包括书籍、传单和报纸。"
+        },
+        "SkillBookLoot": {
+            "label": "技能书战利品",
+            "description": "提供技能经验倍数的书籍。"
+        },
+        "RecipeResourceLoot": {
+            "label": "配方战利品",
+            "description": "教授配方的物品。"
+        },
+        "MedicalLootNew": {
+            "label": "医疗战利品",
+            "description": "药品、绷带和急救工具。"
+        },
+        "SurvivalGearsLootNew": {
+            "label": "生存装备战利品",
+            "description": "鱼竿、帐篷、露营装备。"
+        },
+        "WeaponLootNew": {
+            "label": "近战武器战利品",
+            "description": "非工具类武器。"
+        },
+        "RangedWeaponLootNew": {
+            "label": "远程武器战利品",
+            "description": "远程武器和武器附件。"
+        },
+        "AmmoLootNew": {
+            "label": "弹药战利品",
+            "description": "散装弹药、弹匣和弹药箱。"
+        },
+        "MechanicsLootNew": {
+            "label": "机械战利品",
+            "description": "车辆零件和安装工具。"
+        },
+        "ClothingLootNew": {
+            "label": "服装战利品",
+            "description": "所有非容器的可穿戴物品。"
+        },
+        "ContainerLootNew": {
+            "label": "容器战利品",
+            "description": "背包和可穿戴/可装备容器。"
+        },
+        "KeyLootNew": {
+            "label": "钥匙战利品",
+            "description": "建筑/汽车钥匙、钥匙环和锁。"
+        },
+        "MediaLootNew": {
+            "label": "媒体战利品",
+            "description": "VHS 录像带和 CD。"
+        },
+        "MementoLootNew": {
+            "label": "纪念品战利品",
+            "description": "Spiffo 物品、毛绒玩具和收藏品。"
+        },
+        "CookwareLootNew": {
+            "label": "炊具战利品",
+            "description": "烹饪物品，包括可用作武器的物品。不包括食物。"
+        },
+        "MaterialLootNew": {
+            "label": "材料战利品",
+            "description": "制作和建筑材料。"
+        },
+        "FarmingLootNew": {
+            "label": "农业战利品",
+            "description": "种子、泥铲、铲子和农业工具。"
+        },
+        "ToolLootNew": {
+            "label": "工具战利品",
+            "description": "不在其他类别中的工具。"
+        },
+        "OtherLootNew": {
+            "label": "其他战利品",
+            "description": "其他所有物品。也影响城镇/道路区域的觅食。"
+        },
+        "RollsMultiplier": {
+            "label": "翻滚倍数",
+            "description": "战利品表翻滚的倍数。不建议更改。"
+        },
+        "RemoveStoryLoot": {
+            "label": "移除故事战利品",
+            "description": "移除列表中的物品不会在世界故事中生成。"
+        },
+        "RemoveZombieLoot": {
+            "label": "移除僵尸战利品",
+            "description": "移除列表中的物品不会在僵尸身上生成。"
+        },
+        "ZombiePopLootEffect": {
+            "label": "僵尸人口战利品效果",
+            "description": "如果大于 0，战利品会根据附近僵尸数量增加。"
+        },
+        "SeenHoursPreventLootRespawn": {
+            "label": "已访问小时数阻止重生",
+            "description": "区域必须未被访问的小时数。0 = 禁用。"
+        },
+        "InsaneLootFactor": {
+            "label": "疯狂稀有度因子",
+            "description": "疯狂稀有度物品的生成率。"
+        },
+        "ExtremeLootFactor": {
+            "label": "极端稀有度因子",
+            "description": "极端稀有度物品的生成率。"
+        },
+        "RareLootFactor": {
+            "label": "稀有稀有度因子",
+            "description": "稀有稀有度物品的生成率。"
+        },
+        "NormalLootFactor": {
+            "label": "普通稀有度因子",
+            "description": "普通稀有度物品的生成率。"
+        },
+        "CommonLootFactor": {
+            "label": "常见稀有度因子",
+            "description": "常见稀有度物品的生成率。"
+        },
+        "AbundantLootFactor": {
+            "label": "丰富稀有度因子",
+            "description": "丰富稀有度物品的生成率。"
+        },
+        "MaximumLooted": {
+            "label": "最大被掠夺建筑概率",
+            "description": "发现建筑已被掠夺的概率。"
+        },
+        "DaysUntilMaximumLooted": {
+            "label": "达到最大被掠夺天数",
+            "description": "达到最大被掠夺建筑概率的天数。"
+        },
+        "RuralLooted": {
+            "label": "农村被掠夺概率",
+            "description": "农村建筑已被掠夺的概率。"
+        },
+        "MaximumDiminishedLoot": {
+            "label": "最大减少战利品 %",
+            "description": "达到减少天数时不生成的最大战利品百分比。"
+        },
+        "DaysUntilMaximumDiminishedLoot": {
+            "label": "达到最大减少天数",
+            "description": "达到最大减少战利品的天数。"
+        },
+        "MaximumLootedBuildingRooms": {
+            "label": "最大被掠夺建筑房间数",
+            "description": "超过此房间数的建筑不会被自动掠夺。"
+        },
+        "DayNightCycle": {
+            "label": "昼夜循环",
+            "description": "时间是否自然变化。",
+            "options": {
+                "1": "正常",
+                "2": "无尽白昼",
+                "3": "无尽黑夜"
+            }
+        },
+        "ClimateCycle": {
+            "label": "天气循环",
+            "description": "天气是否变化或保持固定。",
+            "options": {
+                "1": "正常",
+                "2": "无天气",
+                "3": "无尽雨天",
+                "4": "无尽暴风雨",
+                "5": "无尽雪天",
+                "6": "无尽暴风雪"
+            }
+        },
+        "FogCycle": {
+            "label": "雾循环",
+            "description": "雾是否自然出现。",
+            "options": {
+                "1": "正常",
+                "2": "无雾",
+                "3": "无尽大雾"
+            }
+        },
+        "WaterShut": {
+            "label": "停水",
+            "description": "管道设备何时停止成为无限水源。",
+            "options": {
+                "1": "立即",
+                "2": "0-30天",
+                "3": "0-2个月",
+                "4": "0-6个月",
+                "5": "0-1年",
+                "6": "0-5年",
+                "7": "2-6个月",
+                "8": "6-12个月",
+                "9": "禁用"
+            }
+        },
+        "ElecShut": {
+            "label": "停电",
+            "description": "世界电力何时关闭。",
+            "options": {
+                "1": "立即",
+                "2": "14-30天",
+                "3": "14天-2个月",
+                "4": "14天-6个月",
+                "5": "14天-1年",
+                "6": "14天-5年",
+                "7": "2-6个月",
+                "8": "6-12个月",
+                "9": "禁用"
+            }
+        },
+        "AlarmDecay": {
+            "label": "警报电池衰减",
+            "description": "停电后警报电池持续时间。",
+            "options": {
+                "1": "立即",
+                "2": "0-30天",
+                "3": "0-2个月",
+                "4": "0-6个月",
+                "5": "0-1年",
+                "6": "0-5年"
+            }
+        },
+        "WaterShutModifier": {
+            "label": "停水修正",
+            "description": "微调停水时间（天）。"
+        },
+        "ElecShutModifier": {
+            "label": "停电修正",
+            "description": "微调停电时间（天）。"
+        },
+        "AlarmDecayModifier": {
+            "label": "警报衰减修正",
+            "description": "微调警报电池衰减时间（天）。"
+        },
+        "Temperature": {
+            "label": "温度",
+            "description": "全局温度设置。",
+            "options": {
+                "1": "非常冷",
+                "2": "冷",
+                "3": "正常",
+                "4": "热",
+                "5": "非常热"
+            }
+        },
+        "Rain": {
+            "label": "降雨量",
+            "description": "下雨频率。",
+            "options": {
+                "1": "非常干燥",
+                "2": "干燥",
+                "3": "正常",
+                "4": "多雨",
+                "5": "非常多雨"
+            }
+        },
+        "ErosionSpeed": {
+            "label": "侵蚀速度",
+            "description": "自然 reclaim 世界的速度。",
+            "options": {
+                "1": "非常快（20天）",
+                "2": "快（50天）",
+                "3": "正常（100天）",
+                "4": "慢（200天）",
+                "5": "非常慢（500天）"
+            }
+        },
+        "ErosionDays": {
+            "label": "自定义侵蚀天数",
+            "description": "自定义侵蚀天数。0 = 使用侵蚀速度选项。"
+        },
+        "MaxFogIntensity": {
+            "label": "最大雾强度",
+            "description": "雾的最大强度。",
+            "options": {
+                "1": "正常",
+                "2": "中等",
+                "3": "低",
+                "4": "无"
+            }
+        },
+        "MaxRainFxIntensity": {
+            "label": "最大雨效果强度",
+            "description": "雨效果的最大强度。",
+            "options": {
+                "1": "正常",
+                "2": "中等",
+                "3": "低"
+            }
+        },
+        "EnableSnowOnGround": {
+            "label": "地面积雪",
+            "description": "雪是否在地面上积累。"
+        },
+        "NightDarkness": {
+            "label": "夜晚黑暗度",
+            "description": "夜晚的环境光照水平。",
+            "options": {
+                "1": "漆黑",
+                "2": "黑暗",
+                "3": "正常",
+                "4": "明亮"
+            }
+        },
+        "NightLength": {
+            "label": "夜晚长度",
+            "description": "从黄昏到黎明的持续时间。",
+            "options": {
+                "1": "永远是夜晚",
+                "2": "长",
+                "3": "正常",
+                "4": "短",
+                "5": "永远是白天"
+            }
+        },
+        "TimeSinceApo": {
+            "label": "末日后时间",
+            "description": "游戏在末日后多久开始。影响侵蚀和食物变质。",
+            "options": {
+                "1": "0",
+                "2": "1",
+                "3": "2",
+                "4": "3",
+                "5": "4",
+                "6": "5",
+                "7": "6",
+                "8": "7",
+                "9": "8",
+                "10": "9",
+                "11": "10",
+                "12": "11",
+                "13": "12"
+            }
+        },
+        "FireSpread": {
+            "label": "火势蔓延",
+            "description": "火灾是否蔓延。"
+        },
+        "StatsDecrease": {
+            "label": "属性下降",
+            "description": "饥饿、口渴和疲劳的下降速度。",
+            "options": {
+                "1": "非常快",
+                "2": "快",
+                "3": "正常",
+                "4": "慢",
+                "5": "非常慢"
+            }
+        },
+        "Nutrition": {
+            "label": "营养",
+            "description": "食物营养影响玩家体重和状况。"
+        },
+        "FoodRotSpeed": {
+            "label": "食物腐烂速度",
+            "description": "食物变质速度。",
+            "options": {
+                "1": "非常快",
+                "2": "快",
+                "3": "正常",
+                "4": "慢",
+                "5": "非常慢"
+            }
+        },
+        "FridgeFactor": {
+            "label": "冰箱效果",
+            "description": "冰箱保鲜效果。",
+            "options": {
+                "1": "非常低",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "非常高",
+                "6": "无衰减"
+            }
+        },
+        "StarterKit": {
+            "label": "初始套件",
+            "description": "出生时携带薯片、水瓶、背包、球棒和锤子。"
+        },
+        "CharacterFreePoints": {
+            "label": "免费角色点数",
+            "description": "角色创建时的额外免费点数。"
+        },
+        "BoneFracture": {
+            "label": "骨折",
+            "description": "幸存者可能因撞击、跌落等导致骨折。"
+        },
+        "InjurySeverity": {
+            "label": "伤害严重程度",
+            "description": "伤害的影响和愈合时间。",
+            "options": {
+                "1": "低",
+                "2": "正常",
+                "3": "高"
+            }
+        },
+        "EndRegen": {
+            "label": "耐力恢复",
+            "description": "行动后从疲劳中恢复的速度。",
+            "options": {
+                "1": "非常快",
+                "2": "快",
+                "3": "正常",
+                "4": "慢",
+                "5": "非常慢"
+            }
+        },
+        "HoursForCorpseRemoval": {
+            "label": "尸体移除小时数",
+            "description": "僵尸尸体消失前的小时数。0 = 不生成蛆虫。"
+        },
+        "DecayingCorpseHealthImpact": {
+            "label": "尸体健康影响",
+            "description": "附近腐烂尸体对健康/情绪的影响。",
+            "options": {
+                "1": "无",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "疯狂"
+            }
+        },
+        "ZombieHealthImpact": {
+            "label": "僵尸健康影响",
+            "description": "活着的僵尸是否也影响玩家健康/情绪。"
+        },
+        "BloodLevel": {
+            "label": "血液水平",
+            "description": "血液喷洒在表面的程度。",
+            "options": {
+                "1": "无",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "超级血腥"
+            }
+        },
+        "ClothingDegradation": {
+            "label": "服装退化",
+            "description": "服装退化和变脏的速度。",
+            "options": {
+                "1": "禁用",
+                "2": "慢",
+                "3": "正常",
+                "4": "快"
+            }
+        },
+        "DaysForRottenFoodRemoval": {
+            "label": "腐烂食物移除天数",
+            "description": "腐烂食物被移除前的天数。-1 = 从不。"
+        },
+        "AllClothesUnlocked": {
+            "label": "解锁所有服装",
+            "description": "角色创建时可选择所有服装物品。"
+        },
+        "EnableTaintedWaterText": {
+            "label": "污水警告",
+            "description": "显示标记污水的警告。"
+        },
+        "EnablePoisoning": {
+            "label": "启用中毒",
+            "description": "是否可以在食物中添加毒药。",
+            "options": {
+                "1": "是",
+                "2": "否",
+                "3": "仅禁用漂白剂"
+            }
+        },
+        "MaggotSpawn": {
+            "label": "蛆虫生成",
+            "description": "尸体中蛆虫何时生成。",
+            "options": {
+                "1": "体内和周围",
+                "2": "仅体内",
+                "3": "从不"
+            }
+        },
+        "MuscleStrainFactor": {
+            "label": "肌肉疲劳因子",
+            "description": "挥舞武器或携带重物的肌肉疲劳倍数。"
+        },
+        "DiscomfortFactor": {
+            "label": "不适因子",
+            "description": "穿戴物品的不适倍数。"
+        },
+        "WoundInfectionFactor": {
+            "label": "伤口感染因子",
+            "description": "严重伤口感染的伤害。0 = 禁用。"
+        },
+        "NoBlackClothes": {
+            "label": "无黑色服装",
+            "description": "阻止随机服装变为近黑色。"
+        },
+        "EasyClimbing": {
+            "label": "简单攀爬",
+            "description": "禁用攀爬绳索或墙壁的失败几率。"
+        },
+        "NegativeTraitsPenalty": {
+            "label": "负面特性惩罚",
+            "description": "负面特性奖励点数的收益递减。",
+            "options": {
+                "1": "无",
+                "2": "每 3 个负面特性 1 点",
+                "3": "每 2 个负面特性 1 点",
+                "4": "每个负面特性后 1 点"
+            }
+        },
+        "LiteratureCooldown": {
+            "label": "文学冷却",
+            "description": "之前阅读过的文献再次受益前的天数。"
+        },
+        "LevelForMediaXPCutoff": {
+            "label": "媒体经验截止等级",
+            "description": "TV/VHS/媒体不再提供经验的技能等级。"
+        },
+        "LevelForDismantleXPCutoff": {
+            "label": "拆解经验截止等级",
+            "description": "拆解家具不再提供经验的技能等级。"
+        },
+        "MetaKnowledge": {
+            "label": "元知识",
+            "description": "未见/未读媒体的显示方式。",
+            "options": {
+                "1": "完全显示",
+                "2": "显示为 ???",
+                "3": "完全隐藏"
+            }
+        },
+        "SeeNotLearntRecipe": {
+            "label": "查看未学习配方",
+            "description": "查看未学习的工作台配方。"
+        },
+        "LightBulbLifespan": {
+            "label": "灯泡寿命",
+            "description": "灯泡持续时间。越高 = 越持久。0 = 永不损坏。"
+        },
+        "MaximumFireFuelHours": {
+            "label": "最大火焰燃料小时数",
+            "description": "篝火、柴炉等的最大燃料小时数。"
+        },
+        "Alarm": {
+            "label": "住宅警报",
+            "description": "住宅警报的频率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "LockedHouses": {
+            "label": "上锁房屋",
+            "description": "上锁房屋的频率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "Helicopter": {
+            "label": "直升机事件",
+            "description": "直升机频率。",
+            "options": {
+                "1": "从不",
+                "2": "一次",
+                "3": "有时"
+            }
+        },
+        "MetaEvent": {
+            "label": "元事件",
+            "description": "远处的枪声、尖叫声等。",
+            "options": {
+                "1": "从不",
+                "2": "有时"
+            }
+        },
+        "SleepingEvent": {
+            "label": "睡眠事件",
+            "description": "睡眠时发生的事件。",
+            "options": {
+                "1": "从不",
+                "2": "有时"
+            }
+        },
+        "NatureAbundance": {
+            "label": "自然丰富度",
+            "description": "野生食物、药用植物等的丰富度。",
+            "options": {
+                "1": "非常贫乏",
+                "2": "贫乏",
+                "3": "正常",
+                "4": "丰富",
+                "5": "非常丰富"
+            }
+        },
+        "FishAbundance": {
+            "label": "鱼类丰富度",
+            "description": "鱼类的丰富度。",
+            "options": {
+                "1": "非常贫乏",
+                "2": "贫乏",
+                "3": "正常",
+                "4": "丰富",
+                "5": "非常丰富"
+            }
+        },
+        "AnnotatedMapChance": {
+            "label": "标注地图概率",
+            "description": "找到标注了当地特征的地图的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "ConstructionBonusPoints": {
+            "label": "建筑奖励点数",
+            "description": "木工/金属加工建筑的额外点数。"
+        },
+        "GeneratorSpawning": {
+            "label": "发电机生成",
+            "description": "世界中生成的发电机数量。",
+            "options": {
+                "1": "非常稀有",
+                "2": "稀有",
+                "3": "有时",
+                "4": "经常",
+                "5": "非常频繁"
+            }
+        },
+        "GeneratorFuelConsumption": {
+            "label": "发电机燃料消耗",
+            "description": "发电机消耗燃料的速度。"
+        },
+        "AllowExteriorGenerator": {
+            "label": "允许外部发电机",
+            "description": "发电机可以放置在室外和帐篷内。"
+        },
+        "GeneratorTileRange": {
+            "label": "发电机图块范围",
+            "description": "发电机的水平范围（图块）。"
+        },
+        "GeneratorVerticalPowerRange": {
+            "label": "发电机垂直范围",
+            "description": "发电机的垂直范围（楼层）。"
+        },
+        "CompostTime": {
+            "label": "堆肥时间",
+            "description": "堆肥所需时间。",
+            "options": {
+                "1": "1周",
+                "2": "2周",
+                "3": "3周",
+                "4": "4周",
+                "5": "6周",
+                "6": "8周",
+                "7": "10周",
+                "8": "12周"
+            }
+        },
+        "AttackBlockMovements": {
+            "label": "攻击阻止移动",
+            "description": "玩家进行近战攻击时无法移动。"
+        },
+        "WorldItemRemovalList": {
+            "label": "世界物品移除列表",
+            "description": "从世界中移除的物品类型（逗号分隔）。"
+        },
+        "ItemRemovalListBlacklistToggle": {
+            "label": "物品移除黑名单切换",
+            "description": "如果为真，移除列表作为黑名单（移除除列出外的所有物品）。默认为白名单。"
+        },
+        "MultiHitZombies": {
+            "label": "多重命中僵尸",
+            "description": "近战武器一次挥击可以命中多个僵尸。"
+        },
+        "RearVulnerability": {
+            "label": "后方脆弱性",
+            "description": "僵尸从后面被攻击时受到更多伤害。",
+            "options": {
+                "1": "低",
+                "2": "中",
+                "3": "高"
+            }
+        },
+        "FirearmUseDamageChance": {
+            "label": "枪械使用损坏概率",
+            "description": "每次使用武器耐久损失的概率。0 = 从不。"
+        },
+        "FirearmNoiseMultiplier": {
+            "label": "枪械噪音倍数",
+            "description": "枪声吸引僵尸的倍数。"
+        },
+        "FirearmJamMultiplier": {
+            "label": "枪械卡壳倍数",
+            "description": "卡壳概率的倍数。"
+        },
+        "FirearmMoodleMultiplier": {
+            "label": "枪械情绪倍数",
+            "description": "使用枪械的恐慌/压力倍数。"
+        },
+        "FirearmWeatherMultiplier": {
+            "label": "枪械天气倍数",
+            "description": "雨水影响枪械耐久的倍数。"
+        },
+        "FirearmHeadGearEffect": {
+            "label": "枪械头盔效果",
+            "description": "头部覆盖装备（如头盔）对枪械瞄准的影响程度。"
+        },
+        "EnableVehicles": {
+            "label": "启用车辆",
+            "description": "车辆是否生成且可用。"
+        },
+        "CarSpawnRate": {
+            "label": "汽车生成率",
+            "description": "生成的车辆数量。",
+            "options": {
+                "1": "无",
+                "2": "非常少",
+                "3": "少",
+                "4": "正常",
+                "5": "多"
+            }
+        },
+        "VehicleEasyUse": {
+            "label": "车辆简易使用",
+            "description": "所有车辆都是自动的且易于启动。"
+        },
+        "InitialGas": {
+            "label": "初始车辆汽油",
+            "description": "发现的车辆油箱的初始油量。",
+            "options": {
+                "1": "非常少",
+                "2": "少",
+                "3": "正常",
+                "4": "多",
+                "5": "非常多",
+                "6": "满"
+            }
+        },
+        "FuelStationGasInfinite": {
+            "label": "无限加油站汽油",
+            "description": "如果启用，油泵永远不会耗尽燃料。"
+        },
+        "FuelStationGasMin": {
+            "label": "加油站最小汽油",
+            "description": "油泵中可生成的最小汽油量。"
+        },
+        "FuelStationGasMax": {
+            "label": "加油站最大汽油",
+            "description": "油泵中可生成的最大汽油量。"
+        },
+        "FuelStationGasEmptyChance": {
+            "label": "加油站空概率",
+            "description": "个别油泵初始无燃料的概率百分比。"
+        },
+        "LockedCar": {
+            "label": "上锁汽车概率",
+            "description": "车门被锁的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "CarGasConsumption": {
+            "label": "汽油消耗",
+            "description": "车辆的燃料消耗率。"
+        },
+        "CarGeneralCondition": {
+            "label": "汽车整体状况",
+            "description": "发现的车辆的初始状况。",
+            "options": {
+                "1": "非常差",
+                "2": "差",
+                "3": "正常",
+                "4": "好",
+                "5": "非常好"
+            }
+        },
+        "CarDamageOnImpact": {
+            "label": "碰撞损坏",
+            "description": "车辆碰撞受到的损坏。",
+            "options": {
+                "1": "非常低",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "非常高"
+            }
+        },
+        "DamageToPlayerFromHitByACar": {
+            "label": "汽车撞击玩家伤害",
+            "description": "玩家从车辆撞击中受到的伤害。",
+            "options": {
+                "1": "无",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "非常高"
+            }
+        },
+        "TrafficJam": {
+            "label": "交通堵塞",
+            "description": "道路上是否生成交通堵塞。"
+        },
+        "CarAlarm": {
+            "label": "汽车警报",
+            "description": "车辆有活动警报的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "PlayerDamageFromCrash": {
+            "label": "碰撞伤害玩家",
+            "description": "玩家是否会在车祸中受伤。"
+        },
+        "SirenShutoffHours": {
+            "label": "警报器关闭小时数",
+            "description": "车辆警报器电池耗尽前的小时数。0 = 立即。"
+        },
+        "ChanceHasGas": {
+            "label": "有汽油概率",
+            "description": "找到油箱有油的车辆的概率。",
+            "options": {
+                "1": "低",
+                "2": "正常",
+                "3": "高"
+            }
+        },
+        "RecentlySurvivorVehicles": {
+            "label": "近期幸存者车辆",
+            "description": "是否可以发现感染爆发后被维护过的汽车。",
+            "options": {
+                "1": "无",
+                "2": "低",
+                "3": "正常",
+                "4": "高"
+            }
+        },
+        "ZombieAttractionMultiplier": {
+            "label": "车辆僵尸吸引力",
+            "description": "车辆声音吸引僵尸的倍数。"
+        },
+        "SirenEffectsZombies": {
+            "label": "警报器影响僵尸",
+            "description": "僵尸是否会朝车辆警报器声音移动。"
+        },
+        "AnimalStatsModifier": {
+            "label": "动物属性速度",
+            "description": "动物属性（饥饿、口渴等）降低的速度。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalMetaStatsModifier": {
+            "label": "动物元属性速度",
+            "description": "动物在元地图中属性降低的速度。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalPregnancyTime": {
+            "label": "动物怀孕时间",
+            "description": "动物分娩前的怀孕时间。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalAgeModifier": {
+            "label": "动物老化速度",
+            "description": "动物老化的速度。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalMilkIncModifier": {
+            "label": "产奶速度",
+            "description": "产奶速度。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalWoolIncModifier": {
+            "label": "产毛速度",
+            "description": "产毛速度。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalRanchChance": {
+            "label": "动物牧场概率",
+            "description": "在农场找到动物的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁",
+                "7": "总是"
+            }
+        },
+        "AnimalGrassRegrowTime": {
+            "label": "草再生时间",
+            "description": "草被动物吃掉或被玩家割掉后再生的小时数。"
+        },
+        "AnimalMetaPredator": {
+            "label": "元捕食者",
+            "description": "如果鸡舍门在夜间打开，元狐狸可能会攻击您的鸡。"
+        },
+        "AnimalMatingSeason": {
+            "label": "交配季节",
+            "description": "将交配限制在春季/初夏或允许全年交配。"
+        },
+        "AnimalEggHatch": {
+            "label": "蛋孵化时间",
+            "description": "小动物从蛋中孵化的时间。",
+            "options": {
+                "1": "超快",
+                "2": "非常快",
+                "3": "快",
+                "4": "正常",
+                "5": "慢",
+                "6": "非常慢"
+            }
+        },
+        "AnimalSoundAttractZombies": {
+            "label": "动物声音吸引僵尸",
+            "description": "如果为真，动物叫声会吸引附近僵尸。"
+        },
+        "AnimalTrackChance": {
+            "label": "动物足迹概率",
+            "description": "动物留下足迹的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "AnimalPathChance": {
+            "label": "动物路径概率",
+            "description": "创建动物狩猎路径的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "MaximumRatIndex": {
+            "label": "最大老鼠指数",
+            "description": "最大老鼠侵害等级。0 = 无老鼠。"
+        },
+        "DaysUntilMaximumRatIndex": {
+            "label": "达到最大老鼠指数天数",
+            "description": "老鼠数量达到峰值的天数。"
+        },
+        "Farming": {
+            "label": "农业倍数",
+            "description": "农业技能升级速率。"
+        },
+        "PlantResilience": {
+            "label": "植物韧性",
+            "description": "农作物的坚韧程度。",
+            "options": {
+                "1": "非常低",
+                "2": "低",
+                "3": "正常",
+                "4": "高",
+                "5": "非常高"
+            }
+        },
+        "PlantAbundance": {
+            "label": "植物丰富度",
+            "description": "农作物产出的食物量。",
+            "options": {
+                "1": "非常贫乏",
+                "2": "贫乏",
+                "3": "正常",
+                "4": "丰富",
+                "5": "非常丰富"
+            }
+        },
+        "KillInsideCrops": {
+            "label": "杀死室内作物",
+            "description": "踩踏室内作物是否摧毁它们。"
+        },
+        "PlantGrowingSeasons": {
+            "label": "植物生长季节",
+            "description": "将作物生长限制在适当的季节。"
+        },
+        "PlaceDirtAboveground": {
+            "label": "地上放置泥土",
+            "description": "允许在地面以上的建筑地板上放置泥土。"
+        },
+        "FarmingSpeedNew": {
+            "label": "农业速度",
+            "description": "生长速度倍数。越低 = 越快。"
+        },
+        "FarmingAmountNew": {
+            "label": "农业数量",
+            "description": "收获作物数量的倍数。"
+        },
+        "ClayLakeChance": {
+            "label": "湖泊粘土概率",
+            "description": "在湖泊附近挖掘找到粘土的概率。"
+        },
+        "ClayRiverChance": {
+            "label": "河流粘土概率",
+            "description": "在河流附近挖掘找到粘土的概率。"
+        },
+        "SurvivorHouseChance": {
+            "label": "幸存者房屋概率",
+            "description": "找到幸存者改造房屋的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "VehicleStoryChance": {
+            "label": "车辆故事概率",
+            "description": "找到故事装饰车辆的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "ZoneStoryChance": {
+            "label": "区域故事概率",
+            "description": "遇到基于区域的故事设置的概率。",
+            "options": {
+                "1": "从不",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁"
+            }
+        },
+        "Speed": {
+            "label": "僵尸速度",
+            "description": "僵尸移动速度。",
+            "options": {
+                "1": "奔跑者",
+                "2": "快速蹒跚者",
+                "3": "蹒跚者",
+                "4": "随机"
+            }
+        },
+        "Strength": {
+            "label": "力量",
+            "description": "僵尸的力量。"
+        },
+        "Toughness": {
+            "label": "坚韧度",
+            "description": "僵尸的击杀难度。",
+            "options": {
+                "1": "坚韧",
+                "2": "正常",
+                "3": "脆弱",
+                "4": "随机"
+            }
+        },
+        "Transmission": {
+            "label": "传播",
+            "description": "僵尸感染的传播方式。",
+            "options": {
+                "1": "血液和唾液",
+                "2": "仅唾液",
+                "3": "所有人都已感染",
+                "4": "无"
+            }
+        },
+        "Mortality": {
+            "label": "感染致死率",
+            "description": "感染的致命程度。",
+            "options": {
+                "1": "立即",
+                "2": "0-30秒",
+                "3": "0-1分钟",
+                "4": "0-12小时",
+                "5": "2-3天",
+                "6": "1-2周",
+                "7": "从不"
+            }
+        },
+        "Cognition": {
+            "label": "认知",
+            "description": "僵尸可以与什么互动。",
+            "options": {
+                "1": "导航和使用门",
+                "2": "导航",
+                "3": "基本导航",
+                "4": "随机"
+            }
+        },
+        "Memory": {
+            "label": "记忆",
+            "description": "僵尸记住最后看到目标的位置的时间。",
+            "options": {
+                "1": "长（2500）",
+                "2": "正常（750）",
+                "3": "短（500）",
+                "4": "无（25）",
+                "5": "随机",
+                "6": "正常和无之间随机"
+            }
+        },
+        "Sight": {
+            "label": "视力",
+            "description": "僵尸可以看到目标的距离。",
+            "options": {
+                "1": "鹰眼",
+                "2": "正常",
+                "3": "差",
+                "4": "随机",
+                "5": "正常和差之间随机"
+            }
+        },
+        "Hearing": {
+            "label": "听力",
+            "description": "僵尸听到声音的能力。",
+            "options": {
+                "1": "精确定位",
+                "2": "正常",
+                "3": "差",
+                "4": "随机",
+                "5": "正常和差之间随机"
+            }
+        },
+        "SpottedLogic": {
+            "label": "新潜行系统",
+            "description": "僵尸如何决定追逐目标。"
+        },
+        "ThumpNoChasing": {
+            "label": "环境攻击",
+            "description": "未追逐玩家的僵尸不会拍打建筑。"
+        },
+        "ThumpOnConstruction": {
+            "label": "破坏建筑",
+            "description": "僵尸拍打玩家建造的建筑。"
+        },
+        "ActiveOnly": {
+            "label": "昼夜僵尸速度效果",
+            "description": "僵尸在特定时间活跃。",
+            "options": {
+                "1": "白天和夜晚",
+                "2": "夜晚",
+                "3": "白天"
+            }
+        },
+        "TriggerHouseAlarm": {
+            "label": "僵尸触发房屋警报",
+            "description": "僵尸是否可以随机触发房屋警报。"
+        },
+        "ZombiesDragDown": {
+            "label": "僵尸拖倒",
+            "description": "多个僵尸可以将玩家拉倒在地。"
+        },
+        "ZombiesCrawlersDragDown": {
+            "label": "爬行者拖倒",
+            "description": "爬行者可以将玩家拉倒在地。"
+        },
+        "ZombiesFenceLunge": {
+            "label": "栅栏扑击",
+            "description": "僵尸可以隔着栅栏扑向你。"
+        },
+        "ZombiesArmorFactor": {
+            "label": "僵尸护甲因子",
+            "description": "服装对僵尸护甲的倍数。越高 = 越难杀。"
+        },
+        "ZombiesMaxDefense": {
+            "label": "最大僵尸护甲防御",
+            "description": "僵尸可以拥有的最大防御值。"
+        },
+        "ChanceOfAttachedWeapon": {
+            "label": "附着武器概率",
+            "description": "僵尸身上卡着武器的概率。"
+        },
+        "ZombiesFallDamage": {
+            "label": "僵尸坠落伤害倍数",
+            "description": "僵尸是否可以因坠落而死亡。"
+        },
+        "DisableFakeDead": {
+            "label": "假死僵尸复活",
+            "description": "没有僵尸会假装死亡。",
+            "options": {
+                "1": "世界僵尸",
+                "2": "世界和战斗僵尸",
+                "3": "从不"
+            }
+        },
+        "PlayerSpawnZombieRemoval": {
+            "label": "出生区清除",
+            "description": "出生点周围清除僵尸的距离。",
+            "options": {
+                "1": "无",
+                "2": "小",
+                "3": "中",
+                "4": "大",
+                "5": "非常大"
+            }
+        },
+        "FenceThumpersRequired": {
+            "label": "破坏栅栏所需僵尸",
+            "description": "损坏栅栏所需的最小僵尸数。"
+        },
+        "FenceDamageMultiplier": {
+            "label": "栅栏伤害倍数",
+            "description": "僵尸对栅栏造成伤害的倍数。"
+        },
+        "DoorOpeningPercentage": {
+            "label": "随机开门数量",
+            "description": "认知允许时可以开门的僵尸百分比。"
+        },
+        "CrawlUnderVehicle": {
+            "label": "爬到车下",
+            "description": "爬行者僵尸可以爬到车辆下面。",
+            "options": {
+                "1": "仅爬行者",
+                "2": "极其稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁",
+                "7": "总是"
+            }
+        },
+        "SprinterPercentage": {
+            "label": "随机奔跑者数量",
+            "description": "速度设为随机时奔跑者僵尸的百分比。"
+        },
+        "Reanimate": {
+            "label": "复活时间",
+            "description": "死去的僵尸可以在被杀后重新站起来。",
+            "options": {
+                "1": "立即",
+                "2": "0-30秒",
+                "3": "0-1分钟",
+                "4": "0-12小时",
+                "5": "2-3天",
+                "6": "1-2周"
+            }
+        },
+        "PopulationMultiplier": {
+            "label": "人口倍数",
+            "description": "整体僵尸人口倍数。"
+        },
+        "PopulationStartMultiplier": {
+            "label": "起始倍数",
+            "description": "游戏开始时的僵尸人口。"
+        },
+        "PopulationPeakMultiplier": {
+            "label": "峰值倍数",
+            "description": "峰值日的僵尸人口。"
+        },
+        "PopulationPeakDay": {
+            "label": "峰值日",
+            "description": "僵尸人口达到峰值的天数。"
+        },
+        "RespawnHours": {
+            "label": "重生小时数",
+            "description": "僵尸重生前的小时数。0 = 禁用。"
+        },
+        "RespawnUnseenHours": {
+            "label": "未见小时数",
+            "description": "区块必须未被看到的小时数才能重生。"
+        },
+        "RespawnMultiplier": {
+            "label": "重生倍数",
+            "description": "重生的人口比例。"
+        },
+        "RedistributeHours": {
+            "label": "重新分配小时数",
+            "description": "僵尸在地图上重新分配的间隔小时数。"
+        },
+        "FollowSoundDistance": {
+            "label": "跟随声音距离",
+            "description": "僵尸跟随声音的单元格距离。"
+        },
+        "RallyGroupSize": {
+            "label": "集结组大小",
+            "description": "集结组中的基础僵尸数。"
+        },
+        "RallyGroupSizeVariance": {
+            "label": "集结组大小差异",
+            "description": "僵尸组大小与默认值的差异百分比。"
+        },
+        "RallyTravelDistance": {
+            "label": "集结移动距离",
+            "description": "集结组在单元格中移动的距离。"
+        },
+        "RallyGroupSeparation": {
+            "label": "集结组间距",
+            "description": "集结组之间的最小距离。"
+        },
+        "RallyGroupRadius": {
+            "label": "集结组半径",
+            "description": "集结组散布的区域半径。"
+        },
+        "ZombiesCountBeforeDelete": {
+            "label": "删除前僵尸计数",
+            "description": "单元格中可以发生删除的最小僵尸数。"
+        },
+        "Global": {
+            "label": "全局经验倍数",
+            "description": "所有技能升级的速率。"
+        },
+        "GlobalToggle": {
+            "label": "对所有技能使用全局倍数",
+            "description": "启用时，所有技能使用全局倍数而非单独值。"
+        },
+        "Sprinting": {
+            "label": "冲刺经验",
+            "description": "冲刺技能的经验倍数。"
+        },
+        "Lightfoot": {
+            "label": "轻脚步经验",
+            "description": "轻脚步技能的经验倍数。"
+        },
+        "Nimble": {
+            "label": "灵活经验",
+            "description": "灵活技能的经验倍数。"
+        },
+        "Sneak": {
+            "label": "潜行经验",
+            "description": "潜行技能的经验倍数。"
+        },
+        "Axe": {
+            "label": "斧头经验",
+            "description": "斧头技能的经验倍数。"
+        },
+        "Blunt": {
+            "label": "钝器经验",
+            "description": "钝器技能的经验倍数。"
+        },
+        "SmallBlade": {
+            "label": "小刀片经验",
+            "description": "小刀片技能的经验倍数。"
+        },
+        "LongBlade": {
+            "label": "长刀片经验",
+            "description": "长刀片技能的经验倍数。"
+        },
+        "SmallBlunt": {
+            "label": "小钝器经验",
+            "description": "小钝器技能的经验倍数。"
+        },
+        "Aiming": {
+            "label": "瞄准经验",
+            "description": "瞄准技能的经验倍数。"
+        },
+        "Reloading": {
+            "label": "装弹经验",
+            "description": "装弹技能的经验倍数。"
+        },
+        "Fishing": {
+            "label": "钓鱼经验",
+            "description": "钓鱼技能的经验倍数。"
+        },
+        "Trapping": {
+            "label": "陷阱经验",
+            "description": "陷阱技能的经验倍数。"
+        },
+        "Woodwork": {
+            "label": "木工经验",
+            "description": "木工技能的经验倍数。"
+        },
+        "Cooking": {
+            "label": "烹饪经验",
+            "description": "烹饪技能的经验倍数。"
+        },
+        "Doctor": {
+            "label": "急救经验",
+            "description": "急救技能的经验倍数。"
+        },
+        "Electricity": {
+            "label": "电力经验",
+            "description": "电力技能的经验倍数。"
+        },
+        "MetalWelding": {
+            "label": "金属加工经验",
+            "description": "金属加工技能的经验倍数。"
+        },
+        "Mechanics": {
+            "label": "机械经验",
+            "description": "机械技能的经验倍数。"
+        },
+        "Tailoring": {
+            "label": "裁缝经验",
+            "description": "裁缝技能的经验倍数。"
+        },
+        "Maintenance": {
+            "label": "维护经验",
+            "description": "维护技能的经验倍数。"
+        },
+        "PlantScavenging": {
+            "label": "觅食经验",
+            "description": "觅食技能的经验倍数。"
+        },
+        "Fitness": {
+            "label": "健身经验",
+            "description": "健身技能的经验倍数。"
+        },
+        "FlintKnapping": {
+            "label": "打石经验",
+            "description": "打石技能的经验倍数。"
+        },
+        "Carving": {
+            "label": "雕刻经验",
+            "description": "雕刻技能的经验倍数。"
+        },
+        "Tracking": {
+            "label": "追踪经验",
+            "description": "追踪技能的经验倍数。"
+        },
+        "Butchering": {
+            "label": "屠宰经验",
+            "description": "屠宰技能的经验倍数。"
+        },
+        "Glassmaking": {
+            "label": "玻璃制作经验",
+            "description": "玻璃制作技能的经验倍数。"
+        },
+        "Husbandry": {
+            "label": "畜牧经验",
+            "description": "畜牧技能的经验倍数。"
+        },
+        "Spear": {
+            "label": "长矛经验",
+            "description": "长矛技能的经验倍数。"
+        },
+        "Masonry": {
+            "label": "砌筑经验",
+            "description": "砌筑技能的经验倍数。"
+        },
+        "Pottery": {
+            "label": "陶艺经验",
+            "description": "陶艺技能的经验倍数。"
+        },
+        "Blacksmith": {
+            "label": "铁匠经验",
+            "description": "铁匠技能的经验倍数。"
+        },
+        "AllowMiniMap": {
+            "label": "允许小地图",
+            "description": "游戏内小地图是否可用。"
+        },
+        "AllowWorldMap": {
+            "label": "允许世界地图",
+            "description": "游戏内世界地图是否可用。"
+        },
+        "MapAllKnown": {
+            "label": "地图全部已知",
+            "description": "整个地图从一开始就显示。"
+        },
+        "MapNeedsLight": {
+            "label": "地图需要光线",
+            "description": "只有在足够光线时才能使用地图。"
+        },
+        "SpawnFrequency": {
+            "label": "地下室生成频率",
+            "description": "建筑物中地下室出现的频率。",
+            "options": {
+                "1": "无",
+                "2": "非常稀有",
+                "3": "稀有",
+                "4": "有时",
+                "5": "经常",
+                "6": "非常频繁",
+                "7": "总是"
+            }
+        }
+    }
+}

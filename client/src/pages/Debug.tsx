@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import {
   lazy,
   Suspense,
@@ -250,6 +252,9 @@ interface WorldMapDiagnostics {
 
 type TimeFormat = "relative" | "time" | "datetime";
 
+const dt = (key: string, options?: Record<string, unknown>) =>
+  i18n.t(`static.${key}`, { ns: 'debug', ...options });
+
 type DiagnosticsFixAction = {
   label: string;
   automated: boolean;
@@ -285,16 +290,16 @@ function getDiagnosticsFixAction(
       return {
         label:
           count > 0
-            ? `Strip ${count} numeric IDs from Mods=`
-            : "Strip numeric IDs from Mods=",
+            ? dt('fix.stripNumericCount', { count })
+            : dt('fix.stripNumeric'),
         automated: true,
         requiresConfirm: count > 10,
-        confirmMessage: `This will remove ${count} numeric Workshop ID${count === 1 ? "" : "s"} from Mods= (they belong in WorkshopItems=). Restart required.\n\nProceed?`,
+        confirmMessage: dt('fix.stripNumericConfirm', { count }),
         openServerConfig: true,
         note:
           count > 0
-            ? `Removes ${count} numeric ID${count === 1 ? "" : "s"} from Mods=. Restart required.`
-            : "Removes numeric Workshop IDs from Mods=. Restart required.",
+            ? dt('fix.stripNumericNoteCount', { count })
+            : dt('fix.stripNumericNote'),
       };
     }
     case "mods.resolved": {
@@ -304,13 +309,11 @@ function getDiagnosticsFixAction(
       // the orphanWorkshop fix first usually resolves many of these.
       const count = getDiagMetaStringList(check, "unresolvedMods").length;
       return {
-        label: count > 0 ? `Review ${count} unresolved` : "Review unresolved",
+        label: count > 0 ? dt('fix.reviewUnresolvedCount', { count }) : dt('fix.reviewUnresolved'),
         automated: false,
         openServerConfig: true,
-        links: [
-          { to: "/mods?review=unresolved", label: "Open dependency review" },
-        ],
-        note: "Fix orphan Workshop items first (below), then re-run diagnostics. Disable manually only if entries truly don\u2019t resolve after downloads finish.",
+        openMods: true,
+        note: dt('fix.reviewUnresolvedNote'),
       };
     }
     case "mods.orphanWorkshop": {
@@ -318,255 +321,247 @@ function getDiagnosticsFixAction(
       return {
         label:
           count > 0
-            ? `Auto-fix ${count} Workshop IDs`
-            : "Auto-fix Workshop IDs",
+            ? dt('fix.autoFixWorkshopCount', { count })
+            : dt('fix.autoFixWorkshop'),
         automated: true,
         requiresConfirm: count > 10,
-        confirmMessage: `This will triage ${count} Workshop item${count === 1 ? "" : "s"}: downloaded → added to Mods=; ignored or missing → removed from WorkshopItems=. The server must restart for changes to take effect.\n\nProceed?`,
+        confirmMessage: dt('fix.autoFixWorkshopConfirm', { count }),
         openServerConfig: true,
         openMods: true,
         note:
           count > 0
-            ? `Triages ${count} Workshop item${count === 1 ? "" : "s"}: enables downloaded mods, drops ignored/missing IDs. Restart required.`
-            : "Triages Workshop items: enables downloaded mods, drops ignored/missing IDs. Restart required.",
+            ? dt('fix.autoFixWorkshopNoteCount', { count })
+            : dt('fix.autoFixWorkshopNote'),
       };
     }
     case "mods.maps":
       return {
-        label: "Repair Map=",
+        label: dt('fix.repairMap'),
         automated: true,
         openServerConfig: true,
-        note: "Removes invalid Map= entries and re-adds detected map folders. Restart required.",
+        note: dt('fix.repairMapNote'),
       };
     case "mods.duplicates": {
       const dupCount =
         getDiagMetaStringList(check, "dupMods").length +
         getDiagMetaStringList(check, "dupWs").length;
       return {
-        label: dupCount > 0 ? `Deduplicate ${dupCount}` : "Deduplicate",
+        label: dupCount > 0 ? dt('fix.deduplicateCount', { count: dupCount }) : dt('fix.deduplicate'),
         automated: true,
         openServerConfig: true,
-        note: "Removes duplicate Mods= entries. Restart required.",
+        note: dt('fix.deduplicateNote'),
       };
     }
     case "mods.workshopCrash":
       return {
-        label: "Open Mods",
+        label: dt('fix.openMods'),
         automated: false,
         openMods: true,
-        note: "Re-check Workshop downloads and remove or replace the failing mod, then restart.",
+        note: dt('fix.openModsNote'),
       };
 
     // ─── Server / process ──────────────────────────────────────────────────
     case "server.process":
       return {
-        label: "Start server",
+        label: dt('fix.startServer'),
         automated: true,
-        links: [{ to: "/", label: "Open Dashboard" }],
-        note: "Starts the dedicated server using the active configuration.",
+        links: [{ to: "/", label: dt('fix.openDashboard') }],
+        note: dt('fix.startServerNote'),
       };
     case "server.active":
     case "server.installPath":
       return {
-        label: "Open Servers",
+        label: dt('fix.openServers'),
         automated: false,
         links: [
-          { to: "/servers", label: "Open Servers" },
-          { to: "/server-finder", label: "Auto-detect" },
+          { to: "/servers", label: dt('fix.openServers') },
+          { to: "/server-finder", label: dt('fix.autoDetect') },
         ],
-        note: "Select or configure an active server with a valid install path.",
+        note: dt('fix.activeServerNote'),
       };
     case "server.zomboidData":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Set the Zomboid data path in Settings.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.zomboidDataNote'),
       };
     case "server.startScript":
     case "server.jre":
     case "server.jreWorks":
       return {
-        label: "Open Server Finder",
+        label: dt('fix.openServerFinder'),
         automated: false,
-        links: [{ to: "/server-finder", label: "Open Server Finder" }],
-        note: "Re-run server detection or reinstall the dedicated server files.",
+        links: [{ to: "/server-finder", label: dt('fix.openServerFinder') }],
+        note: dt('fix.serverFinderNote'),
       };
     case "server.ini":
     case "server.sandboxVars":
       return {
-        label: "Open Server Config",
+        label: dt('fix.openServerConfig'),
         automated: false,
         openServerConfig: true,
-        note: "Configure server settings to generate or repair the .ini files.",
+        note: dt('fix.serverConfigNote'),
       };
     case "server.sandboxCorrupt":
       return {
-        label: "Repair SandboxVars.lua",
+        label: dt('fix.repairSandbox'),
         automated: true,
-        note: "Attempts an automated repair (missing block header/comma). A backup of the broken file is saved first. If the corruption doesn\u2019t match a known pattern, nothing is written.",
+        note: dt('fix.repairSandboxNote'),
       };
     case "server.rconPassword":
       return {
-        label: "Open Server Config",
+        label: dt('fix.openServerConfig'),
         automated: false,
         openServerConfig: true,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Set the RCON password in Server Config (and matching value in Settings).",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.rconPasswordNote'),
       };
     case "server.bridgeMod":
       return {
-        label: "Open Server Finder",
+        label: dt('fix.openServerFinder'),
         automated: false,
-        links: [{ to: "/server-finder", label: "Open Server Finder" }],
-        note: "Re-deploy the PanelBridge mod via Server Finder.",
+        links: [{ to: "/server-finder", label: dt('fix.openServerFinder') }],
+        note: dt('fix.bridgeModNote'),
       };
     case "server.configDrift":
       return {
-        label: "Open Server Config",
+        label: dt('fix.openServerConfig'),
         automated: false,
         openServerConfig: true,
-        note: "Reload the panel\u2019s config from server.ini, or push your changes back to disk.",
+        note: dt('fix.configDriftNote'),
       };
     case "server.staleLocks":
       return {
-        label: "Delete stale lock files",
+        label: dt('fix.deleteStaleLocks'),
         automated: true,
         requiresConfirm: true,
         confirmMessage:
-          "This will delete every *.lock file older than 1 hour in the active save folder. The server must be stopped first.\n\nProceed?",
-        links: [{ to: "/chunks", label: "Open Chunk Cleaner" }],
-        note: "Stops the server is NOT automated — make sure the server is stopped first. Then deletes stale .lock files.",
+          dt('fix.deleteStaleLocksConfirm'),
+        links: [{ to: "/chunks", label: dt('fix.openChunkCleaner') }],
+        note: dt('fix.deleteStaleLocksNote'),
       };
     case "server.recentCrash":
       return {
-        label: "View crash logs",
+        label: dt('fix.viewCrashLogs'),
         automated: true,
-        note: "Opens the Crash Logs tab on this page for the latest stack trace.",
+        note: dt('fix.viewCrashLogsNote'),
       };
 
     // ─── Services ──────────────────────────────────────────────────────────
     case "rcon.connected":
       return {
-        label: "Reconnect RCON",
+        label: dt('fix.reconnectRcon'),
         automated: true,
         openServerConfig: true,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Tries to reconnect to RCON using the saved password. If it still fails, check that the password in Server Config matches Settings, then restart the server.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.reconnectRconNote'),
       };
     case "modChecker":
     case "scheduler":
     case "services.error":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Restarting the panel usually clears stuck services.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.servicesNote'),
       };
     case "discord.bot":
       return {
-        label: "Open Discord",
+        label: dt('fix.openDiscord'),
         automated: false,
-        links: [{ to: "/discord", label: "Open Discord" }],
-        note: "Check the bot token and intents in Discord settings.",
+        links: [{ to: "/discord", label: dt('fix.openDiscord') }],
+        note: dt('fix.discordNote'),
       };
 
     // ─── Bridge ────────────────────────────────────────────────────────────
-    case "bridge.configured":
-    case "worldmap.bridge.configured":
-      return {
-        label: "Auto-configure bridge",
-        automated: true,
-        links: [{ to: "/settings?tab=bridge", label: "Open Bridge settings" }],
-        note: "Points the panel at the active server\u2019s bridge folder and starts the watcher. The game server must then be running with PanelBridge.lua installed.",
-      };
     case "bridge.writable":
     case "bridge.heartbeat":
       return {
-        label: "Open Server Finder",
+        label: dt('fix.openServerFinder'),
         automated: false,
-        links: [{ to: "/server-finder", label: "Open Server Finder" }],
-        note: "Re-deploy PanelBridge, ensure the server is running, and check write permissions on the bridge folder.",
+        links: [{ to: "/server-finder", label: dt('fix.openServerFinder') }],
+        note: dt('fix.bridgeNote'),
       };
 
     // ─── Database / storage ────────────────────────────────────────────────
     case "db.exists":
     case "db.writable":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Verify the data directory path exists and the panel can write to it.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.databaseNote'),
       };
     case "db.backup":
       return {
-        label: "Create database backup",
+        label: dt('fix.createDatabaseBackup'),
         automated: true,
-        links: [{ to: "/backups", label: "Open Backups" }],
-        note: "Creates a manual database backup right now. Schedule recurring backups from the Backups page.",
+        links: [{ to: "/backups", label: dt('fix.openBackups') }],
+        note: dt('fix.createDatabaseBackupNote'),
       };
     case "logs.writable":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Verify the logs directory path exists and is writable.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.logsNote'),
       };
     case "disk.free":
       return {
-        label: "Open Backups",
+        label: dt('fix.openBackups'),
         automated: false,
         links: [
-          { to: "/backups", label: "Open Backups" },
-          { to: "/chunks", label: "Open Chunk Cleaner" },
+          { to: "/backups", label: dt('fix.openBackups') },
+          { to: "/chunks", label: dt('fix.openChunkCleaner') },
         ],
-        note: "Free up disk space — delete old backups or clean unused chunks.",
+        note: dt('fix.diskNote'),
       };
     case "storage.saveSize":
       return {
-        label: "Open Chunk Cleaner",
+        label: dt('fix.openChunkCleaner'),
         automated: false,
-        links: [{ to: "/chunks", label: "Open Chunk Cleaner" }],
-        note: "Trim the save by removing unreachable chunks.",
+        links: [{ to: "/chunks", label: dt('fix.openChunkCleaner') }],
+        note: dt('fix.storageNote'),
       };
 
     // ─── Runtime ───────────────────────────────────────────────────────────
     case "runtime.heap":
     case "runtime.hostMem":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Restarting the panel reclaims heap. Close other processes if host RAM is exhausted.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.runtimeNote'),
       };
     case "runtime.timeSkew":
       return {
-        label: "Show recommended fix",
+        label: dt('fix.recommended'),
         automated: false,
-        note: "Sync the host system clock (NTP / Windows Time service) and re-run diagnostics.",
+        note: dt('fix.timeSkewNote'),
       };
 
     // ─── Updates ───────────────────────────────────────────────────────────
     case "update.panel":
     case "updates.error":
       return {
-        label: "Open Settings",
+        label: dt('fix.openSettings'),
         automated: false,
-        links: [{ to: "/settings", label: "Open Settings" }],
-        note: "Panel updates are managed from Settings → Updates.",
+        links: [{ to: "/settings", label: dt('fix.openSettings') }],
+        note: dt('fix.panelUpdatesNote'),
       };
     case "update.mods":
       return {
-        label: "Open Mods",
+        label: dt('fix.openMods'),
         automated: false,
         openMods: true,
-        note: "Review and apply Workshop mod updates from the Mods page.",
+        note: dt('fix.modUpdatesNote'),
       };
     case "update.steamApi":
       return {
-        label: "Show recommended fix",
+        label: dt('fix.recommended'),
         automated: false,
-        note: "Verify outbound internet access to api.steampowered.com.",
+        note: dt('fix.steamApiNote'),
       };
 
     default: {
@@ -580,10 +575,10 @@ function getDiagnosticsFixAction(
         category === "worldmap" &&
         !links.some((l) => l.to === "/world-map")
       ) {
-        links.push({ to: "/world-map", label: "Open World Map" });
+        links.push({ to: "/world-map", label: dt('fix.openWorldMap') });
       }
       return {
-        label: "Show recommended fix",
+        label: dt('fix.recommended'),
         automated: false,
         openServerConfig:
           hint.includes("server config") || hint.includes("server.ini"),
@@ -600,6 +595,9 @@ const DebugPerformanceCharts = lazy(
 );
 
 export default function Debug() {
+  const { t } = useTranslation('debug');
+  
+  
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
@@ -798,53 +796,49 @@ export default function Debug() {
       setFixingDiagnosticsCheckId(check.id);
       try {
         if (!action.automated) {
-          if (check.id === "mods.resolved") {
-            window.location.assign("/mods?review=unresolved");
-            return;
-          }
           toast({
-            title: "Manual fix recommended",
+            title: dt('fix.manualFixRecommended'),
             description:
               action.note ||
               check.hint ||
-              "Open the suggested page and apply the listed fix.",
+              dt('fix.openSuggestedFix'),
           });
           return;
         }
 
         if (action.requiresConfirm) {
-          const message = action.confirmMessage || `Apply ${action.label}?`;
+          const message = action.confirmMessage || dt('fix.applyAction', { action: action.label });
           const ok = await confirm({
-            title: "Apply fix?",
+            title: dt('fix.applyFixQuestion'),
             description: message,
-            confirmLabel: "Apply",
+            confirmLabel: dt('fix.apply'),
           });
           if (!ok) {
             return;
           }
         }
 
-        const restartHint = " Restart the server to apply the changes.";
+        const restartHint = ` ${dt('fix.restartHint')}`;
 
         if (check.id === "mods.numericInMods") {
           const numericIds = getDiagMetaStringList(check, "numericInMods");
           if (numericIds.length === 0) {
             throw new Error(
-              "No numeric Mods= entries were provided by diagnostics.",
+              dt('fix.noNumericEntries'),
             );
           }
           const result = await modsApi.batchToggleModIds(
             numericIds.map((modId) => ({ modId, enabled: false })),
           );
           toast({
-            title: "Numeric IDs removed from Mods=",
-            description: `Stripped ${result.changed} entry${result.changed === 1 ? "" : "ies"} from Mods=.${restartHint}`,
+            title: dt('fix.numericIdsRemoved'),
+            description: dt('fix.numericIdsRemovedDesc', { count: result.changed, restartHint }),
           });
         } else if (check.id === "mods.orphanWorkshop") {
           const orphanWorkshop = getDiagMetaStringList(check, "orphanWorkshop");
           if (orphanWorkshop.length === 0) {
             throw new Error(
-              "No orphan Workshop IDs were provided by diagnostics.",
+              dt('fix.noOrphanIds'),
             );
           }
 
@@ -857,38 +851,38 @@ export default function Debug() {
           const parts: string[] = [];
           if (counts.enabled > 0)
             parts.push(
-              `enabled ${counts.enabled} (added ${modIdsAdded} mod ID${modIdsAdded === 1 ? "" : "s"})`,
+              dt('fix.enabledMods', { count: counts.enabled, added: modIdsAdded }),
             );
           if (droppedTotal > 0) {
             const sub: string[] = [];
             if (counts.droppedIgnored)
-              sub.push(`${counts.droppedIgnored} ignored`);
+              sub.push(dt('fix.ignoredCount', { count: counts.droppedIgnored }));
             if (counts.droppedMissing)
-              sub.push(`${counts.droppedMissing} not on disk`);
+              sub.push(dt('fix.notOnDiskCount', { count: counts.droppedMissing }));
             if (counts.droppedNoModInfo)
-              sub.push(`${counts.droppedNoModInfo} no mod.info`);
+              sub.push(dt('fix.noModInfoCount', { count: counts.droppedNoModInfo }));
             parts.push(
-              `dropped ${droppedTotal} from WorkshopItems= (${sub.join(", ")})`,
+              dt('fix.droppedWorkshopItems', { count: droppedTotal, details: sub.join(', ') }),
             );
           }
           toast({
-            title: "Workshop items resolved",
+            title: dt('fix.workshopItemsResolved'),
             description:
               parts.length > 0
                 ? `${parts.join("; ")}.${counts.enabled > 0 ? restartHint : ""}`
-                : `Nothing to change for ${result.total} ID${result.total === 1 ? "" : "s"}.`,
+                : dt('fix.nothingToChange', { count: result.total }),
           });
           void wsDropped; // count already reflected in droppedTotal
         } else if (check.id === "mods.maps") {
           const result = await modsApi.repairMapEntries();
           toast({
-            title: "Map entries repaired",
+            title: dt('fix.mapEntriesRepaired'),
             description: `${result.message}${restartHint}`,
           });
         } else if (check.id === "mods.duplicates") {
           const result = await modsApi.deduplicateModIds();
           toast({
-            title: "Duplicates cleaned",
+            title: dt('fix.duplicatesCleaned'),
             description: `${result.message}${restartHint}`,
           });
         } else if (check.id === "server.process") {
@@ -899,14 +893,14 @@ export default function Debug() {
           };
           if (result?.success === false) {
             throw new Error(
-              result.error || result.message || "Server failed to start.",
+              result.error || result.message || dt('fix.serverStartFailed'),
             );
           }
           toast({
-            title: "Server starting",
+            title: dt('fix.serverStarting'),
             description:
               result?.message ||
-              "Dedicated server start signal sent. Check the Dashboard for status.",
+              dt('fix.serverStartSent'),
           });
         } else if (check.id === "rcon.connected") {
           const result = (await rconApi.connect()) as {
@@ -921,24 +915,24 @@ export default function Debug() {
             throw new Error(
               result?.error ||
                 result?.message ||
-                "RCON connect attempt failed.",
+                dt('fix.rconConnectFailed'),
             );
           }
           toast({
-            title: "RCON reconnected",
-            description: result?.message || "RCON connection re-established.",
+            title: dt('fix.rconReconnected'),
+            description: result?.message || dt('fix.rconReconnectedDesc'),
           });
         } else if (check.id === "db.backup") {
           const result = await backupApi.createBackup({ includeDb: true });
           if (result?.success === false) {
-            throw new Error(result?.message || "Backup failed.");
+            throw new Error(result?.message || dt('fix.backupFailed'));
           }
           const backupName = result?.backup?.name
             ? ` (${result.backup.name})`
             : "";
           toast({
-            title: "Database backup created",
-            description: `Backup completed${backupName}.`,
+            title: dt('fix.databaseBackupCreated'),
+            description: dt('fix.databaseBackupCreatedDesc', { backupName }),
           });
         } else if (check.id === "server.staleLocks") {
           const res = await authFetch("/api/debug/clear-stale-locks", {
@@ -957,44 +951,31 @@ export default function Debug() {
             );
           }
           toast({
-            title: "Stale lock files removed",
-            description:
-              data?.message || `Deleted ${data?.deleted ?? 0} lock file(s).`,
-          });
-        } else if (
-          check.id === "bridge.configured" ||
-          check.id === "worldmap.bridge.configured"
-        ) {
-          const result = await panelBridgeApi.autoConfigure();
-          if (!result?.success) {
-            throw new Error(result?.message || "Could not configure the bridge.");
-          }
-          toast({
-            title: "Bridge configured",
-            description: `Watching ${result.serverName || "the active server"}. Start the server to complete the handshake.`,
+            title: dt('fix.staleLocksRemoved'),
+            description: data?.message || dt('fix.staleLocksRemovedDesc', { count: data?.deleted ?? 0 }),
           });
         } else if (check.id === "server.recentCrash") {
           setActiveTab("crashes");
           toast({
-            title: "Crash Logs opened",
-            description: "Review the latest crash report below.",
+            title: dt('fix.crashLogsOpened'),
+            description: dt('fix.crashLogsOpenedDesc'),
           });
         } else if (check.id === "server.sandboxCorrupt") {
           const result = await serverFilesApi.repairSandbox();
           if (!result?.success) {
-            throw new Error(result?.error || "Repair failed.");
+            throw new Error(result?.error || dt('fix.repairFailed'));
           }
           if (result.alreadyValid) {
             toast({
-              title: "Already valid",
-              description: result.message || "No repair needed.",
+              title: dt('fix.alreadyValid'),
+              description: result.message || dt('fix.noRepairNeeded'),
             });
           } else {
             toast({
-              title: "SandboxVars.lua repaired",
+              title: dt('fix.sandboxRepaired'),
               description:
                 result.message ||
-                `Applied ${result.changes?.length ?? 0} fix(es).${restartHint}`,
+                dt('fix.sandboxRepairedDesc', { count: result.changes?.length ?? 0, restartHint }),
             });
           }
         }
@@ -1003,9 +984,9 @@ export default function Debug() {
       } catch (error) {
         reportClientError("Diagnostics auto-fix failed.", error);
         const message =
-          error instanceof Error ? error.message : "Could not apply fix.";
+          error instanceof Error ? error.message : dt('fix.couldNotApplyFix');
         toast({
-          title: "Fix failed",
+          title: dt('fix.fixFailed'),
           description: message,
           variant: "destructive",
         });
@@ -1013,7 +994,7 @@ export default function Debug() {
         setFixingDiagnosticsCheckId(null);
       }
     },
-    [fetchDiagnostics, toast, authFetch],
+    [fetchDiagnostics, toast, authFetch, confirm],
   );
 
   // Fetch world-map specific diagnostics
@@ -1030,18 +1011,16 @@ export default function Debug() {
       if (data?.checks) {
         setWorldMapDiag(data);
       } else {
-        setWorldMapError(
-          "Diagnostics endpoint returned an unexpected response.",
-        );
+        setWorldMapError(t('static.ui.unexpectedDiagnosticsResponse'));
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Network error";
+      const msg = error instanceof Error ? error.message : t('static.ui.networkError');
       setWorldMapError(msg);
       reportClientError("Failed to fetch World Map diagnostics.", error);
     } finally {
       setRefreshingWorldMap(false);
     }
-  }, [authFetch]);
+  }, [authFetch, t]);
 
   // Live probes — call PanelBridge endpoints the World Map relies on and
   // record latency/count/sample for the diagnostics UI.
@@ -1064,7 +1043,7 @@ export default function Debug() {
         };
         if (res && res.success === false) {
           const msg =
-            res.error || res.message || "Bridge returned success=false";
+            res.error || res.message || t('static.ui.bridgeReturnedFailure');
           setProbeResults((prev) => ({
             ...prev,
             [id]: {
@@ -1089,7 +1068,7 @@ export default function Debug() {
           },
         }));
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Request failed";
+        const msg = error instanceof Error ? error.message : t('static.ui.requestFailed');
         setProbeResults((prev) => ({
           ...prev,
           [id]: {
@@ -1104,7 +1083,7 @@ export default function Debug() {
         setProbeLoading(null);
       }
     },
-    [],
+    [t],
   );
 
   const probePlayers = useCallback(
@@ -1294,9 +1273,9 @@ export default function Debug() {
         await fn();
         toast({ title: successTitle, description: successDesc });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Action failed";
+        const msg = error instanceof Error ? error.message : dt('ui.actionFailed');
         toast({
-          title: "Action failed",
+          title: dt('ui.actionFailed'),
           description: msg,
           variant: "destructive",
         });
@@ -1382,12 +1361,12 @@ export default function Debug() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.content !== undefined && data.content !== null) {
-        setCrashLogContent(data.content || "(empty file)");
+        setCrashLogContent(data.content || t('static.ui.emptyFile'));
       } else {
-        setCrashLogContent("Failed to load crash log content");
+        setCrashLogContent(t('static.ui.crashContentLoadFailed'));
       }
     } catch {
-      setCrashLogContent("Failed to load crash log content");
+      setCrashLogContent(t('static.ui.crashContentLoadFailed'));
     } finally {
       setLoadingCrashLog(false);
     }
@@ -1635,8 +1614,11 @@ export default function Debug() {
         a.click();
 
         toast({
-          title: "Exported",
-          description: `${filteredLogs.length} log entries exported as ${format.toUpperCase()}`,
+          title: t('static.ui.exported'),
+          description: t('static.ui.logsExported', {
+            count: filteredLogs.length,
+            format: format.toUpperCase(),
+          }),
         });
       } else {
         // Download full log file from server
@@ -1651,8 +1633,8 @@ export default function Debug() {
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to download logs",
+        title: t('static.ui.error'),
+        description: t('static.ui.downloadLogsFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1680,8 +1662,8 @@ export default function Debug() {
         a.remove();
       } catch (error) {
         toast({
-          title: "Error",
-          description: `Failed to download ${filename}`,
+          title: t('static.ui.error'),
+          description: t('static.ui.downloadFileFailed', { name: filename }),
           variant: "destructive",
         });
       } finally {
@@ -1691,7 +1673,7 @@ export default function Debug() {
         }
       }
     },
-    [authFetch, toast],
+    [authFetch, toast, t],
   );
 
   const downloadLogArchive = useCallback(async () => {
@@ -1712,8 +1694,8 @@ export default function Debug() {
       a.remove();
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to download log archive",
+        title: t('static.ui.error'),
+        description: t('static.ui.downloadArchiveFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1723,14 +1705,14 @@ export default function Debug() {
         window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 1000);
       }
     }
-  }, [authFetch, toast]);
+  }, [authFetch, toast, t]);
 
   const copyLogEntry = (log: LogEntry) => {
     const text = `[${log.timestamp.toISOString()}] [${log.level.toUpperCase()}] ${log.source ? `[${log.source}] ` : ""}${log.message}`;
     copyText(text);
     toast({
-      title: "Copied",
-      description: "Log entry copied to clipboard",
+      title: t('static.ui.copied'),
+      description: t('static.ui.logEntryCopied'),
     });
   };
 
@@ -1750,11 +1732,22 @@ export default function Debug() {
         case "relative": {
           const now = new Date();
           const diff = now.getTime() - date.getTime();
-          if (diff < 1000) return "just now";
-          if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
-          if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-          if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-          return `${Math.floor(diff / 86400000)}d ago`;
+          if (diff < 1000) return t('static.ui.justNow');
+          if (diff < 60000)
+            return t('static.ui.secondsAgo', {
+              count: Math.floor(diff / 1000),
+            });
+          if (diff < 3600000)
+            return t('static.ui.minutesAgo', {
+              count: Math.floor(diff / 60000),
+            });
+          if (diff < 86400000)
+            return t('static.ui.hoursAgo', {
+              count: Math.floor(diff / 3600000),
+            });
+          return t('static.ui.daysAgo', {
+            count: Math.floor(diff / 86400000),
+          });
         }
         case "time":
           return date.toLocaleTimeString();
@@ -1764,7 +1757,7 @@ export default function Debug() {
           return date.toLocaleTimeString();
       }
     },
-    [timeFormat],
+    [timeFormat, t],
   );
 
   const formatFileSize = (bytes: number) => {
@@ -1782,8 +1775,8 @@ export default function Debug() {
   const handleSavePaths = async () => {
     if (!newDataDir && !newLogsDir) {
       toast({
-        title: "Error",
-        description: "Please enter at least one path",
+        title: t('static.ui.error'),
+        description: t('static.ui.enterPath'),
         variant: "destructive",
       });
       return;
@@ -1805,7 +1798,7 @@ export default function Debug() {
 
       if (data.success) {
         toast({
-          title: "Paths Updated",
+          title: t('static.ui.pathsUpdated'),
           description: data.message,
           variant: "success" as const,
         });
@@ -1813,16 +1806,16 @@ export default function Debug() {
         fetchSystemInfo();
       } else {
         toast({
-          title: "Error",
-          description: data.error || "Failed to update paths",
+          title: t('static.ui.error'),
+          description: data.error || t('static.ui.updatePathsFailed'),
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
-        title: "Error",
+        title: t('static.ui.error'),
         description:
-          error instanceof Error ? error.message : "Failed to update paths",
+          error instanceof Error ? error.message : t('static.ui.updatePathsFailed'),
         variant: "destructive",
       });
     } finally {
@@ -1903,14 +1896,14 @@ export default function Debug() {
       const text = `[${ts}] [${entry.source}] ${entry.success ? "OK" : "FAIL"} ${entry.action}${durStr}\n${entry.detail}${argsStr}`;
       const ok = await copyText(text);
       toast({
-        title: ok ? "Copied" : "Copy failed",
+        title: ok ? t('static.ui.copied') : t('static.ui.copyFailed'),
         description: ok
-          ? "Activity entry copied to clipboard."
-          : "Could not copy. Select the row and press Ctrl+C.",
+          ? t('static.ui.activityEntryCopied')
+          : t('static.ui.activityCopyFailed'),
         variant: ok ? ("success" as const) : "destructive",
       });
     },
-    [toast],
+    [toast, t],
   );
 
   // Performance stats — averages, peaks, span — derived from history
@@ -1985,11 +1978,13 @@ export default function Debug() {
     a.remove();
     window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
     toast({
-      title: "Exported",
-      description: `${performanceHistory.length} snapshots exported as CSV.`,
+      title: t('static.ui.exported'),
+      description: t('static.ui.snapshotsExported', {
+        count: performanceHistory.length,
+      }),
       variant: "success" as const,
     });
-  }, [performanceHistory, perfRange, toast]);
+  }, [performanceHistory, perfRange, toast, t]);
 
   const getLevelIcon = (level: string) => {
     switch (level) {
@@ -2024,8 +2019,8 @@ export default function Debug() {
   return (
     <div className="space-y-6 page-transition">
       <PageHeader
-        title="Debug & Logs"
-        description="Live diagnostics, recent history, and environment details for this panel"
+        title={t("title")}
+        description={t("description")}
         icon={<Bug className="w-5 h-5 text-primary" />}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -2041,7 +2036,7 @@ export default function Debug() {
               ) : (
                 <Archive className="w-4 h-4" />
               )}
-              {downloadingLogArchive ? "Bundling…" : "Support Bundle (.zip)"}
+              {downloadingLogArchive ? t('static.ui.bundling') : t('static.ui.supportBundle')}
             </Button>
             <Button
               variant="outline"
@@ -2050,7 +2045,7 @@ export default function Debug() {
               className="gap-2"
             >
               <FileDown className="w-4 h-4" />
-              Full Log (.txt)
+              {t('static.ui.fullLog')}
             </Button>
           </div>
         }
@@ -2073,7 +2068,7 @@ export default function Debug() {
           {/* Zone: Now */}
           <TabsTrigger value="diagnostics" className="gap-2">
             <CheckCircle className="w-4 h-4" />
-            Diagnostics
+            {t('static.ui.diagnostics')}
             {diagnostics &&
               (diagnostics.summary.fail > 0 ||
                 diagnostics.summary.warn > 0) && (
@@ -2089,7 +2084,7 @@ export default function Debug() {
           </TabsTrigger>
           <TabsTrigger value="worldmap" className="gap-2">
             <MapIcon className="w-4 h-4" />
-            World Map
+            {t('static.ui.worldMap')}
             {worldMapDiag &&
               (worldMapDiag.summary.fail > 0 ||
                 worldMapDiag.summary.warn > 0) && (
@@ -2105,7 +2100,7 @@ export default function Debug() {
           </TabsTrigger>
           <TabsTrigger value="performance" className="gap-2">
             <TrendingUp className="w-4 h-4" />
-            Performance
+            {t('static.ui.performance')}
           </TabsTrigger>
 
           {/* Zone divider: Now → History */}
@@ -2117,15 +2112,15 @@ export default function Debug() {
           {/* Zone: History */}
           <TabsTrigger value="activity" className="gap-2">
             <Zap className="w-4 h-4" />
-            Activity
+            {t('static.ui.activity')}
           </TabsTrigger>
           <TabsTrigger value="logs" className="gap-2">
             <Terminal className="w-4 h-4" />
-            Logs
+            {t('static.ui.logs')}
           </TabsTrigger>
           <TabsTrigger value="crashes" className="gap-2">
             <AlertCircle className="w-4 h-4" />
-            Crashes
+            {t('static.ui.crashes')}
             {crashLogs.length > 0 && (
               <Badge variant="outline" className="ml-1 h-5 px-1.5 text-[10px]">
                 {crashLogs.length}
@@ -2142,11 +2137,11 @@ export default function Debug() {
           {/* Zone: System (panel self-introspection) */}
           <TabsTrigger value="health" className="gap-2">
             <Activity className="w-4 h-4" />
-            Health
+            {t('static.ui.health')}
           </TabsTrigger>
           <TabsTrigger value="system" className="gap-2">
             <Database className="w-4 h-4" />
-            Environment
+            {t('static.ui.environment')}
           </TabsTrigger>
         </TabsList>
 
@@ -2165,12 +2160,12 @@ export default function Debug() {
                     : "bg-muted/30 border-border";
             const overallLabel =
               overall === "fail"
-                ? "Issues need attention"
+                ? t('static.ui.issuesNeedAttention')
                 : overall === "warn"
-                  ? "Minor warnings"
+                  ? t('static.ui.minorWarnings')
                   : overall === "ok"
-                    ? "All systems operational"
-                    : "Running checks…";
+                    ? t('static.ui.allSystemsOperational')
+                    : t('static.ui.runningChecks');
             const OverallIcon =
               overall === "fail"
                 ? AlertCircle
@@ -2201,13 +2196,12 @@ export default function Debug() {
                         <CardDescription>
                           {diagnostics ? (
                             <>
-                              Last checked{" "}
+                              {t('static.ui.lastChecked')} {" "}
                               {formatTimestamp(new Date(diagnostics.timestamp))}{" "}
-                              · {diagnostics.durationMs}ms · auto-refreshes
-                              every 30s
+                              · {diagnostics.durationMs}ms · {t('static.ui.autoRefreshes')}
                             </>
                           ) : (
-                            "Running smart checks across services, paths, storage, and updates…"
+                            t('static.ui.smartChecksRunning')
                           )}
                         </CardDescription>
                       </div>
@@ -2240,7 +2234,7 @@ export default function Debug() {
                               variant="outline"
                               className="gap-1 text-muted-foreground"
                             >
-                              {summary.skip} skipped
+                              {summary.skip} {t('static.ui.skipped')}
                             </Badge>
                           )}
                         </div>
@@ -2251,7 +2245,7 @@ export default function Debug() {
                             checked={diagnosticsHideOk}
                             onCheckedChange={(v) => setDiagnosticsHideOk(!!v)}
                           />
-                          Hide passing
+                          {t('static.ui.hidePassing')}
                         </label>
                         <Button
                           variant="outline"
@@ -2265,7 +2259,7 @@ export default function Debug() {
                               refreshingDiagnostics && "animate-spin",
                             )}
                           />
-                          Re-run
+                          {t('static.ui.rerun')}
                         </Button>
                       </div>
                     </div>
@@ -2278,8 +2272,7 @@ export default function Debug() {
           {!diagnostics && refreshingDiagnostics && (
             <Card>
               <CardContent className="py-12 flex items-center justify-center text-muted-foreground gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Running
-                diagnostics…
+                <Loader2 className="w-4 h-4 animate-spin" /> {t('static.ui.runningDiagnostics')}
               </CardContent>
             </Card>
           )}
@@ -2328,7 +2321,7 @@ export default function Debug() {
                           {catMeta.label}
                         </CardTitle>
                         <span className="text-xs text-muted-foreground">
-                          {items.length} check{items.length === 1 ? "" : "s"}
+                          {t('static.ui.checksCount', { count: items.length })}
                         </span>
                       </div>
                     </CardHeader>
@@ -2377,7 +2370,7 @@ export default function Debug() {
                                       variant="outline"
                                       className="h-4 px-1 text-[10px] text-muted-foreground"
                                     >
-                                      skipped
+                                      {t('static.ui.skipped')}
                                     </Badge>
                                   )}
                                 </div>
@@ -2387,7 +2380,7 @@ export default function Debug() {
                                 {check.hint && (
                                   <p className="text-xs mt-1 text-foreground/70">
                                     <span className="font-medium text-foreground/90">
-                                      Fix:
+                                      {t('static.ui.fix')}
                                     </span>{" "}
                                     {check.hint}
                                   </p>
@@ -2424,7 +2417,7 @@ export default function Debug() {
                                         className="h-7 px-2 text-[11px]"
                                       >
                                         <Link to="/server-config">
-                                          Open Server Config
+                                          {dt('fix.openServerConfig')}
                                         </Link>
                                       </Button>
                                     )}
@@ -2435,7 +2428,7 @@ export default function Debug() {
                                         variant="ghost"
                                         className="h-7 px-2 text-[11px]"
                                       >
-                                        <Link to="/mods">Open Mods</Link>
+                                        <Link to="/mods">{t('openMods')}</Link>
                                       </Button>
                                     )}
                                     {fixAction.links?.map((link) => (
@@ -2474,8 +2467,8 @@ export default function Debug() {
                 <CardContent className="py-10">
                   <EmptyState
                     icon={<CheckCircle className="w-14 h-14 text-primary/60" />}
-                    title="All checks pass"
-                    description="Nothing to show with passing checks hidden. Uncheck 'Hide passing' to see the full report."
+                    title={t('checks.allPass')}
+                    description={t('checks.nothingToShow')}
                   />
                 </CardContent>
               </Card>
@@ -2497,12 +2490,12 @@ export default function Debug() {
                     : "bg-muted/30 border-border";
             const overallLabel =
               overall === "fail"
-                ? "World Map degraded"
+                ? t('static.ui.worldMapDegraded')
                 : overall === "warn"
-                  ? "World Map has warnings"
+                  ? t('static.ui.worldMapWarnings')
                   : overall === "ok"
-                    ? "World Map fully operational"
-                    : "Running map checks…";
+                    ? t('static.ui.worldMapOperational')
+                    : t('static.ui.runningMapChecks');
             const OverallIcon =
               overall === "fail"
                 ? AlertCircle
@@ -2513,9 +2506,9 @@ export default function Debug() {
                     : Loader2;
             const fmtAge = (ms: number | null) => {
               if (ms === null || ms === undefined) return "—";
-              if (ms < 1000) return "just now";
-              if (ms < 60_000) return `${Math.round(ms / 1000)}s ago`;
-              return `${Math.round(ms / 60_000)}m ago`;
+              if (ms < 1000) return t('static.ui.justNow');
+              if (ms < 60_000) return t('static.ui.secondsAgo', { count: Math.round(ms / 1000) });
+              return t('static.ui.minutesAgo', { count: Math.round(ms / 60_000) });
             };
             const lastRun = wm ? new Date(wm.timestamp) : null;
             const lastRunMs = lastRun ? lastRun.getTime() : null;
@@ -2554,8 +2547,8 @@ export default function Debug() {
             const copyPath = async (label: string, value: string) => {
               const ok = await copyText(value);
               toast({
-                title: ok ? `${label} copied` : "Copy failed",
-                description: ok ? value : "Could not access the clipboard.",
+                title: ok ? `${label} ${t('static.ui.copied').toLowerCase()}` : t('static.ui.copyFailed'),
+                description: ok ? value : t('static.ui.clipboardUnavailable'),
                 variant: ok ? "default" : "destructive",
               });
             };
@@ -2617,10 +2610,10 @@ export default function Debug() {
               }
               const ok = await copyText(lines.join("\n"));
               toast({
-                title: ok ? "Report copied" : "Copy failed",
+                title: ok ? t('static.ui.reportCopied') : t('static.ui.copyFailed'),
                 description: ok
-                  ? "Diagnostics report copied to clipboard."
-                  : "Could not access the clipboard.",
+                  ? t('static.ui.reportCopiedDesc')
+                  : t('static.ui.clipboardUnavailable'),
                 variant: ok ? "default" : "destructive",
               });
             };
@@ -2633,11 +2626,10 @@ export default function Debug() {
                         <AlertCircle className="w-6 h-6 text-destructive shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <h3 className="text-base font-semibold">
-                            Couldn't reach the diagnostics endpoint
+                            {t('static.ui.couldNotReachDiagnostics')}
                           </h3>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {worldMapError} — check that the panel backend is
-                            running and your session is still authenticated.
+                            {worldMapError} — {t('static.ui.backendAuthHint')}
                           </p>
                         </div>
                         <Button
@@ -2652,7 +2644,7 @@ export default function Debug() {
                               refreshingWorldMap && "animate-spin",
                             )}
                           />
-                          Retry
+                          {t('static.ui.retry')}
                         </Button>
                       </div>
                     </CardContent>
@@ -2683,8 +2675,7 @@ export default function Debug() {
                                 {overallLabel}
                               </h3>
                               <p className="text-sm text-muted-foreground">
-                                Live tile sources, PanelBridge data feed, and
-                                active save layout.
+                                {t('static.ui.liveTileSourcesDesc')}
                               </p>
                               {wm && (
                                 <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
@@ -2693,7 +2684,7 @@ export default function Debug() {
                                     className="bg-primary/10 border-primary/30 text-primary"
                                   >
                                     <CheckCircle className="w-3 h-3 mr-1" />{" "}
-                                    {wm.summary.ok} ok
+                                    {wm.summary.ok} {t('static.ui.ok')}
                                   </Badge>
                                   {wm.summary.warn > 0 && (
                                     <Badge
@@ -2701,13 +2692,13 @@ export default function Debug() {
                                       className="bg-warning/10 border-warning/30 text-warning"
                                     >
                                       <AlertTriangle className="w-3 h-3 mr-1" />{" "}
-                                      {wm.summary.warn} warn
+                                      {wm.summary.warn} {t('static.ui.warn')}
                                     </Badge>
                                   )}
                                   {wm.summary.fail > 0 && (
                                     <Badge variant="destructive">
                                       <AlertCircle className="w-3 h-3 mr-1" />{" "}
-                                      {wm.summary.fail} fail
+                                      {wm.summary.fail} {t('static.ui.failedLower')}
                                     </Badge>
                                   )}
                                   {wm.summary.skip > 0 && (
@@ -2715,18 +2706,18 @@ export default function Debug() {
                                       variant="outline"
                                       className="text-muted-foreground"
                                     >
-                                      {wm.summary.skip} skipped
+                                      {wm.summary.skip} {t('static.ui.skipped')}
                                     </Badge>
                                   )}
                                   <span className="text-muted-foreground">
                                     · {wm.durationMs} ms
                                     {lastRun &&
-                                      ` · checked ${fmtAge(sinceFetchMs)}`}
+                                      ` · ${t('static.ui.checked', { age: fmtAge(sinceFetchMs) })}`}
                                   </span>
                                   {refreshingWorldMap && (
                                     <span className="inline-flex items-center gap-1 text-muted-foreground">
                                       <Loader2 className="w-3 h-3 animate-spin" />
-                                      Refreshing…
+                                      {t('static.ui.refreshing')}
                                     </span>
                                   )}
                                 </div>
@@ -2737,7 +2728,7 @@ export default function Debug() {
                             <Button variant="outline" size="sm" asChild>
                               <Link to="/world-map">
                                 <ExternalLink className="w-4 h-4 mr-2" />
-                                Open World Map
+                                {t('static.ui.openWorldMap')}
                               </Link>
                             </Button>
                             <Button
@@ -2747,7 +2738,7 @@ export default function Debug() {
                               disabled={!wm}
                             >
                               <Copy className="w-4 h-4 mr-2" />
-                              Copy report
+                              {t('static.ui.copyReport')}
                             </Button>
                             <Button
                               variant="outline"
@@ -2761,7 +2752,7 @@ export default function Debug() {
                                   refreshingWorldMap && "animate-spin",
                                 )}
                               />
-                              Re-run
+                              {t('static.ui.rerun')}
                             </Button>
                           </div>
                         </div>
@@ -2782,8 +2773,8 @@ export default function Debug() {
                             <div className="min-w-0 flex-1">
                               <div className="text-sm font-semibold">
                                 {firstFix.status === "fail"
-                                  ? "Action needed"
-                                  : "Heads up"}
+                                  ? t('static.ui.actionNeeded')
+                                  : t('static.ui.headsUp')}
                                 : {firstFix.label}
                               </div>
                               <div className="text-xs text-muted-foreground mt-0.5">
@@ -2792,7 +2783,7 @@ export default function Debug() {
                               {firstFix.hint && (
                                 <div className="text-xs mt-1.5">
                                   <span className="font-semibold text-primary">
-                                    Fix:
+                                    {t('static.ui.fix')}
                                   </span>{" "}
                                   {firstFix.hint}
                                 </div>
@@ -2808,11 +2799,10 @@ export default function Debug() {
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
                           <Globe className="w-4 h-4 text-primary" />
-                          Tile sources
+                          {t('static.ui.tileSources')}
                         </CardTitle>
                         <CardDescription>
-                          The /api/map proxy fetches tiles server-side from
-                          these CDNs.
+                          {t('static.ui.tileSourcesDesc')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
@@ -2869,7 +2859,7 @@ export default function Debug() {
                                 {probe && (
                                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                                     <CopyablePath
-                                      label="Probe URL"
+                                      label={t('actions.probeUrl')}
                                       value={probe.url}
                                     />
                                     <a
@@ -2877,10 +2867,10 @@ export default function Debug() {
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-                                      title="Open the upstream URL in a new tab to verify reachability from your browser"
+                                      title={t('actions.openUrl')}
                                     >
                                       <ExternalLink className="w-3 h-3" />
-                                      Open
+                                      {t('static.ui.open')}
                                     </a>
                                   </div>
                                 )}
@@ -2893,7 +2883,7 @@ export default function Debug() {
                         <div className="mt-3 pt-3 border-t">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-muted-foreground">
-                              Live tile via panel proxy
+                              {t('static.ui.liveTileProxy')}
                             </span>
                             <Button
                               variant="ghost"
@@ -2908,7 +2898,7 @@ export default function Debug() {
                                 setWorldMapTilePreviewKey((k) => k + 1);
                               }}
                             >
-                              <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+                              <RefreshCw className="w-3 h-3 mr-1" /> {t('static.ui.refresh')}
                             </Button>
                           </div>
                           {(() => {
@@ -2961,7 +2951,7 @@ export default function Debug() {
                                                   : "text-warning",
                                               )}
                                             >
-                                              Failed
+                                              {dt('ui.failed')}
                                             </div>
                                           </div>
                                         ) : (
@@ -3004,12 +2994,12 @@ export default function Debug() {
                                               )}
                                             >
                                               <AlertCircle className="w-2.5 h-2.5" />{" "}
-                                              Tile failed
+                                              {dt('ui.tileFailed')}
                                             </span>
                                           ) : loaded ? (
                                             <span className="inline-flex items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                                               <CheckCircle className="w-2.5 h-2.5" />{" "}
-                                              Loaded
+                                              {dt('ui.loaded')}
                                               <span className="font-mono tabular-nums text-primary/80">
                                                 {meta!.w}×{meta!.h}
                                               </span>
@@ -3017,16 +3007,12 @@ export default function Debug() {
                                           ) : (
                                             <span className="inline-flex items-center gap-1 rounded-full border border-border/55 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                                               <Loader2 className="w-2.5 h-2.5 animate-spin" />{" "}
-                                              Loading…
+                                              {dt('ui.loading')}
                                             </span>
                                           )}
                                         </div>
                                         <p className="mt-1 text-[10px] text-muted-foreground/70 leading-tight">
-                                          Tile{" "}
-                                          <span className="font-mono">0_0</span>{" "}
-                                          is the empty map corner — a solid
-                                          color square here means the proxy
-                                          works.
+                                          {dt('ui.tileHint')}
                                         </p>
                                       </div>
                                     </div>
@@ -3044,11 +3030,10 @@ export default function Debug() {
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
                           <Wifi className="w-4 h-4 text-primary" />
-                          Live data feed
+                          {t('static.ui.liveDataFeed')}
                         </CardTitle>
                         <CardDescription>
-                          The map polls PanelBridge every 3s for player
-                          positions, vehicles and safehouses.
+                          {t('static.ui.liveDataFeedDesc')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -3056,36 +3041,36 @@ export default function Debug() {
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div className="p-2 rounded border bg-card">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                Configured
+                                {t('static.ui.configured')}
                               </div>
                               <div className="font-medium">
-                                {wm.bridge.configured ? "Yes" : "No"}
+                                {wm.bridge.configured ? t('static.ui.yes') : t('static.ui.no')}
                               </div>
                             </div>
                             <div className="p-2 rounded border bg-card">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                Service running
+                                {t('static.ui.serviceRunning')}
                               </div>
                               <div className="font-medium flex items-center gap-1">
                                 {wm.bridge.isRunning ? (
                                   <>
                                     <Wifi className="w-3 h-3 text-primary" />{" "}
-                                    Yes
+                                    {t('static.ui.yes')}
                                   </>
                                 ) : (
                                   <>
                                     <WifiOff className="w-3 h-3 text-muted-foreground" />{" "}
-                                    No
+                                    {t('static.ui.no')}
                                   </>
                                 )}
                               </div>
                             </div>
                             <div className="p-2 rounded border bg-card">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                Mod connected
+                                {t('static.ui.modConnected')}
                               </div>
                               <div className="font-medium">
-                                {wm.bridge.modConnected ? "Yes" : "No"}
+                                {wm.bridge.modConnected ? t('static.ui.yes') : t('static.ui.no')}
                               </div>
                             </div>
                             {(() => {
@@ -3116,11 +3101,11 @@ export default function Debug() {
                                       label,
                                     )}
                                   >
-                                    Last heartbeat
+                                    {t('static.ui.lastHeartbeat')}
                                   </div>
                                   <div className="font-medium">
                                     {fmtAge(age)}
-                                    {stale && " · stale"}
+                                    {stale && ` · ${t('static.ui.stale')}`}
                                   </div>
                                 </div>
                               );
@@ -3128,7 +3113,7 @@ export default function Debug() {
                             {wm.bridge.consecutiveFailures > 0 && (
                               <div className="col-span-2 p-2 rounded border border-warning/30 bg-warning/5">
                                 <div className="text-[10px] uppercase tracking-wide text-warning">
-                                  Consecutive failures
+                                  {t('static.ui.consecutiveFailures')}
                                 </div>
                                 <div className="font-medium">
                                   {wm.bridge.consecutiveFailures}
@@ -3138,22 +3123,20 @@ export default function Debug() {
                             {wm.bridge.bridgePath && (
                               <div className="col-span-2 p-2 rounded border bg-card">
                                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
-                                  Bridge path
+                                  {t('static.ui.bridgePath')}
                                 </div>
                                 <CopyablePath
-                                  label="Bridge path"
+                                  label={t('paths.bridge')}
                                   value={wm.bridge.bridgePath}
                                 />
                               </div>
                             )}
                             <div className="col-span-2 p-2 rounded border bg-card">
                               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                Required handlers
+                                {t('static.ui.requiredHandlers')}
                               </div>
                               <div className="text-[11px] text-muted-foreground mb-1.5">
-                                The map calls these PanelBridge commands. If
-                                they're missing in the in-game mod, players,
-                                vehicles or airdrops won't appear.
+                                {t('static.ui.requiredHandlersDesc')}
                               </div>
                               <div className="flex gap-1 flex-wrap">
                                 {wm.handlers.map((h) => (
@@ -3170,7 +3153,7 @@ export default function Debug() {
                           </div>
                         ) : (
                           <div className="text-sm text-muted-foreground">
-                            No bridge data — not configured.
+                            {t('static.ui.noBridgeData')}
                           </div>
                         )}
                       </CardContent>
@@ -3183,12 +3166,10 @@ export default function Debug() {
                           <div className="min-w-0">
                             <CardTitle className="flex items-center gap-2 text-base">
                               <PlayCircle className="w-4 h-4 text-primary" />
-                              Live data probes
+                              {t('static.ui.liveDataProbes')}
                             </CardTitle>
                             <CardDescription>
-                              Run the same PanelBridge calls the World Map page
-                              makes. Useful for confirming the mod is responding
-                              before troubleshooting on the map itself.
+                              {t('static.ui.liveDataProbesDesc')}
                             </CardDescription>
                           </div>
                           <Button
@@ -3203,7 +3184,7 @@ export default function Debug() {
                             ) : (
                               <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                             )}
-                            Probe all
+                            {t('static.ui.probeAll')}
                           </Button>
                         </div>
                       </CardHeader>
@@ -3212,28 +3193,28 @@ export default function Debug() {
                           [
                             {
                               id: "players",
-                              label: "Players online",
+                              label: t('static.ui.playersOnline'),
                               Icon: Users,
                               run: probePlayers,
                               unit: "player",
                             },
                             {
                               id: "vehicles",
-                              label: "Vehicles",
+                              label: t('static.ui.vehicles'),
                               Icon: Car,
                               run: probeVehicles,
                               unit: "vehicle",
                             },
                             {
                               id: "safehouses",
-                              label: "Safehouses",
+                              label: t('static.ui.safehouses'),
                               Icon: Home,
                               run: probeSafehouses,
                               unit: "safehouse",
                             },
                             {
                               id: "gameTime",
-                              label: "Game time",
+                              label: t('static.ui.gameTime'),
                               Icon: Clock,
                               run: probeGameTime,
                               unit: "",
@@ -3262,7 +3243,7 @@ export default function Debug() {
                                     >
                                       {id === "gameTime"
                                         ? (r.sample as { time?: string })
-                                            ?.time || "OK"
+                                            ?.time || t('static.ui.ok')
                                         : `${r.count ?? 0} ${unit}${(r.count ?? 0) === 1 ? "" : "s"}`}
                                     </Badge>
                                   )}
@@ -3272,7 +3253,7 @@ export default function Debug() {
                                       className="text-[10px] max-w-[18rem] truncate"
                                       title={r.error}
                                     >
-                                      {r.error || "Failed"}
+                                      {r.error || t('static.ui.failed')}
                                     </Badge>
                                   )}
                                   {r && (
@@ -3309,7 +3290,7 @@ export default function Debug() {
                                           </span>
                                           {p.alive === false && (
                                             <span className="text-destructive ml-1">
-                                              · dead
+                                              · {t('static.ui.dead')}
                                             </span>
                                           )}
                                           {p.access && p.access !== "None" && (
@@ -3323,19 +3304,14 @@ export default function Debug() {
                                         r.count >
                                           (r.sample as unknown[]).length && (
                                           <div className="opacity-60">
-                                            …and{" "}
-                                            {r.count -
-                                              (r.sample as unknown[])
-                                                .length}{" "}
-                                            more
+                                            {t('static.ui.more', { count: r.count - (r.sample as unknown[]).length })}
                                           </div>
                                         )}
                                     </div>
                                   )}
                                 {id === "players" && r?.ok && r.count === 0 && (
                                   <div className="text-[11px] text-muted-foreground mt-1 italic">
-                                    No players online — test actions disabled
-                                    until someone joins.
+                                    {t('static.ui.noPlayersActions')}
                                   </div>
                                 )}
                               </div>
@@ -3351,7 +3327,7 @@ export default function Debug() {
                                 ) : (
                                   <RefreshCw className="w-3.5 h-3.5" />
                                 )}
-                                <span className="ml-1.5">Probe</span>
+                                <span className="ml-1.5">{t('probe')}</span>
                               </Button>
                             </div>
                           );
@@ -3369,15 +3345,10 @@ export default function Debug() {
                           <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-base">
                               <Zap className="w-4 h-4 text-warning" />
-                              Test live actions
+                              {t('static.ui.testLiveActions')}
                             </CardTitle>
                             <CardDescription>
-                              These actions{" "}
-                              <span className="font-semibold text-warning">
-                                affect the live game world
-                              </span>{" "}
-                              and are visible to players. Click once to arm,
-                              click again within 4 seconds to fire.
+                              {t('static.ui.liveActionHint')}
                             </CardDescription>
                           </CardHeader>
                           <CardContent className="space-y-3">
@@ -3386,18 +3357,17 @@ export default function Debug() {
                                 <WifiOff className="w-3.5 h-3.5 text-destructive shrink-0 mt-0.5" />
                                 <div>
                                   <div className="font-medium text-destructive">
-                                    Bridge not connected
+                                    {t('static.ui.bridgeNotConnected')}
                                   </div>
                                   <div className="text-muted-foreground">
-                                    The PanelBridge mod must be running in-game.
-                                    Test actions are disabled.
+                                    {t('static.ui.bridgeRequiredForActions')}
                                   </div>
                                 </div>
                               </div>
                             )}
                             <div className="p-2 rounded border bg-card text-xs">
                               <span className="text-muted-foreground">
-                                Target:
+                                {t('static.ui.target')}
                               </span>{" "}
                               {firstPlayerCoords ? (
                                 <>
@@ -3410,19 +3380,18 @@ export default function Debug() {
                                   </span>
                                   {!firstPlayerCoords.alive && (
                                     <span className="text-destructive ml-1">
-                                      · dead
+                                      · {t('static.ui.dead')}
                                     </span>
                                   )}
                                 </>
                               ) : probeResults["players"]?.ok &&
                                 probeResults["players"]?.count === 0 ? (
                                 <span className="text-muted-foreground italic">
-                                  No players online.
+                                  {t('static.ui.noPlayers')}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground italic">
-                                  No player probed yet — run the Players probe
-                                  first.
+                                  {t('static.ui.noPlayerProbed')}
                                 </span>
                               )}
                             </div>
@@ -3432,7 +3401,7 @@ export default function Debug() {
                               <div className="flex items-center gap-2">
                                 <Package className="w-4 h-4 text-warning shrink-0" />
                                 <span className="text-sm font-medium">
-                                  Drop airdrop at first player
+                                  {t('static.ui.dropAirdrop')}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 flex-wrap">
@@ -3446,20 +3415,20 @@ export default function Debug() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="food">Food</SelectItem>
+                                    <SelectItem value="food">{t('food')}</SelectItem>
                                     <SelectItem value="medical">
-                                      Medical
+                                      {t('static.ui.medical')}
                                     </SelectItem>
                                     <SelectItem value="military">
-                                      Military
+                                      {t('static.ui.military')}
                                     </SelectItem>
                                     <SelectItem value="weapons">
-                                      Weapons
+                                      {t('static.ui.weapons')}
                                     </SelectItem>
                                     <SelectItem value="building">
-                                      Building
+                                      {t('static.ui.building')}
                                     </SelectItem>
-                                    <SelectItem value="tools">Tools</SelectItem>
+                                    <SelectItem value="tools">{t('tools')}</SelectItem>
                                   </SelectContent>
                                 </Select>
                                 <Button
@@ -3486,8 +3455,12 @@ export default function Debug() {
                                             announce: true,
                                             attractZombies: true,
                                           }),
-                                        "Airdrop deployed",
-                                        `${airdropPreset} package dropping at ${firstPlayerCoords.x}, ${firstPlayerCoords.y}.`,
+                                        t('static.ui.airdropDeployed'),
+                                        t('static.ui.airdropDropping', {
+                                          preset: airdropPreset,
+                                          x: firstPlayerCoords.x,
+                                          y: firstPlayerCoords.y,
+                                        }),
                                       ),
                                     )
                                   }
@@ -3498,8 +3471,8 @@ export default function Debug() {
                                     <Package className="w-3.5 h-3.5 mr-1.5" />
                                   )}
                                   {armedAction === "airdrop"
-                                    ? "Click again to confirm"
-                                    : "Drop now"}
+                                    ? t('static.ui.clickConfirm')
+                                    : t('static.ui.dropNow')}
                                 </Button>
                               </div>
                             </div>
@@ -3510,11 +3483,10 @@ export default function Debug() {
                                 <Volume2 className="w-4 h-4 text-warning shrink-0" />
                                 <div className="min-w-0">
                                   <div className="text-sm font-medium">
-                                    Gunshot near first player
+                                    {t('static.ui.gunshot')}
                                   </div>
                                   <div className="text-[11px] text-muted-foreground">
-                                    Plays a loud sound that attracts nearby
-                                    zombies.
+                                    {t('static.ui.gunshotDesc')}
                                   </div>
                                 </div>
                               </div>
@@ -3538,8 +3510,10 @@ export default function Debug() {
                                           x: firstPlayerCoords.x,
                                           y: firstPlayerCoords.y,
                                         }),
-                                      "Gunshot triggered",
-                                      `Played near ${firstPlayerCoords.name}.`,
+                                      t('static.ui.trigger'),
+                                      t('static.ui.playedNear', {
+                                        name: firstPlayerCoords.name,
+                                      }),
                                     ),
                                   )
                                 }
@@ -3550,8 +3524,8 @@ export default function Debug() {
                                   <Volume2 className="w-3.5 h-3.5 mr-1.5" />
                                 )}
                                 {armedAction === "gunshot"
-                                  ? "Click again to confirm"
-                                  : "Trigger"}
+                                  ? t('static.ui.clickConfirm')
+                                  : t('static.ui.trigger')}
                               </Button>
                             </div>
 
@@ -3561,10 +3535,10 @@ export default function Debug() {
                                 <Zap className="w-4 h-4 text-warning shrink-0" />
                                 <div className="min-w-0">
                                   <div className="text-sm font-medium">
-                                    Lightning near first player
+                                    {t('static.ui.lightning')}
                                   </div>
                                   <div className="text-[11px] text-muted-foreground">
-                                    Visible flash + thunder. Harmless.
+                                    {t('static.ui.lightningDesc')}
                                   </div>
                                 </div>
                               </div>
@@ -3592,8 +3566,11 @@ export default function Debug() {
                                           true,
                                           true,
                                         ),
-                                      "Lightning triggered",
-                                      `Strike at ${firstPlayerCoords.x}, ${firstPlayerCoords.y}.`,
+                                      t('static.ui.trigger'),
+                                      t('static.ui.strikeAt', {
+                                        x: firstPlayerCoords.x,
+                                        y: firstPlayerCoords.y,
+                                      }),
                                     ),
                                   )
                                 }
@@ -3604,8 +3581,8 @@ export default function Debug() {
                                   <Zap className="w-3.5 h-3.5 mr-1.5" />
                                 )}
                                 {armedAction === "lightning"
-                                  ? "Click again to confirm"
-                                  : "Trigger"}
+                                  ? t('static.ui.clickConfirm')
+                                  : t('static.ui.trigger')}
                               </Button>
                             </div>
                           </CardContent>
@@ -3618,11 +3595,10 @@ export default function Debug() {
                       <CardHeader className="pb-3">
                         <CardTitle className="flex items-center gap-2 text-base">
                           <FolderOpen className="w-4 h-4 text-primary" />
-                          Active save & build
+                          {t('static.ui.activeSaveBuild')}
                         </CardTitle>
                         <CardDescription>
-                          Detects B41 vs B42 layout so the map picks the correct
-                          tile source and projection.
+                          {t('static.ui.activeSaveBuildDesc')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -3630,7 +3606,7 @@ export default function Debug() {
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center gap-2">
                               <span className="text-muted-foreground">
-                                Detected build:
+                                {t('static.ui.detectedBuild')}
                               </span>
                               <Badge
                                 variant={
@@ -3648,13 +3624,13 @@ export default function Debug() {
                                 {wm.save.build.toUpperCase()}
                               </Badge>
                               <span className="text-muted-foreground text-xs">
-                                · {wm.save.saveCount} save(s)
+                                {t('static.ui.saves', { count: wm.save.saveCount })}
                               </span>
                             </div>
                             {wm.save.activeSaveName && (
                               <div className="text-xs">
                                 <span className="text-muted-foreground">
-                                  Sample save:
+                                  {t('static.ui.sampleSave')}
                                 </span>{" "}
                                 <code className="font-mono">
                                   {wm.save.activeSaveName}
@@ -3664,10 +3640,10 @@ export default function Debug() {
                             {wm.save.zomboidDataPath && (
                               <div className="text-xs">
                                 <span className="text-muted-foreground">
-                                  Zomboid data:
+                                  {t('static.ui.zomboidData')}
                                 </span>{" "}
                                 <CopyablePath
-                                  label="Zomboid data path"
+                                  label={t('paths.zomboidData')}
                                   value={wm.save.zomboidDataPath}
                                 />
                               </div>
@@ -3675,10 +3651,10 @@ export default function Debug() {
                             {wm.save.activeSavePath && (
                               <div className="text-xs">
                                 <span className="text-muted-foreground">
-                                  Save path:
+                                  {t('static.ui.savePath')}
                                 </span>{" "}
                                 <CopyablePath
-                                  label="Save path"
+                                  label={t('paths.savePath')}
                                   value={wm.save.activeSavePath}
                                 />
                               </div>
@@ -3686,7 +3662,7 @@ export default function Debug() {
                           </div>
                         ) : (
                           <div className="text-sm text-muted-foreground">
-                            No save data.
+                            {t('static.ui.noSaveData')}
                           </div>
                         )}
                       </CardContent>
@@ -3698,7 +3674,7 @@ export default function Debug() {
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <CardTitle className="flex items-center gap-2 text-base">
                             <CheckCircle className="w-4 h-4 text-primary" />
-                            Checks
+                            {t('static.ui.checks')}
                           </CardTitle>
                           {wm && wm.checks.length > 0 && (
                             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
@@ -3708,7 +3684,7 @@ export default function Debug() {
                                   setWorldMapHideOk(v === true)
                                 }
                               />
-                              Hide passing
+                              {t('static.ui.hidePassing')}
                             </label>
                           )}
                         </div>
@@ -3716,16 +3692,15 @@ export default function Debug() {
                       <CardContent>
                         {!wm ? (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                            <Loader2 className="w-4 h-4 animate-spin" /> Running
-                            map checks…
+                            <Loader2 className="w-4 h-4 animate-spin" /> {t('static.ui.runningMapChecks')}
                           </div>
                         ) : wm.checks.length === 0 ? (
                           <div className="text-sm text-muted-foreground py-4">
-                            No checks ran.
+                            {t('static.ui.noChecksRan')}
                           </div>
                         ) : visibleChecks.length === 0 ? (
                           <div className="flex items-center gap-2 text-sm text-primary py-4">
-                            <CheckCircle className="w-4 h-4" /> All checks pass.
+                            <CheckCircle className="w-4 h-4" /> {t('static.ui.allChecksPass')}
                           </div>
                         ) : (
                           <div className="space-y-1.5">
@@ -3769,7 +3744,7 @@ export default function Debug() {
                                     {c.hint && (
                                       <div className="text-xs mt-1 text-primary/80">
                                         <span className="font-semibold">
-                                          Fix:
+                                          {t('static.ui.fix')}
                                         </span>{" "}
                                         {c.hint}
                                       </div>
@@ -3797,11 +3772,10 @@ export default function Debug() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Zap className="w-5 h-5 text-primary" />
-                    Activity Log
+                    {t('static.ui.activityLog')}
                   </CardTitle>
                   <CardDescription>
-                    Unified view of RCON commands, Bridge actions, player
-                    events, and server events
+                    {t('static.ui.activityDescription')}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -3811,37 +3785,37 @@ export default function Debug() {
                   >
                     <SelectTrigger
                       className="w-[130px] h-8"
-                      aria-label="Filter by source"
+                      aria-label={t('activity.filterBySource')}
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">
-                        All Sources
+                        {t('allSources')}
                         {activityStats.total > 0
                           ? ` (${activityStats.total})`
                           : ""}
                       </SelectItem>
                       <SelectItem value="rcon">
-                        RCON
+                        {t('static.ui.rconSource')}
                         {activityStats.rcon > 0
                           ? ` (${activityStats.rcon})`
                           : ""}
                       </SelectItem>
                       <SelectItem value="bridge">
-                        Bridge
+                        {t('static.ui.bridgeSource')}
                         {activityStats.bridge > 0
                           ? ` (${activityStats.bridge})`
                           : ""}
                       </SelectItem>
                       <SelectItem value="player">
-                        Player
+                        {t('static.ui.playerSource')}
                         {activityStats.player > 0
                           ? ` (${activityStats.player})`
                           : ""}
                       </SelectItem>
                       <SelectItem value="server">
-                        Server
+                        {t('static.ui.serverSource')}
                         {activityStats.server > 0
                           ? ` (${activityStats.server})`
                           : ""}
@@ -3851,7 +3825,7 @@ export default function Debug() {
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="Search action / detail…"
+                      placeholder={t('activity.searchPlaceholder')}
                       value={activitySearch}
                       onChange={(e) => setActivitySearch(e.target.value)}
                       onKeyDown={(e) => {
@@ -3862,14 +3836,14 @@ export default function Debug() {
                       }}
                       className="w-[200px] h-8 pl-7 pr-7"
                       maxLength={200}
-                      aria-label="Search activity"
+                      aria-label={t('activity.search')}
                     />
                     {activitySearch && (
                       <button
                         type="button"
                         onClick={() => setActivitySearch("")}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label="Clear search"
+                        aria-label={t('activity.clearSearch')}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -3889,13 +3863,15 @@ export default function Debug() {
                         ) : (
                           <Pause className="w-3.5 h-3.5" />
                         )}
-                        {activityPaused ? "Resume" : "Live"}
+                        {activityPaused
+                          ? t('static.ui.resume')
+                          : t('static.ui.live')}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       {activityPaused
-                        ? "Resume auto-refresh (15s)"
-                        : "Pause auto-refresh"}
+                        ? t('static.ui.resumeAutoRefresh')
+                        : t('static.ui.pauseAutoRefresh')}
                     </TooltipContent>
                   </Tooltip>
                   <Button
@@ -3903,7 +3879,7 @@ export default function Debug() {
                     size="sm"
                     onClick={fetchActivity}
                     disabled={refreshingActivity}
-                    aria-label="Refresh now"
+                    aria-label={t('activity.refresh')}
                   >
                     <RefreshCw
                       className={cn(
@@ -3923,7 +3899,7 @@ export default function Debug() {
                     {activitySearch || activityResultFilter !== "all"
                       ? `${filteredActivityEntries.length} / ${activityStats.total}`
                       : activityStats.total}{" "}
-                    entries
+                    {t('static.ui.entries')}
                   </Badge>
                   <button
                     type="button"
@@ -3936,7 +3912,7 @@ export default function Debug() {
                     )}
                     aria-pressed={activityResultFilter === "all"}
                   >
-                    All
+                    {t('static.ui.all')}
                   </button>
                   <button
                     type="button"
@@ -3953,10 +3929,10 @@ export default function Debug() {
                         : "border-border/50 text-muted-foreground hover:border-success/40 hover:text-success",
                     )}
                     aria-pressed={activityResultFilter === "success"}
-                    title="Show only successful entries"
+                    title={t('filters.showSuccessful')}
                   >
                     <CheckCircle className="w-3 h-3" /> {activityStats.success}{" "}
-                    success
+                    {t('static.ui.success')}
                   </button>
                   <button
                     type="button"
@@ -3973,10 +3949,10 @@ export default function Debug() {
                         : "border-border/50 text-muted-foreground hover:border-destructive/40 hover:text-destructive",
                     )}
                     aria-pressed={activityResultFilter === "failed"}
-                    title="Show only failed entries"
+                    title={t('filters.showFailed')}
                   >
                     <AlertCircle className="w-3 h-3" /> {activityStats.failed}{" "}
-                    failed
+                    {t('static.ui.failedLower')}
                   </button>
                   {filteredActivityEntries.length > 0 && (
                     <Button
@@ -4000,11 +3976,13 @@ export default function Debug() {
                         expandedActivity.has(e.id),
                       ) ? (
                         <>
-                          <ChevronDown className="w-3 h-3" /> Collapse all
+                          <ChevronDown className="w-3 h-3" />
+                          {t('static.ui.collapseAll')}
                         </>
                       ) : (
                         <>
-                          <ChevronRight className="w-3 h-3" /> Expand all
+                          <ChevronRight className="w-3 h-3" />
+                          {t('static.ui.expandAll')}
                         </>
                       )}
                     </Button>
@@ -4019,7 +3997,10 @@ export default function Debug() {
                           : "text-muted-foreground/70",
                       )}
                     >
-                      {activityPaused ? "Paused · " : ""}Last refresh{" "}
+                      {activityPaused
+                        ? `${t('static.ui.paused')} · `
+                        : ""}
+                      {t('static.ui.lastRefresh')}{" "}
                       {activityLastLoaded.toLocaleTimeString()}
                     </span>
                   )}
@@ -4029,15 +4010,15 @@ export default function Debug() {
             <CardContent>
               {activityEntries.length === 0 ? (
                 <EmptyState
-                  title="No activity yet"
-                  description="Commands and events will appear here as the panel is used."
+                  title={t('activity.noActivity')}
+                  description={t('activity.description')}
                   icon={<Zap className="w-6 h-6" />}
                 />
               ) : filteredActivityEntries.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
                   <Search className="w-5 h-5 opacity-60" />
                   <p className="text-sm">
-                    No entries match the current filters.
+                    {t('static.ui.noEntriesMatch')}
                   </p>
                   <div className="flex gap-2">
                     {activitySearch && (
@@ -4047,7 +4028,7 @@ export default function Debug() {
                         onClick={() => setActivitySearch("")}
                         className="text-xs"
                       >
-                        Clear search
+                        {t('static.ui.clearSearch')}
                       </Button>
                     )}
                     {activityResultFilter !== "all" && (
@@ -4057,7 +4038,7 @@ export default function Debug() {
                         onClick={() => setActivityResultFilter("all")}
                         className="text-xs"
                       >
-                        Show all results
+                        {t('static.ui.showAllResults')}
                       </Button>
                     )}
                   </div>
@@ -4148,8 +4129,8 @@ export default function Debug() {
                                 copyActivityEntry(entry);
                               }}
                               className="shrink-0 mt-0.5 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                              aria-label="Copy entry"
-                              title="Copy entry"
+                              aria-label={t('actions.copyEntry')}
+                              title={t('actions.copyEntry')}
                             >
                               <Copy className="w-3.5 h-3.5" />
                             </button>
@@ -4165,14 +4146,14 @@ export default function Debug() {
                                 Object.keys(entry.args).length > 0 && (
                                   <div className="mb-1">
                                     <span className="text-muted-foreground">
-                                      Args:
+                                      {t('static.ui.args')}:
                                     </span>{" "}
                                     {JSON.stringify(entry.args)}
                                   </div>
                                 )}
                               <div>
                                 <span className="text-muted-foreground">
-                                  Detail:
+                                  {t('static.ui.detail')}:
                                 </span>{" "}
                                 {entry.detail}
                               </div>
@@ -4196,35 +4177,35 @@ export default function Debug() {
               const tiles = [
                 {
                   key: "all",
-                  label: "Total",
+                  label: t('static.ui.total'),
                   value: logStats.total,
                   tone: "muted",
                   Icon: Terminal,
                 },
                 {
                   key: "error",
-                  label: "Errors",
+                  label: t('errors'),
                   value: logStats.errors,
                   tone: "destructive",
                   Icon: AlertCircle,
                 },
                 {
                   key: "warn",
-                  label: "Warnings",
+                  label: t('warnings'),
                   value: logStats.warnings,
                   tone: "warning",
                   Icon: AlertTriangle,
                 },
                 {
                   key: "info",
-                  label: "Info",
+                  label: t('info'),
                   value: logStats.info,
                   tone: "primary",
                   Icon: Info,
                 },
                 {
                   key: "debug",
-                  label: "Debug",
+                  label: t('debug'),
                   value: logStats.debug,
                   tone: "muted",
                   Icon: Bug,
@@ -4268,7 +4249,7 @@ export default function Debug() {
                     role="button"
                     tabIndex={0}
                     aria-pressed={isActive}
-                    aria-label={`Filter: ${t.label}`}
+                    aria-label={`${dt('ui.filter')}: ${t.label}`}
                     onClick={() => setLevelFilter(t.key as typeof levelFilter)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -4319,18 +4300,20 @@ export default function Debug() {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <Terminal className="w-5 h-5" />
-                      Application Logs
+                      {t('static.ui.applicationLogs')}
                       {paused && (
                         <Badge variant="secondary" className="ml-2">
-                          Paused
+                          {t('static.ui.paused')}
                         </Badge>
                       )}
                     </CardTitle>
                     <CardDescription>
-                      Real-time logs • {filteredLogs.length} shown of{" "}
-                      {logs.length} total
+                      {t('static.ui.realTimeLogs', {
+                        shown: filteredLogs.length,
+                        total: logs.length,
+                      })}
                       <span className="ml-2 text-xs">
-                        (Ctrl+F to search, Space to pause)
+                        {t('static.ui.keyboardLogHint')}
                       </span>
                     </CardDescription>
                   </div>
@@ -4352,7 +4335,9 @@ export default function Debug() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {paused ? "Resume" : "Pause"} live updates
+                          {paused
+                            ? t('static.ui.resumeLiveUpdates')
+                            : t('static.ui.pauseLiveUpdates')}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -4374,7 +4359,7 @@ export default function Debug() {
                             />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Refresh logs</TooltipContent>
+                        <TooltipContent>{t('refreshLogs')}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
 
@@ -4390,20 +4375,20 @@ export default function Debug() {
                     >
                       <SelectTrigger className="w-full sm:w-[160px]">
                         <Download className="w-4 h-4 mr-2" />
-                        Export
+                        {t('static.ui.export')}
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="download" disabled>
-                          Export logs...
+                          {t('static.ui.exportLogs')}
                         </SelectItem>
                         <SelectItem value="full-txt">
-                          Full log file (.txt)
+                          {t('static.ui.fullLogFile')}
                         </SelectItem>
                         <SelectItem value="filtered-txt">
-                          Filtered view (.txt)
+                          {t('static.ui.filteredTxt')}
                         </SelectItem>
                         <SelectItem value="filtered-json">
-                          Filtered view (.json)
+                          {t('static.ui.filteredJson')}
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -4419,7 +4404,7 @@ export default function Debug() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Clear display</TooltipContent>
+                        <TooltipContent>{t('clearDisplay')}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -4432,17 +4417,17 @@ export default function Debug() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
                       ref={searchInputRef}
-                      placeholder="Search logs..."
+                      placeholder={t('logs.searchPlaceholder')}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-9 pr-8"
-                      aria-label="Search debug logs"
+                      aria-label={t('logs.search')}
                       maxLength={128}
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery("")}
-                        aria-label="Clear debug log search"
+                        aria-label={t('logs.clearSearch')}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
                         <X className="w-4 h-4" />
@@ -4458,24 +4443,24 @@ export default function Debug() {
                     }
                   >
                     <SelectTrigger className="w-full sm:w-[120px]">
-                      <SelectValue placeholder="Level" />
+                      <SelectValue placeholder={t('logs.levelPlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Levels</SelectItem>
-                      <SelectItem value="error">Errors</SelectItem>
-                      <SelectItem value="warn">Warnings</SelectItem>
-                      <SelectItem value="info">Info</SelectItem>
-                      <SelectItem value="debug">Debug</SelectItem>
+                      <SelectItem value="all">{t('allLevels')}</SelectItem>
+                      <SelectItem value="error">{t('errors')}</SelectItem>
+                      <SelectItem value="warn">{t('warnings')}</SelectItem>
+                      <SelectItem value="info">{t('info')}</SelectItem>
+                      <SelectItem value="debug">{t('debug')}</SelectItem>
                     </SelectContent>
                   </Select>
 
                   {/* Source Filter */}
                   <Select value={sourceFilter} onValueChange={setSourceFilter}>
                     <SelectTrigger className="w-full sm:w-[160px]">
-                      <SelectValue placeholder="Source" />
+                      <SelectValue placeholder={t('logs.sourcePlaceholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Sources</SelectItem>
+                      <SelectItem value="all">{t('allSources')}</SelectItem>
                       {availableSources.map((source) => (
                         <SelectItem key={source} value={source}>
                           {source}
@@ -4494,9 +4479,9 @@ export default function Debug() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="time">Time only</SelectItem>
-                      <SelectItem value="datetime">Date & Time</SelectItem>
-                      <SelectItem value="relative">Relative</SelectItem>
+                      <SelectItem value="time">{t('timeOnly')}</SelectItem>
+                      <SelectItem value="datetime">{t('dateTime')}</SelectItem>
+                      <SelectItem value="relative">{t('relative')}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -4511,7 +4496,7 @@ export default function Debug() {
                       htmlFor="auto-scroll"
                       className="text-sm cursor-pointer"
                     >
-                      Auto-scroll
+                      {t('static.ui.autoScroll')}
                     </Label>
                   </div>
                 </div>
@@ -4528,15 +4513,15 @@ export default function Debug() {
                       <EmptyState
                         compact
                         type="noData"
-                        title="No logs to display"
-                        description="Logs will appear here as the application runs."
+                        title={t('logs.noLogs')}
+                        description={t('logs.description')}
                       />
                     ) : (
                       <EmptyState
                         compact
                         type="noResults"
-                        title="No logs match your filters"
-                        description="Try adjusting your search or filter criteria."
+                        title={t('logs.noMatch')}
+                        description={t('empty.tryAdjusting')}
                       />
                     )
                   ) : (
@@ -4616,11 +4601,10 @@ export default function Debug() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
-                  Log Files on Disk
+                  {t('static.ui.logFilesOnDisk')}
                 </CardTitle>
                 <CardDescription>
-                  Download panel logs individually, or grab one support bundle
-                  with panel logs, Zomboid server logs, and crash files.
+                  {t('static.ui.logFilesDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -4633,14 +4617,13 @@ export default function Debug() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-primary">
-                          Recommended
+                          {t('static.ui.recommended')}
                         </p>
                         <p className="mt-0.5 text-sm font-semibold text-foreground">
-                          One-click support bundle
+                          {t('static.ui.oneClickBundle')}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Panel logs · Zomboid server logs · crash dumps ·
-                          diagnostics, all in a single .zip.
+                          {t('static.ui.bundleDescription')}
                         </p>
                       </div>
                     </div>
@@ -4656,7 +4639,9 @@ export default function Debug() {
                       ) : (
                         <Download className="w-4 h-4" />
                       )}
-                      {downloadingLogArchive ? "Bundling…" : "Download .zip"}
+                      {downloadingLogArchive
+                        ? t('static.ui.bundling')
+                        : t('static.ui.downloadZip')}
                     </Button>
                   </div>
                 </div>
@@ -4664,7 +4649,7 @@ export default function Debug() {
                 {/* Individual files */}
                 <div>
                   <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Individual files{" "}
+                    {t('static.ui.individualFiles')}{" "}
                     <span className="ml-1 font-mono tabular-nums normal-case tracking-normal text-muted-foreground/70">
                       · {logFiles.length}
                     </span>
@@ -4698,11 +4683,13 @@ export default function Debug() {
                           variant="outline"
                           size="sm"
                           onClick={() => downloadLogFile(file.name)}
-                          aria-label={`Download ${file.name}`}
+                          aria-label={t('static.ui.downloadFileAria', {
+                            name: file.name,
+                          })}
                           className="gap-1.5 shrink-0"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Download</span>
+                          <span className="hidden sm:inline">{t('download')}</span>
                         </Button>
                       </div>
                     ))}
@@ -4730,7 +4717,7 @@ export default function Debug() {
                             : "text-muted-foreground",
                         )}
                       />
-                      Crash Logs
+                      {t('static.ui.crashLogs')}
                       {crashLogs.length > 0 && (
                         <Badge variant="destructive" className="ml-1">
                           {crashLogs.length}
@@ -4738,7 +4725,7 @@ export default function Debug() {
                       )}
                     </CardTitle>
                     <CardDescription>
-                      Java crash dumps and error logs.
+                      {t('static.ui.crashDescription')}
                     </CardDescription>
                   </div>
                   <Button
@@ -4746,7 +4733,7 @@ export default function Debug() {
                     size="sm"
                     onClick={fetchCrashLogs}
                     disabled={refreshingCrashLogs}
-                    aria-label="Refresh crash logs"
+                    aria-label={t('crashes.refresh')}
                   >
                     <RefreshCw
                       className={cn(
@@ -4762,8 +4749,8 @@ export default function Debug() {
                   <EmptyState
                     compact
                     type="noData"
-                    title="No crash logs found"
-                    description="That's good news!"
+                    title={t('crashes.noCrashLogs')}
+                    description={t('crashes.goodNews')}
                   />
                 ) : (
                   <ScrollArea className="h-[calc(100vh-360px)] min-h-[300px]">
@@ -4799,7 +4786,7 @@ export default function Debug() {
                                     variant="destructive"
                                     className="text-[10px] h-5 shrink-0"
                                   >
-                                    NEW
+                                    {t('static.ui.newBadge')}
                                   </Badge>
                                 )}
                               </div>
@@ -4830,7 +4817,7 @@ export default function Debug() {
                   <CardTitle className="flex items-center gap-2 min-w-0">
                     <FileText className="w-5 h-5 shrink-0" />
                     <span className="truncate">
-                      {selectedCrashLog || "Crash Log Viewer"}
+                      {selectedCrashLog || t('static.ui.crashLogViewer')}
                     </span>
                   </CardTitle>
                   {selectedCrashLog && !loadingCrashLog && crashLogContent && (
@@ -4843,10 +4830,14 @@ export default function Debug() {
                             onClick={async () => {
                               const ok = await copyText(crashLogContent);
                               toast({
-                                title: ok ? "Copied" : "Copy failed",
+                                title: ok
+                                  ? t('static.ui.copied')
+                                  : t('static.ui.copyFailed'),
                                 description: ok
-                                  ? `${selectedCrashLog} copied to clipboard.`
-                                  : "Could not access clipboard.",
+                                  ? t('static.ui.crashCopied', {
+                                      name: selectedCrashLog,
+                                    })
+                                  : t('static.ui.clipboardUnavailable'),
                                 variant: ok
                                   ? ("success" as const)
                                   : "destructive",
@@ -4856,7 +4847,7 @@ export default function Debug() {
                             <Copy className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy contents</TooltipContent>
+                        <TooltipContent>{t('copyContents')}</TooltipContent>
                       </Tooltip>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -4883,7 +4874,7 @@ export default function Debug() {
                             <Download className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Download file</TooltipContent>
+                        <TooltipContent>{t('downloadFile')}</TooltipContent>
                       </Tooltip>
                     </div>
                   )}
@@ -4892,7 +4883,7 @@ export default function Debug() {
               <CardContent>
                 {!selectedCrashLog ? (
                   <div className="h-[calc(100vh-360px)] min-h-[300px] flex items-center justify-center text-muted-foreground">
-                    Select a crash log to view its contents
+                    {t('static.ui.selectCrashLog')}
                   </div>
                 ) : loadingCrashLog ? (
                   <div className="h-[calc(100vh-360px)] min-h-[300px] flex items-center justify-center">
@@ -4918,12 +4909,16 @@ export default function Debug() {
               <Activity className="w-4 h-4" />
               {performanceStats.spanMs > 0 ? (
                 <span>
-                  Showing {performanceHistory.length} snapshots over{" "}
-                  {formatUptime(Math.round(performanceStats.spanMs / 1000))}
+                  {t('static.ui.showingSnapshots', {
+                    count: performanceHistory.length,
+                    duration: formatUptime(
+                      Math.round(performanceStats.spanMs / 1000),
+                    ),
+                  })}
                 </span>
               ) : (
                 <span>
-                  Performance snapshots are recorded every 60 seconds.
+                  {t('static.ui.snapshotRecording')}
                 </span>
               )}
             </div>
@@ -4934,15 +4929,15 @@ export default function Debug() {
               >
                 <SelectTrigger
                   className="w-[110px] h-8"
-                  aria-label="Time range"
+                  aria-label={t('performance.timeRange')}
                 >
                   <Clock className="w-3.5 h-3.5 mr-1" />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1h">Last hour</SelectItem>
-                  <SelectItem value="6h">Last 6h</SelectItem>
-                  <SelectItem value="24h">Last 24h</SelectItem>
+                  <SelectItem value="1h">{t('lastHour')}</SelectItem>
+                  <SelectItem value="6h">{t('last6h')}</SelectItem>
+                  <SelectItem value="24h">{t('last24h')}</SelectItem>
                 </SelectContent>
               </Select>
               <Tooltip>
@@ -4956,7 +4951,7 @@ export default function Debug() {
                     <Download className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Export as CSV</TooltipContent>
+                <TooltipContent>{t('exportAsCsv')}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -4965,7 +4960,7 @@ export default function Debug() {
                     size="sm"
                     onClick={fetchPerformanceHistory}
                     disabled={refreshingPerformance}
-                    aria-label="Refresh"
+                    aria-label={t('performance.refresh')}
                   >
                     <RefreshCw
                       className={cn(
@@ -4975,7 +4970,7 @@ export default function Debug() {
                     />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Refresh now</TooltipContent>
+                <TooltipContent>{t('refreshNow')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -5014,7 +5009,8 @@ export default function Debug() {
                     ? "warning"
                     : null
                 : null;
-            const fmtBool = (b: boolean) => (b ? "Running" : "Stopped");
+            const fmtBool = (b: boolean) =>
+              b ? t('static.ui.running') : t('static.ui.stopped');
             return (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <Card
@@ -5025,7 +5021,7 @@ export default function Debug() {
                 >
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Host RAM
+                      {t('static.ui.hostRam')}
                     </p>
                     <p
                       className={cn(
@@ -5036,12 +5032,14 @@ export default function Debug() {
                     >
                       {latest?.hostMemUsedGB != null
                         ? `${latest.hostMemUsedGB} / ${latest.hostMemGB} GB`
-                        : "N/A"}
+                        : t('static.ui.na')}
                     </p>
                     {performanceStats.hostGB.avg != null && (
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        avg {performanceStats.hostGB.avg.toFixed(1)} · max{" "}
-                        {performanceStats.hostGB.max!.toFixed(1)} GB
+                        {t('static.ui.avgMaxGb', {
+                          avg: performanceStats.hostGB.avg.toFixed(1),
+                          max: performanceStats.hostGB.max!.toFixed(1),
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -5054,7 +5052,7 @@ export default function Debug() {
                 >
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Host CPU
+                      {t('static.ui.hostCpu')}
                     </p>
                     <p
                       className={cn(
@@ -5063,12 +5061,16 @@ export default function Debug() {
                         cpuTone === "warning" && "text-warning",
                       )}
                     >
-                      {latest?.cpuLoad != null ? `${latest.cpuLoad}%` : "N/A"}
+                    {latest?.cpuLoad != null
+                      ? `${latest.cpuLoad}%`
+                      : t('static.ui.na')}
                     </p>
                     {performanceStats.cpu.avg != null && (
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        avg {performanceStats.cpu.avg.toFixed(1)}% · max{" "}
-                        {performanceStats.cpu.max!.toFixed(1)}%
+                        {t('static.ui.avgMaxPercent', {
+                          avg: performanceStats.cpu.avg.toFixed(1),
+                          max: performanceStats.cpu.max!.toFixed(1),
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -5081,7 +5083,7 @@ export default function Debug() {
                 >
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      PZ Server RAM
+                      {t('static.ui.pzServerRam')}
                     </p>
                     <p
                       className={cn(
@@ -5092,11 +5094,13 @@ export default function Debug() {
                     >
                       {latest?.pzMemMB != null
                         ? `${(latest.pzMemMB / 1024).toFixed(1)} GB`
-                        : "N/A"}
+                        : t('static.ui.na')}
                     </p>
                     {performanceStats.pzMB.avg != null && (
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        avg {(performanceStats.pzMB.avg / 1024).toFixed(1)} GB
+                        {t('static.ui.avgGb', {
+                          value: (performanceStats.pzMB.avg / 1024).toFixed(1),
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -5104,16 +5108,18 @@ export default function Debug() {
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      PZ Peak
+                      {t('static.ui.pzPeak')}
                     </p>
                     <p className="text-xl font-bold mt-1">
                       {performanceStats.pzMB.max != null
                         ? `${(performanceStats.pzMB.max / 1024).toFixed(1)} GB`
-                        : "N/A"}
+                        : t('static.ui.na')}
                     </p>
                     {performanceStats.pzMB.count > 0 && (
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        across {performanceStats.pzMB.count} samples
+                        {t('static.ui.acrossSamples', {
+                          count: performanceStats.pzMB.count,
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -5121,15 +5127,17 @@ export default function Debug() {
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Players
+                      {t('static.ui.players')}
                     </p>
                     <p className="text-xl font-bold mt-1">
-                      {latest?.playerCount ?? "N/A"}
+                      {latest?.playerCount ?? t('static.ui.na')}
                     </p>
                     {performanceStats.players.max != null && (
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        peak {performanceStats.players.max} · avg{" "}
-                        {performanceStats.players.avg!.toFixed(1)}
+                        {t('static.ui.peakAvg', {
+                          peak: performanceStats.players.max,
+                          avg: performanceStats.players.avg!.toFixed(1),
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -5137,7 +5145,7 @@ export default function Debug() {
                 <Card>
                   <CardContent className="p-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                      Server
+                      {t('static.ui.server')}
                     </p>
                     <p
                       className={cn(
@@ -5147,11 +5155,12 @@ export default function Debug() {
                           : "text-muted-foreground",
                       )}
                     >
-                      {latest ? fmtBool(latest.serverRunning) : "N/A"}
+                      {latest ? fmtBool(latest.serverRunning) : t('static.ui.na')}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {performanceHistory.length}{" "}
-                      {performanceHistory.length === 1 ? "sample" : "samples"}
+                      {t('static.ui.samples', {
+                        count: performanceHistory.length,
+                      })}
                     </p>
                   </CardContent>
                 </Card>
@@ -5183,8 +5192,8 @@ export default function Debug() {
               <EmptyState
                 compact
                 type="noData"
-                title="Collecting data..."
-                description="Performance snapshots are recorded every 60 seconds. First data will appear shortly."
+                title={t('performance.collecting')}
+                description={t('performance.description')}
               />
             )}
           </Suspense>
@@ -5198,7 +5207,7 @@ export default function Debug() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                   <Activity className="w-5 h-5" />
-                  System Status
+                  {t('static.ui.systemStatus')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -5219,8 +5228,8 @@ export default function Debug() {
                   <div>
                     <p className="text-2xl font-bold">
                       {healthStatus?.status === "ok"
-                        ? "Healthy"
-                        : "Issues Detected"}
+                        ? t('static.ui.healthy')
+                        : t('static.ui.issuesDetected')}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {healthStatus?.timestamp ? (
@@ -5229,15 +5238,15 @@ export default function Debug() {
                             healthStatus.timestamp,
                           ).toLocaleString()}
                         >
-                          Last checked{" "}
+                          {t('static.ui.lastChecked')}{" "}
                           {formatTimestamp(new Date(healthStatus.timestamp))}
                         </span>
                       ) : (
-                        "Never checked"
+                        t('static.ui.neverChecked')
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      Auto-refreshes every 30s
+                      {t('static.ui.autoRefresh30s')}
                     </p>
                   </div>
                 </div>
@@ -5249,7 +5258,7 @@ export default function Debug() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                   <Database className="w-5 h-5" />
-                  Memory Usage
+                  {t('static.ui.memoryUsage')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -5276,7 +5285,7 @@ export default function Debug() {
                       <>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">
-                            Heap Used
+                            {t('static.ui.heapUsed')}
                           </span>
                           <span className="font-mono">
                             {formatMemory(healthStatus.memory.heapUsed)}
@@ -5284,7 +5293,7 @@ export default function Debug() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">
-                            Heap Allocated
+                            {t('static.ui.heapAllocated')}
                           </span>
                           <span className="font-mono">
                             {formatMemory(healthStatus.memory.heapTotal)}
@@ -5293,7 +5302,7 @@ export default function Debug() {
                         {heapLimit !== undefined && (
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                              Heap Limit
+                              {t('static.ui.heapLimit')}
                             </span>
                             <span className="font-mono">
                               {formatMemory(heapLimit)}
@@ -5301,7 +5310,7 @@ export default function Debug() {
                           </div>
                         )}
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">RSS</span>
+                          <span className="text-muted-foreground">{t('rss')}</span>
                           <span className="font-mono">
                             {formatMemory(healthStatus.memory.rss)}
                           </span>
@@ -5310,7 +5319,7 @@ export default function Debug() {
                           <>
                             <div className="flex justify-between text-xs">
                               <span className="text-muted-foreground">
-                                Heap usage (of limit)
+                                {t('static.ui.heapUsage')}
                               </span>
                               <span
                                 className={cn(
@@ -5348,7 +5357,7 @@ export default function Debug() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="w-5 h-5" />
-                  Services
+                  {t('static.ui.services')}
                 </CardTitle>
                 <Button
                   variant="outline"
@@ -5362,7 +5371,7 @@ export default function Debug() {
                       refreshingHealth && "animate-spin",
                     )}
                   />
-                  Refresh
+                  {t('static.ui.refresh')}
                 </Button>
               </div>
             </CardHeader>
@@ -5376,7 +5385,7 @@ export default function Debug() {
                     ) : (
                       <WifiOff className="w-5 h-5 text-destructive" />
                     )}
-                    <span className="font-medium">RCON</span>
+                    <span className="font-medium">{t('rcon')}</span>
                     <Badge
                       variant={
                         healthStatus?.services?.rcon?.connected
@@ -5386,13 +5395,12 @@ export default function Debug() {
                       className="ml-auto"
                     >
                       {healthStatus?.services?.rcon?.connected
-                        ? "Connected"
-                        : "Disconnected"}
+                        ? t('static.ui.connected')
+                        : t('static.ui.disconnected')}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Host:{" "}
-                    {healthStatus?.services?.rcon?.host || "Not configured"}
+                    {t('static.ui.host')}: {healthStatus?.services?.rcon?.host || t('static.ui.notConfigured')}
                   </p>
                 </div>
 
@@ -5402,7 +5410,7 @@ export default function Debug() {
                     <Server
                       className={`w-5 h-5 ${healthStatus?.services?.server?.running ? "text-primary" : "text-muted-foreground"}`}
                     />
-                    <span className="font-medium">Game Server</span>
+                    <span className="font-medium">{t('gameServer')}</span>
                     <Badge
                       variant={
                         healthStatus?.services?.server?.running
@@ -5412,12 +5420,12 @@ export default function Debug() {
                       className="ml-auto"
                     >
                       {healthStatus?.services?.server?.running
-                        ? "Running"
-                        : "Stopped"}
+                        ? t('static.ui.running')
+                        : t('static.ui.stopped')}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Project Zomboid dedicated server
+                    {t('static.ui.dedicatedServer')}
                   </p>
                 </div>
 
@@ -5427,7 +5435,7 @@ export default function Debug() {
                     <Settings
                       className={`w-5 h-5 ${healthStatus?.services?.modChecker?.running ? "text-primary" : "text-muted-foreground"}`}
                     />
-                    <span className="font-medium">Mod Checker</span>
+                    <span className="font-medium">{t('modChecker')}</span>
                     <Badge
                       variant={
                         healthStatus?.services?.modChecker?.running
@@ -5437,15 +5445,15 @@ export default function Debug() {
                       className="ml-auto"
                     >
                       {healthStatus?.services?.modChecker?.running
-                        ? "Active"
-                        : "Inactive"}
+                        ? t('static.ui.active')
+                        : t('static.ui.inactive')}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Interval:{" "}
+                    {t('static.ui.interval')} {" "}
                     {healthStatus?.services?.modChecker?.interval
                       ? `${Math.floor((healthStatus.services?.modChecker?.interval || 0) / 60000)}m`
-                      : "N/A"}
+                      : t('static.ui.na')}
                   </p>
                 </div>
               </div>
@@ -5457,7 +5465,7 @@ export default function Debug() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5" />
-                Uptime
+                {t('static.ui.uptime')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -5465,7 +5473,7 @@ export default function Debug() {
                 {healthStatus ? formatUptime(healthStatus.uptime) : "-"}
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Since{" "}
+                {t('static.ui.since')}{" "}
                 {healthStatus
                   ? new Date(
                       Date.now() - healthStatus.uptime * 1000,
@@ -5482,7 +5490,9 @@ export default function Debug() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Node.js</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {t('static.ui.nodeJs')}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-2xl font-bold">
@@ -5493,7 +5503,9 @@ export default function Debug() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Platform</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {t('static.ui.platform')}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-2xl font-bold">
@@ -5504,7 +5516,9 @@ export default function Debug() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Uptime</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {t('static.ui.uptime')}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-2xl font-bold">
@@ -5515,7 +5529,9 @@ export default function Debug() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Memory</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  {t('static.ui.memory')}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <span className="text-2xl font-bold">
@@ -5524,11 +5540,11 @@ export default function Debug() {
                     : "-"}
                 </span>
                 <p className="text-xs text-muted-foreground mt-1">
-                  of{" "}
-                  {systemInfo?.memoryUsage
-                    ? formatMemory(systemInfo.memoryUsage.heapTotal)
-                    : "-"}{" "}
-                  heap
+                  {t('static.ui.ofHeap', {
+                    value: systemInfo?.memoryUsage
+                      ? formatMemory(systemInfo.memoryUsage.heapTotal)
+                      : "-",
+                  })}
                 </p>
               </CardContent>
             </Card>
@@ -5541,15 +5557,15 @@ export default function Debug() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <FolderOpen className="w-4 h-4 text-warning" />
-                    File Paths
+                    {t('static.ui.filePaths')}
                   </CardTitle>
                   <CardDescription>
-                    Data and log file locations.
+                    {t('static.ui.filePathsDescription')}
                   </CardDescription>
                 </div>
                 {!editingPaths && (
                   <Button variant="outline" size="sm" onClick={handleEditPaths}>
-                    Change Paths
+                    {t('static.ui.changePaths')}
                   </Button>
                 )}
               </div>
@@ -5562,11 +5578,10 @@ export default function Debug() {
                       <AlertTriangle className="mt-0.5 w-4 h-4 shrink-0 text-warning" />
                       <div>
                         <p className="font-medium text-warning">
-                          Restart Required
+                          {t('static.ui.restartRequired')}
                         </p>
                         <p className="text-muted-foreground">
-                          Changing paths requires restarting the application to
-                          take effect.
+                          {t('static.ui.restartPathsDescription')}
                         </p>
                       </div>
                     </div>
@@ -5574,25 +5589,25 @@ export default function Debug() {
 
                   <div className="space-y-2">
                     <Label htmlFor="dataDir">
-                      Data Directory (contains db.json)
+                      {t('static.ui.dataDirectory')}
                     </Label>
                     <Input
                       id="dataDir"
                       value={newDataDir}
                       onChange={(e) => setNewDataDir(e.target.value)}
-                      placeholder="/opt/panel/data"
+                      placeholder={t('paths.dataPlaceholder')}
                       className="font-mono"
                       maxLength={260}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="logsDir">Logs Directory</Label>
+                    <Label htmlFor="logsDir">{t('logsDirectory')}</Label>
                     <Input
                       id="logsDir"
                       value={newLogsDir}
                       onChange={(e) => setNewLogsDir(e.target.value)}
-                      placeholder="/opt/panel/logs"
+                      placeholder={t('paths.logsPlaceholder')}
                       className="font-mono"
                       maxLength={260}
                     />
@@ -5608,10 +5623,10 @@ export default function Debug() {
                     />
                     <div>
                       <Label htmlFor="moveFiles" className="cursor-pointer">
-                        Move existing files to new location
+                        {t('static.ui.moveExistingFiles')}
                       </Label>
                       <p className="text-sm text-muted-foreground">
-                        Copy current data and logs to the new paths
+                        {t('static.ui.copyDataAndLogs')}
                       </p>
                     </div>
                   </div>
@@ -5627,14 +5642,14 @@ export default function Debug() {
                       ) : (
                         <Save className="w-4 h-4" />
                       )}
-                      Save Paths
+                      {t('static.ui.savePaths')}
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => setEditingPaths(false)}
                       disabled={savingPaths}
                     >
-                      Cancel
+                      {t('static.ui.cancel')}
                     </Button>
                   </div>
                 </div>
@@ -5642,7 +5657,7 @@ export default function Debug() {
                 <div className="space-y-3 font-mono text-sm">
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                     <span className="text-muted-foreground w-32 shrink-0">
-                      Database:
+                      {t('static.ui.database')}:
                     </span>
                     <span className="break-all flex-1">
                       {systemInfo?.dbPath || "-"}
@@ -5657,10 +5672,12 @@ export default function Debug() {
                             onClick={async () => {
                               const ok = await copyText(systemInfo.dbPath);
                               toast({
-                                title: ok ? "Copied" : "Copy failed",
+                                title: ok
+                                  ? t('static.ui.copied')
+                                  : t('static.ui.copyFailed'),
                                 description: ok
                                   ? systemInfo.dbPath
-                                  : "Could not access clipboard.",
+                                  : t('static.ui.clipboardUnavailable'),
                                 variant: ok
                                   ? ("success" as const)
                                   : "destructive",
@@ -5670,13 +5687,13 @@ export default function Debug() {
                             <Copy className="w-3.5 h-3.5" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy path</TooltipContent>
+                        <TooltipContent>{t('copyPath')}</TooltipContent>
                       </Tooltip>
                     )}
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                     <span className="text-muted-foreground w-32 shrink-0">
-                      Logs folder:
+                      {t('static.ui.logsFolder')}:
                     </span>
                     <span className="break-all flex-1">
                       {systemInfo?.logsPath || "-"}
@@ -5691,10 +5708,12 @@ export default function Debug() {
                             onClick={async () => {
                               const ok = await copyText(systemInfo.logsPath);
                               toast({
-                                title: ok ? "Copied" : "Copy failed",
+                                title: ok
+                                  ? t('static.ui.copied')
+                                  : t('static.ui.copyFailed'),
                                 description: ok
                                   ? systemInfo.logsPath
-                                  : "Could not access clipboard.",
+                                  : t('static.ui.clipboardUnavailable'),
                                 variant: ok
                                   ? ("success" as const)
                                   : "destructive",
@@ -5704,7 +5723,7 @@ export default function Debug() {
                             <Copy className="w-3.5 h-3.5" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Copy path</TooltipContent>
+                        <TooltipContent>{t('copyPath')}</TooltipContent>
                       </Tooltip>
                     )}
                   </div>

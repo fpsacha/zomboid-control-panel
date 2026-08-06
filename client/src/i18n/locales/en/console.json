@@ -1,0 +1,219 @@
+{
+  "title": "Server Console",
+  "subtitle": "View server logs and execute RCON commands",
+  "tabs": {
+    "console": "Console",
+    "logs": "Server Logs",
+    "commands": "Command History"
+  },
+  "actions": {
+    "send": "Send Command",
+    "clear": "Clear Console",
+    "pause": "Pause",
+    "resume": "Resume",
+    "filter": "Filter Logs",
+    "export": "Export Logs",
+    "copy": "Copy to Clipboard",
+    "openLogFile": "Open Log File",
+    "openLogFolder": "Open Log Folder"
+    ,"retry": "Retry"
+  },
+  "input": {
+    "placeholder": "Type a command...",
+    "sendButton": "Send",
+    "run": "run",
+    "keyboardHint": "enter · run · ↑↓ history",
+    "history": "Command History",
+    "templates": "Command Templates"
+  },
+  "templates": {
+    "title": "Command Templates",
+    "addTemplate": "Add Template",
+    "editTemplate": "Edit Template",
+    "deleteTemplate": "Delete Template",
+    "insertPlaceholder": "Insert placeholder: {player}, {target}, {message}, {item}, {count}, {reason}, {skill}, {xp}"
+  },
+  "filters": {
+    "all": "All Logs",
+    "error": "Errors",
+    "warning": "Warnings",
+    "info": "Info",
+    "debug": "Debug"
+  },
+  "logLevels": {
+    "error": "ERROR",
+    "warning": "WARN",
+    "info": "INFO",
+    "debug": "DEBUG",
+    "log": "LOG"
+  },
+  "rcon": {
+    "connected": "RCON Connected",
+    "disconnected": "RCON Disconnected",
+    "connecting": "Connecting to RCON...",
+    "reconnect": "Reconnect",
+    "status": "RCON Status",
+    "notConfigured": "rcon not configured",
+    "unknown": "unknown",
+    "online": "rcon online",
+    "offline": "rcon offline",
+    "recheck": "recheck",
+    "configureDescription": "Set the host, port, and password in My Servers before using live commands.",
+    "unreachableDescription": "Start the server, then confirm RCON host, port, and password in Panel Settings."
+  },
+  "history": {
+    "title": "Command History",
+    "noHistory": "No command history",
+    "clearHistory": "Clear History",
+    "deleteCommand": "Delete Command",
+    "searchPlaceholder": "Search command history..."
+  },
+  "messages": {
+    "commandSent": "Command sent",
+    "commandFailed": "Command failed",
+    "copied": "Copied to clipboard",
+    "logsExported": "Logs exported",
+    "cleared": "Console cleared",
+    "error": "Error",
+    "noResponse": "No response",
+    "commandFailed": "Command failed",
+    "historyUnavailableTitle": "History Unavailable",
+    "historyUnavailable": "Recent RCON command history could not be loaded.",
+    "logStreamUnavailable": "Log stream unavailable — server may be offline",
+    "logClearedTitle": "Log Cleared",
+    "logCleared": "Server console log has been cleared",
+    "clearLogFailed": "Failed to clear server log",
+    "broadcastSent": "Broadcast sent",
+    "broadcastSentTitle": "Broadcast Sent",
+    "broadcastSentToAll": "Your message was broadcast to all players",
+    "broadcastSentWithTag": "Sent with the [{{tag}}] tag",
+    "broadcastFailed": "Failed to send broadcast"
+  },
+  "shortcuts": {
+    "send": "Ctrl+Enter",
+    "history": "Up/Down arrows",
+    "clear": "Ctrl+L"
+  },
+  "emptyStates": {
+    "serverOffline": "Server console log not found",
+    "serverOfflineDesc": "Make sure the server is running",
+    "noCommands": "No commands yet",
+    "noCommandsDesc": "Run an RCON command to see the response here.",
+    "noHistory": "No command history",
+    "noHistoryDesc": "Commands you run will be logged here.",
+    "noActiveServer": "No active server configured"
+  },
+  "ariaLabels": {
+    "refreshLog": "Refresh log",
+    "executeCommand": "Execute command",
+    "channelTag": "Channel tag",
+    "broadcastMessage": "Broadcast message",
+    "serverConsoleOutput": "Server console output",
+    "rconCommandOutput": "RCON command output",
+    "rconCommandInput": "RCON command input"
+  },
+  "descriptions": {
+    "serverLogAndRcon": "Server log output and RCON commands",
+    "addOrSelectServer": "Add or select a server in My Servers before opening the console."
+  },
+  "autoScroll": {
+    "on": "Auto-scroll is ON — follows newest line",
+    "off": "Auto-scroll is OFF — click to follow newest line",
+    "enable": "Enable auto-scroll",
+    "disable": "Disable auto-scroll",
+    "follow": "follow {{state}}",
+    "onShort": "on",
+    "offShort": "off"
+  },
+  "pageTitle": "Console",
+  "clearTheLogDisplayDoesNotDeleteTheServerLogFile": "Clear the log display (does not delete the server log file)",
+  "clearTheVisibleOutputDoesNotDeleteHistory": "Clear the visible output (does not delete history)",
+  "path": "path",
+  "loading": "loading…",
+  "stream": "stream",
+  "noStreamOutput": "no stream output",
+  "link": "link",
+  "rconNotConfigured": "rcon not configured",
+  "hostUnreachable": "host unreachable",
+  "rconOutput": "rcon output",
+  "quick": "quick",
+  "broadcast": "broadcast",
+  "messageAllOnline": "message all online",
+  "serverLogUnavailable": {
+    "remoteTitle": "Server log unavailable for remote servers",
+    "remoteDescription": "Remote servers expose RCON only. Use the RCON tab for live commands.",
+    "pathTitle": "Server log path not configured",
+    "pathDescription": "Set the server install path or Zomboid data path in My Servers first."
+  },
+  "status": {
+    "checkingTarget": "checking server target",
+    "resumeAutoUpdate": "Resume auto-update",
+    "pauseAutoUpdate": "Pause auto-update",
+    "paused": "paused",
+    "live": "live",
+    "streaming": "streaming",
+    "updatesSuspended": "updates suspended",
+    "polling": "poll · 2s",
+    "checking": "checking…"
+  },
+  "filter": {
+    "showAllAria": "Show all messages (including noise)",
+    "repetitiveAria": "Filter out repetitive messages",
+    "hiddenTitle_one": "Hiding {{count}} repetitive line — click to show all",
+    "hiddenTitle_other": "Hiding {{count}} repetitive lines — click to show all",
+    "repetitiveTitle": "Filter out repetitive messages (joins, idle ticks, etc.)",
+    "count": "filter −{{count}}",
+    "label": "filter",
+    "all": "all",
+    "linesHidden": "{{count}} lines hidden by filter",
+    "showAll": "show all"
+  },
+  "counts": {
+    "shown": "shown",
+    "hidden": "hidden",
+    "loaded": "loaded",
+    "entries_one": "{{count}} entry",
+    "entries_other": "{{count}} entries"
+  },
+  "quickCommands": {
+    "players": "Players",
+    "save": "Save",
+    "showOptions": "Show Options",
+    "checkMods": "Check Mods",
+    "help": "Help",
+    "serverInfo": "Server Info",
+    "getMemory": "Get Memory"
+  },
+  "quickBroadcasts": {
+    "restart15": "Restart 15min",
+    "restart15Message": "SERVER RESTART in 15 minutes - Please find a safe location!",
+    "restart5": "Restart 5min",
+    "restart5Message": "SERVER RESTART in 5 minutes - Save your progress!",
+    "restart1": "Restart 1min",
+    "restart1Message": "SERVER RESTART in 1 minute - Disconnecting soon!",
+    "maintenance": "Maintenance",
+    "maintenanceMessage": "Server entering MAINTENANCE MODE - Please disconnect",
+    "backOnline": "Back Online",
+    "backOnlineMessage": "Server maintenance complete - Welcome back!",
+    "saveWarning": "Save Warning",
+    "saveWarningMessage": "Server is saving - Brief lag expected"
+  },
+  "channels": {
+    "all": "All players",
+    "allDescription": "No tag — plain broadcast",
+    "admin": "[ADMIN] tag",
+    "adminDescription": "Marks the message as admin",
+    "say": "[SAY] tag",
+    "sayDescription": "Cosmetic local-chat label",
+    "faction": "[FACTION] tag",
+    "factionDescription": "Cosmetic faction label",
+    "safehouse": "[SAFEHOUSE] tag",
+    "safehouseDescription": "Cosmetic safehouse label"
+  },
+  "broadcastInput": {
+    "allPlaceholder": "Write the message players should see…",
+    "taggedPlaceholder": "Tagged [{{tag}}] — write the message…",
+    "servermsgPrefix": "Sends via",
+    "servermsgSuffix": "Tags are cosmetic — RCON cannot route to real chat channels."
+  }
+}

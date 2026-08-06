@@ -26,6 +26,10 @@ import { Label } from '@/components/ui/label'
 import { cn, copyText } from '@/lib/utils'
 import { getUserErrorMessage } from '@/lib/errorMessage'
 import { VerdictBand, WorkList } from '@/components/dashboard/DashboardVerdict'
+import { useTranslation } from 'react-i18next'
+import i18n from '../i18n'
+
+
 import type { Verdict, WorkItem } from '@/components/dashboard/DashboardVerdict'
 
 /* -------------------------------------------------------------------------- */
@@ -62,19 +66,24 @@ const DASHBOARD_ONBOARDING_DISMISSED_KEY = 'pz-dashboard-onboarding-dismissed-v1
 
 /* -------------------------------------------------------------------------- */
 /*  Small helpers                                                             */
-/* -------------------------------------------------------------------------- */
+
+
 
 function getDashboardSuccessCopy(action: string) {
-  switch (action) {
-    case 'Start server':   return { title: 'Server starting',     description: 'Watch the dashboard for live status.' }
-    case 'Stop server':    return { title: 'Server stopped',      description: 'Session closed cleanly.' }
-    case 'Force stop server': return { title: 'Server force stopped', description: 'The game process was terminated without RCON.' }
-    case 'Restart server': return { title: 'Restart scheduled',   description: 'The server will restart shortly.' }
-    case 'Restart server now': return { title: 'Restart triggered', description: 'Hard restart command sent.' }
-    case 'Save world':     return { title: 'World saved',         description: 'Current state written to disk.' }
-    case 'Create backup':  return { title: 'Backup started',      description: 'Packaging a fresh recovery point.' }
-    case 'Connect RCON':   return { title: 'RCON connected',      description: 'Remote command control ready.' }
-    default:               return { title: 'Action complete',     description: `${action} completed successfully.` }
+  const actionResultMap: Record<string, string> = {
+    'Start server': 'startServer',
+    'Stop server': 'stopServer',
+    'Force stop server': 'forceStop',
+    'Restart server': 'restartServer',
+    'Restart server now': 'restartServerNow',
+    'Save world': 'saveWorld',
+    'Create backup': 'createBackup',
+    'Connect RCON': 'connectRcon',
+  }
+  const key = actionResultMap[action] || 'default'
+  return {
+    title: i18n.t(`actionResults.${key}.title`, { ns: 'dashboard' }),
+    description: i18n.t(`actionResults.${key}.description`, { ns: 'dashboard' }),
   }
 }
 
@@ -88,11 +97,11 @@ function isFailedActionResult(value: unknown): value is { success: false; error?
 function formatAge(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(ms / 60000)
-  if (mins < 1)  return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1)  return i18n.t('time.justNow', { ns: 'dashboard' })
+  if (mins < 60) return i18n.t('time.mAgo', { count: mins, ns: 'dashboard' })
   const hrs = Math.floor(mins / 60)
-  if (hrs < 24)  return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
+  if (hrs < 24)  return i18n.t('time.hAgo', { count: hrs, ns: 'dashboard' })
+  return i18n.t('time.dAgo', { count: Math.floor(hrs / 24), ns: 'dashboard' })
 }
 
 /** Countdown to a future moment. Returns null once the moment has passed. */
@@ -100,22 +109,22 @@ function formatEta(iso: string): string | null {
   const ms = new Date(iso).getTime() - Date.now()
   if (!Number.isFinite(ms) || ms < 0) return null
   const mins = Math.round(ms / 60000)
-  if (mins < 1) return 'any moment'
-  if (mins < 60) return `in ${mins}m`
+  if (mins < 1) return i18n.t('time.anyMoment', { ns: 'dashboard' })
+  if (mins < 60) return i18n.t('time.inM', { count: mins, ns: 'dashboard' })
   const hrs = Math.floor(mins / 60)
   const rem = mins % 60
-  if (hrs < 24) return rem ? `in ${hrs}h ${rem}m` : `in ${hrs}h`
-  return `in ${Math.floor(hrs / 24)}d`
+  if (hrs < 24) return rem ? i18n.t('time.inHM', { count: hrs, rem, ns: 'dashboard' }) : i18n.t('time.inH', { count: hrs, ns: 'dashboard' })
+  return i18n.t('time.inD', { count: Math.floor(hrs / 24), ns: 'dashboard' })
 }
 
 function eventStyle(action: string) {
   switch (action) {
-    case 'connect':    return { icon: <LogIn       className="h-3 w-3" />, tone: 'text-success',         verb: 'joined' }
-    case 'disconnect': return { icon: <LogOut      className="h-3 w-3" />, tone: 'text-destructive/85',  verb: 'left' }
-    case 'death':      return { icon: <Skull       className="h-3 w-3" />, tone: 'text-warning',         verb: 'died' }
-    case 'pvp_kill':   return { icon: <Sword       className="h-3 w-3" />, tone: 'text-warning',         verb: 'killed' }
-    case 'ban':        return { icon: <ShieldAlert className="h-3 w-3" />, tone: 'text-destructive',     verb: 'banned' }
-    case 'kick':       return { icon: <AlertCircle className="h-3 w-3" />, tone: 'text-warning',         verb: 'kicked' }
+    case 'connect':    return { icon: <LogIn       className="h-3 w-3" />, tone: 'text-success',         verb: i18n.t('activity.verbs.joined', { ns: 'dashboard' }) }
+    case 'disconnect': return { icon: <LogOut      className="h-3 w-3" />, tone: 'text-destructive/85',  verb: i18n.t('activity.verbs.left', { ns: 'dashboard' }) }
+    case 'death':      return { icon: <Skull       className="h-3 w-3" />, tone: 'text-warning',         verb: i18n.t('activity.verbs.died', { ns: 'dashboard' }) }
+    case 'pvp_kill':   return { icon: <Sword       className="h-3 w-3" />, tone: 'text-warning',         verb: i18n.t('activity.verbs.killed', { ns: 'dashboard' }) }
+    case 'ban':        return { icon: <ShieldAlert className="h-3 w-3" />, tone: 'text-destructive',     verb: i18n.t('activity.verbs.banned', { ns: 'dashboard' }) }
+    case 'kick':       return { icon: <AlertCircle className="h-3 w-3" />, tone: 'text-warning',         verb: i18n.t('activity.verbs.kicked', { ns: 'dashboard' }) }
     // Raw log actions read as SCREAMING_SNAKE. Say them like words.
     default:           return { icon: <Activity    className="h-3 w-3" />, tone: 'text-muted-foreground', verb: action.replace(/_/g, ' ').toLowerCase() }
   }
@@ -140,7 +149,7 @@ function ConnLine({
       <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', dot)} aria-hidden="true" />
       <span className="shrink-0 font-mono text-[11px] font-medium text-foreground/70">{label}</span>
       <span className={cn('min-w-0 flex-1 truncate text-right font-mono text-[11px] tabular-nums', valueTone)}>
-        {value ?? (state === 'on' ? 'connected' : state === 'wait' ? 'pending' : 'offline')}
+        {value ?? (state === 'on' ? i18n.t('statusPip.connected', { ns: 'dashboard' }) : state === 'wait' ? i18n.t('statusPip.pending', { ns: 'dashboard' }) : i18n.t('statusPip.offline', { ns: 'dashboard' }))}
       </span>
       {hint && <span className="shrink-0 font-mono text-[10px] text-muted-foreground/50">{hint}</span>}
     </div>
@@ -152,6 +161,9 @@ function ConnLine({
 /* -------------------------------------------------------------------------- */
 
 export default function Dashboard() {
+  const { t } = useTranslation('dashboard')
+  
+  
   /* ---------------------------- state ------------------------------------- */
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
@@ -221,7 +233,7 @@ export default function Dashboard() {
     if (!socket) return
     const handleAvailable = (data: { latestVersion?: string; currentVersion?: string; releaseUrl?: string }) => {
       setPanelUpdate(prev => ({
-        currentVersion: data.currentVersion || prev?.currentVersion || 'Unknown',
+        currentVersion: data.currentVersion || prev?.currentVersion || '',
         updateAvailable: true,
         latestVersion: data.latestVersion || prev?.latestVersion || null,
         releaseUrl: data.releaseUrl || prev?.releaseUrl || null,
@@ -246,8 +258,8 @@ export default function Dashboard() {
   }, [socket])
 
   const copyToClipboard = async (text: string, label: string) => {
-    try { await copyText(text); toast({ title: 'Copied', description: `${label} copied to clipboard`, duration: 2000 }) }
-    catch { toast({ title: 'Failed to copy', description: 'Could not copy to clipboard', variant: 'destructive' }) }
+    try { await copyText(text); toast({ title: t('clipboard.copied'), description: t('clipboard.copiedDescription', { label }), duration: 2000 }) }
+    catch { toast({ title: t('clipboard.failedToCopy'), description: t('clipboard.couldNotCopy'), variant: 'destructive' }) }
   }
 
   const dismissQuickStart = () => {
@@ -258,8 +270,8 @@ export default function Dashboard() {
   /* ---------------------------- fetchers ---------------------------------- */
   const fetchStatus = useCallback(async () => {
     try { const data = await serverApi.getStatus(); setStatus(data); setFetchError(null); setLastUpdated(new Date()) }
-    catch { setFetchError('Failed to connect to server.') }
-  }, [])
+    catch { setFetchError(t('errors.failedToConnect')) }
+  }, [t])
 
   usePageShortcut('r', () => { if (loading === null) fetchStatus() })
 
@@ -336,14 +348,14 @@ export default function Dashboard() {
     try {
       await configApi.updateAppSettings({ autoStartServer: String(checked) })
       toast({
-        title: checked ? 'Auto-start enabled' : 'Auto-start disabled',
+        title: checked ? t('autoStart.enabled') : t('autoStart.disabled'),
         description: checked
-          ? 'Server will start automatically when the panel launches'
-          : 'Server will not start automatically',
+          ? t('autoStart.enabledDescription')
+          : t('autoStart.disabledDescription'),
       })
     } catch {
       setAutoStartServer(!checked)
-      toast({ title: 'Error', description: 'Failed to save auto-start setting', variant: 'destructive' })
+      toast({ title: t('errors.errorTitle'), description: t('errors.failedToSaveAutoStart'), variant: 'destructive' })
     }
   }
 
@@ -360,13 +372,13 @@ export default function Dashboard() {
           fetchActiveServer(),
           fetchMaintenance(),
         ])
-      } catch { setFetchError('Failed to load dashboard status.'); setInitialLoading(false) }
+      } catch { setFetchError(t('errors.failedToLoad')); setInitialLoading(false) }
     }
     load()
 
     const loadingTimeout = setTimeout(() => {
       if (initialLoadingRef.current) {
-        setFetchError((c) => c ?? 'The dashboard is taking longer than expected to respond.')
+        setFetchError((c) => c ?? t('errors.slowResponse'))
         setInitialLoading(false)
       }
     }, 5000)
@@ -389,7 +401,7 @@ export default function Dashboard() {
       if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
     }
   }, [fetchStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity,
-      fetchAutoStartSetting, fetchActiveServer, fetchMaintenance])
+      fetchAutoStartSetting, fetchActiveServer, fetchMaintenance, t])
 
   useEffect(() => {
     if (!socket) return
@@ -493,7 +505,7 @@ export default function Dashboard() {
     try {
       const result = await fn()
       if (isFailedActionResult(result)) {
-        throw new Error(result.error || result.message || 'Action failed.')
+        throw new Error(result.error || result.message || i18n.t('errors:general.actionFailed'))
       }
       const copy = getDashboardSuccessCopy(action)
       toast({ title: copy.title, description: copy.description, variant: 'success' as const })
@@ -516,7 +528,7 @@ export default function Dashboard() {
         }, 2000)
       } else { fetchStatus() }
     } catch (error) {
-      toast({ title: 'Error', description: getUserErrorMessage(error, 'Action failed. Please try again.'), variant: 'destructive' })
+      toast({ title: t('errors.errorTitle'), description: getUserErrorMessage(error, i18n.t('errors:general.actionFailed')), variant: 'destructive' })
     } finally { setLoading(null) }
   }
   const handleConnect = async () => { await handleAction('Connect RCON', () => rconApi.connect()) }
@@ -527,7 +539,7 @@ export default function Dashboard() {
       <div className="page-transition">
         <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
           <RefreshCw className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">Establishing link…</p>
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">{t('establishingLink')}</p>
         </div>
       </div>
     )
@@ -562,7 +574,7 @@ export default function Dashboard() {
     const joined = joinedAt.get(player.name)
     if (!joined) return { name: player.name }
     const age = formatAge(joined)
-    return { name: player.name, since: age === 'just now' ? 'just joined' : `for ${age.replace(' ago', '')}` }
+    return { name: player.name, since: age === t('time.justNow') ? t('presence.justJoined') : t('presence.forDuration', { duration: age }) }
   })
 
   /* One verdict at a time, highest severity wins. Calm states say nothing at all. */
@@ -570,26 +582,26 @@ export default function Dashboard() {
     if (!hasServer || (status && !status.configured)) {
       return {
         level: 'warning',
-        headline: 'No server configured',
-        action: { label: 'Open setup', to: '/server-setup' },
+        headline: t('verdict.noServerConfigured'),
+        action: { label: t('openSetup').replace(' →', '').replace(' →', ''), to: '/server-setup' },
       }
     }
     if (fetchError) {
       return {
         level: 'critical',
-        headline: 'Panel cannot reach the server',
+        headline: t('verdict.panelCannotReach'),
         detail: fetchError,
-        action: { label: 'Retry', onClick: () => { void fetchStatus() } },
+        action: { label: t('verdict.retry'), onClick: () => { void fetchStatus() } },
       }
     }
     if (!online) {
       return {
         level: 'critical',
-        headline: 'Server stopped',
+        headline: t('verdict.serverStopped'),
         action: activeServer?.isRemote
           ? undefined
           : {
-              label: 'Start server',
+              label: t('verdict.startServer'),
               onClick: () => { void handleAction('Start server', serverApi.start) },
               busy: loading === 'Start server',
               disabled: loading !== null,
@@ -599,9 +611,9 @@ export default function Dashboard() {
     if (!status?.rcon?.connected) {
       return {
         level: 'warning',
-        headline: 'RCON disconnected',
+        headline: t('verdict.rconDisconnected'),
         action: {
-          label: 'Connect RCON',
+          label: t('actions.connectRcon'),
           onClick: () => { void handleConnect() },
           busy: loading === 'Connect RCON',
           disabled: loading !== null,
@@ -611,40 +623,40 @@ export default function Dashboard() {
     if (hostMemoryRatio != null && hostMemoryRatio >= 0.9) {
       return {
         level: 'critical',
-        headline: `Host memory ${Math.round(hostMemoryRatio * 100)}%`,
+        headline: t('verdict.hostMemoryPercent', { percent: Math.round(hostMemoryRatio * 100) }),
       }
     }
     /* A full disk corrupts saves and fails backups, so it outranks a busy CPU. */
     if (diskRatio != null && diskFreeGB != null && diskRatio >= 0.95) {
       return {
         level: 'critical',
-        headline: `Disk almost full, ${diskFreeGB.toFixed(0)} GB left`,
+        headline: t('verdict.diskAlmostFull', { free: diskFreeGB.toFixed(0) }),
       }
     }
     if (diskRatio != null && diskFreeGB != null && diskRatio >= 0.9) {
       return {
         level: 'warning',
-        headline: `Disk ${Math.round(diskRatio * 100)}%, ${diskFreeGB.toFixed(0)} GB left`,
+        headline: t('verdict.diskUsage', { percent: Math.round(diskRatio * 100), free: diskFreeGB.toFixed(0) }),
       }
     }
     if (hostCpu != null && hostCpu >= 90) {
       return {
         level: 'warning',
-        headline: `Host CPU ${hostCpu}%`,
+        headline: t('verdict.hostCpuPercent', { percent: hostCpu }),
       }
     }
     if (bridgeStatus?.configured && !bridgeStatus.modConnected) {
       return {
         level: 'warning',
-        headline: 'PanelBridge offline',
-        action: { label: 'Bridge settings', to: '/settings' },
+        headline: t('verdict.panelBridgeOffline'),
+        action: { label: t('actions.bridgeSettings'), to: '/settings' },
       }
     }
     if (modsPending) {
       return {
         level: 'warning',
-        headline: `${maintenance.modUpdatesAvailable} mod update${maintenance.modUpdatesAvailable === 1 ? '' : 's'} waiting`,
-        action: { label: 'Review mods', to: '/mods' },
+        headline: t('verdict.modsWaiting', { count: maintenance.modUpdatesAvailable }),
+        action: { label: t('verdict.reviewMods'), to: '/mods' },
       }
     }
     /* Game errors are reported by the Errors row, which is already coloured by
@@ -652,9 +664,9 @@ export default function Dashboard() {
     if (maintenance.schedulerLoaded && maintenance.backupCount === 0 && !activeServer?.isRemote) {
       return {
         level: 'warning',
-        headline: 'No backups',
+        headline: t('verdict.noBackups'),
         action: {
-          label: 'Create backup',
+          label: t('buttons.createBackup'),
           onClick: () => { void handleAction('Create backup', () => backupApi.createBackup({ includeDb: true }).then(() => fetchMaintenance())) },
           busy: loading === 'Create backup',
           disabled: loading !== null,
@@ -666,54 +678,54 @@ export default function Dashboard() {
 
   /* Readiness numbers live on the thing you act on, not in a read-only panel. */
   const backupState = maintenance.lastBackup
-    ? `${maintenance.backupCount} stored, last ${formatAge(maintenance.lastBackup.created)}`
+    ? t('backupState.storedLast', { count: maintenance.backupCount, age: formatAge(maintenance.lastBackup.created) })
     : maintenance.backupCount > 0
-      ? `${maintenance.backupCount} stored`
-      : 'none yet'
+      ? t('backupState.stored', { count: maintenance.backupCount })
+      : t('backupState.noneYet')
 
   /* A count of tasks is trivia. The next time something will happen is the
      thing that decides whether you can walk away from the server. */
   const nextRunEta = maintenance.nextRun ? formatEta(maintenance.nextRun.at) : null
   const scheduleState = nextRunEta && maintenance.nextRun
-    ? `${maintenance.nextRun.label} ${nextRunEta}`
+    ? t('scheduleState.nextRun', { label: maintenance.nextRun.label, eta: nextRunEta })
     : maintenance.scheduledTasksCount > 0
-      ? `${maintenance.scheduledTasksCount} active`
-      : 'none active'
+      ? t('scheduleState.active', { count: maintenance.scheduledTasksCount })
+      : t('scheduleState.noneActive')
 
   const errorCount = maintenance.errorCount
 
   const workItems: WorkItem[] = [
     {
-      to: '/players', icon: Activity, label: 'Players',
-      state: online ? String(players.length) : 'offline',
+      to: '/players', icon: Activity, label: t('onlinePlayers'),
+      state: online ? String(players.length) : t('workList.offline'),
       tone: !online ? 'bad' : players.length > 0 ? 'good' : 'default',
     },
     {
-      to: '/console', icon: Wifi, label: 'Console',
-      state: status?.rcon?.connected ? 'rcon ready' : 'rcon offline',
+      to: '/console', icon: Wifi, label: t('verdict.console'),
+      state: status?.rcon?.connected ? t('workList.rconReady') : t('workList.rconOffline'),
       tone: status?.rcon?.connected ? 'good' : 'warning',
     },
     {
-      to: '/mods', icon: Gamepad2, label: 'Mods',
-      state: modsPending ? `${maintenance.modUpdatesAvailable} to update` : `${maintenance.modsTracked} tracked`,
+      to: '/mods', icon: Gamepad2, label: t('verdict.mods'),
+      state: modsPending ? t('workList.toUpdate', { count: maintenance.modUpdatesAvailable }) : t('workList.tracked', { count: maintenance.modsTracked }),
       tone: modsPending ? 'warning' : 'default',
     },
     {
-      to: '/scheduler', icon: CalendarClock, label: 'Schedule',
+      to: '/scheduler', icon: CalendarClock, label: t('verdict.schedule'),
       state: scheduleState,
       tone: nextRunEta ? 'good' : maintenance.scheduledTasksCount > 0 ? 'good' : 'default',
     },
     ...(errorCount != null ? [{
-      to: '/console', icon: ScrollText, label: 'Errors',
-      state: errorCount === 0 ? 'none' : `${errorCount} logged`,
+      to: '/console', icon: ScrollText, label: t('verdict.errors'),
+      state: errorCount === 0 ? t('workList.none') : t('workList.logged', { count: errorCount }),
       tone: errorCount === 0 ? 'good' : errorCount >= 50 ? 'warning' : 'default',
     } as WorkItem] : []),
     {
-      to: '/backups', icon: Archive, label: 'Backups',
+      to: '/backups', icon: Archive, label: t('verdict.backups'),
       state: backupState,
       tone: maintenance.backupCount === 0 ? 'warning' : 'good',
     },
-    { to: '/server-config', icon: Server, label: 'Config' },
+    { to: '/server-config', icon: Server, label: t('verdict.config') },
   ]
 
   /* ====================================================================== */
@@ -723,7 +735,7 @@ export default function Dashboard() {
     <div className="page-transition pb-12">
       {/* ─── TOP STATUS BAR ───────────────────────────────────────── */}
       <header
-        aria-label="Server status"
+        aria-label={t('labels.serverStatus')}
         className="overflow-hidden rounded-lg border border-border/55 bg-card/45 shadow-sm"
       >
         {/* Main row */}
@@ -733,7 +745,7 @@ export default function Dashboard() {
             {/* One light for the whole page: green calm, amber attention, red broken. */}
             <span
               className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center"
-              title={verdict.headline ?? 'Everything nominal'}
+              title={verdict.headline ?? t('verdict.everythingNominal')}
             >
               <span
                 className={cn(
@@ -751,21 +763,21 @@ export default function Dashboard() {
                     : 'bg-success',
                 )}
               />
-              <span className="sr-only">{verdict.headline ?? 'Everything nominal'}</span>
+              <span className="sr-only">{verdict.headline ?? t('verdict.everythingNominal')}</span>
             </span>
 
-            <h1 className="min-w-0 truncate font-mono text-base font-semibold text-foreground" title={activeServer?.serverName ?? 'No active server'}>
-              {activeServer?.serverName ?? 'No active server'}
+            <h1 className="min-w-0 truncate font-mono text-base font-semibold text-foreground" title={activeServer?.serverName ?? t('verdict.noActiveServer')}>
+              {activeServer?.serverName ?? t('verdict.noActiveServer')}
             </h1>
 
             {/* Uptime */}
             {online && status && status.uptime > 0 && (
               <span className="hidden font-mono text-[11px] tabular-nums text-muted-foreground/60 sm:inline">
-                up {formatUptime(status.uptime)}
+                {t('uptimePrefix')} {formatUptime(status.uptime)}
               </span>
             )}
             {activeServer?.isRemote && (
-              <span className="rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">remote</span>
+              <span className="rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t('remote')}</span>
             )}
           </div>
 
@@ -773,39 +785,39 @@ export default function Dashboard() {
           <div className="order-3 -mx-4 -mb-3 flex w-[calc(100%+2rem)] flex-wrap items-center gap-1 border-t border-border/30 bg-background/20 px-3 py-1.5">
             {status?.localIp && (
               <button
-                onClick={() => copyToClipboard(`${status.localIp}${status.port ? `:${status.port}` : ''}`, 'LAN address')}
+                onClick={() => copyToClipboard(`${status.localIp}${status.port ? `:${status.port}` : ''}`, t('lan') + ' ' + t('labels.address'))}
                 className="group inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                aria-label={`Copy LAN address: ${status.localIp}${status.port ? `:${status.port}` : ''}`}
-                title="Connect from your home network"
+                aria-label={t('aria.copyAddress', { type: t('lan'), address: `${status.localIp}${status.port ? `:${status.port}` : ''}` })}
+                title={t('actions.connectLocal')}
               >
                 <Wifi className="h-3 w-3 text-emerald-500/70" />
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">LAN</span>
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">{t('lan')}</span>
                 <span className="font-mono text-[11px] tabular-nums">{status.localIp}{status.port ? `:${status.port}` : ''}</span>
                 <Copy className="h-2.5 w-2.5 shrink-0 opacity-35 transition-opacity group-hover:opacity-70" />
               </button>
             )}
             {status?.publicIp && (
               <button
-                onClick={() => copyToClipboard(`${status.publicIp}${status.port ? `:${status.port}` : ''}`, 'WAN address')}
+                onClick={() => copyToClipboard(`${status.publicIp}${status.port ? `:${status.port}` : ''}`, t('wan') + ' ' + t('labels.address'))}
                 className="group inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                aria-label={`Copy WAN address: ${status.publicIp}${status.port ? `:${status.port}` : ''}`}
-                title="Share this address with internet players"
+                aria-label={t('aria.copyAddress', { type: t('wan'), address: `${status.publicIp}${status.port ? `:${status.port}` : ''}` })}
+                title={t('actions.shareInternet')}
               >
                 <Globe className="h-3 w-3 text-amber-500/70" />
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">WAN</span>
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">{t('wan')}</span>
                 <span className="font-mono text-[11px] tabular-nums">{status.publicIp}{status.port ? `:${status.port}` : ''}</span>
                 <Copy className="h-2.5 w-2.5 shrink-0 opacity-35 transition-opacity group-hover:opacity-70" />
               </button>
             )}
             {panelInfo && (
               <button
-                onClick={() => copyToClipboard(panelInfo.url, 'Panel address')}
+                onClick={() => copyToClipboard(panelInfo.url, t('panel') + ' ' + t('labels.address'))}
                 className="group inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-                aria-label={`Copy panel address: ${panelInfo.url}`}
-                title="Open or copy the control panel address"
+                aria-label={t('aria.copyPanelAddress', { address: panelInfo.url })}
+                title={t('actions.openCopyPanel')}
               >
                 <Monitor className="h-3 w-3 text-primary/70" />
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">Panel</span>
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.12em] text-foreground/45">{t('panel')}</span>
                 <span className="font-mono text-[11px] tabular-nums">{panelInfo.localIp}:{panelInfo.port}</span>
                 <Copy className="h-2.5 w-2.5 shrink-0 opacity-35 transition-opacity group-hover:opacity-70" />
               </button>
@@ -814,11 +826,11 @@ export default function Dashboard() {
               <a
                 href={`steam://connect/${status.publicIp}:${status.port}`}
                 className="inline-flex items-center gap-1.5 rounded-sm px-2 py-1 text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
-                aria-label={`Join with Steam at ${status.publicIp}:${status.port}`}
-                title="Connect with Steam"
+                aria-label={t('aria.joinSteam', { address: `${status.publicIp}:${status.port}` })}
+                title={t('actions.connectSteam')}
               >
                 <Gamepad2 className="h-3 w-3 text-blue-400/70" />
-                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em]">Join</span>
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.1em]">{t('join')}</span>
               </a>
             )}
           </div>
@@ -832,17 +844,17 @@ export default function Dashboard() {
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 rounded-md border border-emerald-500/30 px-2.5 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:border-border/50 disabled:text-muted-foreground"
-              title={!hasServer ? 'Add or select a server first' : activeServer?.isRemote ? 'Not available for remote (RCON-only) servers' : undefined}
+              title={!hasServer ? t('actions.addOrSelectServerFirst') : activeServer?.isRemote ? t('confirm.notAvailableForRemote') : undefined}
             >
               {loading === 'Start server' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-              Start
+              {t('buttons.startServer')}
             </Button>
           ) : (
             <>
               <Button
                 onClick={() => setConfirmAction({
-                  title: 'Stop server',
-                  description: 'Are you sure you want to stop the server? All connected players will be disconnected.',
+                  title: t('confirm.stopServer.title'),
+                  description: t('confirm.stopServer.description'),
                   action: serverApi.stop,
                   variant: 'destructive',
                 })}
@@ -852,12 +864,12 @@ export default function Dashboard() {
                 className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
               >
                 {loading === 'Stop server' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
-                Stop
+                {t('confirm.stopServer.title')}
               </Button>
               <Button
                 onClick={() => setConfirmAction({
-                  title: 'Force stop server',
-                  description: `This will immediately kill the game process without saving.${players.length > 0 ? ` ${players.length} player(s) will be disconnected!` : ''}`,
+                  title: t('confirm.forceStop.title'),
+                  description: t('confirm.forceStop.description') + (players.length > 0 ? ' ' + t('confirm.forceStop.playersDisconnected', { count: players.length }) : ''),
                   action: serverApi.forceStop,
                   variant: 'destructive',
                 })}
@@ -865,15 +877,15 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
-                title={activeServer?.isRemote ? 'Not available for remote (RCON-only) servers' : 'Immediately stops the game without saving'}
+                title={activeServer?.isRemote ? t('confirm.notAvailableForRemote') : undefined}
               >
                 {loading === 'Force stop server' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Skull className="h-3.5 w-3.5" />}
-                Force stop
+                {t('confirm.forceStop.title')}
               </Button>
               <Button
                 onClick={() => setConfirmAction({
-                  title: 'Restart server',
-                  description: 'This will send a 5-minute warning to all players, then restart the server.',
+                  title: t('confirm.restartServer.title'),
+                  description: t('confirm.restartServer.description'),
                   action: () => serverApi.restart(5),
                   variant: 'warning',
                 })}
@@ -881,9 +893,9 @@ export default function Dashboard() {
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-amber-500/30 px-2.5 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 disabled:border-border/50 disabled:text-muted-foreground"
-                title={activeServer?.isRemote ? 'Not available for remote (RCON-only) servers' : undefined}
+                title={activeServer?.isRemote ? t('confirm.notAvailableForRemote') : undefined}
               >
-                <RotateCcw className="h-3.5 w-3.5" /> Restart
+                <RotateCcw className="h-3.5 w-3.5" /> {t('confirm.restartServer.title')}
               </Button>
               <Button
                 onClick={() => handleAction('Save world', serverApi.save)}
@@ -892,13 +904,13 @@ export default function Dashboard() {
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-sky-500/30 px-2.5 text-xs text-sky-400 hover:bg-sky-500/10 hover:text-sky-300 disabled:border-border/50 disabled:text-muted-foreground"
               >
-                <Save className="h-3.5 w-3.5" /> Save
+                <Save className="h-3.5 w-3.5" /> {t('buttons.saveWorld')}
               </Button>
             </>
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="h-8 w-8 border-border/60 text-muted-foreground hover:text-foreground" aria-label="More server actions">
+              <Button variant="outline" size="icon" className="h-8 w-8 border-border/60 text-muted-foreground hover:text-foreground" aria-label={t('labels.moreActions')}>
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
@@ -907,38 +919,38 @@ export default function Dashboard() {
                 onClick={() => handleAction('Create backup', () => backupApi.createBackup({ includeDb: true }).then(() => fetchMaintenance()))}
                 disabled={!hasServer || loading !== null || activeServer?.isRemote}
               >
-                <Archive className="mr-2 h-4 w-4" /> Create backup
+                <Archive className="mr-2 h-4 w-4" /> {t('buttons.createBackup')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={fetchStatus}>
-                <RefreshCw className="mr-2 h-4 w-4" /> Refresh status
+                <RefreshCw className="mr-2 h-4 w-4" /> {t('actions.refreshStatus')}
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings" className="flex items-center"><Server className="mr-2 h-4 w-4" /> Bridge settings</Link>
+                <Link to="/settings" className="flex items-center"><Server className="mr-2 h-4 w-4" /> {t('actions.bridgeSettings')}</Link>
               </DropdownMenuItem>
               {!status?.rcon?.connected && (
                 <DropdownMenuItem onClick={handleConnect} disabled={!hasServer || loading !== null}>
-                  <Wifi className="mr-2 h-4 w-4" /> Connect RCON
+                  <Wifi className="mr-2 h-4 w-4" /> {t('actions.connectRcon')}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setConfirmAction({
-                  title: 'Restart server now',
-                  description: `This will immediately restart the server without warning.${players.length > 0 ? ` ${players.length} player(s) will be disconnected!` : ''}`,
+                  title: t('confirm.restartServerNow.title'),
+                  description: t('confirm.restartServerNow.description') + (players.length > 0 ? ' ' + t('confirm.restartServerNow.playersDisconnected', { count: players.length }) : ''),
                   action: () => serverApi.restart(0),
                   variant: 'destructive',
                 })}
                 disabled={!hasServer || !online || loading !== null || activeServer?.isRemote}
                 className="text-destructive focus:text-destructive"
               >
-                <Zap className="mr-2 h-4 w-4" /> Restart now
+                <Zap className="mr-2 h-4 w-4" /> {t('confirm.restartServerNow.title')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => { setWipePreview(null); setWipeDialog(true) }}
                 disabled={!hasServer || online || loading !== null || activeServer?.isRemote}
                 className="text-destructive focus:text-destructive"
               >
-                <Trash2 className="mr-2 h-4 w-4" /> Wipe server
+                <Trash2 className="mr-2 h-4 w-4" /> {t('buttons.wipeServer')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -955,7 +967,7 @@ export default function Dashboard() {
         const isStaged = !!panelUpdate.stagedUpdate && (!latest || panelUpdate.stagedUpdate.version === latest)
         const lastFailed = panelUpdate.lastApplyResult?.status === 'failed'
           && (!latest || panelUpdate.lastApplyResult.pendingVersion === latest)
-        const ctaLabel = isStaged ? 'Apply update' : 'View update'
+        const ctaLabel = isStaged ? t('updateBanner.applyUpdate') : t('updateBanner.viewUpdate')
         void lastFailed
         const dismiss = () => {
           if (!latest) return
@@ -976,14 +988,14 @@ export default function Dashboard() {
             <Sparkles className={cn('h-3.5 w-3.5 shrink-0', `text-${accent}`)} />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <span className={cn('font-mono text-[10px] font-semibold uppercase tracking-[0.18em]', `text-${accent}`)}>
-                {lastFailed ? 'Apply failed' : isStaged ? 'Update staged' : 'Panel update'}
+                {lastFailed ? t('updateBanner.applyFailed') : isStaged ? t('updateBanner.updateStaged') : t('updateBanner.panelUpdate')}
               </span>
               <span className="min-w-0 text-xs text-muted-foreground">
                 {lastFailed
-                  ? 'Last apply attempt failed — see Settings for diagnostics.'
+                  ? t('updateBanner.applyFailedDescription')
                   : isStaged
-                    ? 'Downloaded and ready. Restart the panel to apply.'
-                    : 'A new panel version is available.'}
+                    ? t('updateBanner.readyDescription')
+                    : t('updateBanner.availableDescription')}
               </span>
               {latest && (
                 <span className="font-mono text-[11px] tabular-nums text-foreground/85">
@@ -996,10 +1008,10 @@ export default function Dashboard() {
                 size="sm"
                 variant="ghost"
                 className="h-7 w-7 px-0 text-muted-foreground hover:text-foreground"
-                aria-label="Dismiss update notification"
+                aria-label={t('labels.dismissUpdate')}
                 onClick={dismiss}
                 disabled={!latest}
-                title="Dismiss until next version"
+                title={t('actions.dismissUpdate')}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -1026,14 +1038,14 @@ export default function Dashboard() {
           <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-destructive">
-              Connection error
+              {t('errors.connectionError')}
             </span>
             <span className="min-w-0 truncate text-xs text-muted-foreground" title={fetchError}>
-              {fetchError}. Some features may be unavailable.
+              {t('errors.featuresMayBeUnavailable', { error: fetchError })}
             </span>
           </div>
           <Button variant="outline" size="sm" onClick={fetchStatus} className="ml-auto h-7 gap-1.5 px-2.5 text-xs">
-            <RefreshCw className="h-3 w-3" /> Retry
+            <RefreshCw className="h-3 w-3" /> {t('verdict.retry')}
           </Button>
         </div>
       )}
@@ -1047,13 +1059,13 @@ export default function Dashboard() {
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning" />
           <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-warning">
-              Not configured
+              {t('notConfigured')}
             </span>
             <span className="text-xs text-muted-foreground">
-              Open Server Setup to add or configure a server.
+              {t('serverSetupDescription')}
             </span>
           </div>
-          <span className="ml-auto text-xs font-medium text-warning/85">open setup →</span>
+          <span className="ml-auto text-xs font-medium text-warning/85">{t('openSetup')}</span>
         </Link>
       )}
 
@@ -1062,20 +1074,20 @@ export default function Dashboard() {
         <section className="relative mt-3 overflow-hidden rounded-lg border border-primary/30 bg-card/50 px-4 py-4">
           <button
             onClick={dismissQuickStart}
-            aria-label="Dismiss quick start guide"
+            aria-label={t('labels.dismissGuide')}
             className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
           >
             <X className="h-3.5 w-3.5" />
           </button>
-          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/85">First server</p>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/85">{t('firstServer')}</p>
           <h2 className="mt-1 text-lg font-semibold leading-tight text-foreground">
-            Get one server up, RCON working, then layer on the rest.
+            {t('onboarding.headline')}
           </h2>
           <ol className="mt-4 grid gap-2 list-none p-0 md:grid-cols-3">
             {[
-              ['1', 'Bring in a server', 'Add an existing install, connect remote RCON, or create a new server.'],
-              ['2', 'Verify connectivity', 'Confirm paths, RCON credentials, and active server.'],
-              ['3', 'Reach live control',  'When status, players, and chat update, live control is ready.'],
+              [t('onboardingSteps.step1.number'), t('onboardingSteps.step1.title'), t('onboardingSteps.step1.description')],
+              [t('onboardingSteps.step2.number'), t('onboardingSteps.step2.title'), t('onboardingSteps.step2.description')],
+              [t('onboardingSteps.step3.number'), t('onboardingSteps.step3.title'), t('onboardingSteps.step3.description')],
             ].map(([n, title, body]) => (
               <li key={n} className="rounded-md border border-border/50 bg-background/40 p-3">
                 <p className="text-sm font-semibold text-foreground">
@@ -1088,13 +1100,13 @@ export default function Dashboard() {
           </ol>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link to="/server-setup" className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <Server className="h-3.5 w-3.5" /> Install new server
+              <Server className="h-3.5 w-3.5" /> {t('onboarding.installNewServer')}
             </Link>
             <Link to="/servers" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <FolderOpen className="h-3.5 w-3.5" /> Add existing server
+              <FolderOpen className="h-3.5 w-3.5" /> {t('onboarding.addExistingServer')}
             </Link>
             <Link to="/servers" className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <Globe className="h-3.5 w-3.5" /> Add remote server
+              <Globe className="h-3.5 w-3.5" /> {t('onboarding.addRemoteServer')}
             </Link>
           </div>
         </section>
@@ -1121,20 +1133,20 @@ export default function Dashboard() {
             playerActivity.length > 0 && 'max-h-[15rem]',
           )}>
             <header className="flex items-center justify-between border-b border-border/30 px-3 py-1.5">
-              <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">Live activity</h3>
+              <h3 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">{t('liveActivity')}</h3>
               {/* No status dot. Whether the server is up is answered by the verdict band, not repeated here. */}
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                {playerActivity.length > 0 ? `${playerActivity.length} events` : online ? 'idle' : 'offline'}
+                {playerActivity.length > 0 ? t('activity.eventsCount', { count: playerActivity.length }) : online ? t('activity.idle') : t('activity.offline')}
               </span>
             </header>
             {playerActivity.length === 0 ? (
               <div className="flex items-center px-3 py-3">
                 <p className="text-xs text-muted-foreground/75">
                   {online
-                    ? 'Listening for player joins, departures, deaths, and moderation events.'
+                    ? t('activity.listeningDescription')
                     : status?.configured
-                      ? 'Start the server to begin tracking player activity.'
-                      : 'Configure a server to start tracking activity.'}
+                      ? t('activity.startToTrack')
+                      : t('activity.configureToTrack')}
                 </p>
               </div>
             ) : (
@@ -1163,19 +1175,19 @@ export default function Dashboard() {
           {/* TELEMETRY */}
           <section className="order-1 overflow-hidden rounded-lg border border-border/65 bg-card/50 shadow-sm">
             <header className="flex items-center justify-between gap-3 border-b border-border/35 px-4 py-2">
-              <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">Server telemetry</h2>
+              <h2 className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">{t('serverTelemetry')}</h2>
               <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
                 {(() => {
-                  if (performanceHistory.length === 0) return online ? 'sampling' : 'standby'
-                  if (performanceHistory.length < 2) return 'live'
+                  if (performanceHistory.length === 0) return online ? t('telemetry.sampling') : t('telemetry.standby')
+                  if (performanceHistory.length < 2) return t('telemetry.live')
                   const first = performanceHistory[0].timestamp
                   const last = performanceHistory[performanceHistory.length - 1].timestamp
                   if (first && last) {
                     const spanSec = (new Date(last).getTime() - new Date(first).getTime()) / 1000
-                    if (spanSec < 120) return `last ${Math.round(spanSec)}s · live`
-                    return `last ${Math.round(spanSec / 60)} min · live`
+                    if (spanSec < 120) return t('telemetry.lastSecondsLive', { seconds: Math.round(spanSec) })
+                    return t('telemetry.lastMinutesLive', { minutes: Math.round(spanSec / 60) })
                   }
-                  return 'live'
+                  return t('telemetry.live')
                 })()}
               </span>
             </header>
@@ -1204,8 +1216,8 @@ export default function Dashboard() {
             ) : (
               <p className="px-3 py-3 text-xs text-muted-foreground/80">
                 {online
-                  ? 'Telemetry will appear within the next sample cycle.'
-                  : 'Start the server to track CPU, RAM, and player metrics.'}
+                  ? t('telemetry.telemetryWillAppear')
+                  : t('telemetry.startToTrack')}
               </p>
             )}
           </section>
@@ -1219,17 +1231,17 @@ export default function Dashboard() {
             <WorkList items={workItems} />
             <div className="mt-2 border-t border-border/25 px-1 pt-1">
               <ConnLine
-                label="RCON"
+                label={t('labels.rcon')}
                 state={status?.rcon?.connected ? 'on' : 'off'}
                 value={status?.rcon ? `${status.rcon.host}:${status.rcon.port}` : undefined}
               />
               <ConnLine
-                label="Bridge"
+                label={t('labels.bridge')}
                 state={bridgeStatus?.modConnected ? 'on' : bridgeStatus?.isRunning ? 'wait' : 'off'}
                 value={
                   bridgeStatus?.modConnected && bridgeStatus.modStatus?.version
                     ? `v${bridgeStatus.modStatus.version.replace(/^v/, '')}`
-                    : bridgeStatus?.isRunning ? 'pending' : 'offline'
+                    : bridgeStatus?.isRunning ? t('statusPip.pending') : t('statusPip.offline')
                 }
               />
             </div>
@@ -1238,7 +1250,7 @@ export default function Dashboard() {
           {/* MAINTENANCE */}
           {!activeServer?.isRemote && (
             <section>
-              <h3 className="px-1 pb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">Maintenance</h3>
+              <h3 className="px-1 pb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/75">{t('maintenance')}</h3>
               <div className="space-y-1.5">
                 <Button
                   size="sm"
@@ -1248,7 +1260,7 @@ export default function Dashboard() {
                   disabled={loading !== null}
                 >
                   <RefreshCw className={cn('h-3 w-3', loading ? 'animate-spin' : '')} />
-                  Refresh status
+                  {t('actions.refreshStatus')}
                   <span className="ml-auto font-mono text-[10px] text-muted-foreground/65">
                     {lastUpdated ? lastUpdated.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'}
                   </span>
@@ -1261,7 +1273,7 @@ export default function Dashboard() {
                   onClick={() => handleAction('Create backup', () => backupApi.createBackup({ includeDb: true }).then(() => fetchMaintenance()))}
                 >
                   {loading === 'Create backup' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
-                  Create backup
+                  {t('buttons.createBackup')}
                 </Button>
                 <Button
                   size="sm"
@@ -1269,10 +1281,10 @@ export default function Dashboard() {
                   className="h-7 w-full justify-start gap-2 text-xs text-destructive hover:text-destructive"
                   disabled={!hasServer || online || loading !== null || activeServer?.isRemote}
                   onClick={() => { setWipePreview(null); setWipeDialog(true) }}
-                  title={online ? 'Stop the server before wiping' : 'Delete map / players / world state'}
+                  title={online ? t('wipe.stopServerBeforeWiping') : t('wipe.deleteMapPlayersWorld')}
                 >
                   <Trash2 className="h-3 w-3" />
-                  Wipe server
+                  {t('buttons.wipeServer')}
                 </Button>
                 <label className="mt-1 flex cursor-pointer items-center gap-2 border-t border-border/30 px-1 pt-2">
                   <Checkbox
@@ -1281,7 +1293,7 @@ export default function Dashboard() {
                     onCheckedChange={(checked) => handleAutoStartChange(checked === true)}
                   />
                   <Label htmlFor="autoStartServer" className="cursor-pointer text-[11px] text-muted-foreground">
-                    Auto-start on launch
+                    {t('buttons.autoStartOnLaunch')}
                   </Label>
                 </label>
               </div>
@@ -1290,10 +1302,10 @@ export default function Dashboard() {
 
           {bridgeStatus && !bridgeStatus.configured && (
             <section className="rounded-md border border-warning/25 bg-warning/[0.04] p-3">
-              <p className="text-xs font-medium text-warning/85">Bridge offline</p>
+              <p className="text-xs font-medium text-warning/85">{t('bridgeOffline')}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Advanced world controls require PanelBridge.{' '}
-                <Link to="/settings" className="text-primary hover:underline">Configure bridge</Link>.
+                {t('wipe.advancedRequireBridge')}{' '}
+                <Link to="/settings" className="text-primary hover:underline">{t('configureBridge')}</Link>.
               </p>
             </section>
           )}
@@ -1311,7 +1323,7 @@ export default function Dashboard() {
             <AlertDialogDescription className="text-base">{confirmAction?.description}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel className="mt-0">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="mt-0">{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className={cn(buttonVariants({ variant: confirmAction?.variant === 'destructive' ? 'destructive' : 'warning' }))}
               onClick={async () => { if (confirmAction) { await handleAction(confirmAction.title, confirmAction.action); setConfirmAction(null) } }}
@@ -1327,19 +1339,19 @@ export default function Dashboard() {
         <AlertDialogContent className="glass border-border/50">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-3 text-xl">
-              <Trash2 className="h-5 w-5 text-destructive" /> Wipe server
+              <Trash2 className="h-5 w-5 text-destructive" /> {t('wipe.title')}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-base">
-              Select what data to delete from <span className="font-medium text-foreground">{activeServer?.serverName || 'the active server'}</span>. The server must be stopped.
+              {t('wipe.description', { server: activeServer?.serverName || t('wipe.activeServer') })}
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="space-y-3 py-2">
             {([
-              ['map',      'Map & terrain',       'Chunks, terrain, buildings, zombie population, iso regions.'],
-              ['players',  'Players & vehicles',  'Player saves, inventories, positions, vehicle data.'],
-              ['world',    'World state',         'World dictionary, metadata, erosion, game object states, radio.'],
-              ['accounts', 'Accounts & bans',     'User accounts, passwords, roles, whitelist and ban lists. Everyone re-registers on next join.'],
+              ['map',      t('wipe.options.map.label'),       t('wipe.options.map.description')],
+              ['players',  t('wipe.options.players.label'),  t('wipe.options.players.description')],
+              ['world',    t('wipe.options.world.label'),         t('wipe.options.world.description')],
+              ['accounts', t('wipe.options.accounts.label'),     t('wipe.options.accounts.description')],
             ] as const).map(([key, label, desc]) => (
               <label key={key} className="flex cursor-pointer items-start gap-3 rounded-md border border-border/50 p-3 hover:bg-muted/30">
                 <Checkbox
@@ -1353,37 +1365,37 @@ export default function Dashboard() {
                 </div>
               </label>
             ))}
-            <div className="px-3 pb-1 text-xs text-muted-foreground">Selecting map, players and world empties the save folder completely, including anything mods left behind. Server .ini and sandbox settings are stored separately and will not be affected.</div>
+            <div className="px-3 pb-1 text-xs text-muted-foreground">{t('selectingMapPlayersAndWorldEmptiesTheSaveFolderCompletelyIncludingAnythingModsLeftBehindServerIniAndSandboxSettingsAreStoredSeparatelyAndWillNotBeAffected')}</div>
           </div>
 
           {wipePreview && (
             <div className="space-y-1 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">
               {wipePreview.totalFiles === 0 ? (
-                <div className="text-muted-foreground">No files found for the selected targets.</div>
+                <div className="text-muted-foreground">{t('noFilesFoundForTheSelectedTargets')}</div>
               ) : (
                 <>
-                  <div className="font-medium text-destructive">This will permanently delete:</div>
+                  <div className="font-medium text-destructive">{t('thisWillPermanentlyDelete')}</div>
                   {(['map', 'players', 'world', 'leftovers', 'accounts'] as const).map(key => {
                     const data = wipePreview.preview?.[key]
                     if (!data) return null
-                    const labels = { map: 'map/terrain', players: 'player/vehicle', world: 'world state', leftovers: 'other leftover', accounts: 'account database' }
+                    const labels = { map: t('wipe.previewLabels.map'), players: t('wipe.previewLabels.players'), world: t('wipe.previewLabels.world'), leftovers: t('wipe.previewLabels.leftovers'), accounts: t('wipe.previewLabels.accounts') }
                     if (key === 'leftovers') {
                       return data.files > 0
-                        ? <div key={key}>{data.files.toLocaleString()} {labels[key]} files ({(data.size / 1024 / 1024).toFixed(1)} MB)</div>
+                         ? <div key={key}>{t('wipe.filesWithSize', { count: data.files.toLocaleString(), label: labels[key], size: (data.size / 1024 / 1024).toFixed(1) })}</div>
                         : null
                     }
                     return data.files > 0
-                      ? <div key={key}>{data.files.toLocaleString()} {labels[key]} files ({(data.size / 1024 / 1024).toFixed(1)} MB)</div>
-                      : <div key={key} className="text-muted-foreground">No {labels[key]} files found</div>
+                       ? <div key={key}>{t('wipe.filesWithSize', { count: data.files.toLocaleString(), label: labels[key], size: (data.size / 1024 / 1024).toFixed(1) })}</div>
+                      : <div key={key} className="text-muted-foreground">{t('wipe.noFilesFound', { label: labels[key] })}</div>
                   })}
-                  <div className="pt-1 font-medium">Total: {wipePreview.totalFiles.toLocaleString()} files ({(wipePreview.totalSize / 1024 / 1024).toFixed(1)} MB)</div>
+                  <div className="pt-1 font-medium">{t('wipe.totalFiles', { count: wipePreview.totalFiles.toLocaleString(), size: (wipePreview.totalSize / 1024 / 1024).toFixed(1) })}</div>
                 </>
               )}
             </div>
           )}
 
           <AlertDialogFooter className="gap-2 sm:gap-2">
-            <AlertDialogCancel className="mt-0" disabled={wipeLoading} onClick={() => { setWipeDialog(false); setWipePreview(null) }}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="mt-0" disabled={wipeLoading} onClick={() => { setWipeDialog(false); setWipePreview(null) }}>{t('cancel')}</AlertDialogCancel>
             {!wipePreview ? (
               <Button
                 variant="warning"
@@ -1396,12 +1408,12 @@ export default function Dashboard() {
                     const res = await serverApi.wipePreview(targets)
                     setWipePreview(res)
                   } catch (e: unknown) {
-                    toast({ title: 'Preview failed', description: e instanceof Error ? e.message : 'Could not scan save directory', variant: 'destructive' })
+                    toast({ title: t('wipe.previewFailed'), description: e instanceof Error ? e.message : t('wipe.couldNotScan'), variant: 'destructive' })
                   } finally { setWipeLoading(false) }
                 }}
               >
                 {wipeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Preview
+                {t('buttons.preview')}
               </Button>
             ) : (
               <Button
@@ -1413,15 +1425,15 @@ export default function Dashboard() {
                   try {
                     const targets = Object.entries(wipeTargets).filter(([, v]) => v).map(([k]) => k)
                     await serverApi.wipe(targets)
-                    toast({ title: 'Server wiped', description: `Deleted: ${targets.join(', ')}` })
+                    toast({ title: t('wipe.serverWiped'), description: t('wipe.deleted', { targets: targets.join(', ') }) })
                     setWipeDialog(false); setWipePreview(null)
                   } catch (e: unknown) {
-                    toast({ title: 'Wipe failed', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' })
+                    toast({ title: t('wipe.wipeFailed'), description: e instanceof Error ? e.message : t('wipe.unknownError'), variant: 'destructive' })
                   } finally { setWipeLoading(false) }
                 }}
               >
                 {wipeLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                Wipe now
+                {t('buttons.wipeNow')}
               </Button>
             )}
           </AlertDialogFooter>

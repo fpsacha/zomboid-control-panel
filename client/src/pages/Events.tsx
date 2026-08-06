@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Zap,
@@ -119,7 +120,7 @@ function SectionHeader({
   action?: React.ReactNode
   tone?: PanelTone
 }) {
-  const isBridgeOffline = sublabel?.startsWith('bridge offline')
+  const isBridgeOffline = sublabel?.startsWith('bridge offline') || sublabel?.startsWith('桥接离线')
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 select-none">
       <span className="flex min-w-0 items-center gap-2">
@@ -140,106 +141,123 @@ function SectionHeader({
   )
 }
 
-function getEventSuccessCopy(action: string) {
-  switch (action) {
-    case 'Start rain':
-    case 'Start Rain':
-      return { title: 'Rain Started', description: 'Rain is now active on the server.' }
-    case 'Stop rain':
-    case 'Stop Rain':
-      return { title: 'Rain Stopped', description: 'Rainfall has been cleared.' }
-    case 'Start storm':
-    case 'Trigger storm':
-      return { title: 'Storm Triggered', description: 'A storm event is now active.' }
-    case 'Tropical Storm':
-    case 'Trigger tropical storm':
-      return { title: 'Tropical Storm Triggered', description: 'High-intensity weather is now active.' }
-    case 'Blizzard':
-    case 'Trigger blizzard':
-      return { title: 'Blizzard Triggered', description: 'A blizzard event is now active.' }
-    case 'Stop weather':
-    case 'Stop All Weather':
-      return { title: 'Weather Cleared', description: 'All forced weather conditions removed.' }
-    case 'Enable Snow':
-      return { title: 'Snowfall Enabled', description: 'Snow precipitation is now active.' }
-    case 'Disable Snow':
-      return { title: 'Snowfall Disabled', description: 'Snow precipitation turned off.' }
-    case 'Reset Climate':
-      return { title: 'Climate Reset', description: 'All climate overrides cleared.' }
-    case 'Set Fog':
-      return { title: 'Fog Updated', description: 'Fog density applied to the server.' }
-    case 'Set Wind':
-      return { title: 'Wind Updated', description: 'Wind intensity applied to the server.' }
-    case 'Set Temperature':
-      return { title: 'Temperature Updated', description: 'Temperature applied to the server.' }
-    case 'Set Clouds':
-      return { title: 'Cloud Cover Updated', description: 'Cloud intensity applied to the server.' }
-    case 'Set Humidity':
-      return { title: 'Humidity Updated', description: 'Humidity level applied to the server.' }
-    case 'Set Precipitation':
-      return { title: 'Precipitation Updated', description: 'Precipitation intensity applied to the server.' }
-    case 'Set Time':
-      return { title: 'Time Updated', description: 'In-game date and time adjusted.' }
-    case 'Restore Utilities':
-      return { title: 'Utilities Restored', description: 'Power and water are back online.' }
-    case 'Shut Off Utilities':
-      return { title: 'Utilities Shut Down', description: 'Power and water have been cut.' }
-    case 'Restore Power':
-      return { title: 'Power Restored', description: 'Electrical service is back online.' }
-    case 'Restore Water':
-      return { title: 'Water Restored', description: 'Water service is back online.' }
-    case 'Helicopter':
-      return { title: 'Helicopter Triggered', description: 'A helicopter event is now active.' }
-    case 'Gunshot':
-    case 'Gunshot Sound':
-    case 'Gunshot at Coords':
-      return { title: 'Gunshot Triggered', description: 'A gunshot sound has been created.' }
-    case 'Alarm':
-    case 'Alarm Sound':
-    case 'Alarm at Coords':
-      return { title: 'Alarm Triggered', description: 'An alarm has been triggered.' }
-    case 'Custom Noise':
-    case 'Noise at Coords':
-      return { title: 'Noise Created', description: 'A custom sound lure has been placed.' }
-    case 'Lightning':
-      return { title: 'Lightning Triggered', description: 'A lightning strike has been called.' }
-    case 'Thunder':
-      return { title: 'Thunder Triggered', description: 'A thunder event is now active.' }
-    case 'Create horde':
-      return { title: 'Horde Spawned', description: 'A zombie group has been created.' }
-    case 'Create horde (behind)':
-      return { title: 'Rear Horde Spawned', description: 'A zombie group spawned behind the target.' }
-    case 'Remove all zombies':
-      return { title: 'Zombies Cleared', description: 'All zombies removed from loaded cells.' }
-    case 'Set time speed':
-      return { title: 'Time Speed Updated', description: 'The time multiplier has been changed.' }
-    case 'Teleport':
-    case 'Teleport self':
-    case 'Teleport player':
-      return { title: 'Teleport Complete', description: 'The target has been moved.' }
-    case 'Spawn vehicle':
-      return { title: 'Vehicle Spawned', description: 'Vehicle delivered to the target player.' }
-    case 'Send announcement':
-      return { title: 'Announcement Sent', description: 'Message broadcast to all players.' }
-    case 'Apply All Climate':
-      return { title: 'Climate Applied', description: 'All climate parameters updated.' }
-    default:
-      return { title: 'Action Complete', description: `${action} completed successfully.` }
+const eventActionLabelKeys: Record<string, string> = {
+  'Start rain': 'btn.startRain',
+  'Stop rain': 'btn.stopRain',
+  'Start storm': 'btn.startStorm',
+  'Stop weather': 'btn.clearWeather',
+  'Tropical Storm': 'btn.triggerTropicalStorm',
+  'Blizzard': 'btn.triggerBlizzard',
+  'Enable Snow': 'btn.enableSnow',
+  'Disable Snow': 'btn.disableSnow',
+  'Stop All Weather': 'btn.stopAllWeather',
+  'Reset Climate': 'btn.reset',
+  'Set Fog': 'desc.fog',
+  'Set Wind': 'desc.wind',
+  'Set Temperature': 'desc.temperature',
+  'Set Clouds': 'desc.clouds',
+  'Set Humidity': 'desc.humidity',
+  'Set Precipitation': 'desc.precipitation',
+  'Set Time': 'btn.applyTimeAndDate',
+  'Set time speed': 'btn.applySpeed',
+  'Restore Utilities': 'btn.restore',
+  'Shut Off Utilities': 'btn.shutOff',
+  'Restore Power': 'btn.restore',
+  'Restore Water': 'btn.restore',
+  'Helicopter': 'btn.helicopter',
+  'Gunshot': 'btn.gunshot',
+  'Lightning': 'btn.lightning',
+  'Thunder': 'btn.thunder',
+  'Alarm': 'btn.alarm',
+  'Gunshot Sound': 'btn.gunshot',
+  'Alarm Sound': 'btn.alarm',
+  'Gunshot at Coords': 'btn.gunshot',
+  'Alarm at Coords': 'btn.alarm',
+  'Noise at Coords': 'btn.noise',
+  'Custom Noise': 'btn.noise',
+  'Create horde': 'labels.spawnHorde',
+  'Create horde (behind)': 'labels.spawnHorde',
+  'Remove all zombies': 'btn.clearLoadedZombies',
+  'Teleport': 'labels.teleport',
+  'Teleport self': 'btn.teleportSelf',
+  'Teleport player': 'labels.teleport',
+  'Spawn vehicle': 'labels.spawnVehicle',
+  'Send announcement': 'btn.broadcastMessage',
+  'Apply All Climate': 'btn.applyAll',
+}
+
+function getEventActionLabel(action: string, t: (key: string, options?: Record<string, unknown>) => string) {
+  const key = eventActionLabelKeys[action]
+  return key ? t(key) : action
+}
+
+function getEventSuccessCopy(action: string, t: any) {
+  const map: Record<string, { title: string; desc: string }> = {
+    'Start rain': { title: 'toast.rainStarted', desc: 'toast.rainStartedDesc' },
+    'Start Rain': { title: 'toast.rainStarted', desc: 'toast.rainStartedDesc' },
+    'Stop rain': { title: 'toast.rainStopped', desc: 'toast.rainStoppedDesc' },
+    'Stop Rain': { title: 'toast.rainStopped', desc: 'toast.rainStoppedDesc' },
+    'Start storm': { title: 'toast.stormTriggered', desc: 'toast.stormTriggeredDesc' },
+    'Trigger storm': { title: 'toast.stormTriggered', desc: 'toast.stormTriggeredDesc' },
+    'Tropical Storm': { title: 'toast.tropicalStormTriggered', desc: 'toast.tropicalStormTriggeredDesc' },
+    'Trigger tropical storm': { title: 'toast.tropicalStormTriggered', desc: 'toast.tropicalStormTriggeredDesc' },
+    'Blizzard': { title: 'toast.blizzardTriggered', desc: 'toast.blizzardTriggeredDesc' },
+    'Trigger blizzard': { title: 'toast.blizzardTriggered', desc: 'toast.blizzardTriggeredDesc' },
+    'Stop weather': { title: 'toast.weatherCleared', desc: 'toast.weatherClearedDesc' },
+    'Stop All Weather': { title: 'toast.weatherCleared', desc: 'toast.weatherClearedDesc' },
+    'Enable Snow': { title: 'toast.snowfallEnabled', desc: 'toast.snowfallEnabledDesc' },
+    'Disable Snow': { title: 'toast.snowfallDisabled', desc: 'toast.snowfallDisabledDesc' },
+    'Reset Climate': { title: 'toast.climateReset', desc: 'toast.climateResetDesc' },
+    'Set Fog': { title: 'toast.fogUpdated', desc: 'toast.fogUpdatedDesc' },
+    'Set Wind': { title: 'toast.windUpdated', desc: 'toast.windUpdatedDesc' },
+    'Set Temperature': { title: 'toast.temperatureUpdated', desc: 'toast.temperatureUpdatedDesc' },
+    'Set Clouds': { title: 'toast.cloudCoverUpdated', desc: 'toast.cloudCoverUpdatedDesc' },
+    'Set Humidity': { title: 'toast.humidityUpdated', desc: 'toast.humidityUpdatedDesc' },
+    'Set Precipitation': { title: 'toast.precipitationUpdated', desc: 'toast.precipitationUpdatedDesc' },
+    'Set Time': { title: 'toast.timeUpdated', desc: 'toast.timeUpdatedDesc' },
+    'Restore Utilities': { title: 'toast.utilitiesRestored', desc: 'toast.utilitiesRestoredDesc' },
+    'Shut Off Utilities': { title: 'toast.utilitiesShutDown', desc: 'toast.utilitiesShutDownDesc' },
+    'Restore Power': { title: 'toast.powerRestored', desc: 'toast.powerRestoredDesc' },
+    'Restore Water': { title: 'toast.waterRestored', desc: 'toast.waterRestoredDesc' },
+    'Helicopter': { title: 'toast.helicopterTriggered', desc: 'toast.helicopterTriggeredDesc' },
+    'Gunshot': { title: 'toast.gunshotTriggered', desc: 'toast.gunshotTriggeredDesc' },
+    'Gunshot Sound': { title: 'toast.gunshotTriggered', desc: 'toast.gunshotTriggeredDesc' },
+    'Gunshot at Coords': { title: 'toast.gunshotTriggered', desc: 'toast.gunshotTriggeredDesc' },
+    'Alarm': { title: 'toast.alarmTriggered', desc: 'toast.alarmTriggeredDesc' },
+    'Alarm Sound': { title: 'toast.alarmTriggered', desc: 'toast.alarmTriggeredDesc' },
+    'Alarm at Coords': { title: 'toast.alarmTriggered', desc: 'toast.alarmTriggeredDesc' },
+    'Custom Noise': { title: 'toast.noiseCreated', desc: 'toast.noiseCreatedDesc' },
+    'Noise at Coords': { title: 'toast.noiseCreated', desc: 'toast.noiseCreatedDesc' },
+    'Lightning': { title: 'toast.lightningTriggered', desc: 'toast.lightningTriggeredDesc' },
+    'Thunder': { title: 'toast.thunderTriggered', desc: 'toast.thunderTriggeredDesc' },
+    'Create horde': { title: 'toast.hordeSpawned', desc: 'toast.hordeSpawnedDesc' },
+    'Create horde (behind)': { title: 'toast.rearHordeSpawned', desc: 'toast.rearHordeSpawnedDesc' },
+    'Remove all zombies': { title: 'toast.zombiesCleared', desc: 'toast.zombiesClearedDesc' },
+    'Set time speed': { title: 'toast.timeSpeedUpdated', desc: 'toast.timeSpeedUpdatedDesc' },
+    'Teleport': { title: 'toast.teleportComplete', desc: 'toast.teleportCompleteDesc' },
+    'Teleport self': { title: 'toast.teleportComplete', desc: 'toast.teleportCompleteDesc' },
+    'Teleport player': { title: 'toast.teleportComplete', desc: 'toast.teleportCompleteDesc' },
+    'Spawn vehicle': { title: 'toast.vehicleSpawned', desc: 'toast.vehicleSpawnedDesc' },
+    'Send announcement': { title: 'toast.announcementSent', desc: 'toast.announcementSentDesc' },
+    'Apply All Climate': { title: 'toast.climateApplied', desc: 'toast.climateAppliedDesc' },
   }
+  const entry = map[action]
+  if (entry) return { title: t(entry.title), description: t(entry.desc) }
+  return { title: t('toast.actionComplete'), description: t('toast.actionCompleteDesc', { action: getEventActionLabel(action, t) }) }
 }
 
 // Vehicle presets for GM
 const vehicles = [
-  { id: 'Base.VanAmbulance', name: 'Ambulance' },
-  { id: 'Base.PickUpVanLightsPolice', name: 'Police Van' },
-  { id: 'Base.CarLightsPolice', name: 'Police Car' },
-  { id: 'Base.PickUpTruckMccoy', name: 'Pickup Truck' },
-  { id: 'Base.Van', name: 'Van' },
-  { id: 'Base.ModernCar', name: 'Modern Car' },
-  { id: 'Base.SportsCar', name: 'Sports Car' },
-  { id: 'Base.SUV', name: 'SUV' },
-  { id: 'Base.StepVan', name: 'Step Van' },
-  { id: 'Base.Taxi', name: 'Taxi' },
+  { id: 'Base.VanAmbulance', nameKey: 'vehicleNames.ambulance' },
+  { id: 'Base.PickUpVanLightsPolice', nameKey: 'vehicleNames.policeVan' },
+  { id: 'Base.CarLightsPolice', nameKey: 'vehicleNames.policeCar' },
+  { id: 'Base.PickUpTruckMccoy', nameKey: 'vehicleNames.pickupTruck' },
+  { id: 'Base.Van', nameKey: 'vehicleNames.van' },
+  { id: 'Base.ModernCar', nameKey: 'vehicleNames.modernCar' },
+  { id: 'Base.SportsCar', nameKey: 'vehicleNames.sportsCar' },
+  { id: 'Base.SUV', nameKey: 'vehicleNames.suv' },
+  { id: 'Base.StepVan', nameKey: 'vehicleNames.stepVan' },
+  { id: 'Base.Taxi', nameKey: 'vehicleNames.taxi' },
 ]
 
 const bridgeOperationTemplates: Record<string, { label: string; description: string; args: string }> = {
@@ -297,7 +315,6 @@ interface BridgeResultData {
   error?: string
   timestamp: string
 }
-
 const bridgeOperationForms: Record<string, BridgeOperationForm> = {
   getSafehouses: { fields: [] },
   safehouseAddPlayer: {
@@ -511,6 +528,91 @@ const bridgeOperationGroups = [
   },
 ] as const
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTranslatedBridgeOperationTemplates(t: any) {
+  return Object.fromEntries(
+    Object.entries(bridgeOperationTemplates).map(([key, val]) => [
+      key,
+      { ...val, label: t(`latest.operations.${key}.label`), description: t(`latest.operations.${key}.description`) },
+    ])
+  )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTranslatedBridgeOperationForms(t: any): Record<string, BridgeOperationForm> {
+  const result: Record<string, BridgeOperationForm> = {}
+  for (const [opKey, form] of Object.entries(bridgeOperationForms)) {
+    result[opKey] = {
+      ...form,
+      fields: form.fields.map((field) => {
+        const fieldKey = field.key
+        const translated: BridgeFormField = { ...field }
+
+        // Translate label: try operation-specific key first, then generic field key
+        const opLabelKey = `latest.formFields.${opKey}.${fieldKey}`
+        const genericLabelKey = `latest.formFields.${fieldKey}`
+        const opLabel = t(opLabelKey)
+        const genericLabel = t(genericLabelKey)
+        if (opLabel !== opLabelKey) translated.label = opLabel
+        else if (genericLabel !== genericLabelKey) translated.label = genericLabel
+
+        // Translate placeholder
+        if (field.placeholder) {
+          const phKey = `${genericLabelKey}Placeholder`
+          const translatedPh = t(phKey)
+          translated.placeholder = translatedPh !== phKey ? translatedPh : field.placeholder
+        }
+
+        // Translate help
+        if (field.help) {
+          const helpKey = `${genericLabelKey}Help`
+          const translatedHelp = t(helpKey)
+          translated.help = translatedHelp !== helpKey ? translatedHelp : field.help
+        }
+
+        // Translate patternHint
+        if (field.patternHint) {
+          const hintKey = `${genericLabelKey}PatternHint`
+          const translatedHint = t(hintKey)
+          translated.patternHint = translatedHint !== hintKey ? translatedHint : field.patternHint
+        }
+
+        // Translate select options using formFields.<fieldKey>.<optionValue>
+        if (field.options) {
+          translated.options = field.options.map((opt) => {
+            const opOptKey = `latest.formFields.${opKey}.${fieldKey}.${opt.value}`
+            const genericOptKey = `latest.formFields.${fieldKey}.${opt.value}`
+            const translatedOpOpt = t(opOptKey)
+            const translatedOpt = t(genericOptKey)
+            return {
+              ...opt,
+              label:
+                translatedOpOpt !== opOptKey
+                  ? translatedOpOpt
+                  : translatedOpt !== genericOptKey
+                    ? translatedOpt
+                    : opt.label,
+            }
+          })
+        }
+
+        return translated
+      }),
+    }
+  }
+  return result
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTranslatedBridgeOperationGroups(t: any) {
+  return bridgeOperationGroups.map((group) => ({
+    ...group,
+    label: t(`latest.groupLabels.${group.id}`),
+    description: t(`latest.groupLabels.${group.id}Desc`),
+  }))
+}
+
+
 const formatPanelTimestamp = (date: Date): string => {
   try {
     return new Intl.DateTimeFormat(undefined, {
@@ -527,13 +629,15 @@ const formatPanelTimestamp = (date: Date): string => {
 // ============================================
 
 interface BridgeResultDisplayProps {
+  t: (key: string, options?: Record<string, unknown>) => string
   result: BridgeResultData
   loading: string | null
   onInlineAction: (action: string, args: Record<string, unknown>, label: string) => Promise<void>
   players: Player[]
+  translatedTemplates: Record<string, { label: string; description: string; args: string }>
 }
 
-function BridgeResultDisplay({ result, loading, onInlineAction, players }: BridgeResultDisplayProps) {
+function BridgeResultDisplay({ result, loading, onInlineAction, players, t, translatedTemplates }: BridgeResultDisplayProps) {
   const [showRaw, setShowRaw] = useState(false)
   const { operation, success, data, error, timestamp } = result
   const isLoading = loading !== null
@@ -543,9 +647,9 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
       <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4">
         <div className="flex items-center gap-2 text-sm font-medium text-destructive">
           <X className="h-4 w-4" />
-          Operation Failed
+          {t('ui.operationFailed')}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">{error || 'Unknown error'}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{error || t('ui.unknownError')}</p>
         <p className="mt-1 text-xs text-muted-foreground/70">{timestamp}</p>
       </div>
     )
@@ -557,8 +661,8 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
     const vehicles = (Array.isArray(rawVehicles) ? rawVehicles : []) as unknown[]
     if (vehicles.length === 0) {
       return (
-        <ResultCard title="No Vehicles Found" icon={<Car className="h-4 w-4" />} timestamp={timestamp}>
-          <p className="text-sm text-muted-foreground">No vehicles are currently loaded in any active cell.</p>
+        <ResultCard title={t('empty.noVehicles')} icon={<Car className="h-4 w-4" />} timestamp={timestamp}>
+          <p className="text-sm text-muted-foreground">{t('noVehiclesAreCurrentlyLoadedInAnyActiveCell')}</p>
         </ResultCard>
       )
     }
@@ -567,7 +671,7 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Car className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">{vehicles.length} Vehicle{vehicles.length !== 1 ? 's' : ''} Loaded</span>
+            <span className="text-sm font-medium">{t('ui.vehiclesLoaded', { count: vehicles.length })}</span>
           </div>
           <span className="text-xs text-muted-foreground">{timestamp}</span>
         </div>
@@ -575,12 +679,12 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border/60 text-left">
-                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">ID</th>
-                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">Type</th>
-                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">Location</th>
-                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">Battery</th>
-                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">Status</th>
-                <th className="pb-2 text-xs font-medium text-muted-foreground">Actions</th>
+                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">{t('id')}</th>
+                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">{t('type')}</th>
+                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">{t('location')}</th>
+                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">{t('battery')}</th>
+                <th className="pb-2 pr-3 text-xs font-medium text-muted-foreground">{t('status')}</th>
+                <th className="pb-2 text-xs font-medium text-muted-foreground">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -605,26 +709,26 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
                     </td>
                     <td className="py-2.5 pr-3">
                       <div className="flex flex-wrap gap-1">
-                        {alarmed && <Badge variant="outline" className="h-5 text-[10px] px-1.5 text-warning border-warning/30">Alarm</Badge>}
-                        {sirening && <Badge variant="outline" className="h-5 text-[10px] px-1.5 text-info border-info/30">Siren</Badge>}
+                        {alarmed && <Badge variant="outline" className="h-5 text-[10px] px-1.5 text-warning border-warning/30">{t('ui.alarm')}</Badge>}
+                        {sirening && <Badge variant="outline" className="h-5 text-[10px] px-1.5 text-info border-info/30">{t('ui.siren')}</Badge>}
                         <Badge variant="outline" className={cn('h-5 text-[10px] px-1.5', trunkLocked ? 'text-foreground/60' : 'text-success border-success/30')}>
-                          {trunkLocked ? 'Locked' : 'Open'}
+                          {trunkLocked ? t('ui.locked') : t('ui.open')}
                         </Badge>
                       </div>
                     </td>
                     <td className="py-2.5">
                       <div className="flex flex-wrap gap-1">
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" disabled={isLoading}
-                          onClick={() => onInlineAction('vehicleRepair', { vehicleId: vid }, `Vehicle #${vid} repaired`)}>
-                          <Wrench className="h-3 w-3" /> Repair
+                          onClick={() => onInlineAction('vehicleRepair', { vehicleId: vid }, t('ui.vehicleRepairedInline', { id: vid }))}>
+                          <Wrench className="h-3 w-3" /> {t('ui.repair')}
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" disabled={isLoading}
-                          onClick={() => onInlineAction('vehicleSetAlarm', { vehicleId: vid, enabled: !alarmed }, alarmed ? `Alarm disabled on #${vid}` : `Alarm enabled on #${vid}`)}>
-                          {alarmed ? 'Alarm Off' : 'Alarm On'}
+                          onClick={() => onInlineAction('vehicleSetAlarm', { vehicleId: vid, enabled: !alarmed }, alarmed ? t('ui.alarmDisabled', { id: vid }) : t('ui.alarmEnabled', { id: vid }))}>
+                          {alarmed ? t('ui.alarmOff') : t('ui.alarmOn')}
                         </Button>
                         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" disabled={isLoading}
-                          onClick={() => onInlineAction('vehicleSetTrunkLocked', { vehicleId: vid, locked: !trunkLocked }, trunkLocked ? `Trunk unlocked on #${vid}` : `Trunk locked on #${vid}`)}>
-                          {trunkLocked ? <><Unlock className="h-3 w-3" /> Unlock</> : <><Lock className="h-3 w-3" /> Lock</>}
+                          onClick={() => onInlineAction('vehicleSetTrunkLocked', { vehicleId: vid, locked: !trunkLocked }, trunkLocked ? t('ui.trunkUnlocked', { id: vid }) : t('ui.trunkLocked', { id: vid }))}>
+                          {trunkLocked ? <><Unlock className="h-3 w-3" /> {t('ui.unlock')}</> : <><Lock className="h-3 w-3" /> {t('ui.lock')}</>}
                         </Button>
                       </div>
                     </td>
@@ -644,8 +748,8 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
     const safehouses = (Array.isArray(rawSafehouses) ? rawSafehouses : []) as unknown[]
     if (safehouses.length === 0) {
       return (
-        <ResultCard title="No Safehouses Found" icon={<ShieldCheck className="h-4 w-4" />} timestamp={timestamp}>
-          <p className="text-sm text-muted-foreground">No safehouses are claimed on this server.</p>
+        <ResultCard title={t('empty.noSafehouses')} icon={<ShieldCheck className="h-4 w-4" />} timestamp={timestamp}>
+          <p className="text-sm text-muted-foreground">{t('noSafehousesAreClaimedOnThisServer')}</p>
         </ResultCard>
       )
     }
@@ -654,13 +758,13 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">{safehouses.length} Safehouse{safehouses.length !== 1 ? 's' : ''}</span>
+            <span className="text-sm font-medium">{t('ui.safehouseCount', { count: safehouses.length })}</span>
           </div>
           <span className="text-xs text-muted-foreground">{timestamp}</span>
         </div>
         <div className="space-y-2">
           {(safehouses as Array<Record<string, unknown>>).map((sh, i) => {
-            const title = String(sh.title || sh.id || `Safehouse ${i + 1}`)
+            const title = String(sh.title || sh.id || t('ui.safehouseNumber', { count: i + 1 }))
             const owner = String(sh.owner || '—')
             const members = Array.isArray(sh.members) ? sh.members : []
             const ref = String(sh.id ?? sh.title ?? '')
@@ -669,9 +773,9 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Owner: {owner} · {members.length} member{members.length !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('ui.owner')}: {owner} · {t('ui.memberCount', { count: members.length })}</p>
                     {members.length > 0 && (
-                      <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">Members: {members.map(String).join(', ')}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{t('ui.members')}: {members.map(String).join(', ')}</p>
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -679,9 +783,9 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
                       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" disabled={isLoading}
                         onClick={() => {
                           const username = players[0]?.name
-                          if (username) onInlineAction('safehouseAddPlayer', { safehouseRef: ref, username }, `Added ${username} to ${title}`)
+                          if (username) onInlineAction('safehouseAddPlayer', { safehouseRef: ref, username }, t('ui.playerAddedToSafehouse', { username, title }))
                         }}>
-                        + Player
+                        {t('ui.addPlayer')}
                       </Button>
                     )}
                   </div>
@@ -700,8 +804,8 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
     const factions = (Array.isArray(rawFactions) ? rawFactions : []) as unknown[]
     if (factions.length === 0) {
       return (
-        <ResultCard title="No Factions Found" icon={<Users className="h-4 w-4" />} timestamp={timestamp}>
-          <p className="text-sm text-muted-foreground">No factions exist on this server.</p>
+        <ResultCard title={t('empty.noFactions')} icon={<Users className="h-4 w-4" />} timestamp={timestamp}>
+          <p className="text-sm text-muted-foreground">{t('noFactionsExistOnThisServer')}</p>
         </ResultCard>
       )
     }
@@ -710,13 +814,13 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">{factions.length} Faction{factions.length !== 1 ? 's' : ''}</span>
+            <span className="text-sm font-medium">{t('ui.factionCount', { count: factions.length })}</span>
           </div>
           <span className="text-xs text-muted-foreground">{timestamp}</span>
         </div>
         <div className="space-y-2">
           {(factions as Array<Record<string, unknown>>).map((f, i) => {
-            const name = String(f.name || `Faction ${i + 1}`)
+            const name = String(f.name || t('ui.factionNumber', { count: i + 1 }))
             const owner = String(f.owner || '—')
             const tag = String(f.tag || '')
             const members = Array.isArray(f.members) ? f.members : []
@@ -728,9 +832,9 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
                       <p className="text-sm font-medium">{name}</p>
                       {tag && <Badge variant="outline" className="h-5 text-[10px] px-1.5">{tag}</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">Owner: {owner} · {members.length} member{members.length !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('ui.owner')}: {owner} · {t('ui.memberCount', { count: members.length })}</p>
                     {members.length > 0 && (
-                      <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">Members: {members.map(String).join(', ')}</p>
+                      <p className="text-xs text-muted-foreground/70 mt-0.5 truncate">{t('ui.members')}: {members.map(String).join(', ')}</p>
                     )}
                   </div>
                 </div>
@@ -745,9 +849,9 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
   // Infrastructure snapshot
   if (operation === 'getInfrastructureSnapshot') {
     const d = data as Record<string, unknown> | null
-    if (!d) return <ResultCard title="No Data" icon={<Info className="h-4 w-4" />} timestamp={timestamp}><p className="text-sm text-muted-foreground">Empty response.</p></ResultCard>
+    if (!d) return <ResultCard title={t('empty.noData')} icon={<Info className="h-4 w-4" />} timestamp={timestamp}><p className="text-sm text-muted-foreground">{t('emptyResponse')}</p></ResultCard>
     return (
-      <ResultCard title="Infrastructure Snapshot" icon={<Gauge className="h-4 w-4" />} timestamp={timestamp}>
+      <ResultCard title={t('sections.infrastructure')} icon={<Gauge className="h-4 w-4" />} timestamp={timestamp}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {Object.entries(d).filter(([k]) => k !== 'success' && k !== 'message').map(([k, v]) => (
             <div key={k} className="space-y-0.5">
@@ -770,7 +874,7 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Check className="h-4 w-4 text-primary" />
-          {bridgeOperationTemplates[operation]?.label || operation}
+          {translatedTemplates[operation]?.label || operation}
         </div>
         <span className="text-xs text-muted-foreground">{timestamp}</span>
       </div>
@@ -782,7 +886,7 @@ function BridgeResultDisplay({ result, loading, onInlineAction, players }: Bridg
         aria-expanded={showRaw}
       >
         {showRaw ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        {showRaw ? 'Hide details' : 'Show details'}
+        {showRaw ? t('ui.hideDetails') : t('ui.showDetails')}
       </button>
       {showRaw && (
         <pre className="max-h-48 overflow-auto rounded-md border border-border/50 bg-background/60 p-2.5 text-xs font-mono whitespace-pre-wrap break-words text-muted-foreground">
@@ -825,57 +929,64 @@ type EventSectionKey =
 
 interface EventSectionMeta {
   id: EventSectionKey
-  label: string
-  hint: string
+  labelKey: string
+  hintKey: string
   keywords: string
   icon: React.ComponentType<{ className?: string }>
   needsBridge: boolean
 }
 
-const EVENT_SECTION_GROUPS: Array<{ group: string; items: EventSectionMeta[] }> = [
+const EVENT_SECTION_GROUPS: Array<{ groupKey: string; items: EventSectionMeta[] }> = [
   {
-    group: 'Weather',
+    groupKey: 'weather',
     items: [
-      { id: 'rain', label: 'Rain and storms', hint: 'Start or clear rain and storms over the whole map.', keywords: 'rain storm clear weather rcon', icon: CloudRain, needsBridge: false },
-      { id: 'severe', label: 'Severe weather', hint: 'Blizzards, tropical storms, and snowfall.', keywords: 'blizzard tropical snow severe', icon: Snowflake, needsBridge: true },
-      { id: 'climate', label: 'Climate trim', hint: 'Override fog, wind, temperature, clouds, humidity, and precipitation.', keywords: 'fog wind temperature clouds humidity precipitation climate', icon: Gauge, needsBridge: true },
+      { id: 'rain', labelKey: 'latest.eventSections.rain.label', hintKey: 'latest.eventSections.rain.hint', keywords: 'rain storm clear weather rcon', icon: CloudRain, needsBridge: false },
+      { id: 'severe', labelKey: 'latest.eventSections.severe.label', hintKey: 'latest.eventSections.severe.hint', keywords: 'blizzard tropical snow severe', icon: Snowflake, needsBridge: true },
+      { id: 'climate', labelKey: 'latest.eventSections.climate.label', hintKey: 'latest.eventSections.climate.hint', keywords: 'fog wind temperature clouds humidity precipitation climate', icon: Gauge, needsBridge: true },
     ],
   },
   {
-    group: 'World',
+    groupKey: 'world',
     items: [
-      { id: 'clock', label: 'Game clock', hint: 'Set the in-game hour, day, and month.', keywords: 'time hour day month date clock dawn noon dusk midnight', icon: Calendar, needsBridge: true },
-      { id: 'timespeed', label: 'Time speed', hint: 'Accelerate the in-game clock. Resets when the server restarts.', keywords: 'multiplier speed fast forward time', icon: Clock, needsBridge: true },
-      { id: 'utilities', label: 'Power and water', hint: 'Restore or shut off the electricity and water grid.', keywords: 'power water utilities electricity grid shut off restore', icon: Zap, needsBridge: true },
+      { id: 'clock', labelKey: 'latest.eventSections.clock.label', hintKey: 'latest.eventSections.clock.hint', keywords: 'time hour day month date clock dawn noon dusk midnight', icon: Calendar, needsBridge: true },
+      { id: 'timespeed', labelKey: 'latest.eventSections.timespeed.label', hintKey: 'latest.eventSections.timespeed.hint', keywords: 'multiplier speed fast forward time', icon: Clock, needsBridge: true },
+      { id: 'utilities', labelKey: 'latest.eventSections.utilities.label', hintKey: 'latest.eventSections.utilities.hint', keywords: 'power water utilities electricity grid shut off restore', icon: Zap, needsBridge: true },
     ],
   },
   {
-    group: 'Sounds',
+    groupKey: 'sounds',
     items: [
-      { id: 'quickSounds', label: 'Quick sounds', hint: 'Helicopter, gunshot, lightning, thunder, and building alarm.', keywords: 'helicopter gunshot lightning thunder alarm noise', icon: Volume2, needsBridge: false },
-      { id: 'targetedSounds', label: 'Targeted sounds', hint: 'Place a sound lure on a player or at world coordinates.', keywords: 'noise radius volume coordinates lure targeted', icon: Megaphone, needsBridge: true },
+      { id: 'quickSounds', labelKey: 'latest.eventSections.quickSounds.label', hintKey: 'latest.eventSections.quickSounds.hint', keywords: 'helicopter gunshot lightning thunder alarm noise', icon: Volume2, needsBridge: false },
+      { id: 'targetedSounds', labelKey: 'latest.eventSections.targetedSounds.label', hintKey: 'latest.eventSections.targetedSounds.hint', keywords: 'noise radius volume coordinates lure targeted', icon: Megaphone, needsBridge: true },
     ],
   },
   {
-    group: 'Players',
+    groupKey: 'players',
     items: [
-      { id: 'horde', label: 'Spawn horde', hint: 'Spawn or clear zombies around a player in loaded cells.', keywords: 'horde zombies swarm spawn clear', icon: Skull, needsBridge: true },
-      { id: 'vehicles', label: 'Spawn vehicle', hint: 'Spawn a vehicle next to an online player.', keywords: 'vehicle car spawn', icon: Car, needsBridge: false },
-      { id: 'teleport', label: 'Teleport', hint: 'Move a player to another player or to coordinates.', keywords: 'teleport move coordinates warp', icon: MapPin, needsBridge: false },
-      { id: 'broadcast', label: 'Broadcast', hint: 'Send a server-wide announcement.', keywords: 'announcement broadcast message chat warning', icon: Bell, needsBridge: false },
+      { id: 'horde', labelKey: 'latest.eventSections.horde.label', hintKey: 'latest.eventSections.horde.hint', keywords: 'horde zombies swarm spawn clear', icon: Skull, needsBridge: true },
+      { id: 'vehicles', labelKey: 'latest.eventSections.vehicles.label', hintKey: 'latest.eventSections.vehicles.hint', keywords: 'vehicle car spawn', icon: Car, needsBridge: false },
+      { id: 'teleport', labelKey: 'latest.eventSections.teleport.label', hintKey: 'latest.eventSections.teleport.hint', keywords: 'teleport move coordinates warp', icon: MapPin, needsBridge: false },
+      { id: 'broadcast', labelKey: 'latest.eventSections.broadcast.label', hintKey: 'latest.eventSections.broadcast.hint', keywords: 'announcement broadcast message chat warning', icon: Bell, needsBridge: false },
     ],
   },
   {
-    group: 'Advanced',
+    groupKey: 'advanced',
     items: [
-      { id: 'bridgeOps', label: 'Bridge tools', hint: 'Safehouses, factions, vehicles, and moderation operations.', keywords: 'safehouse faction moderation kick ban operations advanced bridge', icon: Crosshair, needsBridge: true },
+      { id: 'bridgeOps', labelKey: 'latest.eventSections.bridgeOps.label', hintKey: 'latest.eventSections.bridgeOps.hint', keywords: 'safehouse faction moderation kick ban operations advanced bridge', icon: Crosshair, needsBridge: true },
     ],
   },
 ]
 
-const EVENT_SECTION_INDEX: Record<EventSectionKey, EventSectionMeta> = Object.fromEntries(
-  EVENT_SECTION_GROUPS.flatMap((group) => group.items.map((item) => [item.id, item]))
-) as Record<EventSectionKey, EventSectionMeta>
+function getTranslatedEventSectionGroups(t: any) {
+  return EVENT_SECTION_GROUPS.map((group) => ({
+    group: t(`latest.eventGroups.${group.groupKey}`),
+    items: group.items.map((item) => ({
+      ...item,
+      label: t(item.labelKey),
+      hint: t(item.hintKey),
+    })),
+  }))
+}
 
 // Sections whose commands act on a chosen player rather than the whole world.
 const TARGETED_SECTIONS: EventSectionKey[] = ['quickSounds', 'targetedSounds', 'horde', 'teleport']
@@ -888,6 +999,15 @@ interface ActivityEntry {
 }
 
 export default function Events() {
+  const { t } = useTranslation('events')
+  const translatedTemplates = getTranslatedBridgeOperationTemplates(t)
+  const translatedForms = getTranslatedBridgeOperationForms(t)
+  const translatedGroups = getTranslatedBridgeOperationGroups(t)
+  const translatedEventGroups = getTranslatedEventSectionGroups(t)
+  const translatedEventIndex: Record<EventSectionKey, EventSectionMeta & { label: string; hint: string }> = Object.fromEntries(
+    translatedEventGroups.flatMap((group) => group.items.map((item) => [item.id, item]))
+  ) as Record<EventSectionKey, EventSectionMeta & { label: string; hint: string }>
+
   const [loading, setLoading] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<string>('')
@@ -943,7 +1063,7 @@ export default function Events() {
   const [bridgeOperation, setBridgeOperation] = useState<string>('getSafehouses')
   const [bridgeOperationFormValues, setBridgeOperationFormValues] = useState<Record<string, Record<string, string>>>(() => {
     return Object.fromEntries(
-      Object.entries(bridgeOperationForms).map(([operation, form]) => {
+      Object.entries(translatedForms).map(([operation, form]) => {
         const seeded = Object.fromEntries(form.fields.map((field) => [field.key, field.defaultValue ?? '']))
         return [operation, seeded]
       })
@@ -1040,7 +1160,7 @@ export default function Events() {
     } catch (error) {
       if (mountedRef.current) {
         setBridgeConnected(false)
-        setBridgeConnectionSummary('Unable to read bridge status from the panel API.')
+        setBridgeConnectionSummary(t('latest.unableToReadBridgeStatus'))
       }
     }
   }, [])
@@ -1159,8 +1279,8 @@ export default function Events() {
         if (failureReasons.length > 0) {
           setBridgeOptionsError(
             failureReasons.length === 3
-              ? 'Could not refresh bridge lists. Existing options are preserved.'
-              : `Some bridge lists failed to refresh (${failureReasons.join(', ')}).`
+              ? t('latest.bridgeOptionsRefreshFailed')
+              : t('latest.someBridgeListsFailed', { count: failureReasons.length })
           )
         } else {
           setBridgeOptionsError(null)
@@ -1171,7 +1291,7 @@ export default function Events() {
         }
       } catch {
         if (!active) return
-        setBridgeOptionsError('Could not refresh bridge lists. Existing options are preserved.')
+        setBridgeOptionsError(t('latest.bridgeOptionsRefreshFailed'))
       } finally {
         if (active) setBridgeOptionsLoading(false)
       }
@@ -1187,7 +1307,7 @@ export default function Events() {
       active = false
       clearInterval(interval)
     }
-  }, [bridgeConnected, bridgeOptionsRefreshTick])
+  }, [bridgeConnected, bridgeOptionsRefreshTick, t])
 
   const pushActivity = useCallback((label: string, ok: boolean) => {
     setActivity((prev) => [
@@ -1201,7 +1321,7 @@ export default function Events() {
     setBridgeLoading(action)
     try {
       await fn()
-      const successCopy = getEventSuccessCopy(action)
+      const successCopy = getEventSuccessCopy(action, t)
       toast({
         title: successCopy.title,
         description: successCopy.description,
@@ -1209,13 +1329,13 @@ export default function Events() {
       })
       pushActivity(successCopy.title, true)
     } catch (error) {
-      const message = getUserErrorMessage(error, 'Bridge command failed.')
+      const message = getUserErrorMessage(error, t('ui.bridgeCommandFailed'))
       toast({
-        title: `${action} failed`,
+        title: t('toast.actionFailed', { action: getEventActionLabel(action, t) }),
         description: `${message}. Check bridge/server connection and try again.`,
         variant: 'destructive',
       })
-      pushActivity(`${action} failed`, false)
+      pushActivity(t('toast.actionFailed', { action: getEventActionLabel(action, t) }), false)
     } finally {
       setBridgeLoading(null)
     }
@@ -1233,7 +1353,7 @@ export default function Events() {
     setLoading(action)
     try {
       await fn()
-      const successCopy = getEventSuccessCopy(action)
+      const successCopy = getEventSuccessCopy(action, t)
       toast({
         title: successCopy.title,
         description: successCopy.description,
@@ -1241,13 +1361,13 @@ export default function Events() {
       })
       pushActivity(successCopy.title, true)
     } catch (error) {
-      const message = getUserErrorMessage(error, 'Command failed.')
+      const message = getUserErrorMessage(error, t('ui.commandFailed'))
       toast({
-        title: `${action} failed`,
+        title: t('toast.actionFailed', { action: getEventActionLabel(action, t) }),
         description: `${message}. Verify command settings and try again.`,
         variant: 'destructive',
       })
-      pushActivity(`${action} failed`, false)
+      pushActivity(t('toast.actionFailed', { action: getEventActionLabel(action, t) }), false)
     } finally {
       setLoading(null)
     }
@@ -1260,24 +1380,24 @@ export default function Events() {
         ? await panelBridgeApi.restoreUtilities(power, water)
         : await panelBridgeApi.shutOffUtilities(power, water)
       await checkBridgeStatus()
-      const successCopy = getEventSuccessCopy(action)
+      const successCopy = getEventSuccessCopy(action, t)
       const notPersisted = result?.persisted === false
       toast({
         title: successCopy.title,
         description: notPersisted
-          ? `Applied to the running world only — SandboxVars.lua was not updated (${result.persistReason || 'unknown reason'}), so a server restart will undo this.`
+          ? t('ui.utilitiesNotPersisted', { reason: result.persistReason || t('ui.unknownReason') })
           : successCopy.description,
         variant: notPersisted ? 'default' : ('success' as const),
       })
       pushActivity(successCopy.title, true)
     } catch (error) {
-      const message = getUserErrorMessage(error, 'Command failed.')
+      const message = getUserErrorMessage(error, t('ui.commandFailed'))
       toast({
-        title: `${action} failed`,
+        title: t('toast.actionFailed', { action: getEventActionLabel(action, t) }),
         description: `${message}. Verify command settings and try again.`,
         variant: 'destructive',
       })
-      pushActivity(`${action} failed`, false)
+      pushActivity(t('toast.actionFailed', { action: getEventActionLabel(action, t) }), false)
     } finally {
       setLoading(null)
     }
@@ -1320,19 +1440,19 @@ export default function Events() {
   const pickStrikeTarget = (): string => {
     const explicit = getTargetPlayer()
     if (explicit) return explicit
-    if (players.length === 0) throw new Error('No players online')
+    if (players.length === 0) throw new Error(t('ui.noPlayersOnline'))
     return players[Math.floor(Math.random() * players.length)].name
   }
 
   // Zombie commands — use PanelBridge (CreateSwarm) for proper distance control
   const createHorde = (count: number, username?: string) => {
-    if (!username) throw new Error('Target player required for horde spawn')
+    if (!username) throw new Error(t('ui.hordeTargetRequired'))
     return panelBridgeApi.spawnHordeNear(username, count)
   }
 
   // Spawn horde behind the player based on their facing direction
   const createHorde2 = (count: number, username?: string) => {
-    if (!username) throw new Error('Target player required for horde spawn')
+    if (!username) throw new Error(t('ui.hordeTargetRequired'))
     return panelBridgeApi.spawnHordeBehind(username, count)
   }
 
@@ -1379,7 +1499,7 @@ export default function Events() {
   }
 
   const buildBridgeArgsFromForm = (operation: string): Record<string, unknown> => {
-    const form = bridgeOperationForms[operation]
+    const form = translatedForms[operation]
     if (!form || form.fields.length === 0) return {}
 
     const values = bridgeOperationFormValues[operation] ?? {}
@@ -1426,8 +1546,8 @@ export default function Events() {
     return args
   }
 
-  const bridgeActiveGroup = bridgeOperationGroups.find((group) => (group.operations as readonly string[]).includes(bridgeOperation))
-  const currentBridgeForm = bridgeOperationForms[bridgeOperation]
+  const bridgeActiveGroup = translatedGroups.find((group) => (group.operations as readonly string[]).includes(bridgeOperation))
+  const currentBridgeForm = translatedForms[bridgeOperation]
   const currentBridgeFields = currentBridgeForm?.fields ?? []
   const currentBridgeHasComboFields = currentBridgeFields.some((field) => field.type === 'combo')
   const currentRequiredFieldCount = currentBridgeFields.filter((field) => field.required).length
@@ -1436,9 +1556,9 @@ export default function Events() {
     return Boolean(getBridgeFieldValue(field.key).trim())
   }).length
   const bridgeRunDisabledReason = !bridgeConnected
-    ? 'Bridge is offline. Open Settings to reconnect PanelBridge.'
+    ? t('ui.bridgeIsOffline')
     : bridgeLoading !== null
-      ? 'Operation in progress. Wait for completion before sending another command.'
+      ? t('ui.operationInProgress')
       : bridgeFormError
         ? bridgeFormError
         : null
@@ -1480,7 +1600,7 @@ export default function Events() {
   }
 
   const resetBridgeFormValues = () => {
-    const form = bridgeOperationForms[bridgeOperation]
+    const form = translatedForms[bridgeOperation]
     if (!form) return
     const defaults = Object.fromEntries(form.fields.map((field) => [field.key, field.defaultValue ?? '']))
     setBridgeOperationFormValues((prev) => ({ ...prev, [bridgeOperation]: defaults }))
@@ -1493,7 +1613,7 @@ export default function Events() {
       await panelBridgeApi.sendCommand(action, args)
       toast({
         title: `${label}`,
-        description: 'Operation completed successfully.',
+        description: t('ui.operationCompleted'),
         variant: 'success' as const,
       })
       // Re-run the current list operation to refresh table data
@@ -1513,8 +1633,8 @@ export default function Events() {
       setBridgeOptionsRefreshTick((prev) => prev + 1)
     } catch (error) {
       toast({
-        title: `${label} failed`,
-        description: getUserErrorMessage(error, 'Operation failed.'),
+        title: t('toast.actionFailed', { action: label }),
+        description: getUserErrorMessage(error, t('ui.operationFailed')),
         variant: 'destructive',
       })
     } finally {
@@ -1525,8 +1645,8 @@ export default function Events() {
   const runBridgeOperation = async () => {
     if (!bridgeConnected) {
       toast({
-        title: 'Bridge Not Connected',
-        description: 'Connect PanelBridge in Settings before running advanced operations.',
+        title: t('ui.bridgeNotConnected'),
+        description: t('ui.bridgeNotConnectedDesc'),
         variant: 'destructive',
       })
       return
@@ -1537,10 +1657,10 @@ export default function Events() {
       parsedArgs = buildBridgeArgsFromForm(bridgeOperation)
       setBridgeFormError(null)
     } catch (error) {
-      const message = getUserErrorMessage(error, 'Please complete required fields.')
+      const message = getUserErrorMessage(error, t('ui.completeRequiredFields'))
       setBridgeFormError(message)
       toast({
-        title: 'Missing or Invalid Fields',
+        title: t('ui.missingOrInvalidFields'),
         description: message,
         variant: 'destructive',
       })
@@ -1564,12 +1684,12 @@ export default function Events() {
         setBridgeOptionsRefreshTick((prev) => prev + 1)
       }
       toast({
-        title: `${bridgeOperationTemplates[bridgeOperation]?.label || bridgeOperation} executed`,
-        description: 'Operation completed successfully.',
+        title: t('latest.operationExecuted', { operation: translatedTemplates[bridgeOperation]?.label || bridgeOperation }),
+        description: t('ui.operationCompleted'),
         variant: 'success' as const,
       })
     } catch (error) {
-      const message = getUserErrorMessage(error, 'Bridge operation failed.')
+      const message = getUserErrorMessage(error, t('ui.bridgeOperationFailed'))
       setBridgeResultData({
         operation: bridgeOperation,
         success: false,
@@ -1579,7 +1699,7 @@ export default function Events() {
       })
       setBridgeLastRunAt(formatPanelTimestamp(new Date()))
       toast({
-        title: 'Bridge Operation Failed',
+        title: t('ui.bridgeOperationFailed'),
         description: message,
         variant: 'destructive',
       })
@@ -1589,7 +1709,7 @@ export default function Events() {
   }
 
   const normalizedQuery = sectionQuery.trim().toLowerCase()
-  const filteredGroups = EVENT_SECTION_GROUPS
+  const filteredGroups = translatedEventGroups
     .map((group) => ({
       group: group.group,
       items: normalizedQuery
@@ -1599,20 +1719,20 @@ export default function Events() {
         : group.items,
     }))
     .filter((group) => group.items.length > 0)
-  const activeMeta = EVENT_SECTION_INDEX[activeSection]
+  const activeMeta = translatedEventIndex[activeSection]
 
   return (
     <div className="mx-auto max-w-[1180px] space-y-5 pb-8 page-transition">
       <PageHeader
-        title="Event Console"
-        description="Weather, time, sounds, player actions, and bridge tools"
-        eyebrow="world control"
+        title={t('sections.eventConsole')}
+        description={t('description')}
+        eyebrow={t('ui.worldControl')}
         tone="world"
         icon={<Zap className="w-5 h-5 text-primary" />}
         actions={
           <Button variant="command" onClick={fetchPlayers} className="gap-2 h-9 text-xs font-medium">
             <RefreshCw className="w-3.5 h-3.5" />
-            refresh players
+            {t('ui.refreshPlayers')}
           </Button>
         }
       />
@@ -1627,7 +1747,7 @@ export default function Events() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
               <Zap className={cn('w-3.5 h-3.5', bridgeConnected ? 'text-primary' : 'text-amber-400')} />
-              <span>PanelBridge</span>
+              <span>{t('bridge')}</span>
             </div>
             <div className={cn(
               'flex items-center gap-2 px-2.5 py-1 rounded-md border',
@@ -1643,12 +1763,12 @@ export default function Events() {
                 'text-sm font-semibold',
                 bridgeConnected ? 'text-emerald-300' : 'text-amber-300'
               )}>
-                {bridgeConnected ? 'online' : 'offline'}
+                {bridgeConnected ? t('ui.online') : t('ui.offline')}
               </span>
             </div>
             {!bridgeConnected && (
               <Link to="/settings" className="hidden sm:inline-flex text-sm font-medium text-primary hover:text-primary/80 underline-offset-2 hover:underline">
-                configure →
+                {t('ui.configure')}
               </Link>
             )}
           </div>
@@ -1658,7 +1778,7 @@ export default function Events() {
             {TARGETED_SECTIONS.includes(activeSection) && (
               <>
                 <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                  Event target
+                  {t('ui.target')}
             </span>
             <div className="inline-flex rounded-md border border-border/70 bg-background/60 p-0.5 shadow-sm">
               <button
@@ -1672,7 +1792,7 @@ export default function Events() {
                 )}
                 aria-pressed={targetAll}
               >
-                all online
+                {t('ui.allOnline')}
               </button>
               <button
                 type="button"
@@ -1685,17 +1805,17 @@ export default function Events() {
                 )}
                 aria-pressed={!targetAll}
               >
-                specific
+                {t('ui.specific')}
               </button>
             </div>
             {!targetAll && (
               <Select value={selectedPlayer} onValueChange={setSelectedPlayer}>
-                <SelectTrigger id="event-target-player" aria-label="Select player target" className="h-9 w-[210px] font-mono text-xs">
-                  <SelectValue placeholder="select player…" />
+                <SelectTrigger id="event-target-player" aria-label={t('labels.selectPlayer')} className="h-9 w-[210px] font-mono text-xs">
+                  <SelectValue placeholder={t('placeholders.selectPlayer')} />
                 </SelectTrigger>
                 <SelectContent>
                   {players.length === 0 ? (
-                    <div className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">no players online</div>
+                    <div className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">{t('ui.noPlayersOnline')}</div>
                   ) : (
                     players.map((player) => (
                       <SelectItem key={player.name} value={player.name}>
@@ -1716,7 +1836,7 @@ export default function Events() {
             )}>
               <Users className="w-3.5 h-3.5" />
               <span className="text-sm font-bold tabular-nums">{players.length}</span>
-              <span className="text-xs font-medium opacity-80">online</span>
+              <span className="text-xs font-medium opacity-80">{t('ui.online')}</span>
             </div>
           </div>
         </div>
@@ -1729,13 +1849,13 @@ export default function Events() {
             <Input
               value={sectionQuery}
               onChange={(e) => setSectionQuery(e.target.value)}
-              placeholder="Find a control"
-              aria-label="Find an event control"
+              placeholder={t('latest.findControl')}
+              aria-label={t('latest.findEventControl')}
               className="h-9 pl-8 text-sm"
             />
           </div>
 
-          <nav aria-label="Event sections" className="space-y-3 rounded-md border border-border/60 bg-card p-2">
+          <nav aria-label={t('latest.eventSections')} className="space-y-3 rounded-md border border-border/60 bg-card p-2">
             {filteredGroups.map((group) => (
               <div key={group.group}>
                 <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60">
@@ -1764,7 +1884,7 @@ export default function Events() {
                         {blocked && (
                           <span
                             className={cn('text-[10px] font-medium', isActive ? 'text-primary-foreground/80' : 'text-amber-400/80')}
-                            title="Needs PanelBridge"
+                            title={t('latest.needsPanelBridge')}
                           >
                             bridge
                           </span>
@@ -1776,13 +1896,13 @@ export default function Events() {
               </div>
             ))}
             {filteredGroups.length === 0 && (
-              <p className="px-2 py-3 text-xs text-muted-foreground">No control matches that search.</p>
+              <p className="px-2 py-3 text-xs text-muted-foreground">{t('latest.noControlMatches')}</p>
             )}
           </nav>
 
           {activity.length > 0 && (
             <div className="rounded-md border border-border/60 bg-card">
-              <p className="border-b border-border/60 px-3 py-2 text-xs font-semibold text-foreground">Recent actions</p>
+              <p className="border-b border-border/60 px-3 py-2 text-xs font-semibold text-foreground">{t('latest.recentActions')}</p>
               <ul className="divide-y divide-border/40">
                 {activity.map((entry) => (
                   <li key={entry.key} className="flex items-start gap-2 px-3 py-2">
@@ -1797,7 +1917,6 @@ export default function Events() {
             </div>
           )}
         </aside>
-
         <div className="space-y-4">
           <div>
             <h2 className="text-base font-semibold text-foreground">{activeMeta.label}</h2>
@@ -1807,34 +1926,34 @@ export default function Events() {
           {activeMeta.needsBridge && !bridgeConnected && (
             <Alert className="border-warning/40 bg-warning/10">
               <AlertTriangle className="h-4 w-4 text-warning" />
-              <AlertTitle className="text-warning">PanelBridge is offline</AlertTitle>
+              <AlertTitle className="text-warning">{t('latest.panelBridgeOffline')}</AlertTitle>
               <AlertDescription>
-                These controls need the Lua bridge. Connect it in <Link to="/settings?tab=bridge" className="text-primary underline-offset-2 hover:underline">Settings</Link>, then start the PZ server.
+                {t('latest.controlsNeedBridgePrefix')} <Link to="/settings?tab=bridge" className="text-primary underline-offset-2 hover:underline">{t('title')}</Link>{t('latest.controlsNeedBridgeSuffix')}
               </AlertDescription>
             </Alert>
           )}
 
         {activeSection === 'rain' && (
             <TacticalPanel>
-              <SectionHeader label="rain & storms" sublabel="rcon · always available" icon={CloudRain} />
+              <SectionHeader label={t('labels.rainStorms')} sublabel={t('labels.rcon')} icon={CloudRain} />
               <div className="p-4 space-y-6">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
                       <CloudRain className="w-3.5 h-3.5 text-info" />
-                      rain
+                      {t('desc.rain')}
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-info">{rainIntensity}%</span>
                   </div>
-                  <Slider aria-label="Rain intensity" value={[rainIntensity]} onValueChange={([val]) => setRainIntensity(val)} min={1} max={100} step={1} />
+                  <Slider aria-label={t('labels.rainIntensity')} value={[rainIntensity]} onValueChange={([val]) => setRainIntensity(val)} min={1} max={100} step={1} />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={() => handleAction('Start rain', startRain)} disabled={loading !== null} className="h-9 gap-2 text-xs font-medium">
                       {loading === 'Start rain' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudRain className="w-3.5 h-3.5" />}
-                      start rain
+                      {t('btn.startRain')}
                     </Button>
                     <Button variant="outline" onClick={() => handleAction('Stop rain', stopRain)} disabled={loading !== null} className="h-9 gap-2 text-xs font-medium">
                       {loading === 'Stop rain' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudOff className="w-3.5 h-3.5" />}
-                      stop rain
+                      {t('btn.stopRain')}
                     </Button>
                   </div>
                 </div>
@@ -1843,19 +1962,19 @@ export default function Events() {
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
                       <CloudLightning className="w-3.5 h-3.5 text-amber-400" />
-                      storm
+                      {t('desc.storm')}
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-amber-400">{stormDuration}h</span>
                   </div>
-                  <Slider aria-label="Storm duration" value={[stormDuration]} onValueChange={([val]) => setStormDuration(val)} min={1} max={24} step={1} />
+                  <Slider aria-label={t('labels.stormDuration')} value={[stormDuration]} onValueChange={([val]) => setStormDuration(val)} min={1} max={24} step={1} />
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={() => handleAction('Start storm', startStorm)} disabled={loading !== null} className="h-9 gap-2 text-xs font-medium">
                       {loading === 'Start storm' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudLightning className="w-3.5 h-3.5" />}
-                      start storm
+                      {t('btn.startStorm')}
                     </Button>
                     <Button variant="outline" onClick={() => handleAction('Stop weather', stopWeather)} disabled={loading !== null} className="h-9 gap-2 text-xs font-medium">
                       {loading === 'Stop weather' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
-                      clear weather
+                      {t('btn.clearWeather')}
                     </Button>
                   </div>
                 </div>
@@ -1866,8 +1985,8 @@ export default function Events() {
         {activeSection === 'severe' && (
             <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
               <SectionHeader
-                label="Severe weather"
-                sublabel={bridgeConnected ? 'bridge · advanced' : 'bridge offline'}
+                label={t('labels.severeWeather')}
+                sublabel={bridgeConnected ? t('desc.bridgeAdvanced') : t('desc.bridgeOffline')}
                 icon={Snowflake}
                 tone={bridgeConnected ? 'primary' : 'warning'}
               />
@@ -1880,7 +1999,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-info">{blizzardDuration}h</span>
                   </div>
-                  <Slider aria-label="Blizzard duration" value={[blizzardDuration]} onValueChange={([val]) => setBlizzardDuration(val)} min={1} max={24} step={1} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.blizzardDuration')} value={[blizzardDuration]} onValueChange={([val]) => setBlizzardDuration(val)} min={1} max={24} step={1} disabled={!bridgeConnected} />
                   <Button variant="outline" onClick={() => handleBridgeAction('Blizzard', () => panelBridgeApi.triggerBlizzard(blizzardDuration))} disabled={bridgeLoading !== null || !bridgeConnected} className="h-9 gap-2 text-xs font-medium">
                     {bridgeLoading === 'Blizzard' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Snowflake className="w-3.5 h-3.5" />}
                     trigger blizzard
@@ -1895,7 +2014,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-amber-400">{tropicalDuration}h</span>
                   </div>
-                  <Slider aria-label="Tropical storm duration" value={[tropicalDuration]} onValueChange={([val]) => setTropicalDuration(val)} min={1} max={24} step={1} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.tropicalStormDuration')} value={[tropicalDuration]} onValueChange={([val]) => setTropicalDuration(val)} min={1} max={24} step={1} disabled={!bridgeConnected} />
                   <Button variant="outline" onClick={() => handleBridgeAction('Tropical Storm', () => panelBridgeApi.triggerTropicalStorm(tropicalDuration))} disabled={bridgeLoading !== null || !bridgeConnected} className="h-9 gap-2 text-xs font-medium">
                     {bridgeLoading === 'Tropical Storm' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wind className="w-3.5 h-3.5" />}
                     trigger tropical storm
@@ -1919,7 +2038,7 @@ export default function Events() {
                   </div>
                   <Button variant="outline" onClick={() => handleBridgeAction('Stop All Weather', () => panelBridgeApi.stopWeather())} disabled={bridgeLoading !== null || !bridgeConnected} className="h-9 gap-2 text-xs font-medium text-destructive/85 hover:text-destructive hover:border-destructive/40">
                     {bridgeLoading === 'Stop All Weather' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
-                    stop all weather
+                    {t('btn.stopAllWeather')}
                   </Button>
                 </div>
               </div>
@@ -1929,14 +2048,14 @@ export default function Events() {
         {activeSection === 'climate' && (
           <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
             <SectionHeader
-              label="Climate trim"
-              sublabel={bridgeConnected ? 'bridge · admin override' : 'bridge offline'}
+              label={t('labels.climateTrim')}
+              sublabel={bridgeConnected ? t('desc.bridgeAdminOverride') : t('desc.bridgeOffline')}
               icon={Gauge}
               tone={bridgeConnected ? 'primary' : 'warning'}
               action={bridgeConnected ? (
                 <Button variant="ghost" size="sm" onClick={() => handleBridgeAction('Reset Climate', async () => { const r = await panelBridgeApi.resetClimateOverrides(); climateDirtyUntilRef.current = 0; return r })} disabled={bridgeLoading !== null} className="h-6 px-2 gap-1 text-xs font-medium">
                   <RotateCcw className="w-3 h-3" />
-                  reset
+                  {t('btn.reset')}
                 </Button>
               ) : undefined}
             />
@@ -1950,7 +2069,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{fogIntensity}%</span>
                   </div>
-                  <Slider aria-label="Fog intensity" value={[fogIntensity]} onValueChange={([val]) => { markClimateDirty(); setFogIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.fogIntensity')} value={[fogIntensity]} onValueChange={([val]) => { markClimateDirty(); setFogIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="space-y-2">
@@ -1961,7 +2080,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{windIntensity}%</span>
                   </div>
-                  <Slider aria-label="Wind intensity" value={[windIntensity]} onValueChange={([val]) => { markClimateDirty(); setWindIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.windIntensity')} value={[windIntensity]} onValueChange={([val]) => { markClimateDirty(); setWindIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="space-y-2">
@@ -1972,7 +2091,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{temperature}°C</span>
                   </div>
-                  <Slider aria-label="Temperature" value={[temperature]} onValueChange={([val]) => { markClimateDirty(); setTemperature(val) }} min={-30} max={45} step={1} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.temperature')} value={[temperature]} onValueChange={([val]) => { markClimateDirty(); setTemperature(val) }} min={-30} max={45} step={1} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="space-y-2">
@@ -1983,7 +2102,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{cloudIntensity}%</span>
                   </div>
-                  <Slider aria-label="Cloud intensity" value={[cloudIntensity]} onValueChange={([val]) => { markClimateDirty(); setCloudIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.cloudIntensity')} value={[cloudIntensity]} onValueChange={([val]) => { markClimateDirty(); setCloudIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="space-y-2">
@@ -1994,7 +2113,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{humidity}%</span>
                   </div>
-                  <Slider aria-label="Humidity" value={[humidity]} onValueChange={([val]) => { markClimateDirty(); setHumidity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.humidity')} value={[humidity]} onValueChange={([val]) => { markClimateDirty(); setHumidity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="space-y-2">
@@ -2005,7 +2124,7 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{precipitationIntensity}%</span>
                   </div>
-                  <Slider aria-label="Precipitation intensity" value={[precipitationIntensity]} onValueChange={([val]) => { markClimateDirty(); setPrecipitationIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.precipitationIntensity')} value={[precipitationIntensity]} onValueChange={([val]) => { markClimateDirty(); setPrecipitationIntensity(val) }} min={0} max={100} step={5} disabled={!bridgeConnected} />
                 </div>
               </div>
 
@@ -2027,19 +2146,19 @@ export default function Events() {
                   className="h-9 gap-2 text-xs font-medium"
                 >
                   {bridgeLoading === 'Apply All Climate' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gauge className="w-3.5 h-3.5" />}
-                  apply all
+                  {t('btn.applyAll')}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleBridgeAction('Start Rain', () => panelBridgeApi.startRain(Math.max(0.05, precipitationIntensity / 100)))}
                   disabled={bridgeLoading !== null || !bridgeConnected}
-                  title="Starts rain using the precipitation slider intensity (minimum 5%)"
+                  title={t('tooltips.startRain')}
                   className="h-9 gap-2 text-xs font-medium"
                 >
-                  <CloudRain className="w-3.5 h-3.5" /> rain · {Math.max(5, precipitationIntensity)}%
+                  <CloudRain className="w-3.5 h-3.5" /> {t('desc.rain')} · {Math.max(5, precipitationIntensity)}%
                 </Button>
                 <Button variant="outline" onClick={() => handleBridgeAction('Stop Rain', () => panelBridgeApi.stopRain())} disabled={bridgeLoading !== null || !bridgeConnected} className="h-9 gap-2 text-xs font-medium">
-                  <CloudOff className="w-3.5 h-3.5" /> stop rain
+                  <CloudOff className="w-3.5 h-3.5" /> {t('btn.stopRain')}
                 </Button>
               </div>
             </div>
@@ -2048,7 +2167,7 @@ export default function Events() {
 
         {activeSection === 'clock' && (
             <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
-              <SectionHeader label="Game clock" sublabel="bridge · world date and time" icon={Calendar} tone={bridgeConnected ? 'primary' : 'warning'} />
+              <SectionHeader label={t('labels.gameClock')} sublabel={t('latest.clockSublabel')} icon={Calendar} tone={bridgeConnected ? 'primary' : 'warning'} />
               <div className="p-4 space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -2058,44 +2177,44 @@ export default function Events() {
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{String(gameHour).padStart(2, '0')}:00</span>
                   </div>
-                  <Slider aria-label="Game hour" value={[gameHour]} onValueChange={([val]) => setGameHour(val)} min={0} max={23} step={1} disabled={!bridgeConnected} />
+                  <Slider aria-label={t('labels.gameHour')} value={[gameHour]} onValueChange={([val]) => setGameHour(val)} min={0} max={23} step={1} disabled={!bridgeConnected} />
                 </div>
 
                 <div className="flex flex-wrap gap-1.5">
-                  <Button variant={gameHour === 6 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(6)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sunrise className="w-3 h-3" /> dawn</Button>
-                  <Button variant={gameHour === 12 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(12)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sun className="w-3 h-3" /> noon</Button>
-                  <Button variant={gameHour === 18 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(18)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sunset className="w-3 h-3" /> dusk</Button>
-                  <Button variant={gameHour === 0 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(0)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Moon className="w-3 h-3" /> midnight</Button>
+                  <Button variant={gameHour === 6 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(6)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sunrise className="w-3 h-3" /> {t('desc.dawn')}</Button>
+                  <Button variant={gameHour === 12 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(12)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sun className="w-3 h-3" /> {t('desc.noon')}</Button>
+                  <Button variant={gameHour === 18 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(18)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Sunset className="w-3 h-3" /> {t('desc.dusk')}</Button>
+                  <Button variant={gameHour === 0 ? 'secondary' : 'outline'} size="sm" onClick={() => setGameHour(0)} disabled={!bridgeConnected} className="h-8 gap-1 text-xs font-medium"><Moon className="w-3 h-3" /> {t('desc.midnight')}</Button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="space-y-1">
-                    <Label htmlFor="game-day" className="text-xs font-medium text-muted-foreground">day</Label>
-                    <Input id="game-day" aria-label="Game day" type="number" min={1} max={31} value={gameDay} disabled={!bridgeConnected} onChange={(e) => {
+                    <Label htmlFor="game-day" className="text-xs font-medium text-muted-foreground">{t('day')}</Label>
+                    <Input id="game-day" aria-label={t('labels.gameDay')} type="number" min={1} max={31} value={gameDay} disabled={!bridgeConnected} onChange={(e) => {
                       const parsed = parseInt(e.target.value, 10)
                       if (Number.isNaN(parsed)) { setGameDay(1); return }
                       setGameDay(Math.min(31, Math.max(1, parsed)))
                     }} className="h-9 font-mono text-[12px] tabular-nums" />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="game-month" className="text-xs font-medium text-muted-foreground">month</Label>
+                    <Label htmlFor="game-month" className="text-xs font-medium text-muted-foreground">{t('month')}</Label>
                     <Select value={String(gameMonth)} onValueChange={(v) => setGameMonth(parseInt(v))} disabled={!bridgeConnected}>
-                      <SelectTrigger id="game-month" aria-label="Game month" className="h-9 font-mono text-[12px]">
+                      <SelectTrigger id="game-month" aria-label={t('labels.gameMonth')} className="h-9 font-mono text-[12px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">January</SelectItem>
-                        <SelectItem value="2">February</SelectItem>
-                        <SelectItem value="3">March</SelectItem>
-                        <SelectItem value="4">April</SelectItem>
-                        <SelectItem value="5">May</SelectItem>
-                        <SelectItem value="6">June</SelectItem>
-                        <SelectItem value="7">July</SelectItem>
-                        <SelectItem value="8">August</SelectItem>
-                        <SelectItem value="9">September</SelectItem>
-                        <SelectItem value="10">October</SelectItem>
-                        <SelectItem value="11">November</SelectItem>
-                        <SelectItem value="12">December</SelectItem>
+                        <SelectItem value="1">{t('january')}</SelectItem>
+                        <SelectItem value="2">{t('february')}</SelectItem>
+                        <SelectItem value="3">{t('march')}</SelectItem>
+                        <SelectItem value="4">{t('april')}</SelectItem>
+                        <SelectItem value="5">{t('may')}</SelectItem>
+                        <SelectItem value="6">{t('june')}</SelectItem>
+                        <SelectItem value="7">{t('july')}</SelectItem>
+                        <SelectItem value="8">{t('august')}</SelectItem>
+                        <SelectItem value="9">{t('september')}</SelectItem>
+                        <SelectItem value="10">{t('october')}</SelectItem>
+                        <SelectItem value="11">{t('november')}</SelectItem>
+                        <SelectItem value="12">{t('december')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -2111,17 +2230,17 @@ export default function Events() {
 
         {activeSection === 'timespeed' && (
             <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
-              <SectionHeader label="Time speed" sublabel="bridge · resets on restart" icon={Clock} tone={bridgeConnected ? 'primary' : 'warning'} />
+            <SectionHeader label={t('labels.timeSpeed')} sublabel={t('labels.bridgeResets')} icon={Clock} tone={bridgeConnected ? 'primary' : 'warning'} />
               <div className="p-4 flex flex-col gap-4">
                 <p className="text-xs text-muted-foreground/75 leading-relaxed">
                   Accelerate the in-game clock. Useful for testing weather, day/night cycles, or fast-forwarding events. Resets to 1× when the server restarts.
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-foreground/85">multiplier</Label>
+                    <Label className="text-xs font-medium text-foreground/85">{t('multiplier')}</Label>
                     <span className="font-mono text-[11px] tabular-nums text-primary">{timeSpeed}x</span>
                   </div>
-                  <Slider aria-label="Time speed" value={[timeSpeed]} onValueChange={([val]) => setTimeSpeed(val)} min={1} max={100} step={1} />
+                  <Slider aria-label={t('labels.timeSpeedLabel')} value={[timeSpeed]} onValueChange={([val]) => setTimeSpeed(val)} min={1} max={100} step={1} />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Button size="sm" onClick={() => setTimeSpeed(1)} variant={timeSpeed === 1 ? 'secondary' : 'outline'} className="h-8 text-xs font-medium tabular-nums">1×</Button>
@@ -2131,7 +2250,7 @@ export default function Events() {
                 </div>
                 <Button variant="outline" onClick={() => handleAction('Set time speed', setGameTimeSpeed)} disabled={loading !== null || !bridgeConnected} className="h-9 gap-2 text-xs font-medium">
                   {loading === 'Set time speed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clock className="w-3.5 h-3.5" />}
-                  apply speed
+                  {t('btn.applySpeed')}
                 </Button>
               </div>
             </TacticalPanel>
@@ -2140,27 +2259,27 @@ export default function Events() {
         {activeSection === 'utilities' && (
           <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
             <SectionHeader
-              label="Power and water"
-              sublabel="power & water grid"
+              label={t('labels.utilities')}
+              sublabel={t('labels.powerWaterGrid')}
               icon={Zap}
               tone={bridgeConnected ? 'primary' : 'warning'}
               action={bridgeConnected ? (
-                <Button variant="ghost" size="sm" onClick={() => checkBridgeStatus()} className="h-6 px-2 gap-1 text-xs font-medium">
-                  <RefreshCw className="w-3 h-3" /> refresh
+                  <Button variant="ghost" size="sm" onClick={() => checkBridgeStatus()} className="h-6 px-2 gap-1 text-xs font-medium">
+                  <RefreshCw className="w-3 h-3" /> {t('btn.refresh')}
                 </Button>
               ) : undefined}
             />
             <div className="p-4 space-y-4">
               <div className="flex items-start gap-2 rounded border border-amber-400/25 bg-amber-400/[0.05] px-2.5 py-1.5 text-[11px] font-medium uppercase tracking-wide text-amber-400/85">
                 <AlertTriangle className="w-3 h-3 mt-px shrink-0" />
-                <span>b42 multiplayer · sandbox changes do not propagate to connected clients yet</span>
+                <span>{t('b42MultiplayerSandboxChangesDoNotPropagateToConnectedClientsYet')}</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-md border border-border/50 bg-muted/15 p-3 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-                      <Zap className="w-3.5 h-3.5 text-amber-400" /> power
+                      <Zap className="w-3.5 h-3.5 text-amber-400" /> {t('desc.power')}
                     </span>
                     <span className={cn(
                       'flex items-center gap-1.5 text-xs font-medium',
@@ -2171,15 +2290,15 @@ export default function Events() {
                         utilitiesStatus === null ? 'bg-muted-foreground/40'
                           : utilitiesStatus.powerOn ? 'bg-emerald-400 animate-pulse' : 'bg-destructive'
                       )} />
-                      {utilitiesStatus === null ? '…' : utilitiesStatus.powerOn ? 'online' : 'offline'}
+                      {utilitiesStatus === null ? '…' : utilitiesStatus.powerOn ? t('ui.online') : t('ui.offline')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
-                    <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Restore Power', true, true, false)} className="h-8 text-xs font-medium text-emerald-400/90 hover:text-emerald-400 hover:border-emerald-400/40">
-                      restore
+                      <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Restore Power', true, true, false)} className="h-8 text-xs font-medium text-emerald-400/90 hover:text-emerald-400 hover:border-emerald-400/40">
+                      {t('btn.restore')}
                     </Button>
-                    <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Shut Off Power', false, true, false)} className="h-8 text-xs font-medium text-destructive/90 hover:text-destructive hover:border-destructive/40">
-                      shut off
+                      <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Shut Off Power', false, true, false)} className="h-8 text-xs font-medium text-destructive/90 hover:text-destructive hover:border-destructive/40">
+                      {t('btn.shutOff')}
                     </Button>
                   </div>
                 </div>
@@ -2187,7 +2306,7 @@ export default function Events() {
                 <div className="rounded-md border border-border/50 bg-muted/15 p-3 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
-                      <Droplets className="w-3.5 h-3.5 text-info" /> water
+                      <Droplets className="w-3.5 h-3.5 text-info" /> {t('desc.water')}
                     </span>
                     <span className={cn(
                       'flex items-center gap-1.5 text-xs font-medium',
@@ -2198,15 +2317,15 @@ export default function Events() {
                         utilitiesStatus === null ? 'bg-muted-foreground/40'
                           : utilitiesStatus.waterOn ? 'bg-emerald-400 animate-pulse' : 'bg-destructive'
                       )} />
-                      {utilitiesStatus === null ? '…' : utilitiesStatus.waterOn ? 'online' : 'offline'}
+                      {utilitiesStatus === null ? '…' : utilitiesStatus.waterOn ? t('ui.online') : t('ui.offline')}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
-                    <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Restore Water', true, false, true)} className="h-8 text-xs font-medium text-emerald-400/90 hover:text-emerald-400 hover:border-emerald-400/40">
-                      restore
+                      <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Restore Water', true, false, true)} className="h-8 text-xs font-medium text-emerald-400/90 hover:text-emerald-400 hover:border-emerald-400/40">
+                      {t('btn.restore')}
                     </Button>
-                    <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Shut Off Water', false, false, true)} className="h-8 text-xs font-medium text-destructive/90 hover:text-destructive hover:border-destructive/40">
-                      shut off
+                      <Button variant="outline" size="sm" disabled={!bridgeConnected || loading !== null} onClick={() => handleUtilities('Shut Off Water', false, false, true)} className="h-8 text-xs font-medium text-destructive/90 hover:text-destructive hover:border-destructive/40">
+                      {t('btn.shutOff')}
                     </Button>
                   </div>
                 </div>
@@ -2217,31 +2336,31 @@ export default function Events() {
 
         {activeSection === 'quickSounds' && (
             <TacticalPanel tone="warning">
-              <SectionHeader label="Quick sounds" sublabel="RCON · attracts zombies" icon={Volume2} tone="warning" />
+              <SectionHeader label={t('labels.quickSounds')} sublabel={t('labels.rconAttracts')} icon={Volume2} tone="warning" />
               <div className="p-4 space-y-3">
                 <p className="font-mono text-[11px] text-muted-foreground/75 leading-relaxed">
-                  helicopter & gunshot pick a random online player · lightning & thunder strike the selected player (or random if “all online”) · alarm needs an admin in-game
+                  {t('desc.quickSoundsDesc')}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => handleAction('Helicopter', triggerChopper)} disabled={loading !== null || players.length === 0} title={players.length === 0 ? 'No players online' : undefined} className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Helicopter', triggerChopper)} disabled={loading !== null || players.length === 0} title={players.length === 0 ? t('ui.noPlayersOnline') : undefined} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Helicopter' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5" />}
                     helicopter
                   </Button>
-                  <Button variant="outline" onClick={() => handleAction('Gunshot', triggerGunshot)} disabled={loading !== null || players.length === 0} title={players.length === 0 ? 'No players online' : undefined} className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Gunshot', triggerGunshot)} disabled={loading !== null || players.length === 0} title={players.length === 0 ? t('ui.noPlayersOnline') : undefined} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Gunshot' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
                     gunshot
                   </Button>
-                  <Button variant="outline" onClick={() => handleAction('Lightning', () => triggerLightning(pickStrikeTarget()))} disabled={loading !== null || players.length === 0} title={players.length === 0 ? 'No players online' : 'Strikes the selected player, or a random one if “all online” is active'} className="h-9 gap-2 text-xs font-medium text-amber-400/90 hover:text-amber-400 hover:border-amber-400/40">
+                  <Button variant="outline" onClick={() => handleAction('Lightning', () => triggerLightning(pickStrikeTarget()))} disabled={loading !== null || players.length === 0} title={players.length === 0 ? t('ui.noPlayersOnline') : t('latest.lightningTarget')} className="h-9 gap-2 text-xs font-medium text-amber-400/90 hover:text-amber-400 hover:border-amber-400/40">
                     {loading === 'Lightning' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                     lightning
                   </Button>
-                  <Button variant="outline" onClick={() => handleAction('Thunder', () => triggerThunder(pickStrikeTarget()))} disabled={loading !== null || players.length === 0} title={players.length === 0 ? 'No players online' : 'Thunders over the selected player, or a random one if “all online” is active'} className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Thunder', () => triggerThunder(pickStrikeTarget()))} disabled={loading !== null || players.length === 0} title={players.length === 0 ? t('ui.noPlayersOnline') : t('latest.thunderTarget')} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Thunder' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudLightning className="w-3.5 h-3.5" />}
                     thunder
                   </Button>
-                  <Button variant="outline" onClick={() => handleAction('Alarm', triggerAlarm)} disabled={loading !== null} title="Requires admin character in-game — triggers at admin location" className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Alarm', triggerAlarm)} disabled={loading !== null} title={t('tooltips.requiresAdmin')} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Alarm' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
-                    building alarm · admin in-game
+                    {t('btn.buildingAlarm')}
                   </Button>
                 </div>
               </div>
@@ -2251,8 +2370,8 @@ export default function Events() {
         {activeSection === 'targetedSounds' && (
             <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
               <SectionHeader
-                label="Targeted sounds"
-                sublabel={bridgeConnected ? 'bridge · custom noise' : 'bridge offline'}
+                label={t('labels.targetedSounds')}
+                sublabel={bridgeConnected ? t('desc.bridgeCustomNoise') : t('desc.bridgeOffline')}
                 icon={Megaphone}
                 tone={bridgeConnected ? 'primary' : 'warning'}
               />
@@ -2261,30 +2380,30 @@ export default function Events() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-primary/80" /> radius
+                        <Target className="w-3.5 h-3.5 text-primary/80" /> {t('desc.radius')}
                       </Label>
                       <span className="font-mono text-[11px] tabular-nums text-primary">{soundRadius}m</span>
                     </div>
-                    <Slider aria-label="Sound radius" value={[soundRadius]} onValueChange={([val]) => setSoundRadius(val)} min={10} max={300} step={10} disabled={!bridgeConnected} />
+                    <Slider aria-label={t('labels.soundRadius')} value={[soundRadius]} onValueChange={([val]) => setSoundRadius(val)} min={10} max={300} step={10} disabled={!bridgeConnected} />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                        <Volume2 className="w-3.5 h-3.5 text-primary/80" /> volume
+                        <Volume2 className="w-3.5 h-3.5 text-primary/80" /> {t('desc.volume')}
                       </Label>
                       <span className="font-mono text-[11px] tabular-nums text-primary">{soundVolume}</span>
                     </div>
-                    <Slider aria-label="Sound volume" value={[soundVolume]} onValueChange={([val]) => setSoundVolume(val)} min={10} max={300} step={10} disabled={!bridgeConnected} />
+                    <Slider aria-label={t('labels.soundVolume')} value={[soundVolume]} onValueChange={([val]) => setSoundVolume(val)} min={10} max={300} step={10} disabled={!bridgeConnected} />
                   </div>
                 </div>
 
                 <div className="space-y-2 pt-3 border-t border-border/40">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                      <User className="w-3 h-3" /> at target location
+                      <User className="w-3 h-3" /> {t('desc.atTargetLocation')}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground/70">
-                      {targetAll || !selectedPlayer ? 'pick a specific player' : selectedPlayer}
+                      {targetAll || !selectedPlayer ? t('desc.pickSpecificPlayer') : selectedPlayer}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -2306,7 +2425,7 @@ export default function Events() {
                 <div className="space-y-2 pt-3 border-t border-border/40">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                      <MapPin className="w-3 h-3" /> at world coords
+                      <MapPin className="w-3 h-3" /> {t('desc.atWorldCoords')}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground/70">
                       kentucky · 0 – 15000
@@ -2314,12 +2433,12 @@ export default function Events() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label htmlFor="sound-world-x" className="text-xs font-medium text-muted-foreground">x</Label>
-                      <Input id="sound-world-x" aria-label="Sound world X coordinate" type="number" placeholder="10500" value={soundX} onChange={(e) => setSoundX(e.target.value)} disabled={!bridgeConnected} className="h-9 font-mono text-[12px] tabular-nums" />
+                      <Label htmlFor="sound-world-x" className="text-xs font-medium text-muted-foreground">{t('axis.x')}</Label>
+                      <Input id="sound-world-x" aria-label={t('labels.soundX')} type="number" placeholder={t('placeholders.defaultX')} value={soundX} onChange={(e) => setSoundX(e.target.value)} disabled={!bridgeConnected} className="h-9 font-mono text-[12px] tabular-nums" />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="sound-world-y" className="text-xs font-medium text-muted-foreground">y</Label>
-                      <Input id="sound-world-y" aria-label="Sound world Y coordinate" type="number" placeholder="9800" value={soundY} onChange={(e) => setSoundY(e.target.value)} disabled={!bridgeConnected} className="h-9 font-mono text-[12px] tabular-nums" />
+                      <Label htmlFor="sound-world-y" className="text-xs font-medium text-muted-foreground">{t('axis.y')}</Label>
+                      <Input id="sound-world-y" aria-label={t('labels.soundY')} type="number" placeholder={t('placeholders.defaultY')} value={soundY} onChange={(e) => setSoundY(e.target.value)} disabled={!bridgeConnected} className="h-9 font-mono text-[12px] tabular-nums" />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -2343,28 +2462,28 @@ export default function Events() {
 
         {activeSection === 'horde' && (
             <TacticalPanel tone={bridgeConnected ? 'destructive' : 'warning'} className={!bridgeConnected ? 'opacity-60' : ''}>
-              <SectionHeader label="Spawn horde" sublabel={bridgeConnected ? 'bridge · loaded cells only' : 'bridge offline'} icon={Skull} tone={bridgeConnected ? 'destructive' : 'warning'} />
+              <SectionHeader label={t('labels.spawnHorde')} sublabel={bridgeConnected ? t('desc.bridgeLoadedCells') : t('desc.bridgeOffline')} icon={Skull} tone={bridgeConnected ? 'destructive' : 'warning'} />
               <div className="p-4 space-y-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                      <Skull className="w-3.5 h-3.5 text-destructive" /> count
+                      <Skull className="w-3.5 h-3.5 text-destructive" /> {t('desc.count')}
                     </Label>
                     <span className="font-mono text-[11px] tabular-nums text-destructive">{hordeCount}</span>
                   </div>
-                  <Slider aria-label="Horde size" value={[hordeCount]} onValueChange={([val]) => setHordeCount(val)} min={10} max={500} step={10} />
+                  <Slider aria-label={t('labels.hordeSize')} value={[hordeCount]} onValueChange={([val]) => setHordeCount(val)} min={10} max={500} step={10} />
                 </div>
-                <Button variant="outline" onClick={() => handleAction('Create horde', () => createHorde(hordeCount, pickStrikeTarget()))} disabled={loading !== null || !bridgeConnected || players.length === 0 || (!targetAll && !selectedPlayer)} title={players.length === 0 ? 'No players online' : !bridgeConnected ? 'Bridge offline' : undefined} className="h-9 gap-2 text-xs font-medium">
+                <Button variant="outline" onClick={() => handleAction('Create horde', () => createHorde(hordeCount, pickStrikeTarget()))} disabled={loading !== null || !bridgeConnected || players.length === 0 || (!targetAll && !selectedPlayer)} title={players.length === 0 ? t('ui.noPlayersOnline') : !bridgeConnected ? t('ui.bridgeOffline') : undefined} className="h-9 gap-2 text-xs font-medium">
                   {loading === 'Create horde' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Skull className="w-3.5 h-3.5" />}
-                  spawn near {targetAll ? 'random' : selectedPlayer || 'target'}
+                  {t('latest.spawnNear', { target: targetAll ? t('ui.random') : selectedPlayer || t('ui.target') })}
                 </Button>
-                <Button variant="outline" onClick={() => handleAction('Create horde (behind)', () => createHorde2(hordeCount, pickStrikeTarget()))} disabled={loading !== null || !bridgeConnected || players.length === 0 || (!targetAll && !selectedPlayer)} title={players.length === 0 ? 'No players online' : !bridgeConnected ? 'Bridge offline' : undefined} className="h-9 gap-2 text-xs font-medium">
+                <Button variant="outline" onClick={() => handleAction('Create horde (behind)', () => createHorde2(hordeCount, pickStrikeTarget()))} disabled={loading !== null || !bridgeConnected || players.length === 0 || (!targetAll && !selectedPlayer)} title={players.length === 0 ? t('ui.noPlayersOnline') : !bridgeConnected ? t('ui.bridgeOffline') : undefined} className="h-9 gap-2 text-xs font-medium">
                   {loading === 'Create horde (behind)' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Skull className="w-3.5 h-3.5" />}
-                  spawn behind {targetAll ? 'random' : selectedPlayer || 'target'}
+                  {t('latest.spawnBehind', { target: targetAll ? t('ui.random') : selectedPlayer || t('ui.target') })}
                 </Button>
-                <Button variant="outline" onClick={() => handleAction('Remove all zombies', removeZombies)} disabled={loading !== null || !bridgeConnected} title={!bridgeConnected ? 'Bridge offline' : undefined} className="h-9 gap-2 text-xs font-medium text-destructive/95 hover:text-destructive hover:border-destructive/50 hover:bg-destructive/10">
+                <Button variant="outline" onClick={() => handleAction('Remove all zombies', removeZombies)} disabled={loading !== null || !bridgeConnected} title={!bridgeConnected ? t('ui.bridgeOffline') : undefined} className="h-9 gap-2 text-xs font-medium text-destructive/95 hover:text-destructive hover:border-destructive/50 hover:bg-destructive/10">
                   {loading === 'Remove all zombies' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                  clear loaded zombies
+                  {t('btn.clearLoadedZombies')}
                 </Button>
               </div>
             </TacticalPanel>
@@ -2372,28 +2491,28 @@ export default function Events() {
 
         {activeSection === 'vehicles' && (
             <TacticalPanel tone="info">
-              <SectionHeader label="Spawn vehicle" sublabel="RCON · spawns next to a player" icon={Car} tone="info" />
+            <SectionHeader label={t('labels.spawnVehicle')} sublabel={t('labels.rconNearPlayer')} icon={Car} tone="info" />
               <div className="p-4 space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="vehicle-type-select" className="text-xs font-medium text-muted-foreground">vehicle</Label>
+                  <Label htmlFor="vehicle-type-select" className="text-xs font-medium text-muted-foreground">{t('vehicle')}</Label>
                   <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-                    <SelectTrigger id="vehicle-type-select" aria-label="Vehicle type" className="h-9 font-mono text-[12px]">
-                      <SelectValue placeholder="select vehicle…" />
+                    <SelectTrigger id="vehicle-type-select" aria-label={t('labels.vehicleType')} className="h-9 font-mono text-[12px]">
+                      <SelectValue placeholder={t('placeholders.selectVehicle')} />
                     </SelectTrigger>
                     <SelectContent>
                       {vehicles.map((vehicle) => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>{vehicle.name}</SelectItem>
+                        <SelectItem key={vehicle.id} value={vehicle.id}>{t(vehicle.nameKey)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">spawn for</Label>
+                  <Label className="text-xs font-medium text-muted-foreground">{t('spawnFor')}</Label>
                   <div className="flex flex-wrap gap-1.5">
                     {players.length === 0 ? (
-                      <p className="font-mono text-[11px] text-muted-foreground/70 italic">no players online</p>
+                      <p className="font-mono text-[11px] text-muted-foreground/70 italic">{t('ui.noPlayersOnline')}</p>
                     ) : players.map((player) => (
-                      <Button key={player.name} variant="outline" size="sm" onClick={() => handleAction('Spawn vehicle', () => spawnVehicle(selectedVehicle, player.name))} disabled={loading !== null || !selectedVehicle} title={!selectedVehicle ? 'Select a vehicle first' : undefined} className="h-8 gap-1.5 text-xs font-medium">
+                      <Button key={player.name} variant="outline" size="sm" onClick={() => handleAction('Spawn vehicle', () => spawnVehicle(selectedVehicle, player.name))} disabled={loading !== null || !selectedVehicle} title={!selectedVehicle ? t('ui.selectVehicleFirst') : undefined} className="h-8 gap-1.5 text-xs font-medium">
                         <Car className="w-3 h-3" /> {player.name}
                       </Button>
                     ))}
@@ -2405,21 +2524,21 @@ export default function Events() {
 
         {activeSection === 'teleport' && (
           <TacticalPanel tone="info">
-            <SectionHeader label="Teleport" sublabel="RCON · move players in world space" icon={MapPin} tone="info" />
+            <SectionHeader label={t('labels.teleport')} sublabel={t('labels.rconMovePlayers')} icon={MapPin} tone="info" />
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                  <Users className="w-3 h-3 text-info" /> player → player
+                  <Users className="w-3 h-3 text-info" /> {t('desc.playerToPlayer')}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="teleport-player-select" className="text-xs font-medium text-muted-foreground">player to move</Label>
+                  <Label htmlFor="teleport-player-select" className="text-xs font-medium text-muted-foreground">{t('playerToMove')}</Label>
                   <Select value={selectedPlayer} onValueChange={setSelectedPlayer}>
-                    <SelectTrigger id="teleport-player-select" aria-label="Player to move" className="h-9 font-mono text-[12px]">
-                      <SelectValue placeholder="select player…" />
+                    <SelectTrigger id="teleport-player-select" aria-label={t('labels.playerToMove')} className="h-9 font-mono text-[12px]">
+                      <SelectValue placeholder={t('placeholders.selectPlayer')} />
                     </SelectTrigger>
                     <SelectContent>
                       {players.length === 0 ? (
-                        <div className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">no players online</div>
+                        <div className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">{t('ui.noPlayersOnline')}</div>
                       ) : players.map((player) => (
                         <SelectItem key={player.name} value={player.name}>{player.name}</SelectItem>
                       ))}
@@ -2427,7 +2546,7 @@ export default function Events() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label id="teleport-target-player-label" className="text-xs font-medium text-muted-foreground">move to</Label>
+                  <Label id="teleport-target-player-label" className="text-xs font-medium text-muted-foreground">{t('moveTo')}</Label>
                   <div className="flex flex-wrap gap-1.5">
                     {players.filter(p => p.name !== selectedPlayer).map((player) => (
                       <Button key={player.name} variant="outline" size="sm" onClick={() => handleAction('Teleport', () => teleportPlayerToPlayer(selectedPlayer, player.name))} disabled={loading !== null || !selectedPlayer} className="h-8 text-xs font-medium">
@@ -2435,7 +2554,7 @@ export default function Events() {
                       </Button>
                     ))}
                     {players.length <= 1 && (
-                      <p className="font-mono text-[11px] text-muted-foreground/70 italic">need 2+ players online</p>
+                      <p className="font-mono text-[11px] text-muted-foreground/70 italic">{t('need2PlayersOnline')}</p>
                     )}
                   </div>
                 </div>
@@ -2443,28 +2562,28 @@ export default function Events() {
 
               <div className="space-y-3">
                 <div className="text-xs font-medium text-foreground/85 flex items-center gap-1.5">
-                  <Navigation className="w-3 h-3 text-info" /> to coordinates
+                    <Navigation className="w-3 h-3 text-info" /> {t('desc.toCoordinates')}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div className="space-y-1">
-                    <Label htmlFor="teleport-x" className="text-xs font-medium text-muted-foreground">x</Label>
-                    <Input id="teleport-x" aria-label="Teleport X coordinate" type="number" placeholder="10000" value={teleportX} onChange={(e) => setTeleportX(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
+                  <Label htmlFor="teleport-x" className="text-xs font-medium text-muted-foreground">{t('axis.x')}</Label>
+                    <Input id="teleport-x" aria-label={t('labels.teleportX')} type="number" placeholder="10000" value={teleportX} onChange={(e) => setTeleportX(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="teleport-y" className="text-xs font-medium text-muted-foreground">y</Label>
-                    <Input id="teleport-y" aria-label="Teleport Y coordinate" type="number" placeholder="11000" value={teleportY} onChange={(e) => setTeleportY(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
+                  <Label htmlFor="teleport-y" className="text-xs font-medium text-muted-foreground">{t('axis.y')}</Label>
+                    <Input id="teleport-y" aria-label={t('labels.teleportY')} type="number" placeholder="11000" value={teleportY} onChange={(e) => setTeleportY(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
                   </div>
                   <div className="space-y-1">
-                    <Label htmlFor="teleport-z" className="text-xs font-medium text-muted-foreground">z</Label>
-                    <Input id="teleport-z" aria-label="Teleport Z level" type="number" placeholder="0" value={teleportZ} onChange={(e) => setTeleportZ(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
+                  <Label htmlFor="teleport-z" className="text-xs font-medium text-muted-foreground">{t('axis.z')}</Label>
+                    <Input id="teleport-z" aria-label={t('labels.teleportZ')} type="number" placeholder="0" value={teleportZ} onChange={(e) => setTeleportZ(e.target.value)} className="h-9 font-mono text-[12px] tabular-nums" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={() => handleAction('Teleport self', () => teleportToCoords(teleportCoordX as number, teleportCoordY as number, teleportCoordZ as number))} disabled={loading !== null || !hasValidTeleportCoords} title="Teleport yourself (admin must be in-game)" className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Teleport self', () => teleportToCoords(teleportCoordX as number, teleportCoordY as number, teleportCoordZ as number))} disabled={loading !== null || !hasValidTeleportCoords} title={t('tooltips.teleportSelf')} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Teleport self' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
                     teleport self
                   </Button>
-                  <Button variant="outline" onClick={() => handleAction('Teleport player', () => teleportToCoords(teleportCoordX as number, teleportCoordY as number, teleportCoordZ as number, getTargetPlayer()))} disabled={loading !== null || !hasValidTeleportCoords || targetAll || !selectedPlayer} title="Teleport selected player to coordinates" className="h-9 gap-2 text-xs font-medium">
+                  <Button variant="outline" onClick={() => handleAction('Teleport player', () => teleportToCoords(teleportCoordX as number, teleportCoordY as number, teleportCoordZ as number, getTargetPlayer()))} disabled={loading !== null || !hasValidTeleportCoords || targetAll || !selectedPlayer} title={t('tooltips.teleportPlayer')} className="h-9 gap-2 text-xs font-medium">
                     {loading === 'Teleport player' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}
                     teleport {selectedPlayer || 'target'}
                   </Button>
@@ -2479,11 +2598,11 @@ export default function Events() {
 
         {activeSection === 'broadcast' && (
           <TacticalPanel tone="warning">
-            <SectionHeader label="Broadcast" sublabel="RCON · server-wide message" icon={Megaphone} tone="warning" />
+            <SectionHeader label={t('labels.broadcast')} sublabel={t('labels.rconServerWide')} icon={Megaphone} tone="warning" />
             <div className="p-4 space-y-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="announcement-message" className="text-xs font-medium text-muted-foreground">message</Label>
+                  <Label htmlFor="announcement-message" className="text-xs font-medium text-muted-foreground">{t('message')}</Label>
                   <span className={cn(
                     'font-mono text-[10px] tabular-nums',
                     announcement.length > 450 ? 'text-amber-400' : 'text-muted-foreground/65'
@@ -2491,22 +2610,22 @@ export default function Events() {
                     {announcement.length}/500
                   </span>
                 </div>
-                <Input id="announcement-message" aria-label="Server announcement message" placeholder="enter announcement…" value={announcement} onChange={(e) => setAnnouncement(e.target.value)} maxLength={500} className="h-9" />
+                <Input id="announcement-message" aria-label={t('labels.announcementMessage')} placeholder={t('placeholders.announcement')} value={announcement} onChange={(e) => setAnnouncement(e.target.value)} maxLength={500} className="h-9" />
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <Button variant="ghost" size="sm" onClick={() => setAnnouncement('WARNING: Event incoming!')} className="h-8 gap-1.5 text-xs font-medium">
-                  <AlertTriangle className="h-3 w-3 text-amber-400" /> event warning
+                <Button variant="ghost" size="sm" onClick={() => setAnnouncement(t('latest.announcementWarningText'))} className="h-8 gap-1.5 text-xs font-medium">
+                  <AlertTriangle className="h-3 w-3 text-amber-400" /> {t('btn.eventWarning')}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setAnnouncement('Check your inventory for a surprise!')} className="h-8 gap-1.5 text-xs font-medium">
-                  <Bell className="h-3 w-3 text-primary" /> loot notice
+                <Button variant="ghost" size="sm" onClick={() => setAnnouncement(t('latest.announcementLootText'))} className="h-8 gap-1.5 text-xs font-medium">
+                  <Bell className="h-3 w-3 text-primary" /> {t('btn.lootNotice')}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => setAnnouncement('Run! The horde is coming!')} className="h-8 gap-1.5 text-xs font-medium">
-                  <Navigation className="h-3 w-3 text-destructive" /> horde alert
+                <Button variant="ghost" size="sm" onClick={() => setAnnouncement(t('latest.announcementHordeText'))} className="h-8 gap-1.5 text-xs font-medium">
+                  <Navigation className="h-3 w-3 text-destructive" /> {t('btn.hordeAlert')}
                 </Button>
               </div>
               <Button variant="outline" onClick={() => handleAction('Send announcement', sendAnnouncement)} disabled={loading !== null || !announcement.trim()} className="h-9 gap-2 text-xs font-medium">
                 {loading === 'Send announcement' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Megaphone className="w-3.5 h-3.5" />}
-                broadcast message
+                {t('btn.broadcastMessage')}
               </Button>
             </div>
           </TacticalPanel>
@@ -2515,8 +2634,8 @@ export default function Events() {
         {activeSection === 'bridgeOps' && (
           <TacticalPanel tone={bridgeConnected ? 'primary' : 'warning'} className={!bridgeConnected ? 'opacity-95' : ''}>
             <SectionHeader
-              label="Bridge tools"
-              sublabel={bridgeConnected ? `bridge · ${Object.keys(bridgeOperationTemplates).length} operations` : 'bridge offline · privileged'}
+              label={t('labels.bridgeTools')}
+              sublabel={bridgeConnected ? `${t('bridge')} · ${t('ui.operationCount', { count: Object.keys(translatedTemplates).length })}` : `${t('desc.bridgeOffline')} · ${t('ui.privileged')}`}
               icon={Zap}
               tone={bridgeConnected ? 'primary' : 'warning'}
               action={
@@ -2525,7 +2644,7 @@ export default function Events() {
                     <span className="font-mono text-[10px] tracking-[0.14em] text-primary/75">{bridgeActiveGroup.label}</span>
                   )}
                   <span className="text-xs font-medium text-muted-foreground/70">
-                    {bridgeLastRunAt ? `last · ${bridgeLastRunAt}` : 'never run'}
+                    {bridgeLastRunAt ? t('latest.lastRun', { time: bridgeLastRunAt }) : t('latest.neverRun')}
                   </span>
                 </>
               }
@@ -2535,7 +2654,7 @@ export default function Events() {
                       <div className="space-y-4">
                         <div className="rounded-lg border border-border/70 bg-muted/25 p-4">
                           <div className="space-y-2">
-                            <Label htmlFor="bridge-operation-select">Operation</Label>
+                            <Label htmlFor="bridge-operation-select">{t('operation')}</Label>
                             <p className="text-xs leading-5 text-muted-foreground">
                               Choose an operation, fill in the required fields, and run it.
                             </p>
@@ -2544,11 +2663,11 @@ export default function Events() {
                         value={bridgeOperation}
                         onValueChange={selectBridgeOperation}
                       >
-                        <SelectTrigger id="bridge-operation-select" aria-label="Select operation" disabled={bridgeLoading !== null} className="mt-3">
-                          <SelectValue placeholder="Select operation" />
+                        <SelectTrigger id="bridge-operation-select" aria-label={t('labels.selectOperation')} disabled={bridgeLoading !== null} className="mt-3">
+                          <SelectValue placeholder={t('labels.selectOperation')} />
                         </SelectTrigger>
                         <SelectContent>
-                          {Object.entries(bridgeOperationTemplates).map(([action, meta]) => (
+                          {Object.entries(translatedTemplates).map(([action, meta]) => (
                             <SelectItem key={action} value={action}>{meta.label}</SelectItem>
                           ))}
                         </SelectContent>
@@ -2556,9 +2675,9 @@ export default function Events() {
                         <div className="mt-3 rounded-md border border-border/60 bg-background/60 p-3">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="text-sm font-medium text-foreground">{bridgeOperationTemplates[bridgeOperation]?.label}</p>
+                              <p className="text-sm font-medium text-foreground">{translatedTemplates[bridgeOperation]?.label}</p>
                               <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                {bridgeOperationTemplates[bridgeOperation]?.description}
+                                {translatedTemplates[bridgeOperation]?.description}
                               </p>
                             </div>
                           </div>
@@ -2568,14 +2687,14 @@ export default function Events() {
                       <div className="rounded-lg border border-border/70 bg-muted/20 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-medium text-foreground">Operation Groups</p>
+                            <p className="text-sm font-medium text-foreground">{t('operationGroups')}</p>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
                               Browse by category: territory, vehicles, events, and moderation.
                             </p>
                           </div>
                         </div>
                         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          {bridgeOperationGroups.map((group) => {
+                          {translatedGroups.map((group) => {
                             const active = group.id === bridgeActiveGroup?.id
                             return (
                               <div
@@ -2601,12 +2720,12 @@ export default function Events() {
                         {bridgeActiveGroup && (
                           <div className="mt-4 rounded-md border border-border/60 bg-background/50 p-3">
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="text-xs font-medium text-foreground">Quick picks: {bridgeActiveGroup.label}</p>
-                              <Badge variant="outline">{bridgeActiveGroup.operations.length} options</Badge>
+                              <p className="text-xs font-medium text-foreground">{t('latest.quickPicks', { group: bridgeActiveGroup.label })}</p>
+                              <Badge variant="outline">{bridgeActiveGroup.operations.length} {t('latest.options')}</Badge>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {bridgeActiveGroup.operations.map((operationKey) => {
-                                const operationMeta = bridgeOperationTemplates[operationKey]
+                                const operationMeta = translatedTemplates[operationKey]
                                 if (!operationMeta) return null
 
                                 const isActive = operationKey === bridgeOperation
@@ -2634,20 +2753,20 @@ export default function Events() {
                       <div className="rounded-lg border border-border/70 bg-card/60 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <Label>Operation Inputs</Label>
+                            <Label>{t('operationInputs')}</Label>
                             <p id="bridge-args-help" className="mt-1 text-xs leading-5 text-muted-foreground">
-                              Fill in the required fields. The panel validates your inputs before sending.
+                              {t('latest.operationInputsHelp')}
                             </p>
                           </div>
                           <Badge variant={bridgeFormError ? 'destructive' : 'outline'}>
-                            {bridgeFormError ? 'Needs attention' : currentBridgeFields.length === 0 ? 'No inputs required' : 'Ready'}
+                            {bridgeFormError ? t('latest.needsAttention') : currentBridgeFields.length === 0 ? t('latest.noInputsRequired') : t('latest.ready')}
                           </Badge>
                         </div>
 
                         {currentRequiredFieldCount > 0 && (
                           <div className="mt-3 rounded-md border border-border/60 bg-background/40 p-3">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-xs text-muted-foreground">Required fields completed</p>
+                              <p className="text-xs text-muted-foreground">{t('requiredFieldsCompleted')}</p>
                               <p className="text-xs font-medium text-foreground">
                                 {currentCompletedRequiredFieldCount}/{currentRequiredFieldCount}
                               </p>
@@ -2669,7 +2788,7 @@ export default function Events() {
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                           {currentBridgeFields.length === 0 && (
                             <div className="sm:col-span-2 rounded-md border border-border/60 bg-muted/20 p-3 text-sm text-foreground/85">
-                              This operation runs without additional inputs.
+                              {t('latest.operationNoInputs')}
                             </div>
                           )}
 
@@ -2701,7 +2820,7 @@ export default function Events() {
                                   <Label htmlFor={fieldId}>{field.label}{field.required ? ' *' : ''}</Label>
                                   <Select value={value || field.defaultValue || ''} onValueChange={(next) => setBridgeFieldValue(field.key, next)}>
                                     <SelectTrigger id={fieldId}>
-                                      <SelectValue placeholder={field.placeholder || 'Select value'} />
+                                      <SelectValue placeholder={field.placeholder || t('ui.selectValue')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {(field.options ?? []).map((option) => (
@@ -2730,10 +2849,10 @@ export default function Events() {
                                       <SelectValue
                                         placeholder={
                                           bridgeOptionsLoading
-                                            ? 'Loading server options...'
-                                            : hasOptions
-                                              ? (field.placeholder || 'Select value')
-                                              : 'No server options available'
+                                            ? t('latest.loadingServerOptions')
+                                              : hasOptions
+                                              ? (field.placeholder || t('latest.selectValue'))
+                                              : t('latest.noServerOptions')
                                         }
                                       />
                                     </SelectTrigger>
@@ -2746,7 +2865,7 @@ export default function Events() {
                                         ))
                                       ) : (
                                         <div className="px-2 py-2 text-xs text-muted-foreground">
-                                          {bridgeOptionsLoading ? 'Loading options from server...' : 'No options loaded from server yet.'}
+                                          {bridgeOptionsLoading ? t('latest.loadingOptionsFromServer') : t('latest.noOptionsLoaded')}
                                         </div>
                                       )}
                                     </SelectContent>
@@ -2755,16 +2874,16 @@ export default function Events() {
                                     <Input
                                       value={value}
                                       onChange={(e) => setBridgeFieldValue(field.key, e.target.value)}
-                                      placeholder={field.placeholder || 'Type value manually'}
+                                      placeholder={field.placeholder || t('ui.typeValueManually')}
                                       aria-label={`${field.label} (manual entry)`}
                                     />
                                   )}
                                   <p className="text-xs text-muted-foreground">
                                     {hasOptions
-                                      ? 'Loaded from server data.'
+                                      ? t('latest.loadedFromServer')
                                       : bridgeOptionsLoading
-                                        ? 'Waiting for server/bridge data to populate this combo box.'
-                                        : 'Server list unavailable. Manual entry is enabled for recovery.'}
+                                        ? t('latest.waitingForServerData')
+                                        : t('latest.serverListUnavailable')}
                                   </p>
                                 </div>
                               )
@@ -2815,12 +2934,12 @@ export default function Events() {
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-xs text-muted-foreground" aria-live="polite">
                                 {bridgeOptionsLoading
-                                  ? 'Refreshing bridge option lists...'
+                                  ? t('latest.refreshingBridgeLists')
                                   : bridgeOptionsError
                                     ? bridgeOptionsError
                                     : bridgeOptionsLastUpdated
-                                      ? `Bridge lists updated ${bridgeOptionsLastUpdated}`
-                                      : 'Bridge lists not loaded yet.'}
+                                      ? t('latest.bridgeListsUpdated', { time: bridgeOptionsLastUpdated })
+                                      : t('latest.bridgeListsNotLoaded')}
                               </p>
                               <Button
                                 type="button"
@@ -2837,7 +2956,7 @@ export default function Events() {
                                 className="h-10 gap-1 sm:h-8"
                               >
                                 <RefreshCw className={cn('h-3.5 w-3.5', bridgeOptionsLoading && 'animate-spin')} />
-                                Refresh Lists
+                                {t('latest.refreshLists')}
                               </Button>
                             </div>
                           </div>
@@ -2845,15 +2964,15 @@ export default function Events() {
 
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-muted-foreground">
-                            Fields are pre-filled from your inputs.
+                            {t('latest.fieldsPrefilled')}
                           </p>
                           <span className="text-xs text-muted-foreground">
-                            {bridgeLastRunAt ? `Last run: ${bridgeLastRunAt}` : 'Not run yet'}
+                            {bridgeLastRunAt ? t('latest.lastRun', { time: bridgeLastRunAt }) : t('latest.neverRun')}
                           </span>
                         </div>
                       {bridgeConnectionSummary && (
                         <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
-                          Bridge file link: {bridgeConnectionSummary}
+                          {t('latest.bridgeFileLink', { summary: bridgeConnectionSummary })}
                         </p>
                       )}
                       {bridgeFormError && (
@@ -2866,9 +2985,9 @@ export default function Events() {
                   {!bridgeConnected && (
                     <Alert className="border-warning/40 bg-warning/10">
                       <AlertTriangle className="h-4 w-4 text-warning" />
-                      <AlertTitle className="text-warning">Bridge connection required</AlertTitle>
+                      <AlertTitle className="text-warning">{t('bridgeConnectionRequired')}</AlertTitle>
                       <AlertDescription>
-                        These operations require a live PanelBridge connection. Configure it in Settings first.
+                        {t('ui.bridgeRequiredDesc')}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -2880,7 +2999,7 @@ export default function Events() {
                       className="h-11 gap-2"
                     >
                       {bridgeLoading === bridgeOperation ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                      Run Operation
+                      {t('latest.runOperation')}
                     </Button>
                     <Button
                       variant="outline"
@@ -2888,7 +3007,7 @@ export default function Events() {
                       disabled={bridgeLoading !== null || currentBridgeFields.length === 0}
                       className="h-11"
                     >
-                      Reset Fields
+                        {t('latest.resetForm')}
                     </Button>
                     {bridgeResultData && (
                       <Button
@@ -2897,13 +3016,13 @@ export default function Events() {
                         disabled={bridgeLoading !== null}
                         className="h-11"
                       >
-                        Clear Results
+                        {t('latest.clearResult')}
                       </Button>
                     )}
                   </div>
 
                   <p className="text-xs text-muted-foreground" aria-live="polite">
-                    {bridgeRunDisabledReason || 'Ready.'}
+                    {bridgeRunDisabledReason || t('latest.ready')}
                   </p>
 
                   {/* Structured Result Display */}
@@ -2913,6 +3032,8 @@ export default function Events() {
                       loading={bridgeLoading}
                       onInlineAction={runInlineAction}
                       players={players}
+                      t={t}
+                      translatedTemplates={translatedTemplates}
                     />
                   )}
             </div>

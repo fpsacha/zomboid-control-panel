@@ -1,0 +1,2744 @@
+{
+    "title": "Server Configuration",
+    "description": "Edit the live INI, sandbox, spawn, and mod settings for this server.",
+    "raw": {
+        "unknownKeys": "Keys present in your INI file but not in the schema (newer vanilla keys, mod-injected keys, or custom)",
+        "trySwitching": "Try switching to Raw mode to view the file contents"
+    },
+    "sandbox": {
+        "notGrouped": "Sandbox settings not yet grouped by the editor",
+        "loadDescription": "Click load to fetch sandbox options from all installed mods via PanelBridge. The PZ server must be running with PanelBridge active.",
+        "noOptions": "The server returned no sandbox options. This may happen if no mods register custom sandbox settings, or the API isn't available in this PZ build.",
+        "build42Optimized": "Build 42 Optimized",
+        "noModifiedOptions": "No options have been modified from their defaults."
+    },
+    "spawn": {
+        "noRegions": "No spawn regions found",
+        "modManagedTitle": "Spawn points are mod-managed",
+        "switchToRaw": "Switch to <1>raw</1> to inspect or edit the file directly."
+    },
+    "mods": {
+        "notLoaded": "Mod settings not loaded",
+        "noOptions": "No sandbox options found"
+    },
+    "diff": {
+        "title": "Options that differ from their default value"
+    },
+    "backups": {
+        "noBackups": "No backups available yet",
+        "description": "Backups are created automatically when you save any config file"
+    },
+    "templates": {
+        "noTemplates": "No templates saved yet",
+        "description": "Click 'Save Current as Template' to create your first template"
+    },
+    "actions": {
+        "undoChange": "Undo change",
+        "resetToLoaded": "Reset to loaded value",
+        "replaceWithBackup": "Replace current file with this backup",
+        "loadTemplate": "Load this template (creates backup first)",
+        "deleteTemplate": "Delete this template",
+        "deleteTemplateAriaLabel": "Delete template {{name}}"
+    },
+    "labels": {
+        "noImage": "No image selected",
+        "browseFile": "Browse for file",
+        "clearImage": "Clear image",
+        "notFound": "Not found",
+        "fileNotFound": "file not found",
+        "fileTypeConfig": "config",
+        "fileTypeIni": "INI",
+        "fileTypeSandbox": "Sandbox",
+        "fileTypeSpawnPoints": "SpawnPoints",
+        "fileTypeSpawnRegions": "SpawnRegions",
+        "backupFilterIni": "ini",
+        "backupFilterSandbox": "sandbox",
+        "backupFilterSpawnpoints": "spawnpoints",
+        "backupFilterSpawnregions": "spawnregions",
+        "ini": "ini",
+        "sandbox": "sandbox",
+        "sandboxLabel": "sandbox",
+        "regions": "regions",
+        "unsavedChanges": "unsaved changes",
+        "fileMissing": "file missing",
+        "serverBehavior": "server behavior, network, players",
+        "downloadIniBackup": "Download INI backup",
+        "searchServerSettings": "Search server settings",
+        "clearSearch": "Clear search",
+        "filterSettings": "Filter settings",
+        "serverSettingsCategories": "Server settings categories",
+        "worldZombies": "world, zombies, survival",
+        "downloadSandboxBackup": "Download Sandbox backup",
+        "searchSandboxSettings": "Search sandbox settings",
+        "sandboxCategories": "Sandbox categories",
+        "spawnPoints": "spawn points",
+        "spawnRegions": "spawn regions",
+        "modSandboxOptions": "mod sandbox options",
+        "modManaged": "mod-managed - player start locations",
+        "includeSandbox": "Include sandbox settings in template",
+        "includeServer": "Include server settings in template",
+        "downloadSpawnPoints": "Download Spawn Points backup",
+        "downloadSpawnRegions": "Download Spawn Regions backup",
+        "active": "active",
+        "noServerSelected": "no server selected",
+        "uncategorized": "Uncategorized / Unknown",
+        "additionalSettings": "Additional Settings",
+        "displayName": "Display Name",
+        "mapFilePath": "Map File Path",
+        "templateName": "Template Name",
+        "templateDescription": "Description (optional)",
+        "includeInTemplate": "Include in Template",
+        "serverSettingsIni": "Server Settings (INI)",
+        "serverSettingsDesc": "Network, players, RCON, server behavior",
+        "sandboxSettings": "Sandbox Settings",
+        "sandboxSettingsDesc": "World, zombies, loot, survival settings",
+        "preview": "Preview"
+    },
+    "placeholders": {
+        "searchServer": "Search server settings...",
+        "searchSandbox": "Search sandbox settings...",
+        "searchMod": "Search mod settings... (press /)",
+        "locationExample": "e.g., Muldraugh, KY",
+        "templateName": "e.g., PvE Casual, Hardcore Survival...",
+        "templateDescription": "Describe what this template is for..."
+    },
+    "warnings": {
+        "luaChecksumEnabled": "Lua Checksum is enabled",
+        "luaChecksumDesc": "PanelBridge modifies server-side Lua files. With Lua Checksum enabled, clients will fail verification and cannot connect. Disable <1>DoLuaChecksum</1> in the Mods category to allow players to join."
+    },
+    "errors": {
+        "configLoadFailed": "Configuration data could not be fully loaded"
+    },
+    "status": {
+        "loadingSandbox": "Loading sandbox options from server..."
+    },
+    "toast": {
+        "error": "Error",
+        "downloaded": "Downloaded",
+        "downloadedDesc": "Backup saved: {{filename}}",
+        "copied": "Copied",
+        "copiedDesc": "Content copied to clipboard",
+        "optionUpdated": "Option Updated",
+        "optionUpdatedDesc": "{{name}} set successfully",
+        "appliedButNotSaved": "Applied, but not saved",
+        "appliedButNotSavedDesc": "{{name}} is not in SandboxVars.lua, so it will reset when the server restarts.",
+        "failedToUpdate": "Failed to Update",
+        "savedAndReloaded": "Saved & Reloaded",
+        "savedAndReloadedServerDesc": "Server settings saved and reloaded.",
+        "savedAndReloadedSandboxDesc": "Sandbox settings saved and reloaded.",
+        "saved": "Saved",
+        "savedDesc": "Settings saved. Restart server to apply changes.",
+        "savedSpawnPoints": "Spawn points saved",
+        "savedSpawnRegions": "Spawn regions saved",
+        "restored": "Restored",
+        "restoredDesc": "Restored from {{filename}}",
+        "deleted": "Deleted",
+        "deletedDesc": "Template \"{{name}}\" deleted",
+        "applied": "Applied",
+        "failedToLoadConfig": "Failed to load server config.",
+        "failedToLoadRaw": "Failed to load raw content.",
+        "failedToDownloadBackup": "Failed to download backup.",
+        "failedToCopy": "Failed to copy content to clipboard.",
+        "failedToSetOption": "Failed to set option",
+        "failedToBrowseFiles": "Failed to browse files",
+        "failedToNavigate": "Failed to navigate",
+        "failedToSaveSettings": "Failed to save settings.",
+        "failedToSaveSpawnPoints": "Failed to save spawn points.",
+        "failedToSaveSpawnRegions": "Failed to save spawn regions.",
+        "failedToLoadBackups": "Failed to load backups.",
+        "failedToRestoreBackup": "Failed to restore backup.",
+        "failedToLoadTemplates": "Failed to load templates.",
+        "failedToSaveTemplate": "Failed to save template.",
+        "failedToApplyTemplate": "Failed to apply template.",
+        "failedToDeleteTemplate": "Failed to delete template.",
+        "templateNameRequired": "Template name is required",
+        "failedToLoadModSettings": "Failed to load mod settings",
+        "unknownError": "Unknown error"
+    },
+    "ui": {
+        "reset": "Reset",
+        "default": "Default:",
+        "modified": "modified",
+        "on": "On",
+        "off": "Off",
+        "loading": "loading configuration…",
+        "retry": "Retry",
+        "config": "config",
+        "unsaved": "unsaved",
+        "templates": "templates",
+        "backups": "backups",
+        "refresh": "refresh",
+        "spawnsStat": "spawns · {{count}} profiles",
+        "tabServerSettings": "Server Settings",
+        "tabSandbox": "Sandbox",
+        "tabSpawnPoints": "Spawn Points",
+        "tabSpawnRegions": "Spawn Regions",
+        "tabModSettings": "Mod Settings",
+        "form": "form",
+        "raw": "raw",
+        "info": "info",
+        "wiki": "wiki",
+        "map": "map",
+        "saveAndReload": "save & reload",
+        "save": "save",
+        "disableNow": "disable now",
+        "copied": "Copied!",
+        "copyToClipboard": "Copy to clipboard",
+        "all": "all",
+        "nondefault": "unsaved",
+        "matchCount": "{{count}} matches",
+        "noMatch": "No settings match “{{query}}”.",
+        "categories": "Categories",
+        "expandAllGroups": "Expand all category groups",
+        "collapseAllGroups": "Collapse all category groups",
+        "expandAll": "Expand all",
+        "collapseAll": "Collapse all",
+        "unsavedChangeCount": "{{count}} unsaved changes",
+        "settingCount": "{{count}} settings",
+        "noUncategorizedKeys": "No uncategorized keys.",
+        "uncategorizedKeysTitle": "Uncategorized / Unknown Keys",
+        "keyCount": "{{count}} keys",
+        "uncategorizedKeysDesc": "Keys present in your INI but not recognized by the schema. Likely newer vanilla settings or mod-injected. Values are preserved on save — edit with care.",
+        "noModifiedInCategory": "No settings in this category differ from Project Zomboid defaults.",
+        "noUnsavedInCategory": "No unsaved settings in this category.",
+        "noSettingsInCategory": "No settings in this category.",
+        "sandboxBuild42Desc": "Sandbox values and option wording in this editor are aligned to Project Zomboid Build 42 defaults.",
+        "spawnLocationsDesc": "Spawn locations are typically handled by mods like “Spawn Select.”",
+        "openRawFile": "open raw file",
+        "regionCount": "{{count}} regions · cities & towns",
+        "serverFile": "Server File",
+        "mapFilePath": "Map File Path",
+        "serverfileBadge": "serverfile",
+        "serverNamePlaceholder": "ServerName_spawnpoints.lua",
+        "mapFilePlaceholder": "media/maps/Muldraugh, KY/spawnpoints.lua",
+        "regionDisplayName": "Region {{index}} display name",
+        "regionFileLabel": "Region {{index}} {{type}}",
+        "deleteRegion": "Delete spawn region {{name}}",
+        "addRegion": "add region",
+        "modCount": "{{count}} mods · live from bridge",
+        "panelbridgeLive": "panelbridge · live",
+        "modifiedCount": "{{count}} modified",
+        "load": "load",
+        "noDiffFromDefault": "No options differ from default",
+        "showDiffFromDefault": "Show only options changed from default",
+        "collapseAllMod": "collapse all",
+        "expandAllMod": "expand all",
+        "refreshFailed": "Refresh failed — showing previous data",
+        "failedToLoadModSettings": "Failed to load mod settings",
+        "groups": "groups",
+        "options": "options",
+        "loadedTime": "Loaded {{time}}",
+        "groupModCount": "{{count}} mod",
+        "optionDiffTitle": "{{count}} options differ from default",
+        "optionFallback": "Option {{index}}",
+        "boolAriaLabel": "{{name}}: {{state}}",
+        "onState": "ON",
+        "offState": "OFF",
+        "resetToDefault": "Reset to default: {{value}}",
+        "defaultLabel": "def: {{value}}",
+        "showAllOptions": "Show all options",
+        "noMatchMod": "No settings match “{{query}}”{{context}}",
+        "inModifiedOptions": " in modified options",
+        "clearSearch": "Clear search",
+        "unsavedChanges": "unsaved {{count}} changes",
+        "serverIni": "server ini",
+        "sandboxLua": "sandbox lua",
+        "ctrlSToSave": "ctrl+s to save",
+        "appliesOnReload": "applies on reload",
+        "discard": "discard"
+    },
+    "dialogs": {
+        "backupsTitle": "Configuration Backups",
+        "backupsDesc": "Restore a previous version of your configuration files. Backups are created automatically when you save.",
+        "filter": "Filter:",
+        "allFiles": "All Files",
+        "restore": "Restore",
+        "noBackupsForFilter": "No backups found for “{{filter}}” files.",
+        "showAllBackups": "Show all backups",
+        "backupCount": "{{count}} backups total",
+        "close": "Close",
+        "templatesTitle": "Config Templates",
+        "templatesDesc": "Save your current configuration as a template or load a saved template.",
+        "templateCount": "{{count}} templates saved",
+        "saveCurrentAsTemplate": "Save Current as Template",
+        "iniSandbox": "INI + Sandbox",
+        "created": "Created: {{date}}",
+        "ini": "INI",
+        "sandbox": "Sandbox",
+        "apply": "Apply",
+        "saveTemplateTitle": "Save as Template",
+        "saveTemplateDesc": "Save your current INI and/or Sandbox settings as a reusable template.",
+        "characters": "{{count}}/60 characters",
+        "charactersLong": "{{count}}/240 characters",
+        "cancel": "Cancel",
+        "saveTemplate": "Save Template",
+        "selectImageTitle": "Select Image File",
+        "selectImageDesc": "Browse to find a PNG image file for your server.",
+        "loadingPath": "Loading...",
+        "noImageFiles": "No image files found in this directory",
+        "noImageFilesHere": "No image files here — try a different folder",
+        "selectFile": "Select File",
+        "deleteTemplateConfirmTitle": "Delete template?",
+        "deleteTemplateConfirmDesc": "Delete template \"{{name}}\"? This cannot be undone.",
+        "delete": "Delete"
+    },
+    "categories": {
+        "groups": {
+            "identity": "Identity",
+            "connectivity": "Connectivity",
+            "players": "Players",
+            "gameplay": "Gameplay",
+            "ops": "Ops",
+            "world": "World",
+            "zombies": "Zombies",
+            "survival": "Survival",
+            "resources": "Resources",
+            "advanced": "Advanced"
+        },
+        "general": "General",
+        "network": "Network & Ports",
+        "steam": "Steam Integration",
+        "discord": "Discord",
+        "rcon": "RCON",
+        "voice": "Voice Chat",
+        "players": "Players & Accounts",
+        "safehouse": "Safehouses",
+        "chat": "Chat & Communication",
+        "pvp": "PvP & Safety",
+        "moderation": "Moderation",
+        "anticheat": "Anti-Cheat",
+        "loot": "Loot & Resources",
+        "vehicles": "Vehicles",
+        "mods": "Mods & Workshop",
+        "radio": "Radio",
+        "war": "Faction War",
+        "backups": "Backups",
+        "logging": "Logging",
+        "advanced": "Advanced",
+        "time": "Time & Season",
+        "environment": "Environment & Weather",
+        "world": "World & Stories",
+        "map": "Map & Navigation",
+        "zombieLore": "Zombie Behavior",
+        "zombiePopulation": "Zombie Population",
+        "population": "Population & Distribution",
+        "survival": "Survival & Health",
+        "combat": "Combat & Firearms",
+        "lootRarity": "Loot Rarity",
+        "animals": "Animals & Farming",
+        "xpMultipliers": "XP Multipliers",
+        "basement": "Basements"
+    },
+    "settings": {
+        "PublicName": {
+            "label": "Server Name",
+            "description": "Your server name as shown to the public."
+        },
+        "PublicDescription": {
+            "label": "Server Description",
+            "description": "The description that people can see while browsing your server."
+        },
+        "Public": {
+            "label": "Public Server",
+            "description": "Can your server be seen on Steam server browser."
+        },
+        "Open": {
+            "label": "Open (No Whitelist)",
+            "description": "Open to all players without requiring whitelist."
+        },
+        "Password": {
+            "label": "Server Password",
+            "description": "Password required to join the server. Leave empty for no password."
+        },
+        "MaxPlayers": {
+            "label": "Max Players",
+            "description": "Maximum allowed number of players."
+        },
+        "PauseEmpty": {
+            "label": "Pause When Empty",
+            "description": "The server will pause when no players are logged in."
+        },
+        "ServerWelcomeMessage": {
+            "label": "Welcome Message",
+            "description": "The welcome message displayed to players after connecting. Use <LINE> for new lines."
+        },
+        "Map": {
+            "label": "Map",
+            "description": "The map you're playing on. Default is Muldraugh, KY."
+        },
+        "SaveWorldEveryMinutes": {
+            "label": "Auto-Save Interval",
+            "description": "Auto-save world every X minutes. 0 = never."
+        },
+        "AnnounceDeath": {
+            "label": "Announce Deaths",
+            "description": "Server-wide announcement when a character dies."
+        },
+        "DefaultPort": {
+            "label": "Game Port",
+            "description": "The port players will use to connect to your server. Must be open on your router."
+        },
+        "UPnP": {
+            "label": "Enable UPnP",
+            "description": "Enable UPnP for automatic port forwarding."
+        },
+        "PingFrequency": {
+            "label": "Ping Frequency",
+            "description": "How often the server checks connection to players (seconds)."
+        },
+        "PingLimit": {
+            "label": "Ping Limit",
+            "description": "Ping limit before being kicked (milliseconds). 100 to disable."
+        },
+        "DenyLoginOnOverloadedServer": {
+            "label": "Deny Login When Overloaded",
+            "description": "Prevent new connections when server is overloaded."
+        },
+        "SpeedLimit": {
+            "label": "Speed Limit",
+            "description": "Maximum movement speed allowed."
+        },
+        "UseTCPForMapDownloads": {
+            "label": "Use TCP for Map Downloads",
+            "description": "Use TCP instead of UDP for map downloads."
+        },
+        "MaxPacketsPerSecond": {
+            "label": "Max Packets Per Second",
+            "description": "Cap on packets per second sent to a connected client. Higher values increase bandwidth use; lower values may cause stutter under load."
+        },
+        "PVP": {
+            "label": "Enable PvP",
+            "description": "Allow player vs player combat (each player can still toggle their own PvP)."
+        },
+        "SafetySystem": {
+            "label": "Safety System",
+            "description": "If PvP is enabled, allows players to toggle their own PvP on/off."
+        },
+        "ShowSafety": {
+            "label": "Show Safety Status",
+            "description": "Show skull icon for players with safety off."
+        },
+        "SafetyToggleTimer": {
+            "label": "Safety Toggle Timer",
+            "description": "Time in seconds to switch between PvP on and off."
+        },
+        "SafetyCooldownTimer": {
+            "label": "Safety Cooldown Timer",
+            "description": "Time in seconds before you can toggle safety again."
+        },
+        "PVPMeleeWhileHitReaction": {
+            "label": "Melee While Hit Reaction",
+            "description": "Allow melee attacks during hit reaction in PvP."
+        },
+        "PVPMeleeDamageModifier": {
+            "label": "PvP Melee Damage %",
+            "description": "Melee damage modifier for PvP (percentage)."
+        },
+        "PVPFirearmDamageModifier": {
+            "label": "PvP Firearm Damage %",
+            "description": "Firearm damage modifier for PvP (percentage)."
+        },
+        "PlayerBumpPlayer": {
+            "label": "Player Collision",
+            "description": "Players can bump into each other."
+        },
+        "GlobalChat": {
+            "label": "Enable Global Chat",
+            "description": "Enable /all command for server-wide chat."
+        },
+        "ChatStreams": {
+            "label": "Chat Streams",
+            "description": "Enabled chat streams: s=say, r=radio, a=admin, w=whisper, y=yell, sh=safehouse, f=faction, all=global."
+        },
+        "DisplayUserName": {
+            "label": "Display Usernames",
+            "description": "Show player usernames above their heads and in chat."
+        },
+        "ShowFirstAndLastName": {
+            "label": "Show Character Names",
+            "description": "Display character first and last name instead of username."
+        },
+        "MouseOverToSeeDisplayName": {
+            "label": "Mouse Over for Name",
+            "description": "Require mouse hover to see player names."
+        },
+        "HidePlayersBehindYou": {
+            "label": "Hide Players Behind You",
+            "description": "Hide player names for players behind your character."
+        },
+        "AllowNonAsciiUsername": {
+            "label": "Allow Non-ASCII Usernames",
+            "description": "Allow usernames with non-ASCII characters."
+        },
+        "BanKickGlobalSound": {
+            "label": "Ban/Kick Sound",
+            "description": "Play global sound when a player is banned or kicked."
+        },
+        "MaxAccountsPerUser": {
+            "label": "Max Accounts Per User",
+            "description": "Limit accounts per Steam user. 0 = unlimited."
+        },
+        "DropOffWhiteListAfterDeath": {
+            "label": "Remove From Whitelist On Death",
+            "description": "Remove player from whitelist if their character dies."
+        },
+        "KickFastPlayers": {
+            "label": "Kick Speed Hackers",
+            "description": "Kick players moving faster than possible. May be buggy."
+        },
+        "SpawnPoint": {
+            "label": "Spawn Point",
+            "description": "Custom spawn point coordinates (X,Y,Z). 0,0,0 for default."
+        },
+        "SpawnItems": {
+            "label": "Spawn Items",
+            "description": "Items new characters spawn with (comma-separated, e.g., Base.BaseballBat,Base.WaterBottleFull)."
+        },
+        "SleepAllowed": {
+            "label": "Allow Sleep",
+            "description": "Whether sleeping is allowed."
+        },
+        "SleepNeeded": {
+            "label": "Sleep Required",
+            "description": "Whether players need to sleep when exhausted."
+        },
+        "PlayerRespawnWithSelf": {
+            "label": "Respawn at Death Location",
+            "description": "Allow respawning at death location."
+        },
+        "PlayerRespawnWithOther": {
+            "label": "Respawn with Partner",
+            "description": "Enable spawning at splitscreen partner location."
+        },
+        "PlayerSaveOnDamage": {
+            "label": "Save on Damage",
+            "description": "Save player state when they take damage."
+        },
+        "MinutesPerPage": {
+            "label": "Minutes Per Page",
+            "description": "In-game minutes to read one page of a skill book."
+        },
+        "PlayerSafehouse": {
+            "label": "Enable Safehouses",
+            "description": "Allow players to claim safehouses."
+        },
+        "AdminSafehouse": {
+            "label": "Admin Safehouses",
+            "description": "Allow admins to have safehouses."
+        },
+        "SafehouseAllowTrepass": {
+            "label": "Allow Trespass",
+            "description": "Allow non-members to enter safehouses without invite."
+        },
+        "SafehouseAllowFire": {
+            "label": "Allow Fire Damage",
+            "description": "Allow fire to damage safehouses."
+        },
+        "SafehouseAllowLoot": {
+            "label": "Allow Looting",
+            "description": "Allow non-members to take items from safehouses."
+        },
+        "SafehouseAllowRespawn": {
+            "label": "Allow Safehouse Respawn",
+            "description": "Players can respawn in their safehouse."
+        },
+        "SafehouseDaySurvivedToClaim": {
+            "label": "Days to Claim Safehouse",
+            "description": "Days a player must survive before claiming a safehouse."
+        },
+        "SafeHouseRemovalTime": {
+            "label": "Safehouse Removal Time",
+            "description": "Real-time hours of inactivity before removal from safehouse."
+        },
+        "DisableSafehouseWhenOwnerConnected": {
+            "label": "Disable When Owner Online",
+            "description": "Disable safehouse protection when the owner is connected. (Renamed from DisableSafehouseWhenPlayerConnected in the Dec 2025 MP patch.)"
+        },
+        "HoursForLootRespawn": {
+            "label": "Loot Respawn Hours",
+            "description": "Hours after which containers respawn loot. 0 = never."
+        },
+        "MaxItemsForLootRespawn": {
+            "label": "Max Items for Respawn",
+            "description": "Containers with this many items or more will not respawn loot."
+        },
+        "ConstructionPreventsLootRespawn": {
+            "label": "Construction Blocks Respawn",
+            "description": "Player constructions near containers prevent loot respawn."
+        },
+        "HoursForWorldItemRemoval": {
+            "label": "World Item Removal Hours",
+            "description": "Hours before listed items disappear from world. 0 = disabled."
+        },
+        "ItemNumbersLimitPerContainer": {
+            "label": "Container Item Limit",
+            "description": "Max items per container. 0 = unlimited."
+        },
+        "TrashDeleteAll": {
+            "label": "Delete All Trash",
+            "description": "Delete all items when placed in trash."
+        },
+        "BloodSplatLifespanDays": {
+            "label": "Blood Splat Lifespan",
+            "description": "Days before blood splats disappear. 0 = never."
+        },
+        "RemovePlayerCorpsesOnCorpseRemoval": {
+            "label": "Remove Player Corpses",
+            "description": "Remove player corpses when corpse removal runs."
+        },
+        "AllowDestructionBySledgehammer": {
+            "label": "Sledgehammer Destruction",
+            "description": "Allow players to destroy world objects with sledgehammer."
+        },
+        "NoFire": {
+            "label": "Disable Fire",
+            "description": "Disable all fires except campfires."
+        },
+        "Faction": {
+            "label": "Enable Factions",
+            "description": "Allow creation and use of factions."
+        },
+        "FactionDaySurvivedToCreate": {
+            "label": "Days to Create Faction",
+            "description": "Days a player must survive to create a faction."
+        },
+        "FactionPlayersRequiredForTag": {
+            "label": "Players for Faction Tag",
+            "description": "Players required in faction to show tag."
+        },
+        "AllowTradeUI": {
+            "label": "Allow Trading",
+            "description": "Allow players to directly trade with one another."
+        },
+        "Mods": {
+            "label": "Mods",
+            "description": "List of installed mod IDs (semicolon-separated)."
+        },
+        "WorkshopItems": {
+            "label": "Workshop Items",
+            "description": "Steam Workshop item IDs to download (semicolon-separated)."
+        },
+        "DoLuaChecksum": {
+            "label": "Lua Checksum",
+            "description": "Verify client Lua matches server. Must be disabled when using PanelBridge — the mod modifies server-side Lua files, which causes checksum mismatches and prevents players from connecting."
+        },
+        "SteamPort1": {
+            "label": "Steam Port 1",
+            "description": "First Steam port."
+        },
+        "SteamPort2": {
+            "label": "Steam Port 2",
+            "description": "Second Steam port."
+        },
+        "SteamScoreboard": {
+            "label": "Steam Scoreboard",
+            "description": "Show Steam usernames and avatars. true/false/admin.",
+            "options": {
+                "true": "Everyone",
+                "false": "No One",
+                "admin": "Admins Only"
+            }
+        },
+        "SteamVAC": {
+            "label": "VAC Ban Check",
+            "description": "Check if connecting players have VAC bans."
+        },
+        "VoiceEnable": {
+            "label": "Enable Voice Chat",
+            "description": "Enable in-game voice chat."
+        },
+        "Voice3D": {
+            "label": "3D Voice",
+            "description": "Enable 3D positional voice chat."
+        },
+        "VoiceMinDistance": {
+            "label": "Voice Min Distance",
+            "description": "Minimum voice distance."
+        },
+        "VoiceMaxDistance": {
+            "label": "Voice Max Distance",
+            "description": "Maximum voice distance."
+        },
+        "DiscordEnable": {
+            "label": "Enable Discord",
+            "description": "Enable built-in Discord integration."
+        },
+        "DiscordToken": {
+            "label": "Discord Token",
+            "description": "Discord bot token."
+        },
+        "DiscordChannel": {
+            "label": "Discord Channel",
+            "description": "Discord channel name."
+        },
+        "DiscordChannelID": {
+            "label": "Discord Channel ID",
+            "description": "Discord channel ID."
+        },
+        "RCONPort": {
+            "label": "RCON Port",
+            "description": "Port for RCON connections."
+        },
+        "RCONPassword": {
+            "label": "RCON Password",
+            "description": "Password for RCON connections."
+        },
+        "ResetID": {
+            "label": "Reset ID",
+            "description": "Removing this resets zombies and loot (not time)."
+        },
+        "ServerPlayerID": {
+            "label": "Server Player ID",
+            "description": "Identifies if character is from another server."
+        },
+        "PhysicsDelay": {
+            "label": "Physics Delay",
+            "description": "Physics update delay in milliseconds."
+        },
+        "FastForwardMultiplier": {
+            "label": "Fast Forward Multiplier",
+            "description": "Speed multiplier when fast-forwarding."
+        },
+        "CarEngineAttractionModifier": {
+            "label": "Car Engine Attraction",
+            "description": "Modifier for zombie attraction to car engines."
+        },
+        "ZombieUpdateMaxHighPriority": {
+            "label": "Zombie High Priority Updates",
+            "description": "Max high priority zombie updates per tick."
+        },
+        "ZombieUpdateDelta": {
+            "label": "Zombie Update Delta",
+            "description": "Zombie update time delta."
+        },
+        "AnnounceAnimalDeath": {
+            "label": "Announce Animal Deaths",
+            "description": "Display a global chat message when an animal dies."
+        },
+        "ServerImageLoginScreen": {
+            "label": "Login Screen Image",
+            "description": "Custom image displayed on the login screen. PNG file, recommended 1920×1080. Path relative to the server folder or absolute."
+        },
+        "ServerImageLoadingScreen": {
+            "label": "Loading Screen Image",
+            "description": "Custom image displayed while loading into the server. PNG file, recommended 1920×1080. Path relative to the server folder or absolute."
+        },
+        "ServerImageIcon": {
+            "label": "Server Icon",
+            "description": "Custom server icon shown in the server browser. Square PNG, recommended 256×256. Displayed in a circular mask at 42×42px in the list and ~87×87px in the detail panel."
+        },
+        "Seed": {
+            "label": "World Seed",
+            "description": "The worldgen seed used to generate the world. Changing this requires deleting map_worldgen.bin."
+        },
+        "UDPPort": {
+            "label": "UDP Port",
+            "description": "Second port used for UDP connections."
+        },
+        "LoginQueueEnabled": {
+            "label": "Login Queue",
+            "description": "Enable a login queue when the server is full."
+        },
+        "LoginQueueConnectTimeout": {
+            "label": "Login Queue Timeout",
+            "description": "Seconds before a queued connection times out."
+        },
+        "server_browser_announced_ip": {
+            "label": "Announced IP",
+            "description": "IP address broadcast to the server browser. For multi-IP setups like server farms."
+        },
+        "MultiplayerStatisticsPeriod": {
+            "label": "Statistics Period",
+            "description": "Multiplayer statistics update period in seconds. 0 = disabled."
+        },
+        "PVPLogToolChat": {
+            "label": "Log PvP to Chat",
+            "description": "PvP events are logged to admin chat."
+        },
+        "PVPLogToolFile": {
+            "label": "Log PvP to File",
+            "description": "PvP events are logged to a file."
+        },
+        "SafetyDisconnectDelay": {
+            "label": "Safety Disconnect Delay",
+            "description": "Seconds before PvP safety mode resets on disconnect."
+        },
+        "UsernameDisguises": {
+            "label": "Username Disguises",
+            "description": "Allow players to disguise their username."
+        },
+        "HideDisguisedUserName": {
+            "label": "Hide Disguised Names",
+            "description": "Hide the real username of disguised players."
+        },
+        "ChatMessageCharacterLimit": {
+            "label": "Chat Character Limit",
+            "description": "Maximum characters per chat message."
+        },
+        "ChatMessageSlowModeTime": {
+            "label": "Chat Slow Mode",
+            "description": "Seconds between allowed chat messages per player."
+        },
+        "AllowCoop": {
+            "label": "Allow Co-op",
+            "description": "Allow co-op/splitscreen players to join."
+        },
+        "KnockedDownAllowed": {
+            "label": "Knocked Down",
+            "description": "Allow players to be knocked down. WIP: may cause visual desync."
+        },
+        "SneakModeHideFromOtherPlayers": {
+            "label": "Sneak Hides From Players",
+            "description": "Players in sneak mode are hidden from other players."
+        },
+        "MapRemotePlayerVisibility": {
+            "label": "Map Player Visibility",
+            "description": "Who can see other players on the in-game map.",
+            "options": {
+                "1": "Hidden",
+                "2": "Friends Only",
+                "3": "Everyone"
+            }
+        },
+        "DisableScoreboard": {
+            "label": "Disable Scoreboard",
+            "description": "Disable the in-game scoreboard."
+        },
+        "HideAdminsInPlayerList": {
+            "label": "Hide Admins in Player List",
+            "description": "Hide admin accounts from the player list."
+        },
+        "SafehouseAllowNonResidential": {
+            "label": "Allow Non-Residential",
+            "description": "Allow players to claim non-residential buildings as safehouses."
+        },
+        "SafehouseDisableDisguises": {
+            "label": "Disable Disguises in Safehouse",
+            "description": "Disable username disguises inside safehouses."
+        },
+        "MaxSafezoneSize": {
+            "label": "Max Safezone Size",
+            "description": "Maximum tile size for safezones."
+        },
+        "SafehousePreventsLootRespawn": {
+            "label": "Safehouse Blocks Loot Respawn",
+            "description": "Items will not respawn in buildings claimed as safehouses."
+        },
+        "SledgehammerOnlyInSafehouse": {
+            "label": "Sledgehammer Only in Safehouse",
+            "description": "Restrict sledgehammer destruction to safehouses only. Requires Sledgehammer Destruction enabled."
+        },
+        "DiscordChatChannel": {
+            "label": "Discord Chat Channel",
+            "description": "The Discord channel name for game chat."
+        },
+        "DiscordLogChannel": {
+            "label": "Discord Log Channel",
+            "description": "The Discord channel name for server logs."
+        },
+        "DiscordCommandChannel": {
+            "label": "Discord Command Channel",
+            "description": "The Discord channel name for commands."
+        },
+        "WebhookAddress": {
+            "label": "Webhook URL",
+            "description": "Slack/Discord incoming webhook URL for notifications."
+        },
+        "War": {
+            "label": "Enable Faction War",
+            "description": "Enable faction war system. (Disabled by default since the Dec 2025 MP patch.)"
+        },
+        "WarStartDelay": {
+            "label": "War Start Delay",
+            "description": "Seconds before war starts after being declared."
+        },
+        "WarDuration": {
+            "label": "War Duration",
+            "description": "War duration in seconds."
+        },
+        "WarSafehouseHitPoints": {
+            "label": "War Safehouse Hit Points",
+            "description": "Safehouse hit points during faction war."
+        },
+        "DisableRadioStaff": {
+            "label": "Disable Radio for Staff",
+            "description": "Disable radio transmissions from staff access level."
+        },
+        "DisableRadioAdmin": {
+            "label": "Disable Radio for Admins",
+            "description": "Disable radio transmissions from admin access level."
+        },
+        "DisableRadioGM": {
+            "label": "Disable Radio for GMs",
+            "description": "Disable radio transmissions from GM access level."
+        },
+        "DisableRadioOverseer": {
+            "label": "Disable Radio for Overseers",
+            "description": "Disable radio transmissions from overseer access level."
+        },
+        "DisableRadioModerator": {
+            "label": "Disable Radio for Moderators",
+            "description": "Disable radio transmissions from moderator access level."
+        },
+        "DisableRadioInvisible": {
+            "label": "Disable Radio for Invisible",
+            "description": "Disable radio transmissions from invisible players."
+        },
+        "BackupsCount": {
+            "label": "Backup Count",
+            "description": "Number of backup copies to keep."
+        },
+        "BackupsOnStart": {
+            "label": "Backup on Start",
+            "description": "Create a backup when the server starts."
+        },
+        "BackupsOnVersionChange": {
+            "label": "Backup on Version Change",
+            "description": "Create a backup when the game version changes."
+        },
+        "BackupsPeriod": {
+            "label": "Backup Period",
+            "description": "Minutes between automatic backups. 0 = disabled."
+        },
+        "DisableVehicleTowing": {
+            "label": "Disable Vehicle Towing",
+            "description": "Disable vehicle towing."
+        },
+        "DisableTrailerTowing": {
+            "label": "Disable Trailer Towing",
+            "description": "Disable trailer towing."
+        },
+        "DisableBurntTowing": {
+            "label": "Disable Burnt Vehicle Towing",
+            "description": "Disable towing of burnt vehicles."
+        },
+        "BadWordListFile": {
+            "label": "Bad Word List File",
+            "description": "Path to file with prohibited words, one per line."
+        },
+        "GoodWordListFile": {
+            "label": "Good Word List File",
+            "description": "Path to file with allowed words that may contain bad words, one per line."
+        },
+        "BadWordPolicy": {
+            "label": "Bad Word Policy",
+            "description": "Action taken when a bad word is detected in chat.",
+            "options": {
+                "1": "Ban",
+                "2": "Kick",
+                "3": "Record Violation",
+                "4": "Mute"
+            }
+        },
+        "BadWordReplacement": {
+            "label": "Bad Word Replacement",
+            "description": "Text that replaces bad words in chat."
+        },
+        "AntiCheatSafety": {
+            "label": "Safety System",
+            "description": "Anti-cheat protection for the safety system.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatMovement": {
+            "label": "Movement",
+            "description": "Anti-cheat protection for player movement.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatHit": {
+            "label": "Hit Detection",
+            "description": "Anti-cheat protection for character hits.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatPacket": {
+            "label": "Packet Validation",
+            "description": "Anti-cheat protection for network packets.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatPermission": {
+            "label": "Permissions",
+            "description": "Anti-cheat protection for player permissions.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatXP": {
+            "label": "XP Validation",
+            "description": "Anti-cheat protection for player XP.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatFire": {
+            "label": "Fire Checks",
+            "description": "Anti-cheat protection for fire actions.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatSafeHouse": {
+            "label": "Safehouse Protection",
+            "description": "Anti-cheat protection for safehouses.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatRecipe": {
+            "label": "Recipe Checks",
+            "description": "Anti-cheat protection for crafting recipes.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatPlayer": {
+            "label": "Player Validation",
+            "description": "Anti-cheat protection for player actions.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatChecksum": {
+            "label": "Checksum Validation",
+            "description": "Anti-cheat protection for file checksums.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatItem": {
+            "label": "Item Checks",
+            "description": "Anti-cheat protection for items.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "AntiCheatServerCustomization": {
+            "label": "Server Customization",
+            "description": "Anti-cheat protection for server customization.",
+            "options": {
+                "1": "1 - Disabled",
+                "2": "2 - Log Only",
+                "3": "3 - Log + Kick",
+                "4": "4 - Full Protection"
+            }
+        },
+        "ClientCommandFilter": {
+            "label": "Command Log Filter",
+            "description": "Semicolon-separated list of commands to exclude from cmd.txt log. Use -vehicle.* to exclude all vehicle, +vehicle.installPart to include specific."
+        },
+        "ClientActionLogs": {
+            "label": "Client Action Logs",
+            "description": "Semicolon-separated list of actions written to ClientActionLogs.txt."
+        },
+        "PerkLogs": {
+            "label": "Perk Level Logging",
+            "description": "Track changes in player perk levels in PerkLog.txt."
+        },
+        "SwitchZombiesOwnershipEachUpdate": {
+            "label": "Switch Zombie Ownership",
+            "description": "Switch zombie ownership between players each update tick."
+        },
+        "UltraSpeedDoesnotAffectToAnimals": {
+            "label": "Ultra Speed Ignores Animals",
+            "description": "Ultra speed mode does not affect animal simulation."
+        },
+        "UsePhysicsHitReaction": {
+            "label": "Physics Hit Reaction",
+            "description": "Use physics-based hit reactions."
+        },
+        "DayLength": {
+            "label": "Day Length",
+            "description": "How long a day lasts.",
+            "options": {
+                "1": "15 minutes",
+                "2": "30 minutes",
+                "3": "1 hour",
+                "4": "1 hour 30 minutes",
+                "5": "2 hours",
+                "6": "3 hours",
+                "7": "4 hours",
+                "8": "5 hours",
+                "9": "6 hours",
+                "10": "7 hours",
+                "11": "8 hours",
+                "12": "9 hours",
+                "13": "10 hours",
+                "14": "11 hours",
+                "15": "12 hours",
+                "16": "13 hours",
+                "17": "14 hours",
+                "18": "15 hours",
+                "19": "16 hours",
+                "20": "17 hours",
+                "21": "18 hours",
+                "22": "19 hours",
+                "23": "20 hours",
+                "24": "21 hours",
+                "25": "22 hours",
+                "26": "23 hours",
+                "27": "Real-time"
+            }
+        },
+        "StartYear": {
+            "label": "Start Year",
+            "description": "Which year the game starts in."
+        },
+        "StartMonth": {
+            "label": "Start Month",
+            "description": "Which month the game starts in (1=Jan, 12=Dec).",
+            "options": {
+                "1": "January",
+                "2": "February",
+                "3": "March",
+                "4": "April",
+                "5": "May",
+                "6": "June",
+                "7": "July",
+                "8": "August",
+                "9": "September",
+                "10": "October",
+                "11": "November",
+                "12": "December"
+            }
+        },
+        "StartDay": {
+            "label": "Start Day",
+            "description": "Which day of the month the game starts on."
+        },
+        "StartTime": {
+            "label": "Start Time",
+            "description": "What time of day the game starts.",
+            "options": {
+                "1": "7 AM",
+                "2": "9 AM",
+                "3": "12 PM (Noon)",
+                "4": "2 PM",
+                "5": "5 PM",
+                "6": "9 PM",
+                "7": "12 AM (Midnight)",
+                "8": "2 AM",
+                "9": "5 AM"
+            }
+        },
+        "Zombies": {
+            "label": "Zombie Count",
+            "description": "Initial zombie population level. Also sets Population Multiplier in Advanced Zombie Options.",
+            "options": {
+                "1": "Insane",
+                "2": "Very High",
+                "3": "High",
+                "4": "Normal",
+                "5": "Low",
+                "6": "None"
+            }
+        },
+        "Distribution": {
+            "label": "Distribution",
+            "description": "How zombies are distributed across the map.",
+            "options": {
+                "1": "Urban Focused",
+                "2": "Uniform"
+            }
+        },
+        "ZombieVoronoiNoise": {
+            "label": "Randomize Distribution",
+            "description": "Apply randomization to zombie distribution."
+        },
+        "ZombieRespawn": {
+            "label": "Zombie Respawn",
+            "description": "How frequently new zombies are added to the world.",
+            "options": {
+                "1": "High",
+                "2": "Normal",
+                "3": "Low",
+                "4": "None"
+            }
+        },
+        "ZombieMigrate": {
+            "label": "Zombie Migration",
+            "description": "Zombies can migrate to empty cells."
+        },
+        "LootItemRemovalList": {
+            "label": "Loot Item Removal List",
+            "description": "Comma-separated item types removed from the world by the loot cleanup system."
+        },
+        "FoodLootNew": {
+            "label": "Food Loot",
+            "description": "Any food that can rot or spoil."
+        },
+        "CannedFoodLootNew": {
+            "label": "Canned Food Loot",
+            "description": "Canned and dried food, beverages."
+        },
+        "LiteratureLootNew": {
+            "label": "Literature Loot",
+            "description": "All readable items including books, fliers, and newspapers."
+        },
+        "SkillBookLoot": {
+            "label": "Skill Book Loot",
+            "description": "Books that provide skill XP multipliers."
+        },
+        "RecipeResourceLoot": {
+            "label": "Recipe Loot",
+            "description": "Items that teach recipes."
+        },
+        "MedicalLootNew": {
+            "label": "Medical Loot",
+            "description": "Medicine, bandages, and first aid tools."
+        },
+        "SurvivalGearsLootNew": {
+            "label": "Survival Gear Loot",
+            "description": "Fishing rods, tents, camping gear."
+        },
+        "WeaponLootNew": {
+            "label": "Melee Weapon Loot",
+            "description": "Weapons that are not tools in other categories."
+        },
+        "RangedWeaponLootNew": {
+            "label": "Ranged Weapon Loot",
+            "description": "Ranged weapons and weapon attachments."
+        },
+        "AmmoLootNew": {
+            "label": "Ammo Loot",
+            "description": "Loose ammo, boxes, and magazines."
+        },
+        "MechanicsLootNew": {
+            "label": "Mechanics Loot",
+            "description": "Vehicle parts and installation tools."
+        },
+        "ClothingLootNew": {
+            "label": "Clothing Loot",
+            "description": "All wearable items that are not containers."
+        },
+        "ContainerLootNew": {
+            "label": "Container Loot",
+            "description": "Backpacks and wearable/equippable containers."
+        },
+        "KeyLootNew": {
+            "label": "Key Loot",
+            "description": "Keys for buildings/cars, key rings, and locks."
+        },
+        "MediaLootNew": {
+            "label": "Media Loot",
+            "description": "VHS tapes and CDs."
+        },
+        "MementoLootNew": {
+            "label": "Memento Loot",
+            "description": "Spiffo items, plushies, and collectible keepsakes."
+        },
+        "CookwareLootNew": {
+            "label": "Cookware Loot",
+            "description": "Cooking items including those that can be weapons. Does not include food."
+        },
+        "MaterialLootNew": {
+            "label": "Material Loot",
+            "description": "Crafting and building materials."
+        },
+        "FarmingLootNew": {
+            "label": "Farming Loot",
+            "description": "Seeds, trowels, shovels, and agriculture tools."
+        },
+        "ToolLootNew": {
+            "label": "Tool Loot",
+            "description": "Tools not in other categories like Mechanics or Farming."
+        },
+        "OtherLootNew": {
+            "label": "Other Loot",
+            "description": "Everything else. Also affects foraging in Town/Road zones."
+        },
+        "RollsMultiplier": {
+            "label": "Rolls Multiplier",
+            "description": "Multiplier for loot table rolls. Higher values may affect performance. NOT recommended to change."
+        },
+        "RemoveStoryLoot": {
+            "label": "Remove Story Loot",
+            "description": "Items on the removal list will not spawn in world stories."
+        },
+        "RemoveZombieLoot": {
+            "label": "Remove Zombie Loot",
+            "description": "Items on the removal list will not spawn on zombies."
+        },
+        "ZombiePopLootEffect": {
+            "label": "Zombie Pop Loot Effect",
+            "description": "If > 0, loot increases relative to nearby zombies, multiplied by this value."
+        },
+        "SeenHoursPreventLootRespawn": {
+            "label": "Seen Hours Prevent Respawn",
+            "description": "Hours a zone must be unvisited before loot respawns. 0 = disabled."
+        },
+        "InsaneLootFactor": {
+            "label": "Insane Rarity Factor",
+            "description": "Spawn rate for Insane rarity items."
+        },
+        "ExtremeLootFactor": {
+            "label": "Extreme Rarity Factor",
+            "description": "Spawn rate for Extreme rarity items."
+        },
+        "RareLootFactor": {
+            "label": "Rare Rarity Factor",
+            "description": "Spawn rate for Rare rarity items."
+        },
+        "NormalLootFactor": {
+            "label": "Normal Rarity Factor",
+            "description": "Spawn rate for Normal rarity items."
+        },
+        "CommonLootFactor": {
+            "label": "Common Rarity Factor",
+            "description": "Spawn rate for Common rarity items."
+        },
+        "AbundantLootFactor": {
+            "label": "Abundant Rarity Factor",
+            "description": "Spawn rate for Abundant rarity items."
+        },
+        "MaximumLooted": {
+            "label": "Max Looted Building Chance",
+            "description": "Chance that any building is already looted when found."
+        },
+        "DaysUntilMaximumLooted": {
+            "label": "Days Until Max Looted",
+            "description": "Days before Maximum Looted Building Chance is reached."
+        },
+        "RuralLooted": {
+            "label": "Rural Looted Chance",
+            "description": "Chance that any rural building is already looted."
+        },
+        "MaximumDiminishedLoot": {
+            "label": "Max Diminished Loot %",
+            "description": "Maximum loot that won't spawn when diminished days reached."
+        },
+        "DaysUntilMaximumDiminishedLoot": {
+            "label": "Days Until Max Diminished",
+            "description": "Days before Maximum Diminished Loot is reached."
+        },
+        "MaximumLootedBuildingRooms": {
+            "label": "Max Looted Building Rooms",
+            "description": "Buildings with more than this many rooms will not be auto-looted."
+        },
+        "DayNightCycle": {
+            "label": "Day/Night Cycle",
+            "description": "Whether time of day changes naturally.",
+            "options": {
+                "1": "Normal",
+                "2": "Endless Day",
+                "3": "Endless Night"
+            }
+        },
+        "ClimateCycle": {
+            "label": "Weather Cycle",
+            "description": "Whether weather changes or remains fixed.",
+            "options": {
+                "1": "Normal",
+                "2": "No Weather",
+                "3": "Endless Rain",
+                "4": "Endless Storm",
+                "5": "Endless Snow",
+                "6": "Endless Blizzard"
+            }
+        },
+        "FogCycle": {
+            "label": "Fog Cycle",
+            "description": "Whether fog occurs naturally.",
+            "options": {
+                "1": "Normal",
+                "2": "No Fog",
+                "3": "Endless Fog"
+            }
+        },
+        "WaterShut": {
+            "label": "Water Shutoff",
+            "description": "When plumbing fixtures stop being infinite water sources.",
+            "options": {
+                "1": "Instant",
+                "2": "0-30 Days",
+                "3": "0-2 Months",
+                "4": "0-6 Months",
+                "5": "0-1 Year",
+                "6": "0-5 Years",
+                "7": "2-6 Months",
+                "8": "6-12 Months",
+                "9": "Disabled"
+            }
+        },
+        "ElecShut": {
+            "label": "Electricity Shutoff",
+            "description": "When the world's electricity turns off.",
+            "options": {
+                "1": "Instant",
+                "2": "14-30 Days",
+                "3": "14 Days-2 Months",
+                "4": "14 Days-6 Months",
+                "5": "14 Days-1 Year",
+                "6": "14 Days-5 Years",
+                "7": "2-6 Months",
+                "8": "6-12 Months",
+                "9": "Disabled"
+            }
+        },
+        "AlarmDecay": {
+            "label": "Alarm Battery Decay",
+            "description": "How long alarm batteries last after power shuts off.",
+            "options": {
+                "1": "Instant",
+                "2": "0-30 Days",
+                "3": "0-2 Months",
+                "4": "0-6 Months",
+                "5": "0-1 Year",
+                "6": "0-5 Years"
+            }
+        },
+        "WaterShutModifier": {
+            "label": "Water Shutoff Modifier",
+            "description": "Fine-tune water shutoff timing in days."
+        },
+        "ElecShutModifier": {
+            "label": "Electricity Shutoff Modifier",
+            "description": "Fine-tune electricity shutoff timing in days."
+        },
+        "AlarmDecayModifier": {
+            "label": "Alarm Decay Modifier",
+            "description": "Fine-tune alarm battery decay timing in days."
+        },
+        "Temperature": {
+            "label": "Temperature",
+            "description": "Global temperature setting.",
+            "options": {
+                "1": "Very Cold",
+                "2": "Cold",
+                "3": "Normal",
+                "4": "Hot",
+                "5": "Very Hot"
+            }
+        },
+        "Rain": {
+            "label": "Rainfall",
+            "description": "How often it rains.",
+            "options": {
+                "1": "Very Dry",
+                "2": "Dry",
+                "3": "Normal",
+                "4": "Rainy",
+                "5": "Very Rainy"
+            }
+        },
+        "ErosionSpeed": {
+            "label": "Erosion Speed",
+            "description": "How fast nature reclaims the world.",
+            "options": {
+                "1": "Very Fast (20 Days)",
+                "2": "Fast (50 Days)",
+                "3": "Normal (100 Days)",
+                "4": "Slow (200 Days)",
+                "5": "Very Slow (500 Days)"
+            }
+        },
+        "ErosionDays": {
+            "label": "Custom Erosion Days",
+            "description": "Custom erosion days. 0 = use Erosion Speed option."
+        },
+        "MaxFogIntensity": {
+            "label": "Max Fog Intensity",
+            "description": "Maximum intensity of fog.",
+            "options": {
+                "1": "Normal",
+                "2": "Moderate",
+                "3": "Low",
+                "4": "None"
+            }
+        },
+        "MaxRainFxIntensity": {
+            "label": "Max Rain FX Intensity",
+            "description": "Maximum intensity of rain effects.",
+            "options": {
+                "1": "Normal",
+                "2": "Moderate",
+                "3": "Low"
+            }
+        },
+        "EnableSnowOnGround": {
+            "label": "Snow on Ground",
+            "description": "Whether snow accumulates on the ground."
+        },
+        "NightDarkness": {
+            "label": "Night Darkness",
+            "description": "Ambient lighting level at night.",
+            "options": {
+                "1": "Pitch Black",
+                "2": "Dark",
+                "3": "Normal",
+                "4": "Bright"
+            }
+        },
+        "NightLength": {
+            "label": "Night Length",
+            "description": "Duration from dusk to dawn.",
+            "options": {
+                "1": "Always Night",
+                "2": "Long",
+                "3": "Normal",
+                "4": "Short",
+                "5": "Always Day"
+            }
+        },
+        "TimeSinceApo": {
+            "label": "Time Since Apocalypse",
+            "description": "How long after the apocalypse the game begins. Affects erosion and food spoilage.",
+            "options": {
+                "1": "0",
+                "2": "1",
+                "3": "2",
+                "4": "3",
+                "5": "4",
+                "6": "5",
+                "7": "6",
+                "8": "7",
+                "9": "8",
+                "10": "9",
+                "11": "10",
+                "12": "11",
+                "13": "12"
+            }
+        },
+        "FireSpread": {
+            "label": "Fire Spread",
+            "description": "Whether fires spread when started."
+        },
+        "StatsDecrease": {
+            "label": "Stats Decrease",
+            "description": "How fast hunger, thirst, and fatigue decrease.",
+            "options": {
+                "1": "Very Fast",
+                "2": "Fast",
+                "3": "Normal",
+                "4": "Slow",
+                "5": "Very Slow"
+            }
+        },
+        "Nutrition": {
+            "label": "Nutrition",
+            "description": "Food nutrition affects player weight and condition."
+        },
+        "FoodRotSpeed": {
+            "label": "Food Rot Speed",
+            "description": "How fast food spoils.",
+            "options": {
+                "1": "Very Fast",
+                "2": "Fast",
+                "3": "Normal",
+                "4": "Slow",
+                "5": "Very Slow"
+            }
+        },
+        "FridgeFactor": {
+            "label": "Fridge Effectiveness",
+            "description": "How effective fridges are at preserving food.",
+            "options": {
+                "1": "Very Low",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High",
+                "6": "No Decay"
+            }
+        },
+        "StarterKit": {
+            "label": "Starter Kit",
+            "description": "Spawn with chips, water bottle, backpack, bat, and hammer."
+        },
+        "CharacterFreePoints": {
+            "label": "Free Character Points",
+            "description": "Extra free points during character creation."
+        },
+        "BoneFracture": {
+            "label": "Bone Fractures",
+            "description": "Survivors can get broken limbs from impacts, falls, etc."
+        },
+        "InjurySeverity": {
+            "label": "Injury Severity",
+            "description": "Impact of injuries and healing time.",
+            "options": {
+                "1": "Low",
+                "2": "Normal",
+                "3": "High"
+            }
+        },
+        "EndRegen": {
+            "label": "Endurance Recovery",
+            "description": "Recovery from tiredness after actions.",
+            "options": {
+                "1": "Very Fast",
+                "2": "Fast",
+                "3": "Normal",
+                "4": "Slow",
+                "5": "Very Slow"
+            }
+        },
+        "HoursForCorpseRemoval": {
+            "label": "Corpse Removal Hours",
+            "description": "Hours before zombie corpses disappear. 0 = no maggots spawn."
+        },
+        "DecayingCorpseHealthImpact": {
+            "label": "Corpse Health Impact",
+            "description": "Impact of nearby decaying bodies on health/emotions.",
+            "options": {
+                "1": "None",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Insane"
+            }
+        },
+        "ZombieHealthImpact": {
+            "label": "Zombie Health Impact",
+            "description": "Whether living zombies also affect player health/emotions."
+        },
+        "BloodLevel": {
+            "label": "Blood Level",
+            "description": "How much blood sprays on surfaces.",
+            "options": {
+                "1": "None",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Ultra Gore"
+            }
+        },
+        "ClothingDegradation": {
+            "label": "Clothing Degradation",
+            "description": "How quickly clothing degrades and gets dirty.",
+            "options": {
+                "1": "Disabled",
+                "2": "Slow",
+                "3": "Normal",
+                "4": "Fast"
+            }
+        },
+        "DaysForRottenFoodRemoval": {
+            "label": "Rotten Food Removal Days",
+            "description": "Days before rotten food is removed. -1 = never."
+        },
+        "AllClothesUnlocked": {
+            "label": "All Clothes Unlocked",
+            "description": "Select from every clothing item during character creation."
+        },
+        "EnableTaintedWaterText": {
+            "label": "Tainted Water Warning",
+            "description": "Show warning marking tainted water."
+        },
+        "EnablePoisoning": {
+            "label": "Enable Poisoning",
+            "description": "Whether poison can be added to food.",
+            "options": {
+                "1": "True",
+                "2": "False",
+                "3": "Only Bleach Disabled"
+            }
+        },
+        "MaggotSpawn": {
+            "label": "Maggot Spawn",
+            "description": "When maggots spawn in corpses.",
+            "options": {
+                "1": "In and Around Bodies",
+                "2": "In Bodies Only",
+                "3": "Never"
+            }
+        },
+        "MuscleStrainFactor": {
+            "label": "Muscle Strain Factor",
+            "description": "Multiplier for muscle strain from swinging weapons or carrying heavy loads."
+        },
+        "DiscomfortFactor": {
+            "label": "Discomfort Factor",
+            "description": "Multiplier for discomfort from worn items."
+        },
+        "WoundInfectionFactor": {
+            "label": "Wound Infection Factor",
+            "description": "Damage from serious wound infections. 0 = disabled."
+        },
+        "NoBlackClothes": {
+            "label": "No Black Clothes",
+            "description": "Prevent randomized clothing from becoming near-black."
+        },
+        "EasyClimbing": {
+            "label": "Easy Climbing",
+            "description": "Disable failure chances when climbing sheet ropes or walls."
+        },
+        "NegativeTraitsPenalty": {
+            "label": "Negative Traits Penalty",
+            "description": "Diminishing returns on bonus points from negative traits.",
+            "options": {
+                "1": "None",
+                "2": "1 pt per 3 negative traits",
+                "3": "1 pt per 2 negative traits",
+                "4": "1 pt per negative trait after first"
+            }
+        },
+        "LiteratureCooldown": {
+            "label": "Literature Cooldown",
+            "description": "Days before previously read literature can benefit again."
+        },
+        "LevelForMediaXPCutoff": {
+            "label": "Media XP Cutoff Level",
+            "description": "Skill level at which TV/VHS/media no longer provides XP."
+        },
+        "LevelForDismantleXPCutoff": {
+            "label": "Dismantle XP Cutoff Level",
+            "description": "Skill level at which scrapping furniture gives no XP."
+        },
+        "MetaKnowledge": {
+            "label": "Meta Knowledge",
+            "description": "How unseen/unread media is displayed.",
+            "options": {
+                "1": "Fully Revealed",
+                "2": "Shown as ???",
+                "3": "Completely Hidden"
+            }
+        },
+        "SeeNotLearntRecipe": {
+            "label": "See Unlearned Recipes",
+            "description": "See station recipes even if not yet learned."
+        },
+        "LightBulbLifespan": {
+            "label": "Light Bulb Lifespan",
+            "description": "Higher = bulbs last longer. 0 = never break."
+        },
+        "MaximumFireFuelHours": {
+            "label": "Max Fire Fuel Hours",
+            "description": "Max hours of fuel for campfires, wood stoves, etc."
+        },
+        "Alarm": {
+            "label": "House Alarms",
+            "description": "Frequency of residential alarms.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "LockedHouses": {
+            "label": "Locked Houses",
+            "description": "Frequency of locked houses.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "Helicopter": {
+            "label": "Helicopter Events",
+            "description": "Helicopter frequency.",
+            "options": {
+                "1": "Never",
+                "2": "Once",
+                "3": "Sometimes"
+            }
+        },
+        "MetaEvent": {
+            "label": "Meta Events",
+            "description": "Distant gunshots, screams, etc.",
+            "options": {
+                "1": "Never",
+                "2": "Sometimes"
+            }
+        },
+        "SleepingEvent": {
+            "label": "Sleeping Events",
+            "description": "Events that happen while sleeping.",
+            "options": {
+                "1": "Never",
+                "2": "Sometimes"
+            }
+        },
+        "NatureAbundance": {
+            "label": "Nature Abundance",
+            "description": "Governs abundance of wild foods, medicinal plants, etc.",
+            "options": {
+                "1": "Very Poor",
+                "2": "Poor",
+                "3": "Normal",
+                "4": "Abundant",
+                "5": "Very Abundant"
+            }
+        },
+        "FishAbundance": {
+            "label": "Fish Abundance",
+            "description": "Governs abundance of fish.",
+            "options": {
+                "1": "Very Poor",
+                "2": "Poor",
+                "3": "Normal",
+                "4": "Abundant",
+                "5": "Very Abundant"
+            }
+        },
+        "AnnotatedMapChance": {
+            "label": "Annotated Map Chance",
+            "description": "Chance of finding maps annotated with local features.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "ConstructionBonusPoints": {
+            "label": "Construction Bonus Points",
+            "description": "Extra points for carpentry/metalworking constructions."
+        },
+        "GeneratorSpawning": {
+            "label": "Generator Spawning",
+            "description": "How many generators spawn in the world.",
+            "options": {
+                "1": "Very Rare",
+                "2": "Rare",
+                "3": "Sometimes",
+                "4": "Often",
+                "5": "Very Often"
+            }
+        },
+        "GeneratorFuelConsumption": {
+            "label": "Generator Fuel Consumption",
+            "description": "How fast generators consume fuel."
+        },
+        "AllowExteriorGenerator": {
+            "label": "Allow Exterior Generator",
+            "description": "Generators can be placed outdoors and inside tents."
+        },
+        "GeneratorTileRange": {
+            "label": "Generator Tile Range",
+            "description": "Horizontal range of generators in tiles."
+        },
+        "GeneratorVerticalPowerRange": {
+            "label": "Generator Vertical Range",
+            "description": "Vertical range of generators in floors."
+        },
+        "CompostTime": {
+            "label": "Compost Time",
+            "description": "How long composting takes.",
+            "options": {
+                "1": "1 Week",
+                "2": "2 Weeks",
+                "3": "3 Weeks",
+                "4": "4 Weeks",
+                "5": "6 Weeks",
+                "6": "8 Weeks",
+                "7": "10 Weeks",
+                "8": "12 Weeks"
+            }
+        },
+        "AttackBlockMovements": {
+            "label": "Attack Block Movements",
+            "description": "Player can't move while performing melee attacks."
+        },
+        "WorldItemRemovalList": {
+            "label": "World Item Removal List",
+            "description": "Types of items removed from world (comma separated, e.g. Base.Vest)."
+        },
+        "ItemRemovalListBlacklistToggle": {
+            "label": "Item Removal Blacklist Toggle",
+            "description": "If true, removal list acts as blacklist (remove everything except listed). Default is whitelist."
+        },
+        "MultiHitZombies": {
+            "label": "Multi-Hit Zombies",
+            "description": "A melee weapon can hit multiple zombies in one swing."
+        },
+        "RearVulnerability": {
+            "label": "Rear Vulnerability",
+            "description": "Zombies take more damage when attacked from behind.",
+            "options": {
+                "1": "Low",
+                "2": "Medium",
+                "3": "High"
+            }
+        },
+        "FirearmUseDamageChance": {
+            "label": "Firearm Use Damage Chance",
+            "description": "Chance of weapon condition loss per use. 0 = never."
+        },
+        "FirearmNoiseMultiplier": {
+            "label": "Firearm Noise Multiplier",
+            "description": "Multiplier for gun noise attracting zombies."
+        },
+        "FirearmJamMultiplier": {
+            "label": "Firearm Jam Multiplier",
+            "description": "Multiplier for jamming chance."
+        },
+        "FirearmMoodleMultiplier": {
+            "label": "Firearm Moodle Multiplier",
+            "description": "Multiplier for panic/stress from gun use."
+        },
+        "FirearmWeatherMultiplier": {
+            "label": "Firearm Weather Multiplier",
+            "description": "Multiplier for rain affecting gun condition."
+        },
+        "FirearmHeadGearEffect": {
+            "label": "Firearm Head Gear Effect",
+            "description": "How much head-covering gear like helmets affects firearm aim/shoulder."
+        },
+        "EnableVehicles": {
+            "label": "Enable Vehicles",
+            "description": "Whether vehicles spawn and can be used."
+        },
+        "CarSpawnRate": {
+            "label": "Car Spawn Rate",
+            "description": "How many vehicles spawn.",
+            "options": {
+                "1": "None",
+                "2": "Very Low",
+                "3": "Low",
+                "4": "Normal",
+                "5": "High"
+            }
+        },
+        "VehicleEasyUse": {
+            "label": "Vehicle Easy Use",
+            "description": "All vehicles are automatic and easy to start."
+        },
+        "InitialGas": {
+            "label": "Initial Vehicle Gas",
+            "description": "How full the gas tank of discovered vehicles will be.",
+            "options": {
+                "1": "Very Low",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High",
+                "6": "Full"
+            }
+        },
+        "FuelStationGasInfinite": {
+            "label": "Infinite Fuel Station Gas",
+            "description": "If enabled, gas pumps will never run out of fuel."
+        },
+        "FuelStationGasMin": {
+            "label": "Fuel Station Gas Min",
+            "description": "The minimum amount of gasoline that can spawn in gas pumps."
+        },
+        "FuelStationGasMax": {
+            "label": "Fuel Station Gas Max",
+            "description": "The maximum amount of gasoline that can spawn in gas pumps."
+        },
+        "FuelStationGasEmptyChance": {
+            "label": "Fuel Station Empty Chance",
+            "description": "The chance, as a percentage, that individual gas pumps will initially have no fuel."
+        },
+        "LockedCar": {
+            "label": "Locked Car Chance",
+            "description": "Chance of vehicle doors being locked.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "CarGasConsumption": {
+            "label": "Gas Consumption",
+            "description": "Rate of fuel consumption in vehicles."
+        },
+        "CarGeneralCondition": {
+            "label": "Car General Condition",
+            "description": "Initial condition of discovered vehicles.",
+            "options": {
+                "1": "Very Low",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High"
+            }
+        },
+        "CarDamageOnImpact": {
+            "label": "Car Damage on Impact",
+            "description": "Damage vehicles take from collisions.",
+            "options": {
+                "1": "Very Low",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High"
+            }
+        },
+        "DamageToPlayerFromHitByACar": {
+            "label": "Car Damage to Player",
+            "description": "How much damage players receive from vehicle impacts.",
+            "options": {
+                "1": "None",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High"
+            }
+        },
+        "TrafficJam": {
+            "label": "Traffic Jams",
+            "description": "Whether traffic jams spawn on roads."
+        },
+        "CarAlarm": {
+            "label": "Car Alarms",
+            "description": "Chance of vehicles having active alarms.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "PlayerDamageFromCrash": {
+            "label": "Crash Damage to Player",
+            "description": "If the player can get injured from being in a car accident."
+        },
+        "SirenShutoffHours": {
+            "label": "Siren Shutoff Hours",
+            "description": "Hours before vehicle siren batteries die. 0 = instant."
+        },
+        "ChanceHasGas": {
+            "label": "Chance Has Gas",
+            "description": "The chance of finding a vehicle with gas in its tank.",
+            "options": {
+                "1": "Low",
+                "2": "Normal",
+                "3": "High"
+            }
+        },
+        "RecentlySurvivorVehicles": {
+            "label": "Recently Survivor Vehicles",
+            "description": "Whether a player can discover a car that has been cared for after the Knox infection struck.",
+            "options": {
+                "1": "None",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High"
+            }
+        },
+        "ZombieAttractionMultiplier": {
+            "label": "Vehicle Zombie Attraction",
+            "description": "Multiplier for vehicle sounds attracting zombies."
+        },
+        "SirenEffectsZombies": {
+            "label": "Siren Effects Zombies",
+            "description": "If zombies will head towards the sound of vehicle sirens."
+        },
+        "AnimalStatsModifier": {
+            "label": "Animal Stats Speed",
+            "description": "Speed at which animal stats (hunger, thirst etc.) reduce.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalMetaStatsModifier": {
+            "label": "Animal Meta Stats Speed",
+            "description": "Speed at which animal stats reduce while in meta (overworld).",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalPregnancyTime": {
+            "label": "Animal Pregnancy Time",
+            "description": "How long animals will be pregnant for before giving birth.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalAgeModifier": {
+            "label": "Animal Aging Speed",
+            "description": "Speed at which animals age.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalMilkIncModifier": {
+            "label": "Milk Production Speed",
+            "description": "Speed of milk production.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalWoolIncModifier": {
+            "label": "Wool Production Speed",
+            "description": "Speed of wool production.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalRanchChance": {
+            "label": "Animal Ranch Chance",
+            "description": "The chance of finding animals in farms.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often",
+                "7": "Always"
+            }
+        },
+        "AnimalGrassRegrowTime": {
+            "label": "Grass Regrow Time",
+            "description": "The number of hours grass will regrow after being eaten by an animal or cut by the player."
+        },
+        "AnimalMetaPredator": {
+            "label": "Meta Predator",
+            "description": "If a meta fox may attack your chickens if the hutch door is left open at night."
+        },
+        "AnimalMatingSeason": {
+            "label": "Mating Season",
+            "description": "Restrict mating to spring/early summer or allow year-round."
+        },
+        "AnimalEggHatch": {
+            "label": "Egg Hatch Time",
+            "description": "How long before baby animals will hatch from eggs.",
+            "options": {
+                "1": "Ultra Fast",
+                "2": "Very Fast",
+                "3": "Fast",
+                "4": "Normal",
+                "5": "Slow",
+                "6": "Very Slow"
+            }
+        },
+        "AnimalSoundAttractZombies": {
+            "label": "Animal Sound Attracts Zombies",
+            "description": "If true, animal calls will attract nearby zombies."
+        },
+        "AnimalTrackChance": {
+            "label": "Animal Track Chance",
+            "description": "The chance of animals leaving tracks.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "AnimalPathChance": {
+            "label": "Animal Path Chance",
+            "description": "The chance of creating a path for animals to be hunted.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "MaximumRatIndex": {
+            "label": "Maximum Rat Index",
+            "description": "Maximum rat infestation level. 0 = no rats."
+        },
+        "DaysUntilMaximumRatIndex": {
+            "label": "Days Until Max Rat Index",
+            "description": "How many days until rat population peaks."
+        },
+        "Farming": {
+            "label": "Farming XP",
+            "description": "XP multiplier for Farming skill."
+        },
+        "PlantResilience": {
+            "label": "Plant Resilience",
+            "description": "How tough crops are.",
+            "options": {
+                "1": "Very Low",
+                "2": "Low",
+                "3": "Normal",
+                "4": "High",
+                "5": "Very High"
+            }
+        },
+        "PlantAbundance": {
+            "label": "Plant Abundance",
+            "description": "How much food crops produce.",
+            "options": {
+                "1": "Very Poor",
+                "2": "Poor",
+                "3": "Normal",
+                "4": "Abundant",
+                "5": "Very Abundant"
+            }
+        },
+        "KillInsideCrops": {
+            "label": "Kill Indoor Crops",
+            "description": "Whether stepping on indoor crops destroys them."
+        },
+        "PlantGrowingSeasons": {
+            "label": "Plant Growing Seasons",
+            "description": "Restrict crop growth to appropriate seasons."
+        },
+        "PlaceDirtAboveground": {
+            "label": "Place Dirt Aboveground",
+            "description": "Allow placing dirt on built floors above ground."
+        },
+        "FarmingSpeedNew": {
+            "label": "Farming Speed",
+            "description": "Growth speed multiplier. Lower = faster."
+        },
+        "FarmingAmountNew": {
+            "label": "Farming Amount",
+            "description": "Multiplier for number of crops harvested."
+        },
+        "ClayLakeChance": {
+            "label": "Clay Lake Chance",
+            "description": "Chance of finding clay when digging near lakes."
+        },
+        "ClayRiverChance": {
+            "label": "Clay River Chance",
+            "description": "Chance of finding clay when digging near rivers."
+        },
+        "SurvivorHouseChance": {
+            "label": "Survivor House Chance",
+            "description": "Chance of finding survivor-modified houses.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "VehicleStoryChance": {
+            "label": "Vehicle Story Chance",
+            "description": "Chance of finding story-decorated vehicles.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "ZoneStoryChance": {
+            "label": "Zone Story Chance",
+            "description": "Chance of encountering zone-based story setups.",
+            "options": {
+                "1": "Never",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often"
+            }
+        },
+        "Speed": {
+            "label": "Zombie Speed",
+            "description": "How fast zombies move.",
+            "options": {
+                "1": "Sprinters",
+                "2": "Fast Shamblers",
+                "3": "Shamblers",
+                "4": "Random"
+            }
+        },
+        "Strength": {
+            "label": "Strength XP",
+            "description": "XP multiplier for Strength skill."
+        },
+        "Toughness": {
+            "label": "Toughness",
+            "description": "How tough zombies are to kill.",
+            "options": {
+                "1": "Tough",
+                "2": "Normal",
+                "3": "Fragile",
+                "4": "Random"
+            }
+        },
+        "Transmission": {
+            "label": "Transmission",
+            "description": "How the zombie infection spreads.",
+            "options": {
+                "1": "Blood and Saliva",
+                "2": "Saliva Only",
+                "3": "Everyone's Infected",
+                "4": "None"
+            }
+        },
+        "Mortality": {
+            "label": "Infection Mortality",
+            "description": "How deadly the infection is.",
+            "options": {
+                "1": "Instant",
+                "2": "0-30 Seconds",
+                "3": "0-1 Minute",
+                "4": "0-12 Hours",
+                "5": "2-3 Days",
+                "6": "1-2 Weeks",
+                "7": "Never"
+            }
+        },
+        "Cognition": {
+            "label": "Cognition",
+            "description": "What zombies can interact with.",
+            "options": {
+                "1": "Navigate and Use Doors",
+                "2": "Navigate",
+                "3": "Basic Navigation",
+                "4": "Random"
+            }
+        },
+        "Memory": {
+            "label": "Memory",
+            "description": "How long zombies remember where they last saw a target.",
+            "options": {
+                "1": "Long (2500)",
+                "2": "Normal (750)",
+                "3": "Short (500)",
+                "4": "None (25)",
+                "5": "Random",
+                "6": "Random between Normal and None"
+            }
+        },
+        "Sight": {
+            "label": "Sight",
+            "description": "How far zombies can see targets.",
+            "options": {
+                "1": "Eagle",
+                "2": "Normal",
+                "3": "Poor",
+                "4": "Random",
+                "5": "Random between Normal and Poor"
+            }
+        },
+        "Hearing": {
+            "label": "Hearing",
+            "description": "How well zombies can hear sounds.",
+            "options": {
+                "1": "Pinpoint",
+                "2": "Normal",
+                "3": "Poor",
+                "4": "Random",
+                "5": "Random between Normal and Poor"
+            }
+        },
+        "SpottedLogic": {
+            "label": "New Stealth System",
+            "description": "How zombies decide to chase their targets."
+        },
+        "ThumpNoChasing": {
+            "label": "Environmental Attacks",
+            "description": "Zombies that weren't chasing a player will not thump constructions."
+        },
+        "ThumpOnConstruction": {
+            "label": "Damage Construction",
+            "description": "Zombies thump player-built structures."
+        },
+        "ActiveOnly": {
+            "label": "Day/Night Zombie Speed Effect",
+            "description": "Zombies active during specific times.",
+            "options": {
+                "1": "Both",
+                "2": "Night",
+                "3": "Day"
+            }
+        },
+        "TriggerHouseAlarm": {
+            "label": "Zombie House Alarm Triggering",
+            "description": "Whether zombies can randomly trigger house alarms."
+        },
+        "ZombiesDragDown": {
+            "label": "Zombies Drag Down",
+            "description": "Multiple zombies can pull player to ground."
+        },
+        "ZombiesCrawlersDragDown": {
+            "label": "Crawlers Drag Down",
+            "description": "Crawlers can drag players down."
+        },
+        "ZombiesFenceLunge": {
+            "label": "Fence Lunge",
+            "description": "Zombies can lunge at you over fences."
+        },
+        "ZombiesArmorFactor": {
+            "label": "Zombies Armor Factor",
+            "description": "Multiplier for zombie armor from clothing. Higher = harder to kill."
+        },
+        "ZombiesMaxDefense": {
+            "label": "Maximum Zombie Armor Defense",
+            "description": "Maximum defense value zombies can have."
+        },
+        "ChanceOfAttachedWeapon": {
+            "label": "Chance Of Attached Weapon",
+            "description": "Chance a zombie has a weapon stuck in them."
+        },
+        "ZombiesFallDamage": {
+            "label": "Zombie Fall Damage Multiplier",
+            "description": "Whether zombies can die from falling."
+        },
+        "DisableFakeDead": {
+            "label": "Fake Dead Zombie Reanimation",
+            "description": "No zombies will pretend to be dead.",
+            "options": {
+                "1": "World Zombies",
+                "2": "World and Combat Zombies",
+                "3": "Never"
+            }
+        },
+        "PlayerSpawnZombieRemoval": {
+            "label": "Spawn Zone Clear",
+            "description": "Distance around spawn points cleared of zombies.",
+            "options": {
+                "1": "None",
+                "2": "Small",
+                "3": "Medium",
+                "4": "Large",
+                "5": "Very Large"
+            }
+        },
+        "FenceThumpersRequired": {
+            "label": "Zombies To Damage Fences",
+            "description": "Minimum zombies needed to damage a fence."
+        },
+        "FenceDamageMultiplier": {
+            "label": "Fence Damage Multiplier",
+            "description": "Multiplier for damage zombies do to fences."
+        },
+        "DoorOpeningPercentage": {
+            "label": "Random Door Opening Amount",
+            "description": "Percentage of zombies that can open doors when cognition allows it."
+        },
+        "CrawlUnderVehicle": {
+            "label": "Crawl Under Vehicle",
+            "description": "Crawler zombies can crawl under vehicles.",
+            "options": {
+                "1": "Crawlers Only",
+                "2": "Extremely Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often",
+                "7": "Always"
+            }
+        },
+        "SprinterPercentage": {
+            "label": "Random Sprinter Amount",
+            "description": "Percentage of sprinter zombies when Speed is set to Random."
+        },
+        "Reanimate": {
+            "label": "Reanimate Time",
+            "description": "Dead zombies can get back up after being killed.",
+            "options": {
+                "1": "Instant",
+                "2": "0-30 Seconds",
+                "3": "0-1 Minutes",
+                "4": "0-12 Hours",
+                "5": "2-3 Days",
+                "6": "1-2 Weeks"
+            }
+        },
+        "PopulationMultiplier": {
+            "label": "Population Multiplier",
+            "description": "Overall zombie population multiplier."
+        },
+        "PopulationStartMultiplier": {
+            "label": "Start Multiplier",
+            "description": "Zombie population at game start."
+        },
+        "PopulationPeakMultiplier": {
+            "label": "Peak Multiplier",
+            "description": "Zombie population at peak day."
+        },
+        "PopulationPeakDay": {
+            "label": "Peak Day",
+            "description": "Day when zombie population peaks."
+        },
+        "RespawnHours": {
+            "label": "Respawn Hours",
+            "description": "Hours before zombies respawn. 0 = disabled."
+        },
+        "RespawnUnseenHours": {
+            "label": "Unseen Hours",
+            "description": "Hours a chunk must be unseen before respawn."
+        },
+        "RespawnMultiplier": {
+            "label": "Respawn Multiplier",
+            "description": "Fraction of population that respawns."
+        },
+        "RedistributeHours": {
+            "label": "Redistribute Hours",
+            "description": "Hours between zombie redistribution across the map."
+        },
+        "FollowSoundDistance": {
+            "label": "Follow Sound Distance",
+            "description": "How far zombies will follow sounds in cells."
+        },
+        "RallyGroupSize": {
+            "label": "Rally Group Size",
+            "description": "Base number of zombies in rally groups."
+        },
+        "RallyGroupSizeVariance": {
+            "label": "Rally Group Size Variance",
+            "description": "The amount, as a percentage, that zombie groups can vary in size from the default (both larger and smaller)."
+        },
+        "RallyTravelDistance": {
+            "label": "Rally Travel Distance",
+            "description": "How far rally groups travel in cells."
+        },
+        "RallyGroupSeparation": {
+            "label": "Rally Group Separation",
+            "description": "Minimum distance between rally groups."
+        },
+        "RallyGroupRadius": {
+            "label": "Rally Group Radius",
+            "description": "Radius of area a rally group spreads across."
+        },
+        "ZombiesCountBeforeDelete": {
+            "label": "Zombies Count Before Delete",
+            "description": "Minimum zombie count in a cell before deletion can occur."
+        },
+        "Global": {
+            "label": "Global XP Multiplier",
+            "description": "The rate at which all skills level up."
+        },
+        "GlobalToggle": {
+            "label": "Use Global Multiplier For All Skills",
+            "description": "When enabled, all skills will use the Global Multiplier instead of individual values."
+        },
+        "Sprinting": {
+            "label": "Sprinting XP",
+            "description": "XP multiplier for Sprinting skill."
+        },
+        "Lightfoot": {
+            "label": "Lightfoot XP",
+            "description": "XP multiplier for Lightfoot skill."
+        },
+        "Nimble": {
+            "label": "Nimble XP",
+            "description": "XP multiplier for Nimble skill."
+        },
+        "Sneak": {
+            "label": "Sneaking XP",
+            "description": "XP multiplier for Sneaking skill."
+        },
+        "Axe": {
+            "label": "Axe XP",
+            "description": "XP multiplier for Axe skill."
+        },
+        "Blunt": {
+            "label": "Blunt XP",
+            "description": "XP multiplier for Blunt skill."
+        },
+        "SmallBlade": {
+            "label": "Small Blade XP",
+            "description": "XP multiplier for Small Blade skill."
+        },
+        "LongBlade": {
+            "label": "Long Blade XP",
+            "description": "XP multiplier for Long Blade skill."
+        },
+        "SmallBlunt": {
+            "label": "Small Blunt XP",
+            "description": "XP multiplier for Small Blunt skill."
+        },
+        "Aiming": {
+            "label": "Aiming XP",
+            "description": "XP multiplier for Aiming skill."
+        },
+        "Reloading": {
+            "label": "Reloading XP",
+            "description": "XP multiplier for Reloading skill."
+        },
+        "Fishing": {
+            "label": "Fishing XP",
+            "description": "XP multiplier for Fishing skill."
+        },
+        "Trapping": {
+            "label": "Trapping XP",
+            "description": "XP multiplier for Trapping skill."
+        },
+        "Woodwork": {
+            "label": "Carpentry XP",
+            "description": "XP multiplier for Carpentry skill."
+        },
+        "Cooking": {
+            "label": "Cooking XP",
+            "description": "XP multiplier for Cooking skill."
+        },
+        "Doctor": {
+            "label": "First Aid XP",
+            "description": "XP multiplier for First Aid skill."
+        },
+        "Electricity": {
+            "label": "Electricity XP",
+            "description": "XP multiplier for Electricity skill."
+        },
+        "MetalWelding": {
+            "label": "Metalworking XP",
+            "description": "XP multiplier for Metalworking skill."
+        },
+        "Mechanics": {
+            "label": "Mechanics XP",
+            "description": "XP multiplier for Mechanics skill."
+        },
+        "Tailoring": {
+            "label": "Tailoring XP",
+            "description": "XP multiplier for Tailoring skill."
+        },
+        "Maintenance": {
+            "label": "Maintenance XP",
+            "description": "XP multiplier for Maintenance skill."
+        },
+        "PlantScavenging": {
+            "label": "Foraging XP",
+            "description": "XP multiplier for Foraging skill."
+        },
+        "Fitness": {
+            "label": "Fitness XP",
+            "description": "XP multiplier for Fitness skill."
+        },
+        "FlintKnapping": {
+            "label": "Knapping XP",
+            "description": "XP multiplier for Knapping skill."
+        },
+        "Carving": {
+            "label": "Carving XP",
+            "description": "XP multiplier for Carving skill."
+        },
+        "Tracking": {
+            "label": "Tracking XP",
+            "description": "XP multiplier for Tracking skill."
+        },
+        "Butchering": {
+            "label": "Butchering XP",
+            "description": "XP multiplier for Butchering skill."
+        },
+        "Glassmaking": {
+            "label": "Glassmaking XP",
+            "description": "XP multiplier for Glassmaking skill."
+        },
+        "Husbandry": {
+            "label": "Animal Husbandry XP",
+            "description": "XP multiplier for Animal Husbandry skill."
+        },
+        "Spear": {
+            "label": "Spear XP",
+            "description": "XP multiplier for Spear skill."
+        },
+        "Masonry": {
+            "label": "Masonry XP",
+            "description": "XP multiplier for Masonry skill."
+        },
+        "Pottery": {
+            "label": "Pottery XP",
+            "description": "XP multiplier for Pottery skill."
+        },
+        "Blacksmith": {
+            "label": "Blacksmith XP",
+            "description": "XP multiplier for Blacksmith skill."
+        },
+        "AllowMiniMap": {
+            "label": "Allow Mini Map",
+            "description": "Whether the in-game mini map is available."
+        },
+        "AllowWorldMap": {
+            "label": "Allow World Map",
+            "description": "Whether the in-game world map is available."
+        },
+        "MapAllKnown": {
+            "label": "Map All Known",
+            "description": "The entire map is revealed from the start."
+        },
+        "MapNeedsLight": {
+            "label": "Map Needs Light",
+            "description": "Map can only be used when there is enough light."
+        },
+        "SpawnFrequency": {
+            "label": "Basement Spawn Frequency",
+            "description": "How often basements appear in buildings.",
+            "options": {
+                "1": "None",
+                "2": "Very Rare",
+                "3": "Rare",
+                "4": "Sometimes",
+                "5": "Often",
+                "6": "Very Often",
+                "7": "Always"
+            }
+        }
+    }
+}

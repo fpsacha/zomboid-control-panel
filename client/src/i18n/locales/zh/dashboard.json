@@ -1,0 +1,382 @@
+{
+  "title": "仪表板",
+  "serverStatus": "服务器状态",
+  "onlinePlayers": "在线玩家",
+  "uptime": "运行时间",
+  "memory": "内存",
+  "cpu": "CPU",
+  "disk": "磁盘",
+  "network": "网络",
+  "performance": "性能",
+  "overview": "概览",
+  "actions": {
+    "startServer": "启动服务器",
+    "stopServer": "停止服务器",
+    "restartServer": "重启服务器",
+    "saveWorld": "保存世界",
+    "createBackup": "创建备份",
+    "forceStop": "强制停止",
+    "connectRcon": "连接RCON",
+    "connectLocal": "从家庭网络连接",
+    "shareInternet": "将此地址分享给互联网玩家",
+    "openCopyPanel": "打开或复制控制面板地址",
+    "connectSteam": "通过Steam连接",
+    "dismissUpdate": "忽略直到下一个版本",
+    "refreshStatus": "刷新状态",
+    "bridgeSettings": "桥接设置",
+    "connectRcon": "连接 RCON",
+    "addOrSelectServerFirst": "请先添加或选择服务器"
+  },
+  "stats": {
+    "totalPlayers": "总玩家数",
+    "activePlayers": "活跃玩家",
+    "serverVersion": "服务器版本",
+    "lastBackup": "上次备份",
+    "buildId": "构建ID",
+    "lastUpdate": "上次更新",
+    "steamBranch": "Steam分支"
+  },
+  "charts": {
+    "playerCount": "玩家数量",
+    "memoryUsage": "内存使用",
+    "cpuUsage": "CPU使用",
+    "diskUsage": "磁盘使用",
+    "networkIO": "网络I/O"
+  },
+  "status": {
+    "starting": "服务器启动中...",
+    "stopping": "服务器停止中...",
+    "restarting": "服务器重启中...",
+    "saving": "保存世界中...",
+    "backupting": "创建备份中...",
+    "connecting": "连接RCON中..."
+  },
+  "messages": {
+    "serverStarted": "服务器启动成功",
+    "serverStopped": "服务器已停止",
+    "serverRestarted": "服务器重启已调度",
+    "worldSaved": "世界保存成功",
+    "backupCreated": "备份创建成功",
+    "rconConnected": "RCON连接成功",
+    "serverForceStopped": "服务器已强制停止",
+    "startFailed": "服务器启动失败",
+    "stopFailed": "服务器停止失败",
+    "restartFailed": "服务器重启失败",
+    "saveFailed": "世界保存失败",
+    "backupFailed": "备份创建失败",
+    "rconFailed": "RCON连接失败"
+  },
+  "onboarding": {
+    "title": "欢迎使用僵尸毁灭工程控制面板",
+    "description": "此仪表板显示实时服务器状态、玩家和操作。",
+    "dismiss": "我知道了",
+    "headline": "先让一台服务器跑起来，RCON 连上，再逐步扩展。",
+    "installNewServer": "安装新服务器",
+    "addExistingServer": "添加现有服务器",
+    "addRemoteServer": "添加远程服务器"
+  },
+  "actionResults": {
+    "startServer": {
+      "title": "服务器启动中",
+      "description": "请查看仪表板获取实时状态。"
+    },
+    "stopServer": {
+      "title": "服务器已停止",
+      "description": "会话已正常关闭。"
+    },
+    "forceStop": {
+      "title": "服务器已强制停止",
+      "description": "游戏进程已被终止，未使用RCON。"
+    },
+    "restartServer": {
+      "title": "重启已调度",
+      "description": "服务器将很快重启。"
+    },
+    "restartServerNow": {
+      "title": "重启已触发",
+      "description": "已发送硬重启命令。"
+    },
+    "saveWorld": {
+      "title": "世界已保存",
+      "description": "当前状态已写入磁盘。"
+    },
+    "createBackup": {
+      "title": "备份已开始",
+      "description": "正在打包新的恢复点。"
+    },
+    "connectRcon": {
+      "title": "RCON已连接",
+      "description": "远程命令控制已就绪。"
+    },
+    "default": {
+      "title": "操作完成",
+      "description": "操作已成功完成。"
+    }
+  },
+  "labels": {
+    "serverStatus": "服务器状态",
+    "moreActions": "更多服务器操作",
+    "dismissUpdate": "关闭更新通知",
+    "address": "地址",
+    "dismissGuide": "关闭快速入门指南",
+    "rcon": "RCON",
+    "bridge": "桥接"
+  },
+  "establishingLink": "正在建立链接…",
+  "lan": "局域网",
+  "wan": "广域网",
+  "panel": "面板",
+  "join": "加入",
+  "firstServer": "第一台服务器",
+  "liveActivity": "实时活动",
+  "serverTelemetry": "服务器遥测",
+  "maintenance": "维护",
+  "bridgeOffline": "连接桥离线",
+  "selectingMapPlayersAndWorldEmptiesTheSaveFolderCompletelyIncludingAnythingModsLeftBehindServerIniAndSandboxSettingsAreStoredSeparatelyAndWillNotBeAffected": "选择地图、玩家和世界将完全清空保存文件夹，包括模组留下的任何内容。服务器 .ini 和沙盒设置单独存储，不会受影响。",
+  "noFilesFoundForTheSelectedTargets": "未找到所选目标的文件。",
+  "thisWillPermanentlyDelete": "这将永久删除:",
+  "remote": "远程",
+  "openSetup": "打开设置 →",
+  "cancel": "取消",
+  "configureBridge": "配置连接桥",
+  "notConfigured": "未配置",
+  "serverSetupDescription": "打开服务器设置以添加或配置服务器。",
+  "uptimePrefix": "运行",
+  "backupState": {
+    "storedLast": "已存储 {{count}} 个，最近一次 {{age}}",
+    "stored": "已存储 {{count}} 个",
+    "noneYet": "暂无"
+  },
+  "scheduleState": {
+    "nextRun": "{{label}} {{eta}}",
+    "active": "{{count}} 个运行中",
+    "noneActive": "无运行中任务"
+  },
+  "aria": {
+    "copyAddress": "复制{{type}}地址：{{address}}",
+    "copyPanelAddress": "复制面板地址：{{address}}",
+    "joinSteam": "通过 Steam 加入：{{address}}"
+  }
+,
+  "time": {
+    "justNow": "\u521a\u521a",
+    "mAgo": "{{count}}\u5206\u949f\u524d",
+    "hAgo": "{{count}}\u5c0f\u65f6\u524d",
+    "dAgo": "{{count}}\u5929\u524d",
+    "anyMoment": "\u968f\u65f6",
+    "inM": "{{count}}\u5206\u949f\u540e",
+    "inH": "{{count}}\u5c0f\u65f6\u540e",
+    "inHM": "{{count}}\u5c0f\u65f6{{rem}}\u5206\u949f\u540e",
+    "inD": "{{count}}\u5929\u540e"
+  },
+  "freshness": {
+    "noUpdateYet": "\u5c1a\u65e0\u66f4\u65b0",
+    "updatedJustNow": "\u521a\u521a\u66f4\u65b0",
+    "updatedSAgo": "{{count}}\u79d2\u524d\u66f4\u65b0",
+    "updatedMAgo": "{{count}}\u5206\u949f\u524d\u66f4\u65b0",
+    "updatedHAgo": "{{count}}\u5c0f\u65f6\u524d\u66f4\u65b0",
+    "linkMayBeStale": "\u94fe\u63a5\u53ef\u80fd\u5df2\u8fc7\u671f\uff0c{{label}}"
+  },
+  "statusPip": {
+    "connected": "\u5df2\u8fde\u63a5",
+    "pending": "\u7b49\u5f85\u4e2d",
+    "offline": "\u79bb\u7ebf"
+  },
+  "clipboard": {
+    "copied": "\u5df2\u590d\u5236",
+    "copiedDescription": "{{label}} \u5df2\u590d\u5236\u5230\u526a\u8d34\u677f",
+    "failedToCopy": "\u590d\u5236\u5931\u8d25",
+    "couldNotCopy": "\u65e0\u6cd5\u590d\u5236\u5230\u526a\u8d34\u677f"
+  },
+  "errors": {
+    "failedToConnect": "\u8fde\u63a5\u670d\u52a1\u5668\u5931\u8d25\u3002",
+    "failedToLoad": "\u52a0\u8f7d\u4eea\u8868\u76d8\u72b6\u6001\u5931\u8d25\u3002",
+    "slowResponse": "\u4eea\u8868\u76d8\u54cd\u5e94\u65f6\u95f4\u8d85\u51fa\u9884\u671f\u3002",
+    "errorTitle": "\u9519\u8bef",
+    "failedToSaveAutoStart": "\u4fdd\u5b58\u81ea\u52a8\u542f\u52a8\u8bbe\u7f6e\u5931\u8d25",
+    "connectionError": "\u8fde\u63a5\u9519\u8bef",
+    "featuresMayBeUnavailable": "{{error}}\u3002\u90e8\u5206\u529f\u80fd\u53ef\u80fd\u4e0d\u53ef\u7528\u3002"
+  },
+  "autoStart": {
+    "enabled": "\u5df2\u542f\u7528\u81ea\u52a8\u542f\u52a8",
+    "disabled": "\u5df2\u7981\u7528\u81ea\u52a8\u542f\u52a8",
+    "enabledDescription": "\u670d\u52a1\u5668\u5c06\u5728\u9762\u677f\u542f\u52a8\u65f6\u81ea\u52a8\u8fd0\u884c",
+    "disabledDescription": "\u670d\u52a1\u5668\u4e0d\u4f1a\u81ea\u52a8\u542f\u52a8"
+  },
+  "verdict": {
+    "rconDisconnected": "RCON\u5df2\u65ad\u5f00",
+    "hostMemoryPercent": "\u4e3b\u673a\u5185\u5b58 {{percent}}%",
+    "hostCpuPercent": "\u4e3b\u673a CPU {{percent}}%",
+    "panelBridgeOffline": "PanelBridge \u79bb\u7ebf",
+    "noServerConfigured": "\u672a\u914d\u7f6e\u670d\u52a1\u5668",
+    "panelCannotReach": "\u9762\u677f\u65e0\u6cd5\u8fde\u63a5\u670d\u52a1\u5668",
+    "retry": "\u91cd\u8bd5",
+    "serverStopped": "\u670d\u52a1\u5668\u5df2\u505c\u6b62",
+    "startServer": "\u542f\u52a8\u670d\u52a1\u5668",
+    "noBackups": "\u65e0\u5907\u4efd",
+    "console": "\u63a7\u5236\u53f0",
+    "schedule": "\u8ba1\u5212\u4efb\u52a1",
+    "errors": "\u9519\u8bef\u65e5\u5fd7",
+    "backups": "\u5907\u4efd",
+    "config": "\u914d\u7f6e",
+    "everythingNominal": "\u4e00\u5207\u6b63\u5e38",
+    "noActiveServer": "\u65e0\u6d3b\u52a8\u670d\u52a1\u5668",
+    "bridgeSettings": "\u6865\u63a5\u8bbe\u7f6e",
+    "reviewMods": "\u67e5\u770b\u6a21\u7ec4",
+    "openSetup": "\u6253\u5f00\u8bbe\u7f6e",
+    "diskAlmostFull": "\u78c1\u76d8\u7a7a\u95f4\u5373\u5c06\u8017\u5c3d\uff0c\u8fd8\u5269 {{free}} GB",
+    "diskUsage": "\u78c1\u76d8\u5df2\u4f7f\u7528 {{percent}}%\uff0c\u8fd8\u5269 {{free}} GB",
+    "modsWaiting": "\u6709 {{count}} \u4e2a\u6a21\u7ec4\u66f4\u65b0\u7b49\u5f85\u5904\u7406",
+    "mods": "\u6a21\u7ec4"
+  },
+  "presence": {
+    "justJoined": "\u521a\u52a0\u5165",
+    "forDuration": "\u5df2\u5728\u7ebf {{duration}}"
+  },
+  "workList": {
+    "offline": "\u79bb\u7ebf",
+    "rconReady": "RCON \u5c31\u7eea",
+    "rconOffline": "RCON \u79bb\u7ebf",
+    "toUpdate": "\u5f85\u66f4\u65b0 {{count}} \u4e2a",
+    "tracked": "\u5df2\u8ffd\u8e2a {{count}} \u4e2a",
+    "none": "\u65e0",
+    "logged": "\u5df2\u8bb0\u5f55 {{count}} \u6761"
+  },
+  "confirm": {
+    "stopServer": {
+      "title": "\u505c\u6b62\u670d\u52a1\u5668",
+      "description": "\u786e\u5b9a\u8981\u505c\u6b62\u670d\u52a1\u5668\u5417\uff1f\u6240\u6709\u5df2\u8fde\u63a5\u7684\u73a9\u5bb6\u5c06\u88ab\u65ad\u5f00\u8fde\u63a5\u3002"
+    },
+    "forceStop": {
+      "title": "\u5f3a\u5236\u505c\u6b62\u670d\u52a1\u5668",
+      "description": "\u8fd9\u5c06\u7acb\u5373\u7ec8\u6b62\u6e38\u620f\u8fdb\u7a0b\uff0c\u4e0d\u4f1a\u4fdd\u5b58\u3002",
+      "playersDisconnected": "{{count}} \u540d\u73a9\u5bb6\u5c06\u88ab\u65ad\u5f00\u8fde\u63a5\uff01"
+    },
+    "restartServer": {
+      "title": "\u91cd\u542f\u670d\u52a1\u5668",
+      "description": "\u5c06\u5411\u6240\u6709\u73a9\u5bb6\u53d1\u9001 5 \u5206\u949f\u8b66\u544a\uff0c\u7136\u540e\u91cd\u542f\u670d\u52a1\u5668\u3002"
+    },
+    "restartServerNow": {
+      "title": "\u7acb\u5373\u91cd\u542f\u670d\u52a1\u5668",
+      "description": "\u8fd9\u5c06\u7acb\u5373\u91cd\u542f\u670d\u52a1\u5668\uff0c\u4e0d\u4f1a\u53d1\u51fa\u8b66\u544a\u3002",
+      "playersDisconnected": "{{count}} \u540d\u73a9\u5bb6\u5c06\u88ab\u65ad\u5f00\u8fde\u63a5\uff01"
+    },
+    "notAvailableForRemote": "\u8fdc\u7a0b\uff08\u4ec5 RCON\uff09\u670d\u52a1\u5668\u4e0d\u53ef\u7528"
+  },
+  "updateBanner": {
+    "applyUpdate": "\u5e94\u7528\u66f4\u65b0",
+    "viewUpdate": "\u67e5\u770b\u66f4\u65b0",
+    "applyFailed": "\u5e94\u7528\u5931\u8d25",
+    "updateStaged": "\u66f4\u65b0\u5df2\u5c31\u7eea",
+    "panelUpdate": "\u9762\u677f\u66f4\u65b0",
+    "applyFailedDescription": "\u4e0a\u6b21\u5e94\u7528\u5c1d\u8bd5\u5931\u8d25 \u2014 \u8bf7\u5728\u8bbe\u7f6e\u4e2d\u67e5\u770b\u8bca\u65ad\u4fe1\u606f\u3002",
+    "readyDescription": "\u5df2\u4e0b\u8f7d\u5e76\u5c31\u7eea\u3002\u91cd\u542f\u9762\u677f\u4ee5\u5e94\u7528\u66f4\u65b0\u3002",
+    "availableDescription": "\u65b0\u7684\u9762\u677f\u7248\u672c\u53ef\u7528\u3002"
+  },
+  "onboardingSteps": {
+    "step1": {
+      "number": "1",
+      "title": "\u6dfb\u52a0\u670d\u52a1\u5668",
+      "description": "\u6dfb\u52a0\u73b0\u6709\u5b89\u88c5\u3001\u8fde\u63a5\u8fdc\u7a0b RCON\uff0c\u6216\u521b\u5efa\u65b0\u670d\u52a1\u5668\u3002"
+    },
+    "step2": {
+      "number": "2",
+      "title": "\u9a8c\u8bc1\u8fde\u63a5",
+      "description": "\u786e\u8ba4\u8def\u5f84\u3001RCON \u51ed\u636e\u548c\u6d3b\u52a8\u670d\u52a1\u5668\u3002"
+    },
+    "step3": {
+      "number": "3",
+      "title": "\u5b9e\u65f6\u63a7\u5236",
+      "description": "\u5f53\u72b6\u6001\u3001\u73a9\u5bb6\u548c\u804a\u5929\u66f4\u65b0\u65f6\uff0c\u5b9e\u65f6\u63a7\u5236\u5373\u53ef\u5c31\u7eea\u3002"
+    }
+  },
+  "activity": {
+    "eventsCount": "{{count}} \u4e2a\u4e8b\u4ef6",
+    "idle": "\u7a7a\u95f2",
+    "offline": "\u79bb\u7ebf",
+    "listeningDescription": "\u6b63\u5728\u76d1\u542c\u73a9\u5bb6\u52a0\u5165\u3001\u79bb\u5f00\u3001\u6b7b\u4ea1\u548c\u7ba1\u7406\u4e8b\u4ef6\u3002",
+    "startToTrack": "\u542f\u52a8\u670d\u52a1\u5668\u4ee5\u5f00\u59cb\u8ddf\u8e2a\u73a9\u5bb6\u6d3b\u52a8\u3002",
+    "configureToTrack": "\u914d\u7f6e\u670d\u52a1\u5668\u4ee5\u5f00\u59cb\u8ddf\u8e2a\u6d3b\u52a8\u3002",
+    "verbs": {
+      "joined": "\u5df2\u52a0\u5165",
+      "left": "\u5df2\u79bb\u5f00",
+      "died": "\u5df2\u6b7b\u4ea1",
+      "killed": "\u5df2\u51fb\u6740",
+      "banned": "\u5df2\u5c01\u7981",
+      "kicked": "\u5df2\u8e22\u51fa"
+    }
+  },
+  "telemetry": {
+    "sampling": "\u91c7\u6837\u4e2d",
+    "standby": "\u5f85\u673a",
+    "live": "\u5b9e\u65f6",
+    "lastSecondsLive": "\u6700\u8fd1 {{seconds}}\u79d2 \u00b7 \u5b9e\u65f6",
+    "lastMinutesLive": "\u6700\u8fd1 {{minutes}} \u5206\u949f \u00b7 \u5b9e\u65f6",
+    "telemetryWillAppear": "\u9065\u6d4b\u6570\u636e\u5c06\u5728\u4e0b\u4e00\u4e2a\u91c7\u6837\u5468\u671f\u5185\u663e\u793a\u3002",
+    "startToTrack": "\u542f\u52a8\u670d\u52a1\u5668\u4ee5\u8ddf\u8e2a CPU\u3001\u5185\u5b58\u548c\u73a9\u5bb6\u6307\u6807\u3002"
+  },
+  "wipe": {
+    "title": "\u64e6\u9664\u670d\u52a1\u5668",
+    "stopServerBeforeWiping": "\u64e6\u9664\u524d\u8bf7\u5148\u505c\u6b62\u670d\u52a1\u5668",
+    "deleteMapPlayersWorld": "\u5220\u9664\u5730\u56fe / \u73a9\u5bb6 / \u4e16\u754c\u72b6\u6001",
+    "advancedRequireBridge": "\u9ad8\u7ea7\u4e16\u754c\u63a7\u5236\u9700\u8981 PanelBridge\u3002",
+    "options": {
+      "map": {
+        "label": "\u5730\u56fe\u4e0e\u5730\u5f62",
+        "description": "\u533a\u5757\u3001\u5730\u5f62\u3001\u5efa\u7b51\u3001\u50f5\u5c38\u5206\u5e03\u3001\u533a\u57df\u6587\u4ef6\u3002"
+      },
+      "players": {
+        "label": "\u73a9\u5bb6\u4e0e\u8f7d\u5177",
+        "description": "\u73a9\u5bb6\u5b58\u6863\u3001\u80cc\u5305\u3001\u4f4d\u7f6e\u3001\u8f7d\u5177\u6570\u636e\u3002"
+      },
+      "world": {
+        "label": "\u4e16\u754c\u72b6\u6001",
+        "description": "\u4e16\u754c\u5b57\u5178\u3001\u5143\u6570\u636e\u3001\u4fb5\u8680\u3001\u6e38\u620f\u5bf9\u8c61\u72b6\u6001\u3001\u65e0\u7ebf\u7535\u3002"
+      },
+      "accounts": {
+        "label": "\u8d26\u6237\u4e0e\u5c01\u7981",
+        "description": "\u7528\u6237\u8d26\u6237\u3001\u5bc6\u7801\u3001\u89d2\u8272\u3001\u767d\u540d\u5355\u548c\u5c01\u7981\u5217\u8868\u3002\u6240\u6709\u4eba\u4e0b\u6b21\u52a0\u5165\u65f6\u9700\u91cd\u65b0\u6ce8\u518c\u3002"
+      }
+    },
+    "previewLabels": {
+      "map": "\u5730\u56fe/\u5730\u5f62",
+      "players": "\u73a9\u5bb6/\u8f7d\u5177",
+      "world": "\u4e16\u754c\u72b6\u6001",
+      "leftovers": "\u5176\u4ed6\u6b8b\u7559\u6587\u4ef6",
+      "accounts": "\u8d26\u6237\u6570\u636e\u5e93"
+    },
+    "noFilesFound": "\u672a\u627e\u5230 {{label}} \u6587\u4ef6",
+    "totalFiles": "\u5408\u8ba1: {{count}} \u4e2a\u6587\u4ef6 ({{size}} MB)",
+    "filesWithSize": "{{count}} {{label}} 个文件（{{size}} MB）",
+    "previewFailed": "\u9884\u89c8\u5931\u8d25",
+    "couldNotScan": "\u65e0\u6cd5\u626b\u63cf\u5b58\u6863\u76ee\u5f55",
+    "serverWiped": "\u670d\u52a1\u5668\u5df2\u64e6\u9664",
+    "deleted": "\u5df2\u5220\u9664: {{targets}}",
+    "wipeFailed": "\u64e6\u9664\u5931\u8d25",
+    "unknownError": "\u672a\u77e5\u9519\u8bef",
+    "description": "\u9009\u62e9\u8981\u4ece{{server}}\u5220\u9664\u7684\u6570\u636e\u3002\u670d\u52a1\u5668\u5fc5\u987b\u5df2\u505c\u6b62\u3002",
+    "activeServer": "\u5f53\u524d\u670d\u52a1\u5668"
+  },
+  "performance": {
+    "pzMemory": "PZ \u5185\u5b58",
+    "players": "\u73a9\u5bb6",
+    "online": "\u5728\u7ebf",
+    "hostCpu": "\u4e3b\u673a CPU",
+    "hostMemory": "\u4e3b\u673a\u5185\u5b58",
+    "normal": "\u6b63\u5e38"
+  },
+  "verdictBand": {
+    "serverVerdict": "\u670d\u52a1\u5668\u72b6\u6001",
+    "andNMore": "\u8fd8\u6709 {{count}} \u4eba",
+    "serverSections": "\u670d\u52a1\u5668\u6a21\u5757"
+  },
+  "buttons": {
+    "saveWorld": "\u4fdd\u5b58\u4e16\u754c",
+    "createBackup": "\u521b\u5efa\u5907\u4efd",
+    "wipeServer": "\u64e6\u9664\u670d\u52a1\u5668",
+    "autoStartOnLaunch": "\u542f\u52a8\u65f6\u81ea\u52a8\u5f00\u59cb",
+    "preview": "\u9884\u89c8",
+    "wipeNow": "\u7acb\u5373\u64e6\u9664",
+    "startServer": "\u542f\u52a8"
+  }
+}

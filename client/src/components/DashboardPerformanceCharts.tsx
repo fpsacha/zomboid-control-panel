@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export interface DashboardPerformancePoint {
   time: string
@@ -19,6 +20,8 @@ interface DashboardPerformanceChartsProps {
   serverRunning?: boolean
   maxMemoryGB?: number
 }
+
+const EMPTY_PERFORMANCE_POINT: DashboardPerformancePoint = { time: '', playerCount: 0, memoryMB: 0 }
 
 type MetricTone = 'neutral' | 'good' | 'warn' | 'bad'
 
@@ -67,10 +70,9 @@ function DashboardPerformanceCharts({
   serverRunning = true,
   maxMemoryGB,
 }: DashboardPerformanceChartsProps) {
-  // Every hook must run on every render. Returning before the useMemo below
-  // changed the hook count from 0 to 1 the moment history arrived, which React
-  // rejects with "Rendered more hooks than during the previous render".
-  const latest = performanceHistory[performanceHistory.length - 1]
+  const { t } = useTranslation('dashboard')
+  const latest = performanceHistory[performanceHistory.length - 1] ?? EMPTY_PERFORMANCE_POINT
+  const hasLatest = performanceHistory.length > 0
 
   const pzMem = latest?.pzMemMB ?? latest?.memoryMB ?? 0
   const cpu = latest?.cpuPercent ?? 0
@@ -95,7 +97,7 @@ function DashboardPerformanceCharts({
       const pzDataKey = latest.pzMemMB != null ? 'pzMemMB' : 'memoryMB'
       m.push({
         key: 'pzMem',
-        label: 'PZ memory',
+        label: t('performance.pzMemory'),
         value: maxMemoryGB != null
           ? `${pzMemoryGB.toFixed(1)} / ${maxMemoryGB}`
           : pzMem > 1024 ? pzMemoryGB.toFixed(1) : pzMem,
@@ -109,9 +111,9 @@ function DashboardPerformanceCharts({
       if (performanceHistory.some(point => point.playerCount > 0)) {
         m.push({
           key: 'players',
-          label: 'Players',
+          label: t('performance.players'),
           value: latest.playerCount,
-          unit: 'online',
+          unit: t('performance.online'),
           dataKey: 'playerCount',
           tone: latest.playerCount > 0 ? 'good' : 'neutral',
         })
@@ -120,7 +122,7 @@ function DashboardPerformanceCharts({
 
     m.push({
       key: 'cpu',
-      label: 'Host CPU',
+      label: t('performance.hostCpu'),
       value: cpu,
       unit: '%',
       dataKey: 'cpuPercent',
@@ -132,7 +134,7 @@ function DashboardPerformanceCharts({
     if (hostUsed != null && hostTotal != null) {
       m.push({
         key: 'hostMem',
-        label: 'Host memory',
+        label: t('performance.hostMemory'),
         value: `${hostUsed.toFixed(1)} / ${hostTotal}`,
         unit: 'GB',
         dataKey: 'hostMemUsedGB',
@@ -147,7 +149,7 @@ function DashboardPerformanceCharts({
     if (diskUsed != null && diskTotal != null) {
       m.push({
         key: 'disk',
-        label: 'Disk',
+        label: t('disk'),
         value: `${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)}`,
         unit: 'GB',
         dataKey: 'hostDiskUsedGB',
@@ -158,7 +160,9 @@ function DashboardPerformanceCharts({
     }
 
     return m
-  }, [performanceHistory, serverRunning, maxMemoryGB, latest, pzMem, pzMemoryGB, cpu, hostUsed, hostTotal, diskUsed, diskTotal, cpuAlert, hostRamAlert, diskAlert, pzRatio, hostRatio, diskRatio])
+  }, [t, performanceHistory, serverRunning, maxMemoryGB, latest, pzMem, pzMemoryGB, cpu, hostUsed, hostTotal, diskUsed, diskTotal, cpuAlert, hostRamAlert, diskAlert, pzRatio, hostRatio, diskRatio])
+
+  if (!hasLatest) return null
 
   if (!latest) return null
 
@@ -204,7 +208,7 @@ function DashboardPerformanceCharts({
             </div>
 
             <span className="text-right font-mono text-[11px] tabular-nums text-muted-foreground/50">
-              {m.key === 'pzMem' ? 'normal' : pct != null && m.unit !== '%' ? `${Math.round(pct)}%` : ''}
+              {m.key === 'pzMem' ? t('performance.normal') : pct != null && m.unit !== '%' ? `${Math.round(pct)}%` : ''}
             </span>
           </div>
         )

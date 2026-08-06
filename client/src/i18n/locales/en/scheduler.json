@@ -1,0 +1,197 @@
+{
+  "title": "Scheduler",
+  "description": "Automate server tasks and restarts",
+  "tasks": {
+    "noTasks": "No scheduled tasks",
+    "createDescription": "Create a task to run commands automatically.",
+    "runNow": "Run task now"
+  },
+  "history": {
+    "noHistory": "No execution history",
+    "description": "Executions will appear here.",
+    "title": "Execution History",
+    "recentDescription": "Recent task execution log.",
+    "clearDescription": "Are you sure you want to clear all {{count}} execution history entries? This action cannot be undone.",
+    "succeeded": "Succeeded",
+    "failed": "Failed",
+    "duration": "Duration: {{seconds}}s"
+  },
+  "presets": {
+    "restart15": "Restart in 15 minutes with countdown warnings",
+    "restart10": "Restart in 10 minutes with countdown warnings",
+    "restart5": "Restart in 5 minutes with countdown warnings",
+    "restart1": "Restart in 1 minute - short warning, requires confirmation"
+  },
+  "labels": {
+    "cronExpression": "Cron expression"
+  },
+  "placeholders": {
+    "taskName": "e.g., Daily Restart",
+    "interval": "e.g. 4 for every 4 hours",
+    "selectPreset": "Select a preset...",
+    "cron": "e.g., 0 */2 * * *",
+    "selectCommand": "Select common command...",
+    "customCommand": "Or enter custom command",
+    "selectServer": "Select a server..."
+  },
+  "schedulerDataCouldNotBeLoaded": "Scheduler data could not be loaded",
+  "createScheduledTask": "Create Scheduled Task",
+  "taskName": "Task Name",
+  "scheduleType": "Schedule Type",
+  "frequency": "Frequency",
+  "everyHourAtMinute0": "Every Hour (at minute 0)",
+  "everyXHours": "Every X Hours",
+  "dailyAtSpecificTime": "Daily at Specific Time",
+  "hour023": "Hour (0-23)",
+  "minute059": "Minute (0-59)",
+  "generatedCron": "Generated Cron:",
+  "loadPreset": "Load Preset",
+  "customExpression": "Custom Expression",
+  "command": "Command",
+  "targetServer": "Target Server",
+  "customCountdownMinutes": "Custom countdown (minutes)",
+  "minute": "Minute",
+  "hour": "Hour",
+  "day": "Day",
+  "month": "Month",
+  "weekday": "Weekday",
+  "restartServerIn1Minute": "Restart server in 1 minute?",
+  "cancel": "Cancel",
+  "deleteScheduledTask": "Delete Scheduled Task",
+  "clearExecutionHistory": "Clear Execution History",
+  "eyebrow": "Maintenance",
+  "createTaskDescription": "Run a command on a schedule.",
+  "targetServerDescription": "This task always runs against this server, even if a different one is active when it fires.",
+  "actions": {
+    "retry": "Retry",
+    "newTask": "New Task",
+    "createTask": "Create Task",
+    "delete": "Delete",
+    "refresh": "Refresh",
+    "clear": "Clear",
+    "clearAll": "Clear All"
+  },
+  "scheduleModes": {
+    "simple": "Simple Builder",
+    "advanced": "Advanced (Cron)"
+  },
+  "commands": {
+    "restartServer": "Restart Server",
+    "saveWorld": "Save World",
+    "serverMessage": "Server Message",
+    "checkModUpdates": "Check Mod Updates",
+    "triggerBlizzard": "Trigger Blizzard (2h)",
+    "triggerStorm": "Trigger Storm (1h)",
+    "triggerTropicalStorm": "Trigger Tropical Storm (1h)",
+    "stopAllWeather": "Stop All Weather",
+    "startRain": "Start Rain",
+    "stopRain": "Stop Rain",
+    "restoreUtilities": "Restore Utilities",
+    "shutOffUtilities": "Shut Off Utilities",
+    "saveWorldPanelBridge": "Save World (PanelBridge)",
+    "broadcastServerChat": "Broadcast (Server Chat)"
+  },
+  "server": {
+    "active": "Active",
+    "remote": "Remote",
+    "fallbackName": "Server {{id}}",
+    "unknown": "Unknown server",
+    "targetTooltip": "Target server: {{name}}"
+  },
+  "statusCards": {
+    "activeTasks": "Active Tasks",
+    "totalTasks": "Total tasks: {{count}}",
+    "restartTasks": "Restart Tasks",
+    "scheduled": "Scheduled",
+    "none": "None",
+    "restartTaskCount": "Restart tasks: {{count}}",
+    "modUpdateRestart": "Mod Update Restart",
+    "pending": "Pending",
+    "modUpdateRestartDescription": "Auto-restart on mod updates"
+  },
+  "manualRestart": {
+    "title": "Manual Restart",
+    "onlineDescription": "Pick a countdown — players are warned and the server restarts when it ends.",
+    "offlineDescription": "Server is offline — start it before issuing a restart.",
+    "restartIn": "Restart in {{minutes}}m",
+    "oneMinuteDescription": "Players get a single 1-minute warning before the server goes down. Use longer countdowns if anyone is mid-fight or driving.",
+    "restartConfirm": "Restart after {{minutes}} minute(s)?",
+    "shortCountdownDescription": "Short countdowns can catch players mid-action. Confirm if you really want to restart this fast.",
+    "restartNow": "Restart Now",
+    "countdownDescription": "Players see countdown warnings at 15m, 10m, 5m, and 1m as the timer ticks down."
+  },
+  "broadcasts": {
+    "title": "Quick Broadcasts",
+    "onlineDescription": "Send common announcements to all players.",
+    "offlineDescription": "Server is offline — broadcasts require a running server.",
+    "buttons": {
+      "maintenanceStart": "Maintenance Start",
+      "maintenanceEnd": "Maintenance End",
+      "saveWarning": "Save Warning",
+      "welcome": "Welcome"
+    },
+    "messages": {
+      "maintenanceStart": "Server entering MAINTENANCE MODE - Please save and disconnect",
+      "maintenanceEnd": "Maintenance complete - Server is back online!",
+      "saveWarning": "Server will save in 30 seconds - Brief lag expected",
+      "welcome": "Welcome! Please read the rules at spawn"
+    }
+  },
+  "scheduledTasks": {
+    "title": "Scheduled Tasks",
+    "description": "Manage automated commands.",
+    "lastRun": "Last run",
+    "deleteDescription": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone."
+  },
+  "accessibility": {
+    "runTask": "Run {{name}} now",
+    "toggleTask": "Toggle {{name}}",
+    "deleteTask": "Delete task {{name}}"
+  },
+  "cron": {
+    "format": "Format: minute hour day month weekday"
+  },
+  "bridge": {
+    "format": "Format",
+    "example": "e.g.",
+    "description": "Args are optional. Only allow-listed actions run via the scheduler."
+  },
+  "cronHelp": {
+    "title": "Cron Expression Help",
+    "weekdayValues": "0-6 (Sun-Sat)",
+    "anyValue": "any value",
+    "everyNUnits": "every n units",
+    "everyTwoHours": "every 2 hours",
+    "dailyAtSix": "daily at 6 AM"
+  },
+  "toast": {
+    "success": "Success",
+    "error": "Error",
+    "taskCreated": "Task created successfully",
+    "taskEnabled": "Task enabled",
+    "taskDisabled": "Task disabled",
+    "taskDeleted": "Task deleted",
+    "taskExecutedTitle": "Task Executed",
+    "taskExecuted": "\"{{name}}\" ran successfully",
+    "restartInitiated": "Restart Initiated",
+    "serverRestartIn": "Server will restart in {{minutes}} minutes",
+    "serverRestartWithWarnings": "Server will restart in {{minutes}} minutes with countdown warnings",
+    "broadcastSent": "Broadcast Sent",
+    "historyCleared": "History cleared"
+  },
+  "errors": {
+    "loadDataFailed": "Failed to load scheduler data. The backend may be unreachable.",
+    "requiredFields": "Please fill in all fields",
+    "invalidSchedule": "Invalid Schedule",
+    "invalidCron": "Invalid cron expression: {{cron}}",
+    "createTaskFailed": "Failed to create task",
+    "updateTaskFailed": "Failed to update task",
+    "deleteTaskFailed": "Failed to delete task",
+    "executionFailed": "Execution Failed",
+    "commandFailed": "Command failed",
+    "runTaskFailed": "Failed to run task",
+    "restartFailed": "Failed to initiate restart",
+    "broadcastFailed": "Failed to broadcast",
+    "clearHistoryFailed": "Failed to clear history"
+  }
+}

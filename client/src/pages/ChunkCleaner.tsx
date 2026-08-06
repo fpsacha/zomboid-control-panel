@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useTranslation } from 'react-i18next';
 import {
   Map,
   Trash2,
@@ -216,6 +217,7 @@ function findLastRenderableChunkIndex(
 }
 
 export default function ChunkCleaner() {
+  const { t } = useTranslation('chunkCleaner');
   const { theme } = useTheme();
   const socket = useSocket();
   const [saves, setSaves] = useState<SaveInfo[]>([]);
@@ -380,7 +382,7 @@ export default function ChunkCleaner() {
   const hasCanvas = !!selectedSave && !loading && chunks.length > 0;
   const hasSaves = saves.length > 0;
   const activePathLabel =
-    customPath || debugInfo?.zomboidDataPath || "Active server data path";
+    customPath || debugInfo?.zomboidDataPath || t('path.activeDataPath');
 
   // ─── Coordinate transforms ───
   const screenToWorld = useCallback(
@@ -430,11 +432,11 @@ export default function ChunkCleaner() {
         } | null;
         const message =
           (error instanceof Error && error.message) ||
-          "Failed to load save folders.";
+          t('errors.loadSavesFallback');
         setLoadError(message);
         if (payload?.debug) setDebugInfo(payload.debug);
         toast({
-          title: "Could Not Load Saves",
+          title: t('errors.loadSavesTitle'),
           description: message,
           variant: "destructive",
         });
@@ -459,7 +461,7 @@ export default function ChunkCleaner() {
         setLoadingSaves(false);
       }
     },
-    [customPath, toast],
+    [customPath, t, toast],
   );
 
   // On mount: fetch saves and auto-select the active server's save
@@ -544,11 +546,11 @@ export default function ChunkCleaner() {
       try {
         const result = await chunksApi.savePath(pathToSave);
         toast({
-          title: "Path Saved",
+          title: t('path.savedTitle'),
           description:
             result.target === "server"
-              ? "Saved to the active server config — the panel will use this path next time."
-              : "Saved to panel settings.",
+              ? t('path.savedToServer')
+              : t('path.savedToPanel'),
         });
         // Clear customPath since the panel now uses it as the default.
         setCustomPath("");
@@ -556,9 +558,9 @@ export default function ChunkCleaner() {
         await fetchSaves("");
       } catch (error) {
         const message =
-          (error instanceof Error && error.message) || "Failed to save path.";
+          (error instanceof Error && error.message) || t('path.saveFailedFallback');
         toast({
-          title: "Could Not Save Path",
+          title: t('path.saveFailedTitle'),
           description: message,
           variant: "destructive",
         });
@@ -566,7 +568,7 @@ export default function ChunkCleaner() {
         setSavingPath(false);
       }
     },
-    [fetchSaves, toast],
+    [fetchSaves, t, toast],
   );
 
   const loadChunks = useCallback(async () => {
@@ -631,9 +633,9 @@ export default function ChunkCleaner() {
     } catch (error) {
       if (thisLoadId !== loadIdRef.current) return;
       toast({
-        title: "Error",
+        title: t('errors.genericTitle'),
         description:
-          error instanceof Error ? error.message : "Failed to load chunks",
+          error instanceof Error ? error.message : t('errors.loadChunksFallback'),
         variant: "destructive",
       });
     } finally {
@@ -643,7 +645,7 @@ export default function ChunkCleaner() {
         setScanProgress(null);
       }
     }
-  }, [selectedSave, customPath, toast, socket]);
+  }, [selectedSave, customPath, t, toast, socket]);
 
   // Fetch vehicles + safehouses from PanelBridge, convert to chunk coords
   const fetchOverlayData = useCallback(async () => {
@@ -1128,7 +1130,7 @@ export default function ChunkCleaner() {
 
           // Label (only if large enough to read)
           if (sw > 30 && shh > 20) {
-            const label = sh.title || sh.owner || "Safehouse";
+            const label = sh.title || sh.owner || t('canvas.safehouse');
             const shFontSize = Math.max(8, Math.min(11, scale * 2));
             ctx.font = `bold ${shFontSize}px sans-serif`;
             ctx.textAlign = "center";
@@ -1171,7 +1173,7 @@ export default function ChunkCleaner() {
 
         // Vehicle count badge (top of map)
         if (scale > 2) {
-          const vLabel = `${chunkVehicles.length} vehicles`;
+          const vLabel = t('canvas.vehiclesCount', { count: chunkVehicles.length });
           ctx.font = "10px sans-serif";
           ctx.textAlign = "right";
           ctx.textBaseline = "top";
@@ -1355,7 +1357,7 @@ export default function ChunkCleaner() {
         }
 
         if (selCount > 0 && rw > 30) {
-          const selLabel = `${selCount} chunk${selCount !== 1 ? "s" : ""}`;
+          const selLabel = t('canvas.chunksCount', { count: selCount });
           ctx.font = "11px sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
@@ -1397,9 +1399,9 @@ export default function ChunkCleaner() {
         const chunksPerCell = isB42Save ? 32 : 30;
         const cellX = Math.floor(hx / chunksPerCell);
         const cellY = Math.floor(hy / chunksPerCell);
-        let label = `Chunk ${hx}, ${hy}  |  Cell ${cellX}, ${cellY}`;
+        let label = t('canvas.chunkCell', { chunkX: hx, chunkY: hy, cellX, cellY });
         if (hoverChunk) {
-          label += ` | ${formatSize(hoverChunk.size)}${hoverSel ? " | SELECTED" : ""}`;
+          label += ` | ${formatSize(hoverChunk.size)}${hoverSel ? ` | ${t('canvas.selected')}` : ''}`;
         }
 
         const metrics = ctx.measureText(label);
@@ -1410,7 +1412,7 @@ export default function ChunkCleaner() {
       }
 
       ctx.textAlign = "right";
-      const zLabel = `${scale.toFixed(1)} px/chunk`;
+      const zLabel = t('canvas.zoom', { scale: scale.toFixed(1) });
       const zm = ctx.measureText(zLabel);
       ctx.fillStyle = hsl(bgVar || "0 0% 0%", 0.7);
       ctx.fillRect(W - zm.width - 16, H - 22, zm.width + 12, 18);
@@ -1425,7 +1427,17 @@ export default function ChunkCleaner() {
       const cellMinY = Math.floor(bounds.minY / chunksPerCell);
       const cellMaxX = Math.floor(bounds.maxX / chunksPerCell);
       const cellMaxY = Math.floor(bounds.maxY / chunksPerCell);
-      const boundsLabel = `Chunks ${bounds.minX}–${bounds.maxX}, ${bounds.minY}–${bounds.maxY}  (${chunks.length})  |  Cells ${cellMinX}–${cellMaxX}, ${cellMinY}–${cellMaxY}`;
+      const boundsLabel = t('canvas.bounds', {
+        minX: bounds.minX,
+        maxX: bounds.maxX,
+        minY: bounds.minY,
+        maxY: bounds.maxY,
+        count: chunks.length,
+        cellMinX,
+        cellMaxX,
+        cellMinY,
+        cellMaxY,
+      });
       const bm = ctx.measureText(boundsLabel);
       ctx.fillStyle = hsl(bgVar || "0 0% 0%", 0.7);
       ctx.fillRect(6, 6, bm.width + 12, 18);
@@ -1434,7 +1446,7 @@ export default function ChunkCleaner() {
 
       // Map overlay version indicator
       if (showMap) {
-        const mapLabel = isB42Save ? "Map: B42 (b42map.com)" : "Map: B41";
+        const mapLabel = isB42Save ? t('canvas.mapB42') : t('canvas.mapB41');
         const mm = ctx.measureText(mapLabel);
         ctx.fillStyle = hsl(bgVar || "0 0% 0%", 0.7);
         ctx.fillRect(6, 26, mm.width + 12, 18);
@@ -1463,6 +1475,7 @@ export default function ChunkCleaner() {
     showSafehouses,
     chunkVehicles,
     chunkSafehouses,
+    t,
   ]);
 
   // Schedule a canvas redraw via requestAnimationFrame (used by mouse handlers)
@@ -1876,7 +1889,7 @@ export default function ChunkCleaner() {
           if (!userForced) {
             // User cancelled — surface the original message and bail out.
             toast({
-              title: "Server appears to be running",
+              title: t('serverRunning.title'),
               description: err.message,
               variant: "destructive",
             });
@@ -1891,13 +1904,13 @@ export default function ChunkCleaner() {
       const vDel =
         (result as { vehiclesDeleted?: number }).vehiclesDeleted ?? 0;
       toast({
-        title: "Chunks Deleted",
+        title: t('delete.successTitle'),
         description:
-          `Removed ${result.deleted ?? 0} chunk${(result.deleted ?? 0) !== 1 ? "s" : ""}` +
-          (vDel > 0
-            ? ` + ${vDel} vehicle${vDel !== 1 ? "s" : ""} from save DB`
-            : "") +
-          (createBackup ? " (backup created)" : ""),
+          t('delete.successDescription', {
+            chunksText: t('delete.chunkCount', { count: result.deleted ?? 0 }),
+            vehiclesText: vDel > 0 ? ` + ${t('delete.vehiclesRemoved', { count: vDel })}` : '',
+            backup: createBackup ? ` (${t('delete.backupCreated')})` : '',
+          }),
       });
 
       setDeleteDialogOpen(false);
@@ -1907,9 +1920,9 @@ export default function ChunkCleaner() {
       await fetchOverlayData();
     } catch (error) {
       toast({
-        title: "Error",
+        title: t('errors.genericTitle'),
         description:
-          error instanceof Error ? error.message : "Failed to delete chunks",
+          error instanceof Error ? error.message : t('errors.deleteFallback'),
         variant: "destructive",
       });
     } finally {
@@ -1935,15 +1948,13 @@ export default function ChunkCleaner() {
         {/* Header + compact warning */}
         <div className="space-y-3">
           <PageHeader
-            title="Map Cleanup"
-            description="Reset damaged or over-looted map areas so the world can regenerate cleanly"
+            title={t('title')}
+            description={t('description')}
             icon={<Map className="w-5 h-5" />}
           />
           <p className="flex items-center gap-2 text-xs text-warning/90">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            Deleting chunks resets those areas — constructions, loot, and
-            zombies will be lost. Stop the server first and keep backups
-            enabled.
+            {t('warnings.header')}
           </p>
         </div>
 
@@ -1955,7 +1966,7 @@ export default function ChunkCleaner() {
               <CardHeader className="px-4 py-3 pb-0">
                 <CardTitle className="text-xs font-medium flex items-center gap-2 text-muted-foreground">
                   <Save className="w-3.5 h-3.5" />
-                  Save
+                  {t('labels.save')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 pb-4 pt-2 space-y-2.5">
@@ -1963,7 +1974,7 @@ export default function ChunkCleaner() {
                   <SelectTrigger disabled={loadingSaves} className="h-9">
                     <SelectValue
                       placeholder={
-                        loadingSaves ? "Loading saves..." : "Choose a save..."
+                        loadingSaves ? t('placeholders.loadingSaves') : t('placeholders.chooseSave')
                       }
                     />
                   </SelectTrigger>
@@ -1975,10 +1986,10 @@ export default function ChunkCleaner() {
                           const d = new Date(save.modified);
                           const ageDays =
                             (Date.now() - d.getTime()) / 86_400_000;
-                          if (ageDays < 1) modifiedLabel = "today";
-                          else if (ageDays < 2) modifiedLabel = "yesterday";
+                          if (ageDays < 1) modifiedLabel = t('labels.today');
+                          else if (ageDays < 2) modifiedLabel = t('labels.yesterday');
                           else if (ageDays < 30)
-                            modifiedLabel = `${Math.floor(ageDays)}d ago`;
+                            modifiedLabel = t('labels.daysAgo', { count: Math.floor(ageDays) });
                           else modifiedLabel = d.toLocaleDateString();
                         } catch {
                           /* leave empty */
@@ -2018,7 +2029,7 @@ export default function ChunkCleaner() {
                   <RefreshCw
                     className={`w-3.5 h-3.5 mr-1.5 ${loadingSaves ? "animate-spin" : ""}`}
                   />
-                  {loadingSaves ? "Refreshing..." : "Refresh"}
+                  {loadingSaves ? t('actions.refreshing') : t('actions.refresh')}
                 </Button>
 
                 {/* Custom path — collapsible */}
@@ -2029,7 +2040,7 @@ export default function ChunkCleaner() {
                   <CollapsibleTrigger asChild>
                     <button className="flex items-center gap-1.5 w-full text-[11px] text-muted-foreground/70 hover:text-muted-foreground transition-colors pt-1">
                       <FolderOpen className="w-3 h-3" />
-                      <span>{showCustomPath ? "Hide" : "Custom path..."}</span>
+                      <span>{showCustomPath ? t('actions.hide') : t('actions.customPath')}</span>
                     </button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-2 pt-2">
@@ -2037,8 +2048,8 @@ export default function ChunkCleaner() {
                       <Input
                         value={customPathInput}
                         onChange={(e) => setCustomPathInput(e.target.value)}
-                        placeholder="~/Zomboid  or  C:\Users\…\Zomboid"
-                        aria-label="Custom server path"
+                        placeholder={t('placeholders.serverPath')}
+                        aria-label={t('labels.customPath')}
                         className="text-xs h-7"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && customPathInput.trim()) {
@@ -2053,16 +2064,16 @@ export default function ChunkCleaner() {
                         onClick={() => void applyCustomPath()}
                         disabled={!customPathInput.trim() || loadingSaves}
                       >
-                        Load
+                        {t('actions.load')}
                       </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground/80 leading-snug">
-                      Point at your Zomboid data folder, a{" "}
-                      <span className="font-mono">Saves/Multiplayer</span>{" "}
-                      folder, or a single save directory.{" "}
-                      <span className="font-mono">~</span> and environment vars
+                      {t('path.helpPrefix')} {" "}
+                      <span className="font-mono">{t('savesmultiplayer')}</span>{" "}
+                      {t('path.helpMiddle')} {" "}
+                      <span className="font-mono">~</span> {t('path.helpSuffix')}
                       (<span className="font-mono">%USERPROFILE%</span>,{" "}
-                      <span className="font-mono">$HOME</span>) are expanded.
+                      <span className="font-mono">$HOME</span>) {t('path.helpExpanded')}
                     </p>
                     {customPath && (
                       <div className="flex gap-1.5">
@@ -2072,10 +2083,10 @@ export default function ChunkCleaner() {
                           className="flex-1 h-6 text-[10px]"
                           onClick={() => void persistCurrentPath(customPath)}
                           disabled={savingPath || loadingSaves}
-                          title="Make this the panel's default Zomboid data folder so you don't have to re-enter it."
+                          title={t('defaults.setAsDefault')}
                         >
                           <Save className="w-3 h-3 mr-1" />
-                          {savingPath ? "Saving..." : "Save as default"}
+                          {savingPath ? t('path.saving') : t('path.saveAsDefault')}
                         </Button>
                         <Button
                           variant="ghost"
@@ -2084,7 +2095,7 @@ export default function ChunkCleaner() {
                           onClick={() => void resetToDefaultPath()}
                           disabled={loadingSaves}
                         >
-                          Reset
+                          {t('actions.reset')}
                         </Button>
                       </div>
                     )}
@@ -2096,7 +2107,7 @@ export default function ChunkCleaner() {
                         <div className="flex items-start gap-1.5">
                           <CheckCircle2 className="w-3 h-3 text-primary shrink-0 mt-0.5" />
                           <span>
-                            Auto-detected this folder. Save it as the default?
+                            {t('path.autoDetected')}
                           </span>
                         </div>
                         <Button
@@ -2109,7 +2120,7 @@ export default function ChunkCleaner() {
                           disabled={savingPath}
                         >
                           <Save className="w-3 h-3 mr-1" />
-                          {savingPath ? "Saving..." : "Save as default"}
+                          {savingPath ? t('path.saving') : t('path.saveAsDefault')}
                         </Button>
                       </div>
                     )}
@@ -2139,7 +2150,7 @@ export default function ChunkCleaner() {
                     <CardContent className="px-4 py-3 space-y-2.5">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-                          <Database className="w-3 h-3" /> World footprint
+                          <Database className="w-3 h-3" /> {t('labels.worldFootprint')}
                         </span>
                         <span className="text-sm font-semibold tabular-nums text-foreground">
                           {stats.totalSizeFormatted}
@@ -2204,12 +2215,12 @@ export default function ChunkCleaner() {
                         variant={tool === "select" ? "default" : "outline"}
                         size="icon"
                         onClick={() => setTool("select")}
-                        aria-label="Select tool"
+                        aria-label={t('labels.selectTool')}
                       >
                         <Square className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Select Tool (1)</TooltipContent>
+                    <TooltipContent>{t('labels.selectTool')} (1)</TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -2218,13 +2229,13 @@ export default function ChunkCleaner() {
                         variant={tool === "pan" ? "default" : "outline"}
                         size="icon"
                         onClick={() => setTool("pan")}
-                        aria-label="Pan tool"
+                        aria-label={t('labels.panTool')}
                       >
                         <Move className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
-                      Pan Tool (2) — also right-click drag
+                      {t('labels.panToolHint')}
                     </TooltipContent>
                   </Tooltip>
 
@@ -2235,7 +2246,7 @@ export default function ChunkCleaner() {
                       <Button
                         variant="outline"
                         size="icon"
-                        aria-label="Zoom in"
+                        aria-label={t('labels.zoomIn')}
                         onClick={() => {
                           const newScale = Math.min(MAX_SCALE, scale * 1.3);
                           const cx = canvasSize.width / 2;
@@ -2252,7 +2263,7 @@ export default function ChunkCleaner() {
                         <ZoomIn className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Zoom In</TooltipContent>
+                    <TooltipContent>{t('labels.zoomIn')}</TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -2260,7 +2271,7 @@ export default function ChunkCleaner() {
                       <Button
                         variant="outline"
                         size="icon"
-                        aria-label="Zoom out"
+                        aria-label={t('labels.zoomOut')}
                         onClick={() => {
                           const newScale = Math.max(MIN_SCALE, scale * 0.7);
                           const cx = canvasSize.width / 2;
@@ -2277,7 +2288,7 @@ export default function ChunkCleaner() {
                         <ZoomOut className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Zoom Out</TooltipContent>
+                    <TooltipContent>{t('labels.zoomOut')}</TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -2286,12 +2297,12 @@ export default function ChunkCleaner() {
                         variant="outline"
                         size="icon"
                         onClick={fitView}
-                        aria-label="Fit all chunks"
+                        aria-label={t('labels.fitAll')}
                       >
                         <Maximize className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Fit All Chunks</TooltipContent>
+                    <TooltipContent>{t('labels.fitAll')}</TooltipContent>
                   </Tooltip>
                 </div>
 
@@ -2302,7 +2313,7 @@ export default function ChunkCleaner() {
                     ) : (
                       <ImageOff className="w-3.5 h-3.5" />
                     )}
-                    Map
+                    {t('labels.map')}
                   </Label>
                   <Switch checked={showMap} onCheckedChange={setShowMap} />
                 </div>
@@ -2310,7 +2321,7 @@ export default function ChunkCleaner() {
                 <div className="flex items-center justify-between pt-0.5">
                   <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <Car className="w-3.5 h-3.5" />
-                    Vehicles
+                    {t('labels.vehicles')}
                     {chunkVehicles.length > 0 && (
                       <span className="text-[10px] tabular-nums opacity-60">
                         ({chunkVehicles.length})
@@ -2326,7 +2337,7 @@ export default function ChunkCleaner() {
                 <div className="flex items-center justify-between pt-0.5">
                   <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <Home className="w-3.5 h-3.5" />
-                    Safehouses
+                    {t('labels.safehouses')}
                     {chunkSafehouses.length > 0 && (
                       <span className="text-[10px] tabular-nums opacity-60">
                         ({chunkSafehouses.length})
@@ -2358,14 +2369,14 @@ export default function ChunkCleaner() {
                         }`}
                         aria-hidden="true"
                       />
-                      Selection
+                      {t('labels.selection')}
                     </span>
                     <span
                       className={`text-[11px] font-semibold tabular-nums ${selectedChunks.size > 0 ? "text-destructive" : "text-muted-foreground/70"}`}
                     >
                       {selectedChunks.size > 0
                         ? `${selectedChunks.size} · ${formatSize(selectedSize)}`
-                        : "None"}
+                        : t('status.none')}
                     </span>
                   </div>
                   <div className="flex gap-1.5">
@@ -2376,7 +2387,7 @@ export default function ChunkCleaner() {
                       onClick={selectAll}
                       disabled={chunks.length === 0}
                     >
-                      All
+                      {t('actions.all')}
                     </Button>
                     <Button
                       variant="outline"
@@ -2385,7 +2396,7 @@ export default function ChunkCleaner() {
                       onClick={clearSelection}
                       disabled={selectedChunks.size === 0}
                     >
-                      Clear
+                      {t('actions.clear')}
                     </Button>
                     <Button
                       variant="outline"
@@ -2394,7 +2405,7 @@ export default function ChunkCleaner() {
                       onClick={invertSelection}
                       disabled={chunks.length === 0}
                     >
-                      Invert
+                      {t('actions.invert')}
                     </Button>
                   </div>
                 </div>
@@ -2412,8 +2423,7 @@ export default function ChunkCleaner() {
                 }}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete {selectedChunks.size} Chunk
-                {selectedChunks.size === 1 ? "" : "s"}
+                {t('delete.button', { count: selectedChunks.size })}
               </Button>
             )}
           </div>
@@ -2428,10 +2438,10 @@ export default function ChunkCleaner() {
                       <div className="text-center max-w-xs">
                         <FileBox className="w-10 h-10 mx-auto mb-3 opacity-40" />
                         <p className="font-medium text-foreground text-sm">
-                          Select a save
+                          {t('empty.selectSave')}
                         </p>
                         <p className="text-xs mt-1.5 opacity-70">
-                          Choose a save from the panel to review chunk data.
+                          {t('empty.selectSaveDescription')}
                         </p>
                       </div>
                     </div>
@@ -2442,33 +2452,32 @@ export default function ChunkCleaner() {
                         <div className="text-center">
                           <FileBox className="w-10 h-10 mx-auto mb-2 opacity-40" />
                           <p className="font-medium text-foreground text-sm">
-                            No saves found
+                            {t('empty.noSavesFound')}
                           </p>
                           <p className="text-xs mt-1 text-muted-foreground">
-                            The panel couldn&rsquo;t list any saves with the
-                            current data path.
+                            {t('empty.noSavesDescription')}
                           </p>
                         </div>
 
                         {/* What we tried */}
                         <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2.5 space-y-1.5">
                           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            <Info className="w-3 h-3" /> What the panel tried
+                            <Info className="w-3 h-3" /> {t('empty.diagnosticsTitle')}
                           </div>
                           <div className="text-[11px] space-y-1">
                             <div className="flex gap-2">
                               <span className="text-muted-foreground shrink-0 w-20">
-                                Data folder
+                                {t('empty.dataFolder')}
                               </span>
                               <span className="font-mono break-all">
                                 {debugInfo?.zomboidDataPath ??
-                                  "— (not configured)"}
+                                  t('empty.notConfigured')}
                               </span>
                             </div>
                             {debugInfo?.savesPath && (
                               <div className="flex gap-2">
                                 <span className="text-muted-foreground shrink-0 w-20">
-                                  Saves folder
+                                  {t('empty.savesFolder')}
                                 </span>
                                 <span className="font-mono break-all">
                                   {debugInfo.savesPath}
@@ -2484,7 +2493,7 @@ export default function ChunkCleaner() {
                               debugInfo.attempted.length > 1 && (
                                 <div className="flex gap-2">
                                   <span className="text-muted-foreground shrink-0 w-20">
-                                    Also checked
+                                    {t('empty.alsoChecked')}
                                   </span>
                                   <span className="font-mono break-all opacity-75">
                                     {debugInfo.attempted.slice(1).join(", ")}
@@ -2503,7 +2512,7 @@ export default function ChunkCleaner() {
                             <div className="pt-1 space-y-1">
                               {debugInfo.rejection.tried && (
                                 <div className="text-[10px] text-muted-foreground">
-                                  Tried:{" "}
+                                  {t('empty.tried')}:{" "}
                                   <span className="font-mono break-all">
                                     {debugInfo.rejection.tried}
                                   </span>
@@ -2512,8 +2521,7 @@ export default function ChunkCleaner() {
                               {debugInfo.rejection.reason ===
                                 "install-folder" && (
                                 <p className="text-[10px] text-destructive/90">
-                                  Looks like a server install folder — point at
-                                  the user data folder instead.
+                                  {t('empty.installFolderHint')}
                                 </p>
                               )}
                               {debugInfo.rejection.parentSuggestion && (
@@ -2528,7 +2536,7 @@ export default function ChunkCleaner() {
                                   }
                                 >
                                   <FolderOpen className="w-3 h-3 mr-1" />
-                                  Try parent:{" "}
+                                  {t('empty.tryParent')}:{" "}
                                   <span className="font-mono ml-1 truncate max-w-[180px]">
                                     {debugInfo.rejection.parentSuggestion}
                                   </span>
@@ -2539,7 +2547,7 @@ export default function ChunkCleaner() {
                                   "no-zomboid-markers" && (
                                   <details className="text-[10px] text-muted-foreground">
                                     <summary className="cursor-pointer hover:text-foreground/80">
-                                      Why was this rejected?
+                                      {t('empty.whyRejected')}
                                     </summary>
                                     <ul className="pl-3 pt-1 space-y-0.5">
                                       {Object.entries(
@@ -2569,8 +2577,7 @@ export default function ChunkCleaner() {
                           debugInfo.suggestedPaths.length > 0 && (
                             <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 space-y-2">
                               <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                                <FolderOpen className="w-3 h-3" /> Try a common
-                                location
+                                <FolderOpen className="w-3 h-3" /> {t('empty.commonLocation')}
                               </div>
                               <ul className="space-y-1">
                                 {debugInfo.suggestedPaths.map((s) => (
@@ -2588,9 +2595,9 @@ export default function ChunkCleaner() {
                                       title={
                                         s.exists
                                           ? s.hasSaves
-                                            ? "Has saves — click to load"
-                                            : "Folder exists — click to try"
-                                          : "Folder does not exist on this host"
+                                            ? t('empty.hasSavesHint')
+                                            : t('empty.existsHint')
+                                          : t('empty.missingHint')
                                       }
                                     >
                                       {s.path}
@@ -2600,18 +2607,18 @@ export default function ChunkCleaner() {
                                         variant="secondary"
                                         className="text-[9px] h-4 px-1.5 shrink-0"
                                       >
-                                        has saves
+                                        {t('empty.hasSaves')}
                                       </Badge>
                                     ) : s.exists ? (
                                       <Badge
                                         variant="outline"
                                         className="text-[9px] h-4 px-1.5 shrink-0 opacity-70"
                                       >
-                                        exists
+                                        {t('empty.exists')}
                                       </Badge>
                                     ) : (
                                       <span className="text-[9px] text-muted-foreground/60 shrink-0">
-                                        missing
+                                        {t('empty.missing')}
                                       </span>
                                     )}
                                   </li>
@@ -2623,34 +2630,31 @@ export default function ChunkCleaner() {
                         {/* How to find it yourself */}
                         <div className="rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 space-y-1.5">
                           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                            <HelpCircle className="w-3 h-3" /> How to find your
-                            data folder
+                            <HelpCircle className="w-3 h-3" /> {t('empty.howToFind')}
                           </div>
                           <ul className="text-[11px] text-muted-foreground space-y-1 list-disc list-inside">
                             <li>
-                              Windows:{" "}
+                              {t('empty.windows')}:{" "}
                               <span className="font-mono text-foreground/80">
                                 C:\Users\&lt;you&gt;\Zomboid
                               </span>
                             </li>
                             <li>
-                              Linux:{" "}
+                              {t('empty.linux')}:{" "}
                               <span className="font-mono text-foreground/80">
                                 ~/Zomboid
                               </span>{" "}
-                              (or wherever the server runs from)
+                              {t('empty.linuxHint')}
                             </li>
                             <li>
-                              It must contain a{" "}
+                              {t('empty.multiplayerPrefix')} {" "}
                               <span className="font-mono text-foreground/80">
                                 Saves/Multiplayer/
                               </span>{" "}
-                              subfolder once the server has been started at
-                              least once.
+                              {t('empty.multiplayerSuffix')}
                             </li>
                             <li>
-                              You can also point directly at a single save
-                              folder (e.g.{" "}
+                               {t('empty.singleSavePrefix')} {" "}
                               <span className="font-mono text-foreground/80">
                                 .../Saves/Multiplayer/MyServer
                               </span>
@@ -2669,7 +2673,7 @@ export default function ChunkCleaner() {
                             }}
                           >
                             <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
-                            Set custom path
+                            {t('actions.setCustomPath')}
                           </Button>
                           <Button
                             variant="ghost"
@@ -2681,7 +2685,7 @@ export default function ChunkCleaner() {
                             <RefreshCw
                               className={`w-3.5 h-3.5 mr-1.5 ${loadingSaves ? "animate-spin" : ""}`}
                             />
-                            Try again
+                            {t('actions.tryAgain')}
                           </Button>
                         </div>
                       </div>
@@ -2694,7 +2698,7 @@ export default function ChunkCleaner() {
                       {scanProgress && scanProgress.total > 0 ? (
                         <>
                           <p className="mt-3 text-xs font-medium text-foreground tabular-nums">
-                            Scanning map…{" "}
+                            {t('status.scanningMap')} {" "}
                             {Math.floor(
                               (scanProgress.scanned / scanProgress.total) * 100,
                             )}
@@ -2709,16 +2713,14 @@ export default function ChunkCleaner() {
                             />
                           </div>
                           <p className="mt-1.5 text-[11px] opacity-70 tabular-nums">
-                            {scanProgress.chunks.toLocaleString()} chunks ·{" "}
-                            {scanProgress.scanned.toLocaleString()}/
-                            {scanProgress.total.toLocaleString()} folders
+                            {t('status.scanProgress', { chunks: scanProgress.chunks.toLocaleString(), scanned: scanProgress.scanned.toLocaleString(), total: scanProgress.total.toLocaleString() })}
                           </p>
                         </>
                       ) : (
                         <p className="mt-2 text-xs">
                           {scanProgress
-                            ? `Scanning map… ${scanProgress.chunks.toLocaleString()} chunks`
-                            : "Loading chunks…"}
+                            ? t('status.scanningMapShort', { count: scanProgress.chunks.toLocaleString() })
+                            : t('status.loadingChunks')}
                         </p>
                       )}
                     </div>
@@ -2728,10 +2730,10 @@ export default function ChunkCleaner() {
                     <div className="text-center max-w-xs">
                       <Map className="w-10 h-10 mx-auto mb-3 opacity-40" />
                       <p className="font-medium text-foreground text-sm">
-                        No chunks found
+                        {t('empty.noChunks')}
                       </p>
                       <p className="text-xs mt-1.5 opacity-70">
-                        Map folder may be empty or the path needs adjusting.
+                        {t('empty.noChunksDescription')}
                       </p>
                     </div>
                   </div>
@@ -2746,7 +2748,7 @@ export default function ChunkCleaner() {
                         width={canvasSize.width}
                         height={canvasSize.height}
                         role="img"
-                        aria-label="Chunk map — select areas to clean up"
+                        aria-label={t('labels.chunkMap')}
                         tabIndex={0}
                         style={{
                           width: canvasSize.width,
@@ -2778,27 +2780,26 @@ export default function ChunkCleaner() {
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-2 text-xs text-muted-foreground/70 hover:text-muted-foreground transition-colors w-full">
               <Info className="w-3.5 h-3.5" />
-              <span>{showHelp ? "Hide help" : "Show help"}</span>
+              <span>{showHelp ? t('help.hide') : t('help.show')}</span>
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <div className="mt-3 rounded-lg border border-border/40 bg-muted/20 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
               <p>
-                <strong className="text-foreground/80">Select chunks</strong> —
-                Click or drag to select. Hold Shift to deselect.
+                <strong className="text-foreground/80">{t('selectChunks')}</strong> —
+                {t('help.selectDescription')}
               </p>
               <p>
-                <strong className="text-foreground/80">Navigate</strong> —
-                Scroll to zoom, right-click to pan. Press 1/2 to switch tools.
+                <strong className="text-foreground/80">{t('navigate')}</strong> —
+                {t('help.navigateDescription')}
               </p>
               <p>
-                <strong className="text-foreground/80">Delete</strong> —
-                Rebuilds those areas on next visit. Press Delete or use the
-                button.
+                <strong className="text-foreground/80">{t('delete.label')}</strong> —
+                {t('help.deleteDescription')}
               </p>
               <p>
-                <strong className="text-foreground/80">Shortcuts</strong> — Esc
-                clears selection. Backup stays enabled by default.
+                <strong className="text-foreground/80">{t('shortcuts')}</strong> — Esc
+                {t('help.shortcutsDescription')}
               </p>
             </div>
           </CollapsibleContent>
@@ -2810,22 +2811,19 @@ export default function ChunkCleaner() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="w-5 h-5" />
-                Delete {selectedChunks.size} selected chunks?
+                {t('delete.confirmTitle', { count: selectedChunks.size })}
               </DialogTitle>
               <DialogDescription>
-                This permanently removes {selectedChunks.size} chunk files (
-                {formatSize(selectedSize)}). When players revisit those areas,
-                the game rebuilds them and removes any player-built structures
-                or stored items there.
+                {t('delete.confirmDescription', { count: selectedChunks.size, size: formatSize(selectedSize) })}
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
                 <div>
-                  <Label>Create safety backup</Label>
+                  <Label>{t('labels.createSafetyBackup')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Save a copy of the selected chunks before deleting them.
+                    {t('delete.backupDescription')}
                   </p>
                 </div>
                 <Switch
@@ -2837,10 +2835,10 @@ export default function ChunkCleaner() {
               {!createBackup && (
                 <div className="rounded-lg border border-destructive/25 bg-destructive/8 p-3 text-sm">
                   <p className="font-medium text-destructive">
-                    No backup will be created
+                    {t('delete.noBackupTitle')}
                   </p>
                   <p className="text-muted-foreground">
-                    You will not be able to recover these chunks after deletion.
+                    {t('delete.noBackupDescription')}
                   </p>
                 </div>
               )}
@@ -2857,14 +2855,13 @@ export default function ChunkCleaner() {
                     <div className="min-w-0 pr-3">
                       <Label className="flex items-center gap-1.5">
                         <Car className="w-3.5 h-3.5" />
-                        Remove vehicles from save database
+                        {t('delete.removeVehiclesTitle')}
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         {loadedCount > 0
-                          ? `${loadedCount} vehicle${loadedCount !== 1 ? "s" : ""} currently loaded in this area. `
-                          : "Unloaded vehicles still live in vehicles.db and respawn when a player revisits. "}
-                        Deletes matching rows from vehicles.db so cars don't
-                        come back.
+                          ? t('delete.loadedVehicles', { count: loadedCount })
+                          : t('delete.unloadedVehicles')}{" "}
+                        {t('delete.removeVehiclesDescription')}
                       </p>
                     </div>
                     <Switch
@@ -2890,18 +2887,15 @@ export default function ChunkCleaner() {
                   <div className="rounded-lg border border-warning/25 bg-warning/8 p-3 text-sm">
                     <p className="font-medium text-warning flex items-center gap-1.5">
                       <Home className="w-3.5 h-3.5" />
-                      {overlapping.length} safehouse
-                      {overlapping.length !== 1 ? "s" : ""} in deletion area
+                      {t('delete.safehousesInArea', { count: overlapping.length })}
                     </p>
                     <p className="text-muted-foreground text-xs mt-1 truncate">
                       {overlapping
                         .slice(0, 5)
-                        .map((sh) => sh.owner || sh.title || "Unknown")
+                        .map((sh) => sh.owner || sh.title || t('status.unknown'))
                         .join(", ")}
-                      {overlapping.length > 5
-                        ? ` +${overlapping.length - 5} more`
-                        : ""}{" "}
-                      — structures will be lost when chunks regenerate.
+                      {overlapping.length > 5 ? t('delete.moreSafehouses', { count: overlapping.length - 5 }) : ''}{" "}
+                      {t('delete.safehouseWarning')}
                     </p>
                   </div>
                 ) : null;
@@ -2914,7 +2908,7 @@ export default function ChunkCleaner() {
                 onClick={() => setDeleteDialogOpen(false)}
                 disabled={deleting}
               >
-                Cancel
+                {t('actions.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -2924,12 +2918,12 @@ export default function ChunkCleaner() {
                 {deleting ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Deleting chunks...
+                    {t('delete.deleting')}
                   </>
                 ) : (
                   <>
                     <Trash2 className="w-4 h-4 mr-2" />
-                    Delete selected chunks
+                    {t('delete.confirmAction')}
                   </>
                 )}
               </Button>
@@ -2953,12 +2947,10 @@ export default function ChunkCleaner() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-warning" />
-                Server appears to be running
+                {t('serverRunning.title')}
               </DialogTitle>
               <DialogDescription>
-                The panel detected processes that look like a Project Zomboid
-                dedicated server. Deleting chunks while the server is live will
-                corrupt the save when it writes back on shutdown.
+                {t('serverRunning.description')}
               </DialogDescription>
             </DialogHeader>
 
@@ -2966,15 +2958,14 @@ export default function ChunkCleaner() {
               {serverRunningDialog.matched.length > 0 ? (
                 <div className="rounded-lg border bg-muted/40 p-3">
                   <p className="text-xs font-medium text-muted-foreground mb-2">
-                    Matched process
-                    {serverRunningDialog.matched.length !== 1 ? "es" : ""}:
+                    {t('serverRunning.matchedProcess', { count: serverRunningDialog.matched.length })}:
                   </p>
                   <ul className="space-y-1.5 text-xs font-mono break-all">
                     {serverRunningDialog.matched.map((m, i) => (
                       <li key={i} className="flex gap-2">
                         {m.pid && (
                           <span className="text-muted-foreground shrink-0">
-                            pid {m.pid}
+                            {t('serverRunning.pid', { pid: m.pid })}
                           </span>
                         )}
                         <span className="text-foreground/85">{m.cmd}</span>
@@ -2984,19 +2975,15 @@ export default function ChunkCleaner() {
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  No matched process info was returned, but the detector
-                  reported the server as running.
+                  {t('serverRunning.noProcessInfo')}
                 </p>
               )}
               <div className="rounded-lg border border-warning/25 bg-warning/8 p-3 text-xs">
                 <p className="font-medium text-warning mb-1">
-                  Only override if you are sure
+                  {t('serverRunning.overrideTitle')}
                 </p>
                 <p className="text-muted-foreground">
-                  If you stopped the server with a custom systemd unit /
-                  launcher we don&apos;t recognise, or one of the processes
-                  above is unrelated (e.g. a different Java app), you can force
-                  the delete. Otherwise, stop the server first.
+                  {t('serverRunning.overrideDescription')}
                 </p>
               </div>
             </div>
@@ -3009,7 +2996,7 @@ export default function ChunkCleaner() {
                   setServerRunningDialog({ open: false, matched: [] });
                 }}
               >
-                Cancel
+                {t('actions.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -3019,7 +3006,7 @@ export default function ChunkCleaner() {
                 }}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Server is stopped — force delete
+                {t('serverRunning.forceDelete')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -3028,3 +3015,4 @@ export default function ChunkCleaner() {
     </TooltipProvider>
   );
 }
+

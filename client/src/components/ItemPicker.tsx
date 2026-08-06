@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { panelBridgeApi } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
+import { useTranslation } from 'react-i18next'
 
 export interface CatalogItem {
   id: string
@@ -84,9 +85,32 @@ export const GROUP_META: Record<string, { order: number; icon: typeof Sword }> =
   'Other':              { order: 99, icon: HelpCircle },
 }
 
+export const GROUP_LABEL_KEYS: Record<string, string> = {
+  'Weapons': 'weapons',
+  'Ammo': 'ammo',
+  'Food & Drink': 'foodDrink',
+  'Medical': 'medical',
+  'Clothing': 'clothing',
+  'Protective Gear': 'protectiveGear',
+  'Tools': 'tools',
+  'Materials': 'materials',
+  'Vehicle Parts': 'vehicleParts',
+  'Electronics': 'electronics',
+  'Books & Maps': 'booksMaps',
+  'Containers': 'containers',
+  'Farming & Outdoors': 'farmingOutdoors',
+  'Household': 'household',
+  'Explosives': 'explosives',
+  'Junk': 'junk',
+  'Misc': 'misc',
+  'Other': 'other',
+}
+
 const MAX_VISIBLE = 150
 
-export function ItemPicker({ value, onChange, disabled, placeholder = 'Search items...' }: ItemPickerProps) {
+export function ItemPicker({ value, onChange, disabled, placeholder }: ItemPickerProps) {
+  const { t } = useTranslation('mods')
+  const placeholderText = placeholder || t('picker.itemPlaceholder')
   const [items, setItems] = useState<CatalogItem[]>([])
   const [initialLoad, setInitialLoad] = useState(true)
   const [scanning, setScanning] = useState(false)
@@ -146,21 +170,21 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
       const data = await panelBridgeApi.scanCatalogItems()
       setItems(data.items || [])
       setScannedAt(data.scannedAt)
-      toast({ title: 'Item catalog updated', description: `Found ${data.count || 0} items` })
+      toast({ title: t('picker.catalogUpdated'), description: t('picker.itemsFound', { count: data.count || 0 }) })
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Scan failed'
+      const msg = err instanceof Error ? err.message : t('picker.scanFailed')
       setScanError(msg)
       toast({
-        title: 'Item scan failed',
+        title: t('picker.itemScanFailed'),
         description: msg.includes('Bridge not running')
-          ? 'Server must be online with PanelBridge mod active'
+          ? t('picker.bridgeRequired')
           : msg,
         variant: 'destructive',
       })
     } finally {
       setScanning(false)
     }
-  }, [scanning, toast])
+  }, [scanning, t, toast])
 
   // Filter out vehicles
   const nonVehicleItems = useMemo(
@@ -180,14 +204,14 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
         const meta = GROUP_META[group] || GROUP_META['Other']
         return {
           raw: group,
-          label: group,
+          label: t(`picker.categories.${GROUP_LABEL_KEYS[group] || 'other'}`),
           order: meta.order,
           count,
           Icon: meta.icon,
         }
       })
       .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
-  }, [nonVehicleItems])
+  }, [nonVehicleItems, t])
 
   // Filter by search + category group
   const { visibleItems, totalFiltered, capped } = useMemo(() => {
@@ -278,7 +302,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
     return (
       <div className="flex items-center gap-2 h-11 sm:h-9 rounded-md border border-input bg-background px-3 text-sm">
         <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
-        <span className="text-muted-foreground truncate">Loading catalog...</span>
+        <span className="text-muted-foreground truncate">{t('loadingCatalog')}</span>
       </div>
     )
   }
@@ -290,7 +314,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
           <Input
             value={value}
             onChange={e => onChange(e.target.value)}
-            placeholder="e.g., Base.Axe"
+            placeholder={t('picker.itemExample')}
             disabled={disabled || scanning}
             className="flex-1 min-w-0"
           />
@@ -299,11 +323,11 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
             size="sm"
             onClick={handleScan}
             disabled={scanning || disabled}
-            title="Scan server for items (requires running server with PanelBridge)"
+            title={t('picker.scanItemsTitle')}
             className="shrink-0"
           >
             {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span className="ml-1.5 hidden sm:inline">Scan</span>
+            <span className="ml-1.5 hidden sm:inline">{t('scan')}</span>
           </Button>
         </div>
         {scanError ? (
@@ -313,14 +337,16 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
           </p>
         ) : (
           <p className="text-[11px] text-muted-foreground">
-            {scanning ? 'Scanning server items…' : 'Enter item ID manually, or scan while the server is running'}
+            {scanning ? t('picker.scanningItems') : t('picker.enterItemOrScan')}
           </p>
         )}
       </div>
     )
   }
 
-  const activeCategoryLabel = activeCategory || 'All'
+  const activeCategoryLabel = activeCategory
+    ? t(`picker.categories.${GROUP_LABEL_KEYS[activeCategory] || 'other'}`)
+    : t('picker.categories.all')
   const ActiveIcon = activeCategory ? (GROUP_META[activeCategory]?.icon || HelpCircle) : LayoutGrid
 
   return (
@@ -332,7 +358,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
         aria-haspopup="listbox"
         aria-controls={open ? 'itempicker-listbox' : undefined}
         aria-activedescendant={highlightIndex >= 0 && visibleItems[highlightIndex] ? `itempicker-opt-${highlightIndex}` : undefined}
-        aria-label="Select item"
+        aria-label={t('picker.selectItem')}
         tabIndex={disabled ? -1 : 0}
         className={cn(
           'flex items-center gap-2 h-11 sm:h-9 rounded-md border border-input bg-background px-3 text-sm cursor-pointer',
@@ -354,14 +380,14 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
         ) : value ? (
           <span className="flex-1 min-w-0 truncate text-foreground">{value}</span>
         ) : (
-          <span className="flex-1 min-w-0 truncate text-muted-foreground">{placeholder}</span>
+          <span className="flex-1 min-w-0 truncate text-muted-foreground">{placeholderText}</span>
         )}
         {value && !disabled && (
           <button
             type="button"
             onClick={e => { e.stopPropagation(); handleClear() }}
             className="-mr-1 flex items-center justify-center w-6 h-6 rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring shrink-0 motion-safe:transition-colors"
-            aria-label="Clear selection"
+            aria-label={t('picker.clearSelection')}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -391,9 +417,9 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
               ref={inputRef}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder={`Search ${nonVehicleItems.length.toLocaleString()} items…`}
+              placeholder={t('picker.searchItems', { count: nonVehicleItems.length.toLocaleString() })}
               className="flex-1 min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
-              aria-label="Filter items"
+              aria-label={t('picker.filterItems')}
               autoFocus
             />
             {search && (
@@ -411,7 +437,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
               onClick={e => { e.stopPropagation(); handleScan() }}
               disabled={scanning}
               className="h-8 w-8 p-0 shrink-0"
-              title="Re-scan server items"
+              title={t('picker.rescanItems')}
             >
               {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             </Button>
@@ -433,7 +459,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
                 )}
               >
                 <LayoutGrid className="w-4 h-4 shrink-0" />
-                <span className="flex-1 min-w-0 font-medium">All Items</span>
+                <span className="flex-1 min-w-0 font-medium">{t('allItems')}</span>
                 <span className="text-[11px] tabular-nums opacity-60">{nonVehicleItems.length.toLocaleString()}</span>
               </button>
 
@@ -463,19 +489,19 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
             </div>
 
             {/* Items */}
-            <div className="flex-1 min-w-0 overflow-y-auto overscroll-contain" role="listbox" id="itempicker-listbox" aria-label="Item list">
+            <div className="flex-1 min-w-0 overflow-y-auto overscroll-contain" role="listbox" id="itempicker-listbox" aria-label={t('picker.itemList')}>
               {/* Category header */}
               <div className="sticky top-0 z-10 flex items-center gap-2.5 px-4 py-2 bg-muted/80 backdrop-blur-sm border-b border-border/30">
                 <ActiveIcon className="w-3.5 h-3.5 text-muted-foreground/70" />
                 <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">{activeCategoryLabel}</span>
-                <span className="text-xs text-muted-foreground/40 tabular-nums ml-auto">{totalFiltered.toLocaleString()} items</span>
+                <span className="text-xs text-muted-foreground/40 tabular-nums ml-auto">{t('picker.itemsCount', { count: totalFiltered.toLocaleString() })}</span>
               </div>
 
               {totalFiltered === 0 ? (
                 <div className="py-14 text-center text-muted-foreground">
                   <SearchX className="w-7 h-7 mx-auto mb-3 opacity-30" />
                   <p className="text-sm">
-                    {search ? <>No items match &ldquo;{search}&rdquo;</> : 'No items in this category'}
+                    {search ? t('picker.noItemsMatch', { query: search }) : t('picker.noItemsCategory')}
                   </p>
                   {search && activeCategory && (
                     <button
@@ -483,7 +509,7 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
                       onClick={() => setActiveCategory(null)}
                       className="mt-3 text-xs text-primary hover:underline"
                     >
-                      Search all categories
+                      {t('picker.searchAllCategories')}
                     </button>
                   )}
                 </div>
@@ -538,13 +564,15 @@ export function ItemPicker({ value, onChange, disabled, placeholder = 'Search it
           <div className="border-t border-border/40 px-4 py-2 flex items-center justify-between gap-4 text-[11px] text-muted-foreground">
             <span className="shrink-0 tabular-nums">
               {capped
-                ? <><span className="text-warning font-medium">{MAX_VISIBLE}</span> of {totalFiltered.toLocaleString()} — type to narrow</>
-                : `${totalFiltered.toLocaleString()} ${activeCategory ? activeCategoryLabel.toLowerCase() : 'items'}`}
+                ? t('picker.cappedItems', { limit: MAX_VISIBLE, count: totalFiltered.toLocaleString() })
+                : activeCategory
+                  ? t('picker.itemsInCategory', { count: totalFiltered.toLocaleString(), category: activeCategoryLabel })
+                  : t('picker.itemsCount', { count: totalFiltered.toLocaleString() })}
             </span>
             <div className="flex items-center gap-4 text-[10px] opacity-50">
-              <span>↑↓ navigate</span>
-              <span>↵ select</span>
-              <span>esc close</span>
+              <span>{t('picker.navigate')}</span>
+              <span>{t('picker.select')}</span>
+              <span>{t('escClose')}</span>
             </div>
             {scannedAt && (
               <span className="text-right opacity-40 tabular-nums">

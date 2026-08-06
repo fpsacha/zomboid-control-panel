@@ -1,5 +1,6 @@
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Socket } from 'socket.io-client'
 import Layout from './components/Layout'
 import { ErrorBoundary } from './components/ErrorBoundary'
@@ -16,143 +17,144 @@ import { useToast } from './components/ui/use-toast'
 import { PageSkeleton } from './components/PageSkeleton'
 import { ScrollToTop } from './components/ScrollToTop'
 import { isDemoMode } from './lib/demo'
+import './i18n'
 
 type RouteLoaderMeta = {
-  title: string
-  description: string
-  eyebrow: string
+  titleKey: string
+  descriptionKey: string
+  eyebrowKey: string
   variant: 'dashboard' | 'list' | 'form' | 'console' | 'map' | 'default'
-  metrics: string[]
+  metricKeys: string[]
 }
 
 const ROUTE_LOADERS: Record<string, RouteLoaderMeta> = {
   '/': {
-    title: 'Dashboard',
-    description: 'Loading live server state, players, actions, and maintenance telemetry.',
-    eyebrow: '// LIVE · OVERVIEW',
+    titleKey: 'pageLoader.routes.dashboard.title',
+    descriptionKey: 'pageLoader.routes.dashboard.description',
+    eyebrowKey: 'pageLoader.routes.dashboard.eyebrow',
     variant: 'dashboard',
-    metrics: ['status', 'players', 'rcon'],
+    metricKeys: ['status', 'players', 'rcon'],
   },
   '/players': {
-    title: 'Online Players',
-    description: 'Preparing player rows, admin actions, notes, and session details.',
-    eyebrow: '// LIVE · PLAYERS',
+    titleKey: 'pageLoader.routes.players.title',
+    descriptionKey: 'pageLoader.routes.players.description',
+    eyebrowKey: 'pageLoader.routes.players.eyebrow',
     variant: 'list',
-    metrics: ['roster', 'actions', 'notes'],
+    metricKeys: ['roster', 'actions', 'notes'],
   },
   '/console': {
-    title: 'Server Console',
-    description: 'Opening command history, RCON state, and live output stream.',
-    eyebrow: '// LIVE · CONSOLE',
+    titleKey: 'pageLoader.routes.console.title',
+    descriptionKey: 'pageLoader.routes.console.description',
+    eyebrowKey: 'pageLoader.routes.console.eyebrow',
     variant: 'console',
-    metrics: ['rcon', 'history', 'stream'],
+    metricKeys: ['rcon', 'history', 'stream'],
   },
   '/chat': {
-    title: 'In-Game Chat',
-    description: 'Loading bridge chat channels and recent server messages.',
-    eyebrow: '// LIVE · CHAT',
+    titleKey: 'pageLoader.routes.chat.title',
+    descriptionKey: 'pageLoader.routes.chat.description',
+    eyebrowKey: 'pageLoader.routes.chat.eyebrow',
     variant: 'console',
-    metrics: ['bridge', 'messages', 'send'],
+    metricKeys: ['bridge', 'messages', 'send'],
   },
   '/events': {
-    title: 'Events & Weather',
-    description: 'Preparing world controls, weather overrides, and event triggers.',
-    eyebrow: '// WORLD · CONTROL',
+    titleKey: 'pageLoader.routes.events.title',
+    descriptionKey: 'pageLoader.routes.events.description',
+    eyebrowKey: 'pageLoader.routes.events.eyebrow',
     variant: 'form',
-    metrics: ['weather', 'time', 'events'],
+    metricKeys: ['weather', 'time', 'events'],
   },
   '/world-map': {
-    title: 'World Map',
-    description: 'Loading map tiles, marker tools, and player/world overlays.',
-    eyebrow: '// WORLD · MAP',
+    titleKey: 'pageLoader.routes.worldMap.title',
+    descriptionKey: 'pageLoader.routes.worldMap.description',
+    eyebrowKey: 'pageLoader.routes.worldMap.eyebrow',
     variant: 'map',
-    metrics: ['tiles', 'markers', 'layers'],
+    metricKeys: ['tiles', 'markers', 'layers'],
   },
   '/server-config': {
-    title: 'Server Configuration',
-    description: 'Loading INI sections, validation, and server-safe edit controls.',
-    eyebrow: '// CONFIG · INI',
+    titleKey: 'pageLoader.routes.serverConfig.title',
+    descriptionKey: 'pageLoader.routes.serverConfig.description',
+    eyebrowKey: 'pageLoader.routes.serverConfig.eyebrow',
     variant: 'form',
-    metrics: ['ini', 'validate', 'save'],
+    metricKeys: ['ini', 'validate', 'save'],
   },
   '/mods': {
-    title: 'Mod Manager',
-    description: 'Loading Workshop status, active mod IDs, conflicts, and update state.',
-    eyebrow: '// CONFIG · WORKSHOP',
+    titleKey: 'pageLoader.routes.mods.title',
+    descriptionKey: 'pageLoader.routes.mods.description',
+    eyebrowKey: 'pageLoader.routes.mods.eyebrow',
     variant: 'list',
-    metrics: ['workshop', 'mods', 'conflicts'],
+    metricKeys: ['workshop', 'mods', 'conflicts'],
   },
   '/scheduler': {
-    title: 'Scheduled Tasks',
-    description: 'Preparing task rules, run history, and automation controls.',
-    eyebrow: '// MAINTAIN · SCHEDULE',
+    titleKey: 'pageLoader.routes.scheduler.title',
+    descriptionKey: 'pageLoader.routes.scheduler.description',
+    eyebrowKey: 'pageLoader.routes.scheduler.eyebrow',
     variant: 'list',
-    metrics: ['tasks', 'history', 'cron'],
+    metricKeys: ['tasks', 'history', 'cron'],
   },
   '/backups': {
-    title: 'World Backups',
-    description: 'Loading backup inventory, restore controls, and storage status.',
-    eyebrow: '// MAINTAIN · BACKUPS',
+    titleKey: 'pageLoader.routes.backups.title',
+    descriptionKey: 'pageLoader.routes.backups.description',
+    eyebrowKey: 'pageLoader.routes.backups.eyebrow',
     variant: 'list',
-    metrics: ['files', 'storage', 'restore'],
+    metricKeys: ['files', 'storage', 'restore'],
   },
   '/chunks': {
-    title: 'Map Cleanup',
-    description: 'Preparing chunk previews, safety checks, and cleanup tools.',
-    eyebrow: '// MAINTAIN · MAP DATA',
+    titleKey: 'pageLoader.routes.chunks.title',
+    descriptionKey: 'pageLoader.routes.chunks.description',
+    eyebrowKey: 'pageLoader.routes.chunks.eyebrow',
     variant: 'map',
-    metrics: ['chunks', 'preview', 'safe'],
+    metricKeys: ['chunks', 'preview', 'safe'],
   },
   '/servers': {
-    title: 'My Servers',
-    description: 'Loading server profiles, active target, and connection details.',
-    eyebrow: '// SERVERS · PROFILES',
+    titleKey: 'pageLoader.routes.servers.title',
+    descriptionKey: 'pageLoader.routes.servers.description',
+    eyebrowKey: 'pageLoader.routes.servers.eyebrow',
     variant: 'list',
-    metrics: ['profiles', 'active', 'paths'],
+    metricKeys: ['profiles', 'active', 'paths'],
   },
   '/server-setup': {
-    title: 'Server Setup',
-    description: 'Preparing install choices, paths, ports, and launch checks.',
-    eyebrow: '// SERVERS · SETUP',
+    titleKey: 'pageLoader.routes.serverSetup.title',
+    descriptionKey: 'pageLoader.routes.serverSetup.description',
+    eyebrowKey: 'pageLoader.routes.serverSetup.eyebrow',
     variant: 'form',
-    metrics: ['install', 'ports', 'start'],
+    metricKeys: ['install', 'ports', 'start'],
   },
   '/server-finder': {
-    title: 'Browse Public Servers',
-    description: 'Loading discovery filters, search results, and server details.',
-    eyebrow: '// SERVERS · DISCOVERY',
+    titleKey: 'pageLoader.routes.serverFinder.title',
+    descriptionKey: 'pageLoader.routes.serverFinder.description',
+    eyebrowKey: 'pageLoader.routes.serverFinder.eyebrow',
     variant: 'list',
-    metrics: ['search', 'filters', 'results'],
+    metricKeys: ['search', 'filters', 'results'],
   },
   '/discord': {
-    title: 'Discord Integration',
-    description: 'Loading bot status, channel wiring, and message controls.',
-    eyebrow: '// SYSTEM · DISCORD',
+    titleKey: 'pageLoader.routes.discord.title',
+    descriptionKey: 'pageLoader.routes.discord.description',
+    eyebrowKey: 'pageLoader.routes.discord.eyebrow',
     variant: 'form',
-    metrics: ['bot', 'channels', 'alerts'],
+    metricKeys: ['bot', 'channels', 'alerts'],
   },
   '/settings': {
-    title: 'Panel Settings',
-    description: 'Loading access, paths, network, and panel preference controls.',
-    eyebrow: '// SYSTEM · SETTINGS',
+    titleKey: 'pageLoader.routes.settings.title',
+    descriptionKey: 'pageLoader.routes.settings.description',
+    eyebrowKey: 'pageLoader.routes.settings.eyebrow',
     variant: 'form',
-    metrics: ['auth', 'paths', 'network'],
+    metricKeys: ['auth', 'paths', 'network'],
   },
   '/debug': {
-    title: 'Debug Logs',
-    description: 'Preparing diagnostics, probes, logs, and support bundle tools.',
-    eyebrow: '// SYSTEM · DIAGNOSTICS',
+    titleKey: 'pageLoader.routes.debug.title',
+    descriptionKey: 'pageLoader.routes.debug.description',
+    eyebrowKey: 'pageLoader.routes.debug.eyebrow',
     variant: 'console',
-    metrics: ['logs', 'probes', 'bundle'],
+    metricKeys: ['logs', 'probes', 'bundle'],
   },
 }
 
 const AUTH_BOOT_STEPS = [
-  { code: 'AUTH', label: 'Verifying credentials' },
-  { code: 'LINK', label: 'Opening control channel' },
-  { code: 'SYNC', label: 'Restoring panel state' },
-  { code: 'NET ', label: 'Pinging live servers' },
-  { code: 'OK  ', label: 'Standing by' },
+  { code: 'AUTH', labelKey: 'authBoot.verifyingCredentials' },
+  { code: 'LINK', labelKey: 'authBoot.openingControlChannel' },
+  { code: 'SYNC', labelKey: 'authBoot.restoringPanelState' },
+  { code: 'NET ', labelKey: 'authBoot.pingingLiveServers' },
+  { code: 'OK  ', labelKey: 'authBoot.standingBy' },
 ]
 
 // Lazy load larger pages for code splitting
@@ -179,11 +181,21 @@ const Setup = lazy(() => import('./pages/Setup'))
 // Loading fallback — shows a skeleton layout instead of a plain spinner
 function PageLoader() {
   const { pathname } = useLocation()
+  const { t } = useTranslation('common')
   const meta = ROUTE_LOADERS[pathname] || ROUTE_LOADERS['/']
-  return <PageSkeleton {...meta} />
+  return (
+    <PageSkeleton
+      variant={meta.variant}
+      title={t(meta.titleKey)}
+      description={t(meta.descriptionKey)}
+      eyebrow={t(meta.eyebrowKey)}
+      metrics={meta.metricKeys.map((key) => t(`pageLoader.metrics.${key}`))}
+    />
+  )
 }
 
 function AuthScreenLoader() {
+  const { t } = useTranslation('common')
   const [stepIndex, setStepIndex] = useState(0)
   const [tick, setTick] = useState(0)
   const totalSteps = AUTH_BOOT_STEPS.length
@@ -237,17 +249,17 @@ function AuthScreenLoader() {
 
       {/* Top status bar */}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-5 py-3 font-mono text-[10px] uppercase tracking-[0.32em] text-muted-foreground/70">
-        <span>Project Zomboid // Control Panel</span>
+        <span>{t('authBoot.panelName')}</span>
         <span className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400/80 shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
-          <span>Secure Handshake</span>
+          <span>{t('authBoot.secureHandshake')}</span>
         </span>
       </div>
 
       {/* Bottom status bar */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between px-5 py-3 font-mono text-[10px] uppercase tracking-[0.32em] text-muted-foreground/60">
         <span>{clock} UTC</span>
-        <span>STAND BY{dots}</span>
+        <span>{t('authBoot.standBy')}{dots}</span>
         <span>{progress.toString().padStart(3, '0')}%</span>
       </div>
 
@@ -263,7 +275,7 @@ function AuthScreenLoader() {
           {/* Header strip */}
           <div className="mb-5 flex items-center justify-between border-b border-border/50 pb-3 font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
             <span className="text-primary/80">// boot.sequence</span>
-            <span>node · admin</span>
+            <span>{t('authBoot.nodeAdmin')}</span>
           </div>
 
           {/* Hero row */}
@@ -281,10 +293,10 @@ function AuthScreenLoader() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-mono text-[10px] uppercase tracking-[0.32em] text-muted-foreground/70">
-                Establishing session
+                {t('authBoot.establishingSession')}
               </div>
               <div className="mt-1 truncate font-mono text-base font-semibold tracking-[0.18em] text-foreground">
-                CONTROL ROOM ONLINE
+                {t('authBoot.controlRoomOnline')}
               </div>
             </div>
           </div>
@@ -316,7 +328,7 @@ function AuthScreenLoader() {
                   <span className="w-10 shrink-0 uppercase tracking-[0.18em] text-muted-foreground/70">
                     {step.code}
                   </span>
-                  <span className="truncate">{step.label}</span>
+                  <span className="truncate">{t(step.labelKey)}</span>
                   {isCurrent && (
                     <span className="ml-auto text-[10px] uppercase tracking-[0.2em] text-primary/80">
                       …
@@ -324,7 +336,7 @@ function AuthScreenLoader() {
                   )}
                   {isDone && (
                     <span className="ml-auto text-[10px] uppercase tracking-[0.2em] text-emerald-500/70">
-                      OK
+                      {t('authBoot.ok')}
                     </span>
                   )}
                 </li>
@@ -354,19 +366,20 @@ function AuthScreenLoader() {
 }
 
 function NotFoundRoute() {
+  const { t } = useTranslation('common')
   return (
     <div className="space-y-6 page-transition">
       <div className="rounded-xl border border-border/70 bg-card/70 p-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Page Not Found</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{t('notFound.title')}</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          The route you requested does not exist or is no longer available in this panel build.
+          {t('notFound.description')}
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Link to="/" className="inline-flex min-h-10 items-center rounded-md border border-border/70 bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Go to Dashboard
+            {t('notFound.dashboard')}
           </Link>
           <Link to="/servers" className="inline-flex min-h-10 items-center rounded-md border border-border/70 bg-background px-4 text-sm font-medium hover:bg-muted/50">
-            Open Servers
+            {t('notFound.servers')}
           </Link>
         </div>
       </div>
@@ -375,6 +388,7 @@ function NotFoundRoute() {
 }
 
 function AppContent() {
+  const { t } = useTranslation('common')
   const demoMode = isDemoMode()
   const [socket, setSocket] = useState<Socket | null>(null)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
@@ -388,11 +402,11 @@ function AppContent() {
 
   const handleReconnectSuccess = useCallback(() => {
     toast({
-      title: 'Reconnected',
-      description: 'Connection to server restored',
+      title: t('connection.reconnected'),
+      description: t('connection.restored'),
       variant: 'success' as const,
     })
-  }, [toast])
+  }, [t, toast])
 
   useEffect(() => {
     // Don't connect socket until auth is resolved
@@ -494,8 +508,8 @@ function AppContent() {
           error: 'Failed to reconnect after multiple attempts',
         })
         toast({
-          title: 'Connection Lost',
-          description: 'Unable to reconnect to server. Please refresh the page.',
+          title: t('connection.lost'),
+          description: t('connection.reconnectFailed'),
           variant: 'destructive',
         })
       })
@@ -509,7 +523,7 @@ function AppContent() {
       cancelled = true
       createdSocket?.close()
     }
-  }, [toast, handleReconnectSuccess, isLoading, isAuthenticated, authEnabled, needsSetup, getToken, demoMode])
+  }, [toast, t, handleReconnectSuccess, isLoading, isAuthenticated, authEnabled, needsSetup, getToken, demoMode])
 
   // Auth gate — show loading, setup, or login screens before main app
   if (isLoading) {
@@ -545,26 +559,26 @@ function AppContent() {
           <ScrollToTop />
           <Suspense fallback={<PageLoader />}>
             <Routes>
-              <Route path="/" element={<FeatureErrorBoundary featureName="Dashboard"><Dashboard /></FeatureErrorBoundary>} />
+              <Route path="/" element={<FeatureErrorBoundary featureName="dashboard"><Dashboard /></FeatureErrorBoundary>} />
               <Route path="/dashboard" element={<Navigate to="/" replace />} />
-              <Route path="/players" element={<FeatureErrorBoundary featureName="Player Management"><Players /></FeatureErrorBoundary>} />
-              <Route path="/console" element={<FeatureErrorBoundary featureName="Console"><Console /></FeatureErrorBoundary>} />
-              <Route path="/scheduler" element={<FeatureErrorBoundary featureName="Scheduler"><Scheduler /></FeatureErrorBoundary>} />
-              <Route path="/mods" element={<FeatureErrorBoundary featureName="Mod Manager"><Mods /></FeatureErrorBoundary>} />
-              <Route path="/chunks" element={<FeatureErrorBoundary featureName="Chunk Cleaner"><ChunkCleaner /></FeatureErrorBoundary>} />
+              <Route path="/players" element={<FeatureErrorBoundary featureName="playerManagement"><Players /></FeatureErrorBoundary>} />
+              <Route path="/console" element={<FeatureErrorBoundary featureName="console"><Console /></FeatureErrorBoundary>} />
+              <Route path="/scheduler" element={<FeatureErrorBoundary featureName="scheduler"><Scheduler /></FeatureErrorBoundary>} />
+              <Route path="/mods" element={<FeatureErrorBoundary featureName="modManager"><Mods /></FeatureErrorBoundary>} />
+              <Route path="/chunks" element={<FeatureErrorBoundary featureName="chunkCleaner"><ChunkCleaner /></FeatureErrorBoundary>} />
               <Route path="/chunk-cleaner" element={<Navigate to="/chunks" replace />} />
-              <Route path="/discord" element={<FeatureErrorBoundary featureName="Discord Integration"><Discord /></FeatureErrorBoundary>} />
-              <Route path="/settings" element={<FeatureErrorBoundary featureName="Settings"><Settings /></FeatureErrorBoundary>} />
-              <Route path="/server-setup" element={<FeatureErrorBoundary featureName="Server Setup"><ServerSetup /></FeatureErrorBoundary>} />
-              <Route path="/servers" element={<FeatureErrorBoundary featureName="Server Manager"><Servers /></FeatureErrorBoundary>} />
-              <Route path="/server-config" element={<FeatureErrorBoundary featureName="Server Configuration"><ServerConfig /></FeatureErrorBoundary>} />
+              <Route path="/discord" element={<FeatureErrorBoundary featureName="discordIntegration"><Discord /></FeatureErrorBoundary>} />
+              <Route path="/settings" element={<FeatureErrorBoundary featureName="settings"><Settings /></FeatureErrorBoundary>} />
+              <Route path="/server-setup" element={<FeatureErrorBoundary featureName="serverSetup"><ServerSetup /></FeatureErrorBoundary>} />
+              <Route path="/servers" element={<FeatureErrorBoundary featureName="serverManager"><Servers /></FeatureErrorBoundary>} />
+              <Route path="/server-config" element={<FeatureErrorBoundary featureName="serverConfiguration"><ServerConfig /></FeatureErrorBoundary>} />
               <Route path="/serverconfig" element={<Navigate to="/server-config" replace />} />
-              <Route path="/server-finder" element={<FeatureErrorBoundary featureName="Server Finder"><ServerFinder /></FeatureErrorBoundary>} />
-              <Route path="/debug" element={<FeatureErrorBoundary featureName="Debug"><Debug /></FeatureErrorBoundary>} />
-              <Route path="/events" element={<FeatureErrorBoundary featureName="Events & Weather"><Events /></FeatureErrorBoundary>} />
-              <Route path="/world-map" element={<FeatureErrorBoundary featureName="World Map"><WorldMap /></FeatureErrorBoundary>} />
-              <Route path="/chat" element={<FeatureErrorBoundary featureName="In-Game Chat"><Chat /></FeatureErrorBoundary>} />
-              <Route path="/backups" element={<FeatureErrorBoundary featureName="Backups"><Backups /></FeatureErrorBoundary>} />
+              <Route path="/server-finder" element={<FeatureErrorBoundary featureName="serverFinder"><ServerFinder /></FeatureErrorBoundary>} />
+              <Route path="/debug" element={<FeatureErrorBoundary featureName="debug"><Debug /></FeatureErrorBoundary>} />
+              <Route path="/events" element={<FeatureErrorBoundary featureName="eventsWeather"><Events /></FeatureErrorBoundary>} />
+              <Route path="/world-map" element={<FeatureErrorBoundary featureName="worldMap"><WorldMap /></FeatureErrorBoundary>} />
+              <Route path="/chat" element={<FeatureErrorBoundary featureName="inGameChat"><Chat /></FeatureErrorBoundary>} />
+              <Route path="/backups" element={<FeatureErrorBoundary featureName="backups"><Backups /></FeatureErrorBoundary>} />
               <Route path="*" element={<NotFoundRoute />} />
             </Routes>
           </Suspense>

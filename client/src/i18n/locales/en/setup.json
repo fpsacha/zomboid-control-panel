@@ -1,0 +1,71 @@
+{
+    "title":  "Zomboid Control Panel",
+    "description":  "Create the first admin account for this panel, then continue to the rest of setup.",
+    "badge":  "Initial Provisioning",
+    "cardTitle":  "Create Admin Account",
+    "cardDescription":  "This account unlocks the control panel and signs you in right away.",
+    "footer":  "Store this password safely. There is no email recovery — resetting it later requires filesystem access to this server.",
+    "steps":  {
+                  "progress":  "Setup progress",
+                  "account":  "Account",
+                  "server":  "Server",
+                  "launch":  "Launch"
+              },
+    "labels":  {
+                   "username":  "Username",
+                   "usernameHint":  "3-32 characters: letters, numbers, _ or -",
+                   "password":  "Password",
+                   "confirmPassword":  "Confirm password",
+                   "confirmHint":  "Type the same password again to confirm it.",
+                   "keepSignedIn":  "Keep me signed in on this browser"
+               },
+    "placeholders":  {
+                         "password":  "••••••••"
+                     },
+    "passwordStrength":  {
+                             "tooShort":  "Too short",
+                             "weak":  "Weak",
+                             "fair":  "Fair",
+                             "good":  "Good",
+                             "strong":  "Strong"
+                         },
+    "passwordMatch":  {
+                          "match":  "Passwords match",
+                          "noMatch":  "Passwords do not match"
+                      },
+    "actions":  {
+                    "createAccount":  "Create account \u0026 continue",
+                    "creating":  "Creating admin account...",
+                    "showPassword":  "Show password",
+                    "hidePassword":  "Hide password"
+                },
+    "afterStep":  {
+                      "title":  "After this step",
+                      "preview":  "Preview",
+                      "bringServer":  {
+                                          "title":  "Bring a server into the panel",
+                                          "description":  "Add an existing install or run the guided setup to create one."
+                                      },
+                      "confirmRCON":  {
+                                          "title":  "Confirm RCON and paths",
+                                          "description":  "The panel needs to authenticate against the server before it can do anything useful."
+                                      },
+                      "takeLive":  {
+                                       "title":  "Take the dashboard live",
+                                       "description":  "Verify status, players, backups, and quick admin actions from one screen."
+                                   }
+                  },
+    "errors":  {
+                   "usernameInvalid":  "Username must be 3-32 characters (letters, numbers, _ or -)",
+                   "passwordTooShort":  "Password must be at least 6 characters",
+                   "passwordsNoMatch":  "Passwords do not match",
+                   "setupFailed":  "Setup failed"
+               },
+    "status":  {
+                   "online":  "Online",
+                   "looksGood":  "Looks good.",
+                   "usernameFormat":  "3-32 chars; letters, numbers, _ or - only.",
+                   "capsLockOn":  "Caps Lock is on",
+                   "passwordMinimum":  "Use at least 6 characters."
+               }
+}

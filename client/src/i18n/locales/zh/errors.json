@@ -1,0 +1,85 @@
+{
+    "general":  {
+                    "unknown":  "发生未知错误",
+                    "network":  "网络错误，请检查您的网络连接。",
+                    "timeout":  "请求超时，请重试。",
+                    "serverUnavailable":  "服务器不可用",
+                    "permissionDenied":  "权限不足",
+                    "notFound":  "资源未找到",
+                    "invalidRequest":  "请求无效",
+                    "internalError":  "服务器内部错误",
+                    "actionFailed":  "操作失败，请重试。"
+                },
+    "auth":  {
+                 "loginFailed":  "登录失败，请检查您的凭据。",
+                 "tokenExpired":  "会话已过期，请重新登录。",
+                 "invalidToken":  "无效的认证令牌",
+                 "accessDenied":  "访问被拒绝",
+                 "accountLocked":  "账户已被锁定"
+             },
+    "server":  {
+                   "startFailed":  "服务器启动失败",
+                   "stopFailed":  "服务器停止失败",
+                   "restartFailed":  "服务器重启失败",
+                   "saveFailed":  "世界保存失败",
+                   "notRunning":  "服务器未运行",
+                   "alreadyRunning":  "服务器已在运行",
+                   "portInUse":  "端口已被占用",
+                   "invalidPath":  "无效的服务器路径",
+                   "missingFiles":  "缺少必要的服务器文件",
+                   "javaError":  "Java错误",
+                   "memoryError":  "内存不足"
+               },
+    "rcon":  {
+                 "connectionFailed":  "RCON连接失败",
+                 "authenticationFailed":  "RCON认证失败",
+                 "commandFailed":  "命令执行失败",
+                 "connectionLost":  "RCON连接丢失",
+                 "invalidHost":  "无效的RCON主机",
+                 "invalidPort":  "无效的RCON端口"
+             },
+    "mods":  {
+                 "addFailed":  "模组添加失败",
+                 "removeFailed":  "模组移除失败",
+                 "updateFailed":  "模组更新失败",
+                 "invalidModId":  "无效的模组ID",
+                 "invalidWorkshopId":  "无效的创意工坊ID",
+                 "downloadFailed":  "模组下载失败",
+                 "dependencyMissing":  "缺少必需的依赖",
+                 "conflictDetected":  "检测到模组冲突",
+                 "alreadyAdded":  "模组已添加",
+                 "notFound":  "模组未找到"
+             },
+    "backup":  {
+                   "createFailed":  "备份创建失败",
+                   "restoreFailed":  "备份还原失败",
+                   "deleteFailed":  "备份删除失败",
+                   "uploadFailed":  "备份上传失败",
+                   "downloadFailed":  "备份下载失败",
+                   "invalidFile":  "无效的备份文件",
+                   "fileTooLarge":  "文件过大",
+                   "diskSpace":  "磁盘空间不足",
+                   "corrupted":  "备份文件已损坏"
+               },
+    "config":  {
+                   "loadFailed":  "配置加载失败",
+                   "saveFailed":  "配置保存失败",
+                   "invalidValue":  "无效的配置值",
+                   "validationFailed":  "配置验证失败",
+                   "missingRequired":  "缺少必要的配置"
+               },
+    "player":  {
+                   "notFound":  "玩家未找到",
+                   "alreadyBanned":  "玩家已被封禁",
+                   "notBanned":  "玩家未被封禁",
+                   "actionFailed":  "玩家操作失败",
+                   "invalidSteamId":  "无效的Steam ID"
+               },
+    "file":  {
+                 "notFound":  "文件未找到",
+                 "accessDenied":  "文件访问被拒绝",
+                 "readFailed":  "文件读取失败",
+                 "writeFailed":  "文件写入失败",
+                 "invalidPath":  "无效的文件路径"
+             }
+}

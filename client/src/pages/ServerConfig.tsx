@@ -1,3 +1,5 @@
+import { useTranslation, Trans } from 'react-i18next';
+import i18next from 'i18next';
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue, memo } from 'react'
 import { copyText, cn } from '@/lib/utils'
 import {
@@ -197,7 +199,7 @@ function AuthImage({ filePath, alt, className }: { filePath: string; alt?: strin
     }
   }, [filePath])
   if (!blobUrl) return null
-  return <img src={blobUrl} alt={alt || 'Preview'} className={className} />
+  return <img src={blobUrl} alt={alt || i18next.t('serverConfig:labels.preview')} className={className} />
 }
 
 // --- Optimized Row Components ---
@@ -228,12 +230,12 @@ const IniSettingRow = memo(({
       }`}>
         <div className="flex items-center justify-between">
           <div>
-            <Label className="text-sm font-medium">{setting.label}</Label>
-            <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+            <Label className="text-sm font-medium">{getSettingLabel(setting.key, setting.label)}</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">{getSettingDesc(setting.key, setting.description)}</p>
           </div>
           {isModified && onReset && (
             <Button variant="ghost" size="sm" className="h-7 text-xs text-warning hover:text-warning" onClick={() => onReset(setting.key)}>
-              <Undo2 className="w-3 h-3 mr-1" /> Reset
+              <Undo2 className="w-3 h-3 mr-1" /> {i18next.t('serverConfig:ui.reset')}
             </Button>
           )}
         </div>
@@ -245,7 +247,7 @@ const IniSettingRow = memo(({
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <code className="bg-muted px-1 rounded">{setting.key}</code>
           {setting.default !== undefined && (
-            <span className={isDifferentFromDefault ? 'text-warning' : ''}>Default: {String(setting.default)}</span>
+            <span className={isDifferentFromDefault ? 'text-warning' : ''}>{i18next.t('serverConfig:ui.default')} {String(setting.default)}</span>
           )}
         </div>
       </div>
@@ -260,34 +262,34 @@ const IniSettingRow = memo(({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{setting.label}</Label>
+            <Label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{getSettingLabel(setting.key, setting.label)}</Label>
             {isModified && (
-              <Badge variant="warning" className="h-5 text-xs">modified</Badge>
+              <Badge variant="warning" className="h-5 text-xs">{i18next.t('serverConfig:ui.modified')}</Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
+          <p className="text-xs text-muted-foreground mt-1.5">{getSettingDesc(setting.key, setting.description)}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isModified && onReset && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-11 w-11 text-warning hover:text-warning sm:h-9 sm:w-9" onClick={() => onReset(setting.key)} aria-label={`Reset ${setting.label} to loaded value`}>
+                  <Button variant="ghost" size="icon" className="h-11 w-11 text-warning hover:text-warning sm:h-9 sm:w-9" onClick={() => onReset(setting.key)} aria-label={`${i18next.t('serverConfig:actions.resetToLoaded')}: ${getSettingLabel(setting.key, setting.label)}`}>
                     <Undo2 className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Reset to loaded value</TooltipContent>
+                <TooltipContent>{i18next.t('serverConfig:actions.resetToLoaded')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
           <div className={`w-full ${setting.type === 'filepath' ? 'sm:w-72' : 'sm:w-48'}`}>
             {setting.type === 'boolean' ? (
               <div className="flex items-center gap-2 justify-end">
-                <span className="text-xs text-muted-foreground">{String(value).toLowerCase() === 'true' ? 'On' : 'Off'}</span>
+                <span className="text-xs text-muted-foreground">{String(value).toLowerCase() === 'true' ? i18next.t('serverConfig:ui.on') : i18next.t('serverConfig:ui.off')}</span>
                 <Switch
                   checked={String(value).toLowerCase() === 'true'}
                   onCheckedChange={(checked) => onChange(setting.key, checked ? 'true' : 'false')}
-                  aria-label={setting.label || setting.key}
+                  aria-label={getSettingLabel(setting.key, setting.label) || setting.key}
                 />
               </div>
             ) : setting.type === 'select' && setting.options ? (
@@ -297,7 +299,7 @@ const IniSettingRow = memo(({
                 </SelectTrigger>
                 <SelectContent>
                   {setting.options.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={opt.value}>{getOptionLabel(setting.key, opt.value, opt.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -335,28 +337,28 @@ const IniSettingRow = memo(({
                     value={String(value)}
                     onChange={(e) => onChange(setting.key, e.target.value)}
                     className={`flex-1 font-mono text-xs ${isModified ? 'border-warning/40' : ''}`}
-                    placeholder="No image selected"
+                    placeholder={i18next.t('serverConfig:labels.noImage')}
                     maxLength={512}
                   />
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => onBrowse?.(setting.key, setting.fileExtensions)} aria-label="Browse for file">
+                        <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => onBrowse?.(setting.key, setting.fileExtensions)} aria-label={i18next.t('serverConfig:labels.browseFile')}>
                           <FolderOpen className="w-3.5 h-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Browse for file</TooltipContent>
+                      <TooltipContent>{i18next.t('serverConfig:labels.browseFile')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   {value && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => onChange(setting.key, '')} aria-label="Clear image">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive" onClick={() => onChange(setting.key, '')} aria-label={i18next.t('serverConfig:labels.clearImage')}>
                             <X className="w-3.5 h-3.5" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Clear image</TooltipContent>
+                        <TooltipContent>{i18next.t('serverConfig:labels.clearImage')}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   )}
@@ -365,7 +367,7 @@ const IniSettingRow = memo(({
                   <div className="rounded-md border bg-muted/30 p-1.5 max-w-[200px]">
                     <AuthImage
                       filePath={value}
-                      alt={setting.label}
+                      alt={getSettingLabel(setting.key, setting.label)}
                       className="rounded max-h-[80px] w-auto object-contain"
                     />
                   </div>
@@ -385,7 +387,7 @@ const IniSettingRow = memo(({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <code className="bg-muted px-1 rounded">{setting.key}</code>
         {setting.default !== undefined && (
-          <span className={isDifferentFromDefault ? 'text-warning' : ''}>Default: {String(setting.default)}</span>
+          <span className={isDifferentFromDefault ? 'text-warning' : ''}>{i18next.t('serverConfig:ui.default')} {String(setting.default)}</span>
         )}
       </div>
     </div>
@@ -418,16 +420,16 @@ const SandboxSettingRow = memo(({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium">{setting.label}</Label>
+            <Label className="text-sm font-medium">{getSettingLabel(setting.key, setting.label)}</Label>
             {isModified && (
-              <Badge variant="warning" className="h-5 text-xs">modified</Badge>
+              <Badge variant="warning" className="h-5 text-xs">{i18next.t('serverConfig:ui.modified')}</Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-1.5">{setting.description}</p>
+          <p className="text-xs text-muted-foreground mt-1.5">{getSettingDesc(setting.key, setting.description)}</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
             <code className="bg-muted px-1 rounded">{setting.key}</code>
             {setting.default !== undefined && (
-              <span className={isDifferentFromDefault ? 'text-warning' : ''}>Default: {String(setting.default)}</span>
+              <span className={isDifferentFromDefault ? 'text-warning' : ''}>{i18next.t('serverConfig:ui.default')} {String(setting.default)}</span>
             )}
           </div>
         </div>
@@ -436,22 +438,22 @@ const SandboxSettingRow = memo(({
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-11 w-11 text-warning hover:text-warning sm:h-9 sm:w-9" onClick={() => onReset(setting)} aria-label={`Reset ${setting.label} to loaded value`}>
+                  <Button variant="ghost" size="icon" className="h-11 w-11 text-warning hover:text-warning sm:h-9 sm:w-9" onClick={() => onReset(setting)} aria-label={`${i18next.t('serverConfig:actions.resetToLoaded')}: ${getSettingLabel(setting.key, setting.label)}`}>
                     <Undo2 className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Reset to loaded value</TooltipContent>
+                <TooltipContent>{i18next.t('serverConfig:actions.resetToLoaded')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
           <div className="w-full sm:w-48">
             {setting.type === 'boolean' ? (
               <div className="flex items-center gap-2 justify-end">
-                <span className="text-xs text-muted-foreground">{Boolean(value) ? 'On' : 'Off'}</span>
+                <span className="text-xs text-muted-foreground">{Boolean(value) ? i18next.t('serverConfig:ui.on') : i18next.t('serverConfig:ui.off')}</span>
                 <Switch
                   checked={Boolean(value)}
                   onCheckedChange={(checked) => onChange(setting, checked)}
-                  aria-label={setting.label || setting.key}
+                  aria-label={getSettingLabel(setting.key, setting.label) || setting.key}
                 />
               </div>
             ) : setting.type === 'select' && setting.options ? (
@@ -461,7 +463,7 @@ const SandboxSettingRow = memo(({
                 </SelectTrigger>
                 <SelectContent>
                   {setting.options.map(opt => (
-                    <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                    <SelectItem key={opt.value} value={String(opt.value)}>{getOptionLabel(setting.key, opt.value, opt.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -514,13 +516,13 @@ function StatChip({
   return (
     <span
       className={`inline-flex items-center gap-1.5 normal-case tracking-normal ${muted ? 'opacity-55' : ''}`}
-      title={ok === false ? `${label}: file not found` : undefined}
+      title={ok === false ? `${label}: ${i18next.t('serverConfig:labels.fileNotFound')}` : undefined}
     >
       <span className={muted ? 'text-muted-foreground/50' : 'text-primary/70'}>{icon}</span>
       <span className={`font-mono text-sm font-semibold tabular-nums ${muted ? 'text-muted-foreground' : 'text-foreground'}`}>{value}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
       {ok === false && (
-        <AlertCircle className="h-3 w-3 text-warning" aria-label="Not found" />
+        <AlertCircle className="h-3 w-3 text-warning" aria-label={i18next.t('serverConfig:labels.notFound')} />
       )}
     </span>
   )
@@ -648,7 +650,28 @@ function SectionHeader({
   )
 }
 
+// ── Schema i18n helpers ────────────────────────────────────────────
+function _t(key: string, fallback: string): string {
+  return i18next.t(key, { defaultValue: fallback })
+}
+function getGroupLabel(id: string, fallback: string): string {
+  return _t(`serverConfig:categories.groups.${id}`, fallback)
+}
+function getCategoryLabel(id: string, fallback: string): string {
+  return _t(`serverConfig:categories.${id}`, fallback)
+}
+function getSettingLabel(key: string, fallback: string): string {
+  return _t(`serverConfig:settings.${key}.label`, fallback)
+}
+function getSettingDesc(key: string, fallback: string): string {
+  return _t(`serverConfig:settings.${key}.description`, fallback)
+}
+function getOptionLabel(settingKey: string, value: string | number, fallback: string): string {
+  return _t(`serverConfig:settings.${settingKey}.options.${String(value)}`, fallback)
+}
+
 export default function ServerConfig() {
+  const { t: tc } = useTranslation('serverConfig');
   const [activeTab, setActiveTab] = useState('ini')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -879,10 +902,10 @@ export default function ServerConfig() {
       setLoadError(null)
     } catch (error) {
       reportClientError('Failed to load config.', error)
-      setLoadError(getUserErrorMessage(error, 'Failed to load server config.'))
+      setLoadError(getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadConfig')))
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to load server config.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadConfig')),
         variant: 'destructive'
       })
     } finally {
@@ -902,8 +925,8 @@ export default function ServerConfig() {
       setOriginalRawContent(data.content)
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to load raw content.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadRaw')),
         variant: 'destructive'
       })
       // Reset to structured mode on error
@@ -948,11 +971,11 @@ export default function ServerConfig() {
       a.download = `${data.filename}_${new Date().toISOString().replace(/[:.]/g, '-')}.bak`
       a.click()
       URL.revokeObjectURL(url)
-      toast({ title: 'Downloaded', description: `Backup saved: ${data.filename}` })
+      toast({ title: i18next.t('serverConfig:toast.downloaded'), description: i18next.t('serverConfig:toast.downloadedDesc', { filename: data.filename }) })
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to download backup.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToDownloadBackup')),
         variant: 'destructive'
       })
     }
@@ -967,11 +990,11 @@ export default function ServerConfig() {
         clearTimeout(copiedTimeoutRef.current)
       }
       copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
-      toast({ title: 'Copied', description: 'Content copied to clipboard' })
+      toast({ title: i18next.t('serverConfig:toast.copied'), description: i18next.t('serverConfig:toast.copiedDesc') })
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to copy content to clipboard.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToCopy')),
         variant: 'destructive'
       })
     }
@@ -1013,11 +1036,11 @@ export default function ServerConfig() {
         setModSettingsLastLoaded(new Date())
         setModSettingsError(null)
       } else {
-        setModSettingsError(response?.error || 'Failed to load mod settings. Is PanelBridge connected?')
+        setModSettingsError(response?.error || i18next.t('serverConfig:toast.failedToLoadModSettings'))
       }
     } catch (error) {
       if (controller.signal.aborted) return
-      setModSettingsError(getUserErrorMessage(error, 'Failed to load mod settings. Check PanelBridge connection.'))
+      setModSettingsError(getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadModSettings')))
     } finally {
       if (!controller.signal.aborted) setModSettingsLoading(false)
     }
@@ -1083,7 +1106,7 @@ export default function ServerConfig() {
           }
           return updated
         })
-        toast({ title: 'Option Updated', description: `${optName} set successfully` })
+        toast({ title: i18next.t('serverConfig:toast.optionUpdated'), description: i18next.t('serverConfig:toast.optionUpdatedDesc', { name: optName }) })
 
         // The bridge only changes the live value. Without this the option
         // reverts to whatever SandboxVars.lua still says on the next restart.
@@ -1094,23 +1117,23 @@ export default function ServerConfig() {
           )
           if (!saved.persisted) {
             toast({
-              title: 'Applied, but not saved',
-              description: `${optName} is not in SandboxVars.lua, so it will reset when the server restarts.`,
+              title: i18next.t('serverConfig:toast.appliedButNotSaved'),
+              description: i18next.t('serverConfig:toast.appliedButNotSavedDesc', { name: optName }),
               variant: 'destructive',
             })
           }
         } catch (error) {
           toast({
-            title: 'Applied, but not saved',
-            description: getUserErrorMessage(error, `${optName} will reset when the server restarts.`),
+            title: i18next.t('serverConfig:toast.appliedButNotSaved'),
+            description: getUserErrorMessage(error, i18next.t('serverConfig:toast.appliedButNotSavedDesc', { name: optName })),
             variant: 'destructive',
           })
         }
       } else {
-        toast({ title: 'Failed to Update', description: response?.error || 'Unknown error', variant: 'destructive' })
+        toast({ title: i18next.t('serverConfig:toast.failedToUpdate'), description: response?.error || i18next.t('serverConfig:toast.unknownError'), variant: 'destructive' })
       }
     } catch (error) {
-      toast({ title: 'Error', description: getUserErrorMessage(error, 'Failed to set option'), variant: 'destructive' })
+      toast({ title: i18next.t('serverConfig:toast.error'), description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSetOption')), variant: 'destructive' })
     } finally {
       setSavingOptions(prev => {
         const next = new Set(prev)
@@ -1142,7 +1165,7 @@ export default function ServerConfig() {
       setFileBrowserFiles(data.files)
       setFileBrowserParent(data.parent)
     } catch {
-      toast({ title: 'Error', description: 'Failed to browse files', variant: 'destructive' })
+      toast({ title: i18next.t('serverConfig:toast.error'), description: i18next.t('serverConfig:toast.failedToBrowseFiles'), variant: 'destructive' })
     } finally {
       setFileBrowserLoading(false)
     }
@@ -1159,7 +1182,7 @@ export default function ServerConfig() {
       setFileBrowserFiles(data.files)
       setFileBrowserParent(data.parent)
     } catch {
-      toast({ title: 'Error', description: 'Failed to navigate', variant: 'destructive' })
+      toast({ title: i18next.t('serverConfig:toast.error'), description: i18next.t('serverConfig:toast.failedToNavigate'), variant: 'destructive' })
     } finally {
       setFileBrowserLoading(false)
     }
@@ -1187,10 +1210,10 @@ export default function ServerConfig() {
       // Try to reload via RCON, but don't fail if RCON is not connected
       try {
         await serverFilesApi.saveAndReload()
-        toast({ title: 'Saved & Reloaded', description: 'Server settings saved and reloaded.' })
+        toast({ title: i18next.t('serverConfig:toast.savedAndReloaded'), description: i18next.t('serverConfig:toast.savedAndReloadedServerDesc') })
       } catch {
         // File was saved, but RCON reload failed - that's okay
-        toast({ title: 'Saved', description: 'Settings saved. Restart server to apply changes.' })
+        toast({ title: i18next.t('serverConfig:toast.saved'), description: i18next.t('serverConfig:toast.savedDesc') })
       }
 
       // Refresh from server to ensure frontend matches the saved file
@@ -1206,8 +1229,8 @@ export default function ServerConfig() {
       } catch { /* silent refresh — local state is still valid */ }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to save settings.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSaveSettings')),
         variant: 'destructive'
       })
     } finally {
@@ -1249,10 +1272,10 @@ export default function ServerConfig() {
       // Try to reload via RCON, but don't fail if RCON is not connected
       try {
         await serverFilesApi.saveAndReload()
-        toast({ title: 'Saved & Reloaded', description: 'Sandbox settings saved and reloaded.' })
+        toast({ title: i18next.t('serverConfig:toast.savedAndReloaded'), description: i18next.t('serverConfig:toast.savedAndReloadedSandboxDesc') })
       } catch {
         // File was saved, but RCON reload failed - that's okay
-        toast({ title: 'Saved', description: 'Settings saved. Restart server to apply changes.' })
+        toast({ title: i18next.t('serverConfig:toast.saved'), description: i18next.t('serverConfig:toast.savedDesc') })
       }
 
       // Refresh from server to ensure frontend matches the saved file
@@ -1267,8 +1290,8 @@ export default function ServerConfig() {
       } catch { /* silent refresh — local state is still valid */ }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to save settings.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSaveSettings')),
         variant: 'destructive'
       })
     } finally {
@@ -1284,14 +1307,14 @@ export default function ServerConfig() {
       } else {
         await serverFilesApi.saveSpawnPoints(spawnPoints)
       }
-      toast({ title: 'Saved', description: 'Spawn points saved' })
+      toast({ title: i18next.t('serverConfig:toast.saved'), description: i18next.t('serverConfig:toast.savedSpawnPoints') })
       if (editorMode === 'raw') {
         loadData()
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to save spawn points.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSaveSpawnPoints')),
         variant: 'destructive'
       })
     } finally {
@@ -1307,14 +1330,14 @@ export default function ServerConfig() {
       } else {
         await serverFilesApi.saveSpawnRegions(spawnRegions)
       }
-      toast({ title: 'Saved', description: 'Spawn regions saved' })
+      toast({ title: i18next.t('serverConfig:toast.saved'), description: i18next.t('serverConfig:toast.savedSpawnRegions') })
       if (editorMode === 'raw') {
         loadData()
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to save spawn regions.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSaveSpawnRegions')),
         variant: 'destructive'
       })
     } finally {
@@ -1457,8 +1480,8 @@ export default function ServerConfig() {
       setShowBackups(true)
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to load backups.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadBackups')),
         variant: 'destructive'
       })
     }
@@ -1468,13 +1491,13 @@ export default function ServerConfig() {
   const handleRestoreBackup = async (filename: string) => {
     try {
       await serverFilesApi.restoreBackup(filename)
-      toast({ title: 'Restored', description: `Restored from ${filename}` })
+      toast({ title: i18next.t('serverConfig:toast.restored'), description: i18next.t('serverConfig:toast.restoredDesc', { filename }) })
       setShowBackups(false)
       loadData()
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to restore backup.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToRestoreBackup')),
         variant: 'destructive'
       })
     }
@@ -1489,8 +1512,8 @@ export default function ServerConfig() {
       setShowTemplates(true)
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to load templates.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToLoadTemplates')),
         variant: 'destructive'
       })
     } finally {
@@ -1501,7 +1524,7 @@ export default function ServerConfig() {
   // Save current config as template
   const handleSaveTemplate = async () => {
     if (!newTemplateName.trim()) {
-      toast({ title: 'Error', description: 'Template name is required', variant: 'destructive' })
+      toast({ title: i18next.t('serverConfig:toast.error'), description: i18next.t('serverConfig:toast.templateNameRequired'), variant: 'destructive' })
       return
     }
 
@@ -1513,7 +1536,7 @@ export default function ServerConfig() {
         includeIni: saveTemplateIni,
         includeSandbox: saveTemplateSandbox
       })
-      toast({ title: 'Saved', description: result.message })
+      toast({ title: i18next.t('serverConfig:toast.saved'), description: result.message })
       setShowSaveTemplate(false)
       setNewTemplateName('')
       setNewTemplateDesc('')
@@ -1524,8 +1547,8 @@ export default function ServerConfig() {
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to save template.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToSaveTemplate')),
         variant: 'destructive'
       })
     } finally {
@@ -1539,15 +1562,15 @@ export default function ServerConfig() {
     try {
       const result = await serverFilesApi.applyTemplate(id)
       toast({
-        title: 'Applied',
+        title: i18next.t('serverConfig:toast.applied'),
         description: result.message
       })
       setShowTemplates(false)
       loadData() // Reload the config data
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to apply template.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToApplyTemplate')),
         variant: 'destructive'
       })
     } finally {
@@ -1558,20 +1581,20 @@ export default function ServerConfig() {
   // Delete template
   const handleDeleteTemplate = async (id: string, name: string) => {
     const ok = await confirm({
-      title: 'Delete template?',
-      description: `Delete template "${name}"? This cannot be undone.`,
-      confirmLabel: 'Delete',
+      title: i18next.t('serverConfig:dialogs.deleteTemplateConfirmTitle'),
+      description: i18next.t('serverConfig:dialogs.deleteTemplateConfirmDesc', { name }),
+      confirmLabel: i18next.t('serverConfig:dialogs.delete'),
     })
     if (!ok) return
 
     try {
       await serverFilesApi.deleteTemplate(id)
-      toast({ title: 'Deleted', description: `Template "${name}" deleted` })
+      toast({ title: i18next.t('serverConfig:toast.deleted'), description: i18next.t('serverConfig:toast.deletedDesc', { name }) })
       setTemplates(prev => prev.filter(t => t.id !== id))
     } catch (error) {
       toast({
-        title: 'Error',
-        description: getUserErrorMessage(error, 'Failed to delete template.'),
+        title: i18next.t('serverConfig:toast.error'),
+        description: getUserErrorMessage(error, i18next.t('serverConfig:toast.failedToDeleteTemplate')),
         variant: 'destructive'
       })
     }
@@ -1680,7 +1703,7 @@ export default function ServerConfig() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault()
-        const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search settings"]')
+        const searchInput = document.querySelector<HTMLInputElement>('input[data-testid="config-search"]')
         searchInput?.focus()
       }
     }
@@ -1705,7 +1728,7 @@ export default function ServerConfig() {
         <div className="rounded-md border border-border/55 bg-card/85 h-[400px] flex items-center justify-center">
           <div className="flex items-center gap-3 text-muted-foreground text-xs font-medium">
             <Loader2 className="w-4 h-4 animate-spin" />
-            loading configuration…
+            {i18next.t('serverConfig:ui.loading')}
           </div>
         </div>
       </div>
@@ -1723,20 +1746,20 @@ export default function ServerConfig() {
       {loadError && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Configuration data could not be fully loaded</AlertTitle>
+          <AlertTitle>{i18next.t('serverConfig:errors.configLoadFailed')}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="min-w-0 break-words" dir="auto" title={loadError}>{loadError}</span>
             <Button variant="outline" size="sm" onClick={loadData} className="self-start">
-              <RefreshCw className="mr-2 h-4 w-4" /> Retry
+              <RefreshCw className="mr-2 h-4 w-4" /> {i18next.t('serverConfig:ui.retry')}
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
       <PageHeader
-        title="Server Configuration"
-        description="Edit the live INI, sandbox, spawn, and mod settings for this server."
-        eyebrow="config"
+        title={tc('title')}
+        description={tc('description')}
+        eyebrow={i18next.t('serverConfig:ui.config')}
         tone="config"
         icon={<Settings className="h-5 w-5 text-primary" />}
         actions={
@@ -1744,17 +1767,17 @@ export default function ServerConfig() {
             {(hasIniChanges || hasSandboxChanges) && (
               <Badge variant="warning" className="motion-safe:animate-pulse text-xs font-medium">
                 <AlertTriangle className="mr-1 h-3 w-3" />
-                Unsaved changes
+                {i18next.t('serverConfig:ui.unsaved')}
               </Badge>
             )}
             <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={loadTemplates}>
-              <Bookmark className="h-3.5 w-3.5" /> Templates
+              <Bookmark className="h-3.5 w-3.5" /> {i18next.t('serverConfig:ui.templates')}
             </Button>
             <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={loadBackups}>
-              <History className="h-3.5 w-3.5" /> Backups
+              <History className="h-3.5 w-3.5" /> {i18next.t('serverConfig:ui.backups')}
             </Button>
             <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={loadData}>
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              <RefreshCw className="h-3.5 w-3.5" /> {i18next.t('serverConfig:ui.refresh')}
             </Button>
           </div>
         }
@@ -1764,9 +1787,9 @@ export default function ServerConfig() {
       <TacticalPanel tone="primary">
         <div className="px-3 py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span>Active server</span>
+            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-primary/60 whitespace-nowrap">
+              <FolderOpen className="w-3 h-3" />
+              <span>{i18next.t('serverConfig:labels.active')}</span>
             </div>
             {pathsInfo ? (
               <div className="flex items-center gap-2 min-w-0">
@@ -1783,34 +1806,34 @@ export default function ServerConfig() {
                 </span>
               </div>
             ) : (
-              <span className="text-xs text-muted-foreground/60">No server selected</span>
+              <span className="font-mono text-[11px] text-muted-foreground/60">{i18next.t('serverConfig:labels.noServerSelected')}</span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-muted-foreground">
             <StatChip
               icon={<Settings className="h-3 w-3" />}
               value={iniSettingsCount}
-              label="INI"
+              label={tc('labels.ini')}
               ok={pathsInfo?.exists.ini}
             />
             <span className="h-3 w-px bg-border/60" aria-hidden />
             <StatChip
               icon={<FileText className="h-3 w-3" />}
               value={sandboxSettingsCount}
-              label="Sandbox"
+              label={tc('labels.sandboxLabel')}
               ok={pathsInfo?.exists.sandbox}
             />
             <span className="h-3 w-px bg-border/60" aria-hidden />
             <StatChip
               icon={<MapPin className="h-3 w-3" />}
               value={spawnPointsCount}
-              label={`Spawns · ${professionsCount} prof${professionsCount === 1 ? '' : 's'}`}
+              label={i18next.t('serverConfig:ui.spawnsStat', { count: professionsCount, plural: professionsCount === 1 ? '' : 's' })}
             />
             <span className="h-3 w-px bg-border/60" aria-hidden />
             <StatChip
               icon={<Map className="h-3 w-3" />}
               value={spawnRegions.length}
-              label="Regions"
+              label={tc('labels.regions')}
             />
           </div>
         </div>
@@ -1831,11 +1854,11 @@ export default function ServerConfig() {
       }}>
         <TabsList className="flex h-auto flex-wrap gap-1 bg-muted/30 border border-border/50 p-1 rounded-md w-full">
           {([
-            { value: 'ini', label: 'Server Settings', icon: Settings, dirty: hasIniChanges, count: changedIniCount, missing: !pathsInfo?.exists.ini },
-            { value: 'sandbox', label: 'Sandbox', icon: FileText, dirty: hasSandboxChanges, count: changedSandboxCount, missing: !pathsInfo?.exists.sandbox },
-            { value: 'spawnpoints', label: 'Spawn Points', icon: MapPin, dirty: false, count: 0, missing: false },
-            { value: 'spawnregions', label: 'Spawn Regions', icon: Map, dirty: false, count: 0, missing: false },
-            { value: 'modsettings', label: 'Mod Settings', icon: Puzzle, dirty: false, count: modifiedModSettingsCount, missing: false },
+            { value: 'ini', label: i18next.t('serverConfig:ui.tabServerSettings'), icon: Settings, dirty: hasIniChanges, count: changedIniCount, missing: !pathsInfo?.exists.ini },
+            { value: 'sandbox', label: i18next.t('serverConfig:ui.tabSandbox'), icon: FileText, dirty: hasSandboxChanges, count: changedSandboxCount, missing: !pathsInfo?.exists.sandbox },
+            { value: 'spawnpoints', label: i18next.t('serverConfig:ui.tabSpawnPoints'), icon: MapPin, dirty: false, count: 0, missing: false },
+            { value: 'spawnregions', label: i18next.t('serverConfig:ui.tabSpawnRegions'), icon: Map, dirty: false, count: 0, missing: false },
+            { value: 'modsettings', label: i18next.t('serverConfig:ui.tabModSettings'), icon: Puzzle, dirty: false, count: modifiedModSettingsCount, missing: false },
           ] as const).map((t) => (
             <TabsTrigger
               key={t.value}
@@ -1850,10 +1873,10 @@ export default function ServerConfig() {
                 </Badge>
               )}
               {t.dirty && activeTab !== t.value && (
-                <span className="h-1.5 w-1.5 rounded-full bg-warning motion-safe:animate-pulse" aria-label="unsaved changes" />
+                <span className="h-1.5 w-1.5 rounded-full bg-warning motion-safe:animate-pulse" aria-label={tc('labels.unsavedChanges')} />
               )}
               {t.missing && (
-                <AlertCircle className="w-4 h-4 text-warning" aria-label="file missing" />
+                <AlertCircle className="w-4 h-4 text-warning" aria-label={tc('labels.fileMissing')} />
               )}
             </TabsTrigger>
           ))}
@@ -1863,8 +1886,8 @@ export default function ServerConfig() {
         <TabsContent value="ini" className="mt-4">
           <TacticalPanel tone={hasIniChanges ? 'warning' : 'primary'}>
             <SectionHeader
-              label="Server settings"
-              sublabel="INI · behavior, network, players"
+              label={tc('labels.ini')}
+              sublabel={tc('labels.serverBehavior')}
               icon={FileText}
               tone={hasIniChanges ? 'warning' : 'primary'}
               action={
@@ -1883,7 +1906,7 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'structured'}
                     >
-                      <FormInput className="h-3 w-3" /> Form
+                      <FormInput className="h-3 w-3" /> {i18next.t('serverConfig:ui.form')}
                     </Button>
                     <Button
                       variant={editorMode === 'raw' ? 'secondary' : 'ghost'}
@@ -1895,17 +1918,17 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'raw'}
                     >
-                      <Code className="h-3 w-3" /> Raw
+                      <Code className="h-3 w-3" /> {i18next.t('serverConfig:ui.raw')}
                     </Button>
                   </div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('ini')} aria-label="Download INI backup">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('ini')} aria-label={tc('labels.downloadIniBackup')}>
                           <Download className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download INI backup</TooltipContent>
+                      <TooltipContent>{i18next.t('serverConfig:labels.downloadIniBackup')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <a
@@ -1914,7 +1937,7 @@ export default function ServerConfig() {
                     rel="noopener noreferrer"
                     className="flex h-7 items-center gap-1 rounded border border-border/60 bg-muted/30 px-2 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
                   >
-                    <ExternalLink className="h-3 w-3" /> Wiki
+                    <ExternalLink className="h-3 w-3" /> {i18next.t('serverConfig:ui.wiki')}
                   </a>
                   <Button onClick={handleSaveIni} disabled={saving || !hasIniChanges} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
                     {saving ? (
@@ -1922,7 +1945,7 @@ export default function ServerConfig() {
                     ) : (
                       <Save className="h-3 w-3" />
                     )}
-                    Save &amp; reload
+                    {i18next.t('serverConfig:ui.saveAndReload')}
                   </Button>
                 </div>
               }
@@ -1931,11 +1954,11 @@ export default function ServerConfig() {
               {iniSettings['DoLuaChecksum']?.toLowerCase() === 'true' && (
                 <Alert variant="destructive" className="mb-4">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Lua Checksum is enabled</AlertTitle>
+                  <AlertTitle>{i18next.t('serverConfig:warnings.luaChecksumEnabled')}</AlertTitle>
                   <AlertDescription>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <span className="min-w-0 flex-1">
-                        PanelBridge modifies server-side Lua files. With Lua Checksum enabled, clients will fail verification and cannot connect. Disable <strong>DoLuaChecksum</strong> in the Mods category to allow players to join.
+                        <Trans i18nKey="serverConfig:warnings.luaChecksumDesc" components={{ strong: <strong /> }} />
                       </span>
                       <Button
                         size="sm"
@@ -1943,7 +1966,7 @@ export default function ServerConfig() {
                         className="h-7 shrink-0 gap-1.5 text-xs font-medium"
                         onClick={() => updateIniValue('DoLuaChecksum', 'false')}
                       >
-                        disable now
+                        {i18next.t('serverConfig:ui.disableNow')}
                       </Button>
                     </div>
                   </AlertDescription>
@@ -1967,7 +1990,7 @@ export default function ServerConfig() {
                           )}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>{copied ? 'Copied!' : 'Copy to clipboard'}</TooltipContent>
+                      <TooltipContent>{copied ? i18next.t('serverConfig:ui.copied') : i18next.t('serverConfig:ui.copyToClipboard')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <Textarea
@@ -1984,11 +2007,12 @@ export default function ServerConfig() {
                     <div className="relative min-w-0 flex-1 sm:max-w-md">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Search server settings…"
+                        data-testid="config-search"
+                        placeholder={tc('placeholders.searchServer')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="h-8 bg-background/50 pl-9 pr-20"
-                        aria-label="Search server settings"
+                        aria-label={tc('labels.searchServerSettings')}
                         maxLength={128}
                       />
                       {searchQuery && (
@@ -2001,7 +2025,7 @@ export default function ServerConfig() {
                             size="sm"
                             className="pointer-events-auto h-6 w-6 p-0"
                             onClick={() => setSearchQuery('')}
-                            aria-label="Clear search"
+                            aria-label={tc('labels.clearSearch')}
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>
@@ -2009,7 +2033,7 @@ export default function ServerConfig() {
                       )}
                     </div>
                     <div className="ml-auto flex items-center gap-2">
-                      <div className="inline-flex items-center rounded-md border border-border/60 bg-background/50 p-0.5" role="group" aria-label="Filter settings">
+                      <div className="inline-flex items-center rounded-md border border-border/60 bg-background/50 p-0.5" role="group" aria-label={tc('labels.filterSettings')}>
                         {(['all','modified','nondefault'] as const).map(mode => (
                           <button
                             key={mode}
@@ -2021,7 +2045,7 @@ export default function ServerConfig() {
                                 : 'text-muted-foreground hover:text-foreground'
                             }`}
                           >
-                            {mode === 'nondefault' ? 'unsaved' : mode}
+                            {mode === 'all' ? i18next.t('serverConfig:ui.all') : mode === 'modified' ? i18next.t('serverConfig:ui.modified') : i18next.t('serverConfig:ui.nondefault')}
                           </button>
                         ))}
                       </div>
@@ -2037,10 +2061,10 @@ export default function ServerConfig() {
                           <div key={category.id} className="mb-5">
                             <div className="sticky top-0 z-10 -mx-1 mb-2 flex items-baseline gap-2 bg-card/95 px-1 py-1.5 backdrop-blur">
                               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                {category.label}
+                                {getCategoryLabel(category.id, category.label)}
                               </span>
                               <span className="text-[10px] text-muted-foreground/70">
-                                {settings.length} match{settings.length === 1 ? '' : 'es'}
+                                {i18next.t('serverConfig:ui.matchCount', { count: settings.length, plural: settings.length === 1 ? '' : 'es' })}
                               </span>
                             </div>
                             <div className="space-y-1">
@@ -2061,7 +2085,7 @@ export default function ServerConfig() {
                       })}
                       {searchResultsCount === 0 && (
                         <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                          No settings match &ldquo;{searchQuery}&rdquo;.
+                          {i18next.t('serverConfig:ui.noMatch', { query: searchQuery })}
                         </div>
                       )}
                     </ScrollArea>
@@ -2069,23 +2093,23 @@ export default function ServerConfig() {
                     // Rail mode: vertical category nav (grouped) + single active category content
                     <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)]">
                       <nav
-                        aria-label="Server settings categories"
+                        aria-label={tc('labels.serverSettingsCategories')}
                         className="-mx-2 flex gap-0.5 overflow-x-auto px-2 pb-2 md:mx-0 md:flex-col md:overflow-x-visible md:overflow-y-auto md:border-r md:border-border/50 md:pb-0 md:pr-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px]"
                       >
                         <div className="hidden md:flex items-center justify-between px-3 pb-1">
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                            Categories
+                            {i18next.t('serverConfig:ui.categories')}
                           </span>
                           <button
                             type="button"
                             onClick={() => setAllGroupsCollapsed('ini', !iniAllCollapsed)}
                             className="inline-flex items-center gap-1 rounded text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 hover:text-foreground transition-colors"
-                            aria-label={iniAllCollapsed ? 'Expand all category groups' : 'Collapse all category groups'}
+                            aria-label={iniAllCollapsed ? i18next.t('serverConfig:ui.expandAllGroups') : i18next.t('serverConfig:ui.collapseAllGroups')}
                           >
                             {iniAllCollapsed
                               ? <ChevronsUpDown className="h-3 w-3" />
                               : <ChevronsDownUp className="h-3 w-3" />}
-                            <span>{iniAllCollapsed ? 'Expand all' : 'Collapse all'}</span>
+                            <span>{iniAllCollapsed ? i18next.t('serverConfig:ui.expandAll') : i18next.t('serverConfig:ui.collapseAll')}</span>
                           </button>
                         </div>
                         {INI_CATEGORY_GROUPS.map((group, gIdx) => {
@@ -2108,7 +2132,7 @@ export default function ServerConfig() {
                                   ? <ChevronRight className="h-3 w-3 shrink-0" />
                                   : <ChevronDown className="h-3 w-3 shrink-0" />
                                 }
-                                <span>{group.label}</span>
+                                <span>{getGroupLabel(group.id, group.label)}</span>
                                 {groupModCount > 0 && (
                                   <span className="rounded-full bg-warning/20 px-1.5 py-0.5 text-[8px] font-semibold text-warning">{groupModCount}</span>
                                 )}
@@ -2132,11 +2156,11 @@ export default function ServerConfig() {
                                     }`}
                                   >
                                     <CategoryIcon name={category.icon} isActive={isActive} className="h-4 w-4 shrink-0" />
-                                    <span className="min-w-0 flex-1 truncate font-medium">{category.label}</span>
+                                    <span className="min-w-0 flex-1 truncate font-medium">{getCategoryLabel(category.id, category.label)}</span>
                                     {modCount > 0 && (
                                       <span
                                         className="shrink-0 rounded-full bg-warning/20 px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider text-warning"
-                                        title={`${modCount} unsaved change${modCount === 1 ? '' : 's'}`}
+                                        title={i18next.t('serverConfig:ui.unsavedChangeCount', { count: modCount, plural: modCount === 1 ? '' : 's' })}
                                       >
                                         {modCount}
                                       </span>
@@ -2165,9 +2189,9 @@ export default function ServerConfig() {
                                   ? 'border-l-amber-500 bg-amber-500/10 text-amber-500'
                                   : 'border-l-transparent text-muted-foreground hover:border-l-amber-500/30 hover:bg-amber-500/5 hover:text-amber-500/80'
                               }`}
-                              title="Keys present in your INI file but not in the schema (newer vanilla keys, mod-injected keys, or custom)"
+                              title={tc('raw.unknownKeys')}
                             >
-                              <span className="min-w-0 flex-1 truncate font-medium">Uncategorized / Unknown</span>
+                              <span className="min-w-0 flex-1 truncate font-medium">{i18next.t('serverConfig:labels.uncategorized')}</span>
                               <span className={`shrink-0 min-w-[1.5rem] rounded text-center px-1 py-0.5 text-[10px] font-mono tabular-nums ${
                                 isActive ? 'text-amber-500/80' : 'bg-muted text-muted-foreground'
                               }`}>
@@ -2183,7 +2207,7 @@ export default function ServerConfig() {
                             if (uncategorizedIniKeys.length === 0) {
                               return (
                                 <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                                  No uncategorized keys.
+                                  {i18next.t('serverConfig:ui.noUncategorizedKeys')}
                                 </div>
                               )
                             }
@@ -2191,14 +2215,14 @@ export default function ServerConfig() {
                               <div>
                                 <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-baseline justify-between border-b border-amber-500/30 bg-card/95 px-1 pb-2 pt-1 backdrop-blur">
                                   <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-500">
-                                    Uncategorized / Unknown Keys
+                                    {i18next.t('serverConfig:ui.uncategorizedKeysTitle')}
                                   </h3>
                                   <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                                    {uncategorizedIniKeys.length} key{uncategorizedIniKeys.length === 1 ? '' : 's'}
+                                    {i18next.t('serverConfig:ui.keyCount', { count: uncategorizedIniKeys.length, plural: uncategorizedIniKeys.length === 1 ? '' : 's' })}
                                   </span>
                                 </div>
                                 <p className="mb-3 text-xs text-muted-foreground">
-                                  Keys present in your INI but not recognized by the schema. Likely newer vanilla settings or mod-injected. Values are preserved on save — edit with care.
+                                  {i18next.t('serverConfig:ui.uncategorizedKeysDesc')}
                                 </p>
                                 <div className="space-y-1">
                                   {uncategorizedIniKeys.map(({ key, value }) => {
@@ -2213,7 +2237,7 @@ export default function ServerConfig() {
                                               <button
                                                 onClick={() => setIniSettings(prev => ({ ...prev, [key]: orig ?? '' }))}
                                                 className="text-xs text-amber-500 hover:text-amber-400"
-                                                title="Undo change"
+                                                title={tc('actions.undoChange')}
                                               >↩</button>
                                             )}
                                           </div>
@@ -2236,9 +2260,9 @@ export default function ServerConfig() {
                           if (settings.length === 0) {
                             return (
                               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                                {filterMode === 'modified' ? 'No settings in this category differ from Project Zomboid defaults.' :
-                                 filterMode === 'nondefault' ? 'No unsaved settings in this category.' :
-                                 'No settings in this category.'}
+                                {filterMode === 'modified' ? i18next.t('serverConfig:ui.noModifiedInCategory') :
+                                 filterMode === 'nondefault' ? i18next.t('serverConfig:ui.noUnsavedInCategory') :
+                                 i18next.t('serverConfig:ui.noSettingsInCategory')}
                               </div>
                             )
                           }
@@ -2249,7 +2273,7 @@ export default function ServerConfig() {
                                   {active?.label}
                                 </h3>
                                 <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                                  {settings.length} setting{settings.length === 1 ? '' : 's'}
+                                  {i18next.t('serverConfig:ui.settingCount', { count: settings.length, plural: settings.length === 1 ? '' : 's' })}
                                 </span>
                               </div>
                               <div className="space-y-1">
@@ -2281,8 +2305,8 @@ export default function ServerConfig() {
         <TabsContent value="sandbox" className="mt-4">
           <TacticalPanel tone={hasSandboxChanges ? 'warning' : 'primary'}>
             <SectionHeader
-              label="Sandbox"
-              sublabel="world, zombies, survival"
+              label={tc('labels.sandboxLabel')}
+              sublabel={tc('labels.worldZombies')}
               icon={Code}
               tone={hasSandboxChanges ? 'warning' : 'primary'}
               action={
@@ -2301,7 +2325,7 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'structured'}
                     >
-                      <FormInput className="h-3 w-3" /> Form
+                      <FormInput className="h-3 w-3" /> {i18next.t('serverConfig:ui.form')}
                     </Button>
                     <Button
                       variant={editorMode === 'raw' ? 'secondary' : 'ghost'}
@@ -2313,17 +2337,17 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'raw'}
                     >
-                      <Code className="h-3 w-3" /> Raw
+                      <Code className="h-3 w-3" /> {i18next.t('serverConfig:ui.raw')}
                     </Button>
                   </div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('sandbox')} aria-label="Download Sandbox backup">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('sandbox')} aria-label={tc('labels.downloadSandboxBackup')}>
                           <Download className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download Sandbox backup</TooltipContent>
+                      <TooltipContent>{i18next.t('serverConfig:labels.downloadSandboxBackup')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <a
@@ -2332,7 +2356,7 @@ export default function ServerConfig() {
                     rel="noopener noreferrer"
                     className="flex h-7 items-center gap-1 rounded border border-border/60 bg-muted/30 px-2 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
                   >
-                    <ExternalLink className="h-3 w-3" /> Wiki
+                    <ExternalLink className="h-3 w-3" /> {i18next.t('serverConfig:ui.wiki')}
                   </a>
                   <Button onClick={handleSaveSandbox} disabled={saving || !hasSandboxChanges} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
                     {saving ? (
@@ -2340,7 +2364,7 @@ export default function ServerConfig() {
                     ) : (
                       <Save className="h-3 w-3" />
                     )}
-                    Save &amp; reload
+                    {i18next.t('serverConfig:ui.saveAndReload')}
                   </Button>
                 </div>
               }
@@ -2348,9 +2372,9 @@ export default function ServerConfig() {
             <div className="p-4">
               <Alert className="mb-3 border-primary/30 bg-primary/5">
                 <AlertCircle className="h-4 w-4 text-primary" />
-                <AlertTitle>Build 42 Optimized</AlertTitle>
+                <AlertTitle>{i18next.t('serverConfig:sandbox.build42Optimized')}</AlertTitle>
                 <AlertDescription>
-                  Sandbox values and option wording in this editor are aligned to Project Zomboid Build 42 defaults.
+                  {i18next.t('serverConfig:ui.sandboxBuild42Desc')}
                 </AlertDescription>
               </Alert>
               {editorMode === 'raw' ? (
@@ -2371,7 +2395,7 @@ export default function ServerConfig() {
                           )}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>{copied ? 'Copied!' : 'Copy to clipboard'}</TooltipContent>
+                      <TooltipContent>{copied ? i18next.t('serverConfig:ui.copied') : i18next.t('serverConfig:ui.copyToClipboard')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <Textarea
@@ -2388,11 +2412,12 @@ export default function ServerConfig() {
                     <div className="relative min-w-0 flex-1 sm:max-w-md">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Search sandbox settings…"
+                        data-testid="config-search"
+                        placeholder={tc('placeholders.searchSandbox')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="h-8 bg-background/50 pl-9 pr-20"
-                        aria-label="Search sandbox settings"
+                        aria-label={tc('labels.searchSandboxSettings')}
                         maxLength={128}
                       />
                       {searchQuery && (
@@ -2405,7 +2430,7 @@ export default function ServerConfig() {
                             size="sm"
                             className="pointer-events-auto h-6 w-6 p-0"
                             onClick={() => setSearchQuery('')}
-                            aria-label="Clear search"
+                            aria-label={tc('labels.clearSearch')}
                           >
                             <X className="h-3.5 w-3.5" />
                           </Button>
@@ -2413,7 +2438,7 @@ export default function ServerConfig() {
                       )}
                     </div>
                     <div className="ml-auto flex items-center gap-2">
-                      <div className="inline-flex items-center rounded-md border border-border/60 bg-background/50 p-0.5" role="group" aria-label="Filter settings">
+                      <div className="inline-flex items-center rounded-md border border-border/60 bg-background/50 p-0.5" role="group" aria-label={tc('labels.filterSettings')}>
                         {(['all','modified','nondefault'] as const).map(mode => (
                           <button
                             key={mode}
@@ -2425,7 +2450,7 @@ export default function ServerConfig() {
                                 : 'text-muted-foreground hover:text-foreground'
                             }`}
                           >
-                            {mode === 'nondefault' ? 'unsaved' : mode}
+                            {mode === 'all' ? i18next.t('serverConfig:ui.all') : mode === 'modified' ? i18next.t('serverConfig:ui.modified') : i18next.t('serverConfig:ui.nondefault')}
                           </button>
                         ))}
                       </div>
@@ -2441,10 +2466,10 @@ export default function ServerConfig() {
                           <div key={category.id} className="mb-5">
                             <div className="sticky top-0 z-10 -mx-1 mb-2 flex items-baseline gap-2 bg-card/95 px-1 py-1.5 backdrop-blur">
                               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                {category.label}
+                                {getCategoryLabel(category.id, category.label)}
                               </span>
                               <span className="text-[10px] text-muted-foreground/70">
-                                {settings.length} match{settings.length === 1 ? '' : 'es'}
+                                {i18next.t('serverConfig:ui.matchCount', { count: settings.length, plural: settings.length === 1 ? '' : 'es' })}
                               </span>
                             </div>
                             <div className="space-y-1">
@@ -2464,7 +2489,7 @@ export default function ServerConfig() {
                       })}
                       {searchResultsCount === 0 && (
                         <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                          No settings match &ldquo;{searchQuery}&rdquo;.
+                          {i18next.t('serverConfig:ui.noMatch', { query: searchQuery })}
                         </div>
                       )}
                     </ScrollArea>
@@ -2472,23 +2497,23 @@ export default function ServerConfig() {
                     // Rail mode: vertical category nav (grouped) + single active category content
                     <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)]">
                       <nav
-                        aria-label="Sandbox categories"
+                        aria-label={tc('labels.sandboxCategories')}
                         className="-mx-2 flex gap-0.5 overflow-x-auto px-2 pb-2 md:mx-0 md:flex-col md:overflow-x-visible md:overflow-y-auto md:border-r md:border-border/50 md:pb-0 md:pr-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px]"
                       >
                         <div className="hidden md:flex items-center justify-between px-3 pb-1">
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                            Categories
+                            {i18next.t('serverConfig:ui.categories')}
                           </span>
                           <button
                             type="button"
                             onClick={() => setAllGroupsCollapsed('sandbox', !sandboxAllCollapsed)}
                             className="inline-flex items-center gap-1 rounded text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60 hover:text-foreground transition-colors"
-                            aria-label={sandboxAllCollapsed ? 'Expand all category groups' : 'Collapse all category groups'}
+                            aria-label={sandboxAllCollapsed ? i18next.t('serverConfig:ui.expandAllGroups') : i18next.t('serverConfig:ui.collapseAllGroups')}
                           >
                             {sandboxAllCollapsed
                               ? <ChevronsUpDown className="h-3 w-3" />
                               : <ChevronsDownUp className="h-3 w-3" />}
-                            <span>{sandboxAllCollapsed ? 'Expand all' : 'Collapse all'}</span>
+                            <span>{sandboxAllCollapsed ? i18next.t('serverConfig:ui.expandAll') : i18next.t('serverConfig:ui.collapseAll')}</span>
                           </button>
                         </div>
                         {SANDBOX_CATEGORY_GROUPS.map((group, gIdx) => {
@@ -2510,7 +2535,7 @@ export default function ServerConfig() {
                                   ? <ChevronRight className="h-3 w-3 shrink-0" />
                                   : <ChevronDown className="h-3 w-3 shrink-0" />
                                 }
-                                <span>{group.label}</span>
+                                <span>{getGroupLabel(group.id, group.label)}</span>
                                 {groupModCount > 0 && (
                                   <span className="rounded-full bg-warning/20 px-1.5 py-0.5 text-[8px] font-semibold text-warning">{groupModCount}</span>
                                 )}
@@ -2534,11 +2559,11 @@ export default function ServerConfig() {
                                     }`}
                                   >
                                     <CategoryIcon name={category.icon} isActive={isActive} className="h-4 w-4 shrink-0" />
-                                    <span className="min-w-0 flex-1 truncate font-medium">{category.label}</span>
+                                    <span className="min-w-0 flex-1 truncate font-medium">{getCategoryLabel(category.id, category.label)}</span>
                                     {modCount > 0 && (
                                       <span
                                         className="shrink-0 rounded-full bg-warning/20 px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider text-warning"
-                                        title={`${modCount} unsaved change${modCount === 1 ? '' : 's'}`}
+                                        title={i18next.t('serverConfig:ui.unsavedChangeCount', { count: modCount, plural: modCount === 1 ? '' : 's' })}
                                       >
                                         {modCount}
                                       </span>
@@ -2567,9 +2592,9 @@ export default function ServerConfig() {
                                   ? 'border-l-amber-500 bg-amber-500/10 text-amber-500'
                                   : 'border-l-transparent text-muted-foreground hover:border-l-amber-500/30 hover:bg-amber-500/5 hover:text-amber-500/80'
                               }`}
-                              title="Sandbox settings not yet grouped by the editor"
+                              title={tc('sandbox.notGrouped')}
                             >
-                              <span className="min-w-0 flex-1 truncate font-medium">Additional Settings</span>
+                              <span className="min-w-0 flex-1 truncate font-medium">{i18next.t('serverConfig:labels.additionalSettings')}</span>
                               <span className={`shrink-0 min-w-[1.5rem] rounded text-center px-1 py-0.5 text-[10px] font-mono tabular-nums ${
                                 isActive ? 'text-amber-500/80' : 'bg-muted text-muted-foreground'
                               }`}>
@@ -2585,7 +2610,7 @@ export default function ServerConfig() {
                             if (uncategorizedSandboxKeys.length === 0) {
                               return (
                                 <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                                  No uncategorized settings.
+                                  {i18next.t('serverConfig:ui.noUncategorizedKeys')}
                                 </div>
                               )
                             }
@@ -2593,21 +2618,21 @@ export default function ServerConfig() {
                               <div>
                                 <div className="sticky top-0 z-10 -mx-1 mb-3 flex items-baseline justify-between border-b border-amber-500/30 bg-card/95 px-1 pb-2 pt-1 backdrop-blur">
                                   <h3 className="text-sm font-semibold uppercase tracking-wider text-amber-500">
-                                    Additional Sandbox Settings
+                                    {i18next.t('serverConfig:labels.additionalSettings')}
                                   </h3>
                                   <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                                    {uncategorizedSandboxKeys.length} key{uncategorizedSandboxKeys.length === 1 ? '' : 's'}
+                                    {i18next.t('serverConfig:ui.keyCount', { count: uncategorizedSandboxKeys.length, plural: uncategorizedSandboxKeys.length === 1 ? '' : 's' })}
                                   </span>
                                 </div>
                                 <p className="mb-3 text-xs text-muted-foreground">
-                                  Settings the editor has no schema for, grouped by the section that owns them. Mostly mod-added keys. Edit with care.
+                                  {i18next.t('serverConfig:ui.uncategorizedKeysDesc')}
                                 </p>
                                 <div className="space-y-5">
                                   {Object.entries(uncategorizedGroups).map(([groupName, groupEntries]) => (
                                     <div key={groupName}>
                                       <div className="mb-1.5 flex items-baseline justify-between border-b border-border/40 pb-1">
                                         <h4 className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                          {groupName === 'settings' ? 'Main section' : groupName}
+                                          {groupName === 'settings' ? i18next.t('serverConfig:ui.categories') : groupName}
                                         </h4>
                                         <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{groupEntries.length}</span>
                                       </div>
@@ -2634,7 +2659,7 @@ export default function ServerConfig() {
                                                   }
                                                 }}
                                                 className="text-xs text-amber-500 hover:text-amber-400"
-                                                title="Undo change"
+                                                title={tc('actions.undoChange')}
                                               >↩</button>
                                             )}
                                           </div>
@@ -2672,9 +2697,9 @@ export default function ServerConfig() {
                           if (settings.length === 0) {
                             return (
                               <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                                {filterMode === 'modified' ? 'No settings in this category differ from Project Zomboid defaults.' :
-                                 filterMode === 'nondefault' ? 'No unsaved settings in this category.' :
-                                 'No settings in this category.'}
+                                {filterMode === 'modified' ? i18next.t('serverConfig:ui.noModifiedInCategory') :
+                                 filterMode === 'nondefault' ? i18next.t('serverConfig:ui.noUnsavedInCategory') :
+                                 i18next.t('serverConfig:ui.noSettingsInCategory')}
                               </div>
                             )
                           }
@@ -2685,7 +2710,7 @@ export default function ServerConfig() {
                                   {active?.label}
                                 </h3>
                                 <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                                  {settings.length} setting{settings.length === 1 ? '' : 's'}
+                                  {i18next.t('serverConfig:ui.settingCount', { count: settings.length, plural: settings.length === 1 ? '' : 's' })}
                                 </span>
                               </div>
                               <div className="space-y-1">
@@ -2716,8 +2741,8 @@ export default function ServerConfig() {
         <TabsContent value="spawnpoints" className="mt-4">
           <TacticalPanel tone="muted">
             <SectionHeader
-              label="Spawn points"
-              sublabel="mod-managed · player start locations"
+              label={tc('labels.spawnPoints')}
+              sublabel={tc('labels.modManaged')}
               icon={MapPin}
               tone="muted"
               action={
@@ -2730,7 +2755,7 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'structured'}
                     >
-                      <FormInput className="h-3 w-3" /> info
+                      <FormInput className="h-3 w-3" /> {i18next.t('serverConfig:ui.info')}
                     </Button>
                     <Button
                       variant={editorMode === 'raw' ? 'secondary' : 'ghost'}
@@ -2742,17 +2767,17 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'raw'}
                     >
-                      <Code className="h-3 w-3" /> Raw
+                      <Code className="h-3 w-3" /> {i18next.t('serverConfig:ui.raw')}
                     </Button>
                   </div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('spawnpoints')} aria-label="Download Spawn Points backup">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('spawnpoints')} aria-label={tc('labels.downloadSpawnPoints')}>
                           <Download className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download Spawnpoints backup</TooltipContent>
+                      <TooltipContent>{i18next.t('serverConfig:labels.downloadSpawnPoints')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <a
@@ -2761,7 +2786,7 @@ export default function ServerConfig() {
                     rel="noopener noreferrer"
                     className="flex h-7 items-center gap-1 rounded border border-border/60 bg-muted/30 px-2 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary"
                   >
-                    <ExternalLink className="h-3 w-3" /> map
+                    <ExternalLink className="h-3 w-3" /> {i18next.t('serverConfig:ui.map')}
                   </a>
                   {editorMode === 'raw' && (
                     <Button onClick={handleSaveSpawnPoints} disabled={saving} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
@@ -2770,7 +2795,7 @@ export default function ServerConfig() {
                       ) : (
                         <Save className="h-3 w-3" />
                       )}
-                      save
+                      {i18next.t('serverConfig:ui.save')}
                     </Button>
                   )}
                 </div>
@@ -2795,7 +2820,7 @@ export default function ServerConfig() {
                           )}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>{copied ? 'Copied!' : 'Copy to clipboard'}</TooltipContent>
+                      <TooltipContent>{copied ? i18next.t('serverConfig:ui.copied') : i18next.t('serverConfig:ui.copyToClipboard')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <Textarea
@@ -2810,10 +2835,10 @@ export default function ServerConfig() {
                   <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary">
                     <MapPin className="w-8 h-8" />
                   </div>
-                  <h3 className="text-lg font-medium mb-2">Spawn points are mod-managed</h3>
+                  <h3 className="text-lg font-medium mb-2">{i18next.t('serverConfig:spawn.modManagedTitle')}</h3>
                   <p className="text-muted-foreground max-w-md mx-auto text-sm">
-                    Spawn locations are typically handled by mods like &ldquo;Spawn Select.&rdquo;
-                    Switch to <strong>raw</strong> to inspect or edit the file directly.
+                    {i18next.t('serverConfig:ui.spawnLocationsDesc')}
+                    <Trans i18nKey="serverConfig:spawn.switchToRaw" components={{ strong: <strong /> }} />
                   </p>
                   <div className="mt-6">
                     <Button
@@ -2824,7 +2849,7 @@ export default function ServerConfig() {
                       }}
                       className="gap-1.5 text-xs font-medium"
                     >
-                      <Code className="h-3.5 w-3.5" /> open raw file
+                      <Code className="h-3.5 w-3.5" /> {i18next.t('serverConfig:ui.openRawFile')}
                     </Button>
                   </div>
                 </div>
@@ -2837,8 +2862,8 @@ export default function ServerConfig() {
         <TabsContent value="spawnregions" className="mt-4">
           <TacticalPanel tone="primary">
             <SectionHeader
-              label="Spawn regions"
-              sublabel={`${spawnRegions.length} region${spawnRegions.length === 1 ? '' : 's'} · cities & towns`}
+              label={tc('labels.spawnRegions')}
+              sublabel={i18next.t('serverConfig:ui.regionCount', { count: spawnRegions.length, plural: spawnRegions.length === 1 ? '' : 's' })}
               icon={Map}
               action={
                 <div className="flex items-center gap-1.5">
@@ -2850,7 +2875,7 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'structured'}
                     >
-                      <FormInput className="h-3 w-3" /> Form
+                      <FormInput className="h-3 w-3" /> {i18next.t('serverConfig:ui.form')}
                     </Button>
                     <Button
                       variant={editorMode === 'raw' ? 'secondary' : 'ghost'}
@@ -2862,17 +2887,17 @@ export default function ServerConfig() {
                       className="h-7 gap-1.5 px-2 text-xs font-medium"
                       aria-pressed={editorMode === 'raw'}
                     >
-                      <Code className="h-3 w-3" /> Raw
+                      <Code className="h-3 w-3" /> {i18next.t('serverConfig:ui.raw')}
                     </Button>
                   </div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('spawnregions')} aria-label="Download Spawn Regions backup">
+                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => handleCreateBackup('spawnregions')} aria-label={tc('labels.downloadSpawnRegions')}>
                           <Download className="h-3.5 w-3.5" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Download Spawnregions backup</TooltipContent>
+                      <TooltipContent>{i18next.t('serverConfig:labels.downloadSpawnRegions')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <Button onClick={handleSaveSpawnRegions} disabled={saving} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
@@ -2881,7 +2906,7 @@ export default function ServerConfig() {
                     ) : (
                       <Save className="h-3 w-3" />
                     )}
-                    save
+                    {i18next.t('serverConfig:ui.save')}
                   </Button>
                 </div>
               }
@@ -2897,14 +2922,14 @@ export default function ServerConfig() {
               ) : (
                 <div className="space-y-3">
                   {spawnRegions.length === 0 ? (
-                    <EmptyState type="noData" title="No spawn regions found" description="Try switching to Raw mode to view the file contents" compact />
+                    <EmptyState type="noData" title={tc('spawn.noRegions')} description={tc('raw.trySwitching')} compact />
                   ) : (
                     <div className="overflow-hidden rounded-lg border">
                       {/* Column headers (sm+ only) */}
                       <div className="hidden sm:grid grid-cols-[2rem_minmax(180px,260px)_minmax(0,1fr)_2.25rem] items-center gap-3 border-b bg-muted/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                         <span className="text-center">#</span>
-                        <span>Display Name</span>
-                        <span>Map File Path</span>
+                        <span>{i18next.t('serverConfig:labels.displayName')}</span>
+                        <span>{i18next.t('serverConfig:labels.mapFilePath')}</span>
                         <span aria-hidden="true" />
                       </div>
                       <ul className="divide-y divide-border/60">
@@ -2917,7 +2942,7 @@ export default function ServerConfig() {
                               {index + 1}
                             </span>
                             <div className="min-w-0">
-                              <Label className="sm:sr-only text-[10px] uppercase tracking-wide text-muted-foreground">Display Name</Label>
+                              <Label className="sm:sr-only text-[10px] uppercase tracking-wide text-muted-foreground">{i18next.t('serverConfig:labels.displayName')}</Label>
                               <Input
                                 value={region.name}
                                 onChange={(e) => {
@@ -2925,17 +2950,17 @@ export default function ServerConfig() {
                                   newRegions[index] = { ...region, name: e.target.value }
                                   setSpawnRegions(newRegions)
                                 }}
-                                placeholder="e.g., Muldraugh, KY"
+                                placeholder={tc('placeholders.locationExample')}
                                 maxLength={64}
                                 className="mt-0.5 h-9 sm:mt-0"
-                                aria-label={`Region ${index + 1} display name`}
+                                aria-label={i18next.t('serverConfig:ui.regionDisplayName', { index: index + 1 })}
                               />
                             </div>
                             <div className="min-w-0">
                               <Label className="sm:sr-only text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-2">
-                                {region.isServerFile ? 'Server File' : 'Map File Path'}
+                                {region.isServerFile ? i18next.t('serverConfig:ui.serverFile') : i18next.t('serverConfig:ui.mapFilePath')}
                                 {region.isServerFile && (
-                                  <Badge variant="secondary" className="text-[10px] py-0">serverfile</Badge>
+                                  <Badge variant="secondary" className="text-[10px] py-0">{i18next.t('serverConfig:ui.serverfileBadge')}</Badge>
                                 )}
                               </Label>
                               <div className="relative mt-0.5 sm:mt-0">
@@ -2946,14 +2971,14 @@ export default function ServerConfig() {
                                     newRegions[index] = { ...region, file: e.target.value }
                                     setSpawnRegions(newRegions)
                                   }}
-                                  placeholder={region.isServerFile ? "ServerName_spawnpoints.lua" : "media/maps/Muldraugh, KY/spawnpoints.lua"}
+                                  placeholder={region.isServerFile ? i18next.t('serverConfig:ui.serverNamePlaceholder') : i18next.t('serverConfig:ui.mapFilePlaceholder')}
                                   className={`h-9 font-mono text-xs ${region.isServerFile ? 'pr-20' : ''}`}
                                   maxLength={512}
-                                  aria-label={`Region ${index + 1} ${region.isServerFile ? 'server file' : 'map file path'}`}
+                                  aria-label={i18next.t('serverConfig:ui.regionFileLabel', { index: index + 1, type: region.isServerFile ? i18next.t('serverConfig:ui.serverFile') : i18next.t('serverConfig:ui.mapFilePath') })}
                                 />
                                 {region.isServerFile && (
                                   <Badge variant="secondary" className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] py-0">
-                                    serverfile
+                                    {i18next.t('serverConfig:ui.serverfileBadge')}
                                   </Badge>
                                 )}
                               </div>
@@ -2963,7 +2988,7 @@ export default function ServerConfig() {
                               size="icon"
                               className="h-9 w-9 justify-self-end text-muted-foreground hover:text-destructive sm:justify-self-center"
                               onClick={() => setSpawnRegions(spawnRegions.filter((_, i) => i !== index))}
-                              aria-label={`Delete spawn region ${region.name || index + 1}`}
+                              aria-label={i18next.t('serverConfig:ui.deleteRegion', { name: region.name || index + 1 })}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -2980,7 +3005,7 @@ export default function ServerConfig() {
                       onClick={() => setSpawnRegions([...spawnRegions, { name: '', file: 'media/maps/' }])}
                       className="gap-1.5 text-xs font-medium"
                     >
-                      <Plus className="h-3.5 w-3.5" /> add region
+                      <Plus className="h-3.5 w-3.5" /> {i18next.t('serverConfig:ui.addRegion')}
                     </Button>
                   </div>
                 </div>
@@ -2993,15 +3018,15 @@ export default function ServerConfig() {
         <TabsContent value="modsettings" className="mt-4">
           <TacticalPanel tone={modifiedModSettingsCount > 0 ? 'warning' : 'info'}>
             <SectionHeader
-              label="Mod sandbox options"
-              sublabel={modSettings ? `${modSettingsGroups.length} mod${modSettingsGroups.length === 1 ? '' : 's'} · live from bridge` : 'panelbridge · live'}
+              label={tc('labels.modSandboxOptions')}
+              sublabel={modSettings ? i18next.t('serverConfig:ui.modCount', { count: modSettingsGroups.length, plural: modSettingsGroups.length === 1 ? '' : 's' }) : i18next.t('serverConfig:ui.panelbridgeLive')}
               icon={Puzzle}
               tone={modifiedModSettingsCount > 0 ? 'warning' : 'info'}
               action={
                 <div className="flex items-center gap-1.5">
                   {modifiedModSettingsCount > 0 && (
                     <Badge variant="warning" className="h-5 px-1.5 py-0 font-mono text-[10px]">
-                      {modifiedModSettingsCount} modified
+                      {i18next.t('serverConfig:ui.modifiedCount', { count: modifiedModSettingsCount })}
                     </Badge>
                   )}
                   <Button
@@ -3016,7 +3041,7 @@ export default function ServerConfig() {
                     ) : (
                       <RefreshCw className="h-3 w-3" />
                     )}
-                    {modSettings ? 'refresh' : 'load'}
+                    {modSettings ? i18next.t('serverConfig:ui.refresh') : i18next.t('serverConfig:ui.load')}
                   </Button>
                 </div>
               }
@@ -3027,8 +3052,9 @@ export default function ServerConfig() {
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
+                      data-testid="config-search"
                       ref={modSettingsSearchRef}
-                      placeholder="Search mod settings…  (press /)"
+                      placeholder={tc('placeholders.searchMod')}
                       value={modSettingsSearch}
                       onChange={(e) => setModSettingsSearch(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Escape') { setModSettingsSearch(''); e.currentTarget.blur() } }}
@@ -3039,7 +3065,7 @@ export default function ServerConfig() {
                       <button
                         onClick={() => setModSettingsSearch('')}
                         className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label="Clear search"
+                        aria-label={tc('labels.clearSearch')}
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -3052,10 +3078,10 @@ export default function ServerConfig() {
                     disabled={modifiedModSettingsCount === 0 && !modSettingsModifiedOnly}
                     className="shrink-0 h-9 gap-1.5 text-xs font-medium"
                     aria-pressed={modSettingsModifiedOnly}
-                    title={modifiedModSettingsCount === 0 ? 'No options differ from default' : 'Show only options changed from default'}
+                    title={modifiedModSettingsCount === 0 ? i18next.t('serverConfig:ui.noDiffFromDefault') : i18next.t('serverConfig:ui.showDiffFromDefault')}
                   >
                     <Filter className="w-3.5 h-3.5" />
-                    modified
+                    {i18next.t('serverConfig:ui.modified')}
                     {modifiedModSettingsCount > 0 && (
                       <Badge variant={modSettingsModifiedOnly ? 'secondary' : 'warning'} className="ml-0.5 h-4 px-1.5 py-0 text-xs">
                         {modifiedModSettingsCount}
@@ -3076,9 +3102,9 @@ export default function ServerConfig() {
                     className="shrink-0 gap-1.5 text-xs font-medium"
                   >
                     {filteredModGroups.length > 0 && filteredModGroups.every(g => expandedModGroups.has(g.name)) ? (
-                      <><ChevronDown className="w-3.5 h-3.5" /> Collapse all</>
+                      <><ChevronDown className="w-3.5 h-3.5" /> {i18next.t('serverConfig:ui.collapseAllMod')}</>
                     ) : (
-                      <><ChevronRight className="w-3.5 h-3.5" /> expand all</>
+                      <><ChevronRight className="w-3.5 h-3.5" /> {i18next.t('serverConfig:ui.expandAllMod')}</>
                     )}
                   </Button>
                 </div>
@@ -3086,19 +3112,19 @@ export default function ServerConfig() {
               {!modSettings && !modSettingsLoading && !modSettingsError && (
                 <EmptyState
                   type="noMods"
-                  title="Mod settings not loaded"
-                  description="Click load to fetch sandbox options from all installed mods via PanelBridge. The PZ server must be running with PanelBridge active."
+                  title={tc('mods.notLoaded')}
+                  description={tc('sandbox.loadDescription')}
                 />
               )}
 
               {modSettingsError && (
                 <Alert variant={modSettings ? 'default' : 'destructive'} className="mb-3">
                   <AlertCircle className="w-4 h-4" />
-                  <AlertTitle>{modSettings ? 'Refresh failed — showing previous data' : 'Failed to load mod settings'}</AlertTitle>
+                  <AlertTitle>{modSettings ? i18next.t('serverConfig:ui.refreshFailed') : i18next.t('serverConfig:ui.failedToLoadModSettings')}</AlertTitle>
                   <AlertDescription className="flex items-center justify-between gap-3">
                     <span className="break-words min-w-0">{modSettingsError}</span>
                     <Button variant="outline" size="sm" onClick={loadModSettings} disabled={modSettingsLoading} className="shrink-0 gap-1.5">
-                      <RefreshCw className="w-3.5 h-3.5" /> Retry
+                      <RefreshCw className="w-3.5 h-3.5" /> {i18next.t('serverConfig:ui.retry')}
                     </Button>
                   </AlertDescription>
                 </Alert>
@@ -3107,15 +3133,15 @@ export default function ServerConfig() {
               {modSettingsLoading && (
                 <div className="flex items-center justify-center py-12 gap-3 text-muted-foreground">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Loading sandbox options from server...</span>
+                  <span>{i18next.t('serverConfig:status.loadingSandbox')}</span>
                 </div>
               )}
 
               {modSettings && modSettingsGroups.length === 0 && !modSettingsLoading && (
                 <EmptyState
                   type="noMods"
-                  title="No sandbox options found"
-                  description="The server returned no sandbox options. This may happen if no mods register custom sandbox settings, or the API isn't available in this PZ build."
+                  title={tc('mods.noOptions')}
+                  description={tc('sandbox.noOptions')}
                 />
               )}
 
@@ -3123,23 +3149,23 @@ export default function ServerConfig() {
                 <ScrollArea className="h-[calc(100vh-440px)] min-h-[400px] pr-4">
                   <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                     <Badge variant="secondary">
-                      {modSettingsSearch || modSettingsModifiedOnly ? `${filteredModGroups.length} / ${modSettingsGroups.length}` : modSettingsGroups.length} groups
+                      {modSettingsSearch || modSettingsModifiedOnly ? `${filteredModGroups.length} / ${modSettingsGroups.length}` : modSettingsGroups.length} {i18next.t('serverConfig:ui.groups')}
                     </Badge>
                     <Badge variant="secondary">
                       {modSettingsSearch || modSettingsModifiedOnly
                         ? `${filteredModGroups.reduce((s, g) => s + g.filteredOpts.length, 0)} / ${modSettingsGroups.reduce((s, g) => s + g.count, 0)}`
                         : modSettingsGroups.reduce((s, g) => s + g.count, 0)
-                      } options
+                      } {i18next.t('serverConfig:ui.options')}
                     </Badge>
                     {modifiedModSettingsCount > 0 && (
-                      <Badge variant="warning" className="gap-1" title="Options that differ from their default value">
+                      <Badge variant="warning" className="gap-1" title={tc('diff.title')}>
                         <AlertTriangle className="w-3 h-3" />
-                        {modifiedModSettingsCount} modified
+                        {i18next.t('serverConfig:ui.modifiedCount', { count: modifiedModSettingsCount })}
                       </Badge>
                     )}
                     {modSettingsLastLoaded && (
                       <span className="text-xs text-muted-foreground/60 ml-auto">
-                        Loaded {modSettingsLastLoaded.toLocaleTimeString()}
+                        {i18next.t('serverConfig:ui.loadedTime', { time: modSettingsLastLoaded.toLocaleTimeString() })}
                       </span>
                     )}
                   </div>
@@ -3182,8 +3208,8 @@ export default function ServerConfig() {
                             </div>
                             <span className={`font-medium truncate min-w-0 ${isExpanded ? 'text-primary' : ''}`} title={formatModSettingLabel(group.name)}>{formatModSettingLabel(group.name)}</span>
                             {groupModifiedCount > 0 && (
-                              <Badge variant="warning" className="h-5 px-1.5 py-0 text-[10px] font-mono shrink-0" title={`${groupModifiedCount} option${groupModifiedCount === 1 ? '' : 's'} differ from default`}>
-                                {groupModifiedCount} mod
+                              <Badge variant="warning" className="h-5 px-1.5 py-0 text-[10px] font-mono shrink-0" title={i18next.t('serverConfig:ui.optionDiffTitle', { count: groupModifiedCount, plural: groupModifiedCount === 1 ? '' : 's' })}>
+                                {i18next.t('serverConfig:ui.groupModCount', { count: groupModifiedCount })}
                               </Badge>
                             )}
                             <Badge variant={isExpanded ? "default" : "secondary"} className="ml-auto">
@@ -3195,11 +3221,11 @@ export default function ServerConfig() {
                               {filteredOpts.map((opt, idx) => {
                                 // Mods often expose an internal sandbox key as their
                                 // "translated" name. Format it before displaying it.
-                                const rawDisplayName = opt.shortName || opt.name || `Option ${idx}`
+                                const rawDisplayName = opt.shortName || opt.name || i18next.t('serverConfig:ui.optionFallback', { index: idx })
                                 const displayName = formatModSettingLabel(
                                   opt.translatedName && opt.translatedName !== rawDisplayName ? opt.translatedName : rawDisplayName,
                                   group.name,
-                                ) || `Option ${idx + 1}`
+                                ) || i18next.t('serverConfig:ui.optionFallback', { index: idx + 1 })
                                 // Keep player-facing help, but hide untranslated tooltip keys.
                                 const rawTooltip = opt.tooltipText || opt.tooltip || ''
                                 const description = formatModSettingDescription(rawTooltip.replace(/\n?Default\s*=\s*.*/i, ''))
@@ -3244,10 +3270,10 @@ export default function ServerConfig() {
                                             checked={boolValue}
                                             onCheckedChange={(checked) => opt.name && !isSaving && handleOptionChange(opt.name, checked, group.name)}
                                             disabled={isSaving}
-                                            aria-label={`${displayName}: ${boolValue ? 'ON' : 'OFF'}`}
+                                            aria-label={i18next.t('serverConfig:ui.boolAriaLabel', { name: displayName, state: boolValue ? i18next.t('serverConfig:ui.onState') : i18next.t('serverConfig:ui.offState') })}
                                           />
                                           <span className={`text-xs font-mono ${boolValue ? 'text-primary' : 'text-muted-foreground'}`}>
-                                            {boolValue ? 'ON' : 'OFF'}
+                                            {boolValue ? i18next.t('serverConfig:ui.onState') : i18next.t('serverConfig:ui.offState')}
                                           </span>
                                         </div>
                                       ) : typeLabel === 'enum' && opt.enumValues && opt.enumValues.length > 0 ? (
@@ -3334,14 +3360,14 @@ export default function ServerConfig() {
                                               className="text-xs text-muted-foreground/50 hover:text-primary whitespace-nowrap flex items-center gap-1"
                                               onClick={() => opt.name && opt.default !== undefined && handleOptionChange(opt.name, opt.default, group.name)}
                                               disabled={isSaving}
-                                              title={`Reset to default: ${opt.default}`}
+                                              title={i18next.t('serverConfig:ui.resetToDefault', { value: opt.default })}
                                             >
                                               <Undo2 className="w-3 h-3" />
-                                              <span>def: {String(opt.default)}</span>
+                                              <span>{i18next.t('serverConfig:ui.defaultLabel', { value: String(opt.default) })}</span>
                                             </button>
                                           </TooltipTrigger>
                                           <TooltipContent side="left">
-                                            <p>Reset to default: {String(opt.default)}</p>
+                                            <p>{i18next.t('serverConfig:ui.resetToDefault', { value: String(opt.default) })}</p>
                                           </TooltipContent>
                                         </Tooltip>
                                       )}
@@ -3360,24 +3386,24 @@ export default function ServerConfig() {
                       {modSettingsModifiedOnly && !modSettingsSearch ? (
                         <>
                           <Filter className="w-5 h-5 opacity-50" />
-                          <p className="text-sm">No options have been modified from their defaults.</p>
+                          <p className="text-sm">{i18next.t('serverConfig:sandbox.noModifiedOptions')}</p>
                           <Button variant="ghost" size="sm" onClick={() => setModSettingsModifiedOnly(false)} className="text-xs">
-                            Show all options
+                            {i18next.t('serverConfig:ui.showAllOptions')}
                           </Button>
                         </>
                       ) : (
                         <>
                           <Search className="w-5 h-5 opacity-50" />
-                          <p className="text-sm">No settings match &ldquo;{modSettingsSearch.length > 60 ? modSettingsSearch.slice(0, 60) + '…' : modSettingsSearch}&rdquo;{modSettingsModifiedOnly ? ' in modified options' : ''}</p>
+                          <p className="text-sm">{i18next.t('serverConfig:ui.noMatchMod', { query: modSettingsSearch.length > 60 ? modSettingsSearch.slice(0, 60) + '…' : modSettingsSearch, context: modSettingsModifiedOnly ? i18next.t('serverConfig:ui.inModifiedOptions') : '' })}</p>
                           <div className="flex gap-2">
                             {modSettingsSearch && (
                               <Button variant="ghost" size="sm" onClick={() => setModSettingsSearch('')} className="text-xs">
-                                Clear search
+                                {i18next.t('serverConfig:ui.clearSearch')}
                               </Button>
                             )}
                             {modSettingsModifiedOnly && (
                               <Button variant="ghost" size="sm" onClick={() => setModSettingsModifiedOnly(false)} className="text-xs">
-                                Show all options
+                                {i18next.t('serverConfig:ui.showAllOptions')}
                               </Button>
                             )}
                           </div>
@@ -3405,11 +3431,10 @@ export default function ServerConfig() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium text-foreground">
-                {activeTab === 'ini' ? changedIniCount : changedSandboxCount}{' '}
-                unsaved {((activeTab === 'ini' ? changedIniCount : changedSandboxCount) === 1) ? 'change' : 'changes'}
+                {i18next.t('serverConfig:ui.unsavedChanges', { count: activeTab === 'ini' ? changedIniCount : changedSandboxCount, plural: ((activeTab === 'ini' ? changedIniCount : changedSandboxCount) === 1) ? '' : 's' })}
               </div>
               <div className="text-[11px] text-muted-foreground">
-                {activeTab === 'ini' ? 'server ini' : 'sandbox lua'} · ctrl+s to save · applies on reload
+                {activeTab === 'ini' ? i18next.t('serverConfig:ui.serverIni') : i18next.t('serverConfig:ui.sandboxLua')} · {i18next.t('serverConfig:ui.ctrlSToSave')} · {i18next.t('serverConfig:ui.appliesOnReload')}
               </div>
             </div>
             <Button
@@ -3419,7 +3444,7 @@ export default function ServerConfig() {
               disabled={saving}
               className="h-8 gap-1.5 text-xs font-medium text-muted-foreground hover:text-destructive"
             >
-              <Undo2 className="h-3 w-3" /> discard
+              <Undo2 className="h-3 w-3" /> {i18next.t('serverConfig:ui.discard')}
             </Button>
             <Button
               variant="command"
@@ -3429,7 +3454,7 @@ export default function ServerConfig() {
               className="h-8 gap-1.5 text-xs font-medium"
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              save &amp; reload
+              {i18next.t('serverConfig:ui.saveAndReload')}
             </Button>
           </div>
         </div>
@@ -3439,10 +3464,10 @@ export default function ServerConfig() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RotateCcw className="w-5 h-5" />
-              Configuration Backups
+              {i18next.t('serverConfig:dialogs.backupsTitle')}
             </DialogTitle>
             <DialogDescription>
-              Restore a previous version of your configuration files. Backups are created automatically when you save.
+              {i18next.t('serverConfig:dialogs.backupsDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -3450,7 +3475,7 @@ export default function ServerConfig() {
           <div className="flex items-center gap-2 border-b pb-3">
             <span className="text-sm text-muted-foreground mr-2">
               <Filter className="w-4 h-4 inline mr-1" />
-              Filter:
+              {i18next.t('serverConfig:dialogs.filter')}
             </span>
             {(['all', 'ini', 'sandbox', 'spawnpoints', 'spawnregions'] as const).map((filter) => (
               <Button
@@ -3460,14 +3485,14 @@ export default function ServerConfig() {
                 onClick={() => setBackupFilter(filter)}
                 className="capitalize"
               >
-                {filter === 'all' ? 'All Files' : filter}
+                {filter === 'all' ? i18next.t('serverConfig:dialogs.allFiles') : i18next.t(`serverConfig:labels.backupFilter${filter.charAt(0).toUpperCase() + filter.slice(1)}`)}
               </Button>
             ))}
           </div>
 
           <ScrollArea className="h-[400px]">
             {backups.length === 0 ? (
-              <EmptyState type="noData" title="No backups available yet" description="Backups are created automatically when you save any config file" compact />
+              <EmptyState type="noData" title={tc('backups.noBackups')} description={tc('backups.description')} compact />
             ) : (
               <div className="space-y-2">
                 {backups
@@ -3483,19 +3508,19 @@ export default function ServerConfig() {
                   .map((backup) => {
                     // Determine file type from filename
                     const filename = backup.filename.toLowerCase()
-                    let fileType = 'config'
+                    let fileType = i18next.t('serverConfig:labels.fileTypeConfig')
                     let typeColor = 'bg-muted-foreground'
                     if (filename.includes('_ini_') || filename.endsWith('.ini')) {
-                      fileType = 'INI'
+                      fileType = i18next.t('serverConfig:labels.fileTypeIni')
                       typeColor = 'bg-primary'
                     } else if (filename.includes('sandbox')) {
-                      fileType = 'Sandbox'
+                      fileType = i18next.t('serverConfig:labels.fileTypeSandbox')
                       typeColor = 'bg-chart-4'
                     } else if (filename.includes('spawnpoints')) {
-                      fileType = 'SpawnPoints'
+                      fileType = i18next.t('serverConfig:labels.fileTypeSpawnPoints')
                       typeColor = 'bg-accent-foreground'
                     } else if (filename.includes('spawnregions')) {
-                      fileType = 'SpawnRegions'
+                      fileType = i18next.t('serverConfig:labels.fileTypeSpawnRegions')
                       typeColor = 'bg-warning'
                     }
 
@@ -3520,10 +3545,10 @@ export default function ServerConfig() {
                                   onClick={() => handleRestoreBackup(backup.filename)}
                                 >
                                   <Upload className="w-4 h-4 mr-1" />
-                                  Restore
+                                  {i18next.t('serverConfig:dialogs.restore')}
                                 </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Replace current file with this backup</TooltipContent>
+                              <TooltipContent>{i18next.t('serverConfig:actions.replaceWithBackup')}</TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </div>
@@ -3540,9 +3565,9 @@ export default function ServerConfig() {
                   return true
                 }).length === 0 && backups.length > 0 && (
                   <div className="text-center py-8 text-muted-foreground">
-                    <p>No backups found for "{backupFilter}" files.</p>
+                    <p>{i18next.t('serverConfig:dialogs.noBackupsForFilter', { filter: backupFilter })}</p>
                     <Button variant="link" size="sm" onClick={() => setBackupFilter('all')}>
-                      Show all backups
+                      {i18next.t('serverConfig:dialogs.showAllBackups')}
                     </Button>
                   </div>
                 )}
@@ -3552,10 +3577,10 @@ export default function ServerConfig() {
 
           <DialogFooter className="flex items-center justify-between sm:justify-between">
             <p className="text-xs text-muted-foreground">
-              {backups.length} backup{backups.length !== 1 ? 's' : ''} total
+              {i18next.t('serverConfig:dialogs.backupCount', { count: backups.length, plural: backups.length !== 1 ? 's' : '' })}
             </p>
             <Button variant="outline" onClick={() => setShowBackups(false)}>
-              Close
+              {i18next.t('serverConfig:dialogs.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3567,27 +3592,27 @@ export default function ServerConfig() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bookmark className="w-5 h-5" />
-              Config Templates
+              {i18next.t('serverConfig:dialogs.templatesTitle')}
             </DialogTitle>
             <DialogDescription>
-              Save your current configuration as a template or load a saved template.
+              {i18next.t('serverConfig:dialogs.templatesDesc')}
             </DialogDescription>
           </DialogHeader>
 
           {/* Save as Template button */}
           <div className="flex items-center justify-between border-b pb-3">
             <span className="text-sm text-muted-foreground">
-              {templates.length} template{templates.length !== 1 ? 's' : ''} saved
+              {i18next.t('serverConfig:dialogs.templateCount', { count: templates.length, plural: templates.length !== 1 ? 's' : '' })}
             </span>
             <Button onClick={() => setShowSaveTemplate(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Save Current as Template
+              {i18next.t('serverConfig:dialogs.saveCurrentAsTemplate')}
             </Button>
           </div>
 
           <ScrollArea className="h-[400px]">
             {templates.length === 0 ? (
-              <EmptyState type="noData" title="No templates saved yet" description="Click 'Save Current as Template' to create your first template" compact />
+              <EmptyState type="noData" title={tc('templates.noTemplates')} description={tc('templates.description')} compact />
             ) : (
               <div className="space-y-3">
                 {templates.map((template) => (
@@ -3597,23 +3622,23 @@ export default function ServerConfig() {
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-medium break-words" dir="auto" title={template.name}>{template.name}</h4>
                           <Badge variant="secondary" className="text-xs">
-                            {template.type === 'both' ? 'INI + Sandbox' : template.type.toUpperCase()}
+                            {template.type === 'both' ? i18next.t('serverConfig:dialogs.iniSandbox') : template.type.toUpperCase()}
                           </Badge>
                         </div>
                         {template.description && (
                           <p className="mt-1 break-words text-sm text-muted-foreground" dir="auto" title={template.description}>{template.description}</p>
                         )}
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span>Created: {new Date(template.created).toLocaleDateString()}</span>
+                          <span>{i18next.t('serverConfig:dialogs.created', { date: new Date(template.created).toLocaleDateString() })}</span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
                             {template.hasIni && <CheckCircle className="w-3 h-3 text-primary" />}
-                            {template.hasIni && 'INI'}
+                            {template.hasIni && i18next.t('serverConfig:dialogs.ini')}
                           </span>
                           {template.hasIni && template.hasSandbox && <span>•</span>}
                           <span className="flex items-center gap-1">
                             {template.hasSandbox && <CheckCircle className="w-3 h-3 text-primary" />}
-                            {template.hasSandbox && 'Sandbox'}
+                            {template.hasSandbox && i18next.t('serverConfig:dialogs.sandbox')}
                           </span>
                         </div>
                       </div>
@@ -3632,12 +3657,12 @@ export default function ServerConfig() {
                                 ) : (
                                   <>
                                     <FolderOpen className="w-4 h-4 mr-1" />
-                                    Apply
+                                    {i18next.t('serverConfig:dialogs.apply')}
                                   </>
                                 )}
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Load this template (creates backup first)</TooltipContent>
+                            <TooltipContent>{i18next.t('serverConfig:actions.loadTemplate')}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                         <TooltipProvider>
@@ -3648,12 +3673,12 @@ export default function ServerConfig() {
                                 size="icon"
                                 className="h-11 w-11 text-destructive hover:text-destructive sm:h-9 sm:w-9"
                                 onClick={() => handleDeleteTemplate(template.id, template.name)}
-                                aria-label={`Delete template ${template.name}`}
+                                aria-label={i18next.t('serverConfig:actions.deleteTemplateAriaLabel', { name: template.name })}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Delete this template</TooltipContent>
+                            <TooltipContent>{i18next.t('serverConfig:actions.deleteTemplate')}</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
@@ -3666,7 +3691,7 @@ export default function ServerConfig() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTemplates(false)}>
-              Close
+              {i18next.t('serverConfig:dialogs.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3678,61 +3703,61 @@ export default function ServerConfig() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Save className="w-5 h-5" />
-              Save as Template
+              {i18next.t('serverConfig:dialogs.saveTemplateTitle')}
             </DialogTitle>
             <DialogDescription>
-              Save your current INI and/or Sandbox settings as a reusable template.
+              {i18next.t('serverConfig:dialogs.saveTemplateDesc')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="template-name">Template Name *</Label>
+              <Label htmlFor="template-name">{i18next.t('serverConfig:labels.templateName')} *</Label>
               <Input
                 id="template-name"
-                placeholder="e.g., PvE Casual, Hardcore Survival..."
+                placeholder={tc('placeholders.templateName')}
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value.slice(0, 60))}
                 maxLength={60}
               />
-              <p className="text-xs text-muted-foreground">{newTemplateName.length}/60 characters</p>
+              <p className="text-xs text-muted-foreground">{i18next.t('serverConfig:dialogs.characters', { count: newTemplateName.length })}</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="template-desc">Description (optional)</Label>
+              <Label htmlFor="template-desc">{i18next.t('serverConfig:labels.templateDescription')}</Label>
               <Textarea
                 id="template-desc"
-                placeholder="Describe what this template is for..."
+                placeholder={tc('placeholders.templateDescription')}
                 value={newTemplateDesc}
                 onChange={(e) => setNewTemplateDesc(e.target.value.slice(0, 240))}
                 className="min-h-[80px] resize-y"
                 maxLength={240}
               />
-              <p className="text-xs text-muted-foreground">{newTemplateDesc.length}/240 characters</p>
+              <p className="text-xs text-muted-foreground">{i18next.t('serverConfig:dialogs.charactersLong', { count: newTemplateDesc.length })}</p>
             </div>
 
             <div className="space-y-3">
-              <Label>Include in Template</Label>
+              <Label>{i18next.t('serverConfig:labels.includeInTemplate')}</Label>
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="font-medium">Server Settings (INI)</p>
-                  <p className="text-xs text-muted-foreground">Network, players, RCON, server behavior</p>
+                  <p className="font-medium">{i18next.t('serverConfig:labels.serverSettingsIni')}</p>
+                  <p className="text-xs text-muted-foreground">{i18next.t('serverConfig:labels.serverSettingsDesc')}</p>
                 </div>
                 <Switch
                   checked={saveTemplateIni}
                   onCheckedChange={setSaveTemplateIni}
-                  aria-label="Include server settings in template"
+                  aria-label={tc('labels.includeServer')}
                 />
               </div>
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="font-medium">Sandbox Settings</p>
-                  <p className="text-xs text-muted-foreground">World, zombies, loot, survival settings</p>
+                  <p className="font-medium">{i18next.t('serverConfig:labels.sandboxSettings')}</p>
+                  <p className="text-xs text-muted-foreground">{i18next.t('serverConfig:labels.sandboxSettingsDesc')}</p>
                 </div>
                 <Switch
                   checked={saveTemplateSandbox}
                   onCheckedChange={setSaveTemplateSandbox}
-                  aria-label="Include sandbox settings in template"
+                  aria-label={tc('labels.includeSandbox')}
                 />
               </div>
             </div>
@@ -3740,7 +3765,7 @@ export default function ServerConfig() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSaveTemplate(false)}>
-              Cancel
+              {i18next.t('serverConfig:dialogs.cancel')}
             </Button>
             <Button
               onClick={handleSaveTemplate}
@@ -3751,7 +3776,7 @@ export default function ServerConfig() {
               ) : (
                 <Save className="w-4 h-4 mr-2" />
               )}
-              Save Template
+              {i18next.t('serverConfig:dialogs.saveTemplate')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3763,16 +3788,16 @@ export default function ServerConfig() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FolderOpen className="w-5 h-5" />
-              Select Image File
+              {i18next.t('serverConfig:dialogs.selectImageTitle')}
             </DialogTitle>
             <DialogDescription>
-              Browse to find a PNG image file for your server.
+              {i18next.t('serverConfig:dialogs.selectImageDesc')}
             </DialogDescription>
           </DialogHeader>
 
           {/* Current path breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs font-mono bg-muted/50 rounded-md px-3 py-2 overflow-x-auto">
-            <span className="text-muted-foreground truncate" title={fileBrowserPath}>{fileBrowserPath || 'Loading...'}</span>
+            <span className="text-muted-foreground truncate" title={fileBrowserPath}>{fileBrowserPath || i18next.t('serverConfig:dialogs.loadingPath')}</span>
           </div>
 
           {/* File listing */}
@@ -3833,12 +3858,12 @@ export default function ServerConfig() {
                 {/* Empty state */}
                 {fileBrowserDirs.length === 0 && fileBrowserFiles.length === 0 && !fileBrowserParent && (
                   <div className="text-center py-8 text-sm text-muted-foreground">
-                    No image files found in this directory
+                    {i18next.t('serverConfig:dialogs.noImageFiles')}
                   </div>
                 )}
                 {fileBrowserDirs.length === 0 && fileBrowserFiles.length === 0 && fileBrowserParent && (
                   <div className="text-center py-4 text-sm text-muted-foreground">
-                    No image files here &mdash; try a different folder
+                    {i18next.t('serverConfig:dialogs.noImageFilesHere')}
                   </div>
                 )}
               </div>
@@ -3851,7 +3876,7 @@ export default function ServerConfig() {
               <div className="rounded-md border bg-background p-1 shrink-0">
                 <AuthImage
                   filePath={fileBrowserSelected}
-                  alt="Preview"
+                  alt={i18next.t('serverConfig:labels.preview')}
                   className="max-h-[64px] max-w-[120px] object-contain rounded"
                 />
               </div>
@@ -3864,11 +3889,11 @@ export default function ServerConfig() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setFileBrowserOpen(false)}>
-              Cancel
+              {i18next.t('serverConfig:dialogs.cancel')}
             </Button>
             <Button onClick={confirmFileBrowserSelection} disabled={!fileBrowserSelected}>
               <Check className="w-4 h-4 mr-2" />
-              Select File
+              {i18next.t('serverConfig:dialogs.selectFile')}
             </Button>
           </DialogFooter>
         </DialogContent>

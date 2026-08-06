@@ -1,0 +1,71 @@
+{
+  "title": "登录到您的面板",
+  "description": "访问您的 Zomboid 服务器仪表板",
+  "badge": "欢迎回来",
+  "cardTitle": "登录",
+  "cardDescription": "输入您的凭据以访问控制面板。",
+  "labels": {
+    "username": "用户名",
+    "password": "密码",
+    "keepSignedIn": "保持登录"
+  },
+  "actions": {
+    "signIn": "登录",
+    "signingIn": "正在登录...",
+    "showPassword": "显示密码",
+    "hidePassword": "隐藏密码",
+    "skipToForm": "跳转到表单"
+  },
+  "page": {
+    "accountRecovery": "账户恢复",
+    "secureSignIn": "安全登录",
+    "resetPassword": "重置您的密码",
+    "resetDescription": "使用面板主机上的恢复令牌设置新的管理员密码。",
+    "loginDescription": "使用管理员账户管理此服务器。"
+  },
+  "status": {
+    "checking": "检查中",
+    "online": "在线",
+    "offline": "离线"
+  },
+  "recovery": {
+    "title": "账户恢复",
+    "useToken": "使用恢复令牌",
+    "createFile": "创建恢复文件",
+    "recoverAccount": "恢复账户",
+    "preparing": "正在准备恢复...",
+    "localDescription": "此浏览器在面板主机上运行。创建恢复文件，然后使用其令牌重置管理员密码。",
+    "remoteDescription": "在面板主机上创建 data/reset-token.txt，其中包含至少 8 个字符的任意令牌。",
+    "altMethod": "您也可以从服务器终端使用",
+    "altMethodSuffix": "启动面板。",
+    "createFileButton": "创建文件",
+    "preparingFile": "正在准备...",
+    "checkToken": "检查令牌",
+    "checking": "正在检查...",
+    "cancel": "取消",
+    "tokenLabel": "重置令牌",
+    "tokenPlaceholder": "粘贴令牌",
+    "newPasswordLabel": "新密码",
+    "newPasswordPlaceholder": "至少 6 个字符",
+    "confirmPasswordLabel": "确认新密码",
+    "confirmPasswordPlaceholder": "重复新密码",
+    "resetButton": "重置密码",
+    "resetting": "正在重置...",
+    "backToLogin": "返回登录",
+    "resetSuccess": "密码重置成功！正在跳转到登录...",
+    "tokenCreated": "恢复令牌已创建于 data/reset-token.txt。请将其粘贴到下方以继续。"
+  },
+  "errors": {
+    "loginFailed": "登录失败",
+    "tokenTooShort": "重置令牌至少需要 8 个字符",
+    "passwordTooShort": "密码至少需要 6 个字符",
+    "passwordsNoMatch": "密码不匹配",
+    "resetFailed": "重置失败",
+    "recoveryTokenNotFound": "尚未找到恢复令牌。请在面板主机上创建 data/reset-token.txt，然后重试。",
+    "recoveryStatusCheckFailed": "无法检查恢复状态，请稍后重试。",
+    "createTokenFailed": "无法创建恢复令牌"
+  },
+  "projectZomboidControlPanel": "僵尸毁灭工程控制面板",
+  "adminAccess": "管理员访问",
+  "storedAtDataresettokentxtOnThePanelHost": "存储在面板主机的 data/reset-token.txt。"
+}

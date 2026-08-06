@@ -1,0 +1,219 @@
+{
+  "title": "服务器控制台",
+  "subtitle": "查看服务器日志和执行RCON命令",
+  "tabs": {
+    "console": "控制台",
+    "logs": "服务器日志",
+    "commands": "命令历史"
+  },
+  "actions": {
+    "send": "发送命令",
+    "clear": "清空控制台",
+    "pause": "暂停",
+    "resume": "继续",
+    "filter": "筛选日志",
+    "export": "导出日志",
+    "copy": "复制到剪贴板",
+    "openLogFile": "打开日志文件",
+    "openLogFolder": "打开日志文件夹"
+    ,"retry": "重试"
+  },
+  "input": {
+    "placeholder": "输入命令...",
+    "sendButton": "发送",
+    "run": "执行",
+    "keyboardHint": "回车 · 执行 · ↑↓ 历史",
+    "history": "命令历史",
+    "templates": "命令模板"
+  },
+  "templates": {
+    "title": "命令模板",
+    "addTemplate": "添加模板",
+    "editTemplate": "编辑模板",
+    "deleteTemplate": "删除模板",
+    "insertPlaceholder": "插入占位符: {player}, {target}, {message}, {item}, {count}, {reason}, {skill}, {xp}"
+  },
+  "filters": {
+    "all": "所有日志",
+    "error": "错误",
+    "warning": "警告",
+    "info": "信息",
+    "debug": "调试"
+  },
+  "logLevels": {
+    "error": "错误",
+    "warning": "警告",
+    "info": "信息",
+    "debug": "调试",
+    "log": "日志"
+  },
+  "rcon": {
+    "connected": "RCON已连接",
+    "disconnected": "RCON已断开",
+    "connecting": "连接RCON中...",
+    "reconnect": "重新连接",
+    "status": "RCON状态",
+    "notConfigured": "RCON 未配置",
+    "unknown": "未知",
+    "online": "RCON 在线",
+    "offline": "RCON 离线",
+    "recheck": "重新检查",
+    "configureDescription": "请先在“我的服务器”中设置主机、端口和密码，然后再使用实时命令。",
+    "unreachableDescription": "请启动服务器，然后在面板设置中确认 RCON 主机、端口和密码。"
+  },
+  "history": {
+    "title": "命令历史",
+    "noHistory": "暂无命令历史",
+    "clearHistory": "清空历史",
+    "deleteCommand": "删除命令",
+    "searchPlaceholder": "搜索命令历史..."
+  },
+  "messages": {
+    "commandSent": "命令已发送",
+    "commandFailed": "命令执行失败",
+    "copied": "已复制到剪贴板",
+    "logsExported": "日志已导出",
+    "cleared": "控制台已清空",
+    "error": "错误",
+    "noResponse": "无响应",
+    "commandFailed": "命令执行失败",
+    "historyUnavailableTitle": "历史记录不可用",
+    "historyUnavailable": "无法加载最近的 RCON 命令历史。",
+    "logStreamUnavailable": "日志流不可用，服务器可能已离线",
+    "logClearedTitle": "日志已清空",
+    "logCleared": "服务器控制台日志已清空",
+    "clearLogFailed": "清空服务器日志失败",
+    "broadcastSent": "广播已发送",
+    "broadcastSentTitle": "广播已发送",
+    "broadcastSentToAll": "消息已广播给所有玩家",
+    "broadcastSentWithTag": "已使用 [{{tag}}] 标签发送",
+    "broadcastFailed": "发送广播失败"
+  },
+  "shortcuts": {
+    "send": "Ctrl+Enter",
+    "history": "上/下方向键",
+    "clear": "Ctrl+L"
+  },
+  "emptyStates": {
+    "serverOffline": "服务器控制台日志未找到",
+    "serverOfflineDesc": "请确保服务器正在运行",
+    "noCommands": "暂无命令",
+    "noCommandsDesc": "运行RCON命令后，响应将显示在这里。",
+    "noHistory": "暂无命令历史",
+    "noHistoryDesc": "您运行的命令将记录在这里。",
+    "noActiveServer": "未配置活动服务器"
+  },
+  "ariaLabels": {
+    "refreshLog": "刷新日志",
+    "executeCommand": "执行命令",
+    "channelTag": "频道标签",
+    "broadcastMessage": "广播消息",
+    "serverConsoleOutput": "服务器控制台输出",
+    "rconCommandOutput": "RCON命令输出",
+    "rconCommandInput": "RCON命令输入"
+  },
+  "descriptions": {
+    "serverLogAndRcon": "服务器日志输出和RCON命令",
+    "addOrSelectServer": "请在\"我的服务器\"中添加或选择一个服务器，然后再打开控制台。"
+  },
+  "autoScroll": {
+    "on": "自动滚动已开启 - 跟随最新行",
+    "off": "自动滚动已关闭 - 点击以跟随最新行",
+    "enable": "开启自动滚动",
+    "disable": "关闭自动滚动",
+    "follow": "跟随{{state}}",
+    "onShort": "开启",
+    "offShort": "关闭"
+  },
+  "pageTitle": "控制台",
+  "clearTheLogDisplayDoesNotDeleteTheServerLogFile": "清除日志显示（不删除服务器日志文件）",
+  "clearTheVisibleOutputDoesNotDeleteHistory": "清除可见输出（不删除历史记录）",
+  "path": "路径",
+  "loading": "加载中…",
+  "stream": "流",
+  "noStreamOutput": "无流输出",
+  "link": "链接",
+  "rconNotConfigured": "RCON 未配置",
+  "hostUnreachable": "主机不可达",
+  "rconOutput": "RCON 输出",
+  "quick": "快捷",
+  "broadcast": "广播",
+  "messageAllOnline": "向所有在线玩家发送消息",
+  "serverLogUnavailable": {
+    "remoteTitle": "远程服务器无法提供服务器日志",
+    "remoteDescription": "远程服务器仅提供 RCON。请使用 RCON 标签页执行实时命令。",
+    "pathTitle": "未配置服务器日志路径",
+    "pathDescription": "请先在“我的服务器”中设置服务器安装路径或 Zomboid 数据路径。"
+  },
+  "status": {
+    "checkingTarget": "正在检查服务器目标",
+    "resumeAutoUpdate": "恢复自动更新",
+    "pauseAutoUpdate": "暂停自动更新",
+    "paused": "已暂停",
+    "live": "实时",
+    "streaming": "传输中",
+    "updatesSuspended": "更新已暂停",
+    "polling": "轮询 · 2秒",
+    "checking": "检查中…"
+  },
+  "filter": {
+    "showAllAria": "显示所有消息（包括噪声）",
+    "repetitiveAria": "筛除重复消息",
+    "hiddenTitle_one": "已隐藏 {{count}} 行重复内容，点击显示全部",
+    "hiddenTitle_other": "已隐藏 {{count}} 行重复内容，点击显示全部",
+    "repetitiveTitle": "筛除重复消息（加入、空闲心跳等）",
+    "count": "筛选 −{{count}}",
+    "label": "筛选",
+    "all": "全部",
+    "linesHidden": "筛选隐藏 {{count}} 行",
+    "showAll": "显示全部"
+  },
+  "counts": {
+    "shown": "显示",
+    "hidden": "隐藏",
+    "loaded": "已加载",
+    "entries_one": "{{count}} 条",
+    "entries_other": "{{count}} 条"
+  },
+  "quickCommands": {
+    "players": "玩家",
+    "save": "保存",
+    "showOptions": "显示选项",
+    "checkMods": "检查模组",
+    "help": "帮助",
+    "serverInfo": "服务器信息",
+    "getMemory": "获取内存"
+  },
+  "quickBroadcasts": {
+    "restart15": "15分钟重启",
+    "restart15Message": "服务器将在 15 分钟后重启，请前往安全位置！",
+    "restart5": "5分钟重启",
+    "restart5Message": "服务器将在 5 分钟后重启，请保存进度！",
+    "restart1": "1分钟重启",
+    "restart1Message": "服务器将在 1 分钟后重启，即将断开连接！",
+    "maintenance": "维护通知",
+    "maintenanceMessage": "服务器即将进入维护模式，请断开连接",
+    "backOnline": "恢复在线",
+    "backOnlineMessage": "服务器维护完成，欢迎回来！",
+    "saveWarning": "保存警告",
+    "saveWarningMessage": "服务器正在保存，预计会有短暂延迟"
+  },
+  "channels": {
+    "all": "所有玩家",
+    "allDescription": "无标签，普通广播",
+    "admin": "[ADMIN] 标签",
+    "adminDescription": "标记为管理员消息",
+    "say": "[SAY] 标签",
+    "sayDescription": "本地聊天装饰标签",
+    "faction": "[FACTION] 标签",
+    "factionDescription": "阵营装饰标签",
+    "safehouse": "[SAFEHOUSE] 标签",
+    "safehouseDescription": "安全屋装饰标签"
+  },
+  "broadcastInput": {
+    "allPlaceholder": "输入玩家应看到的消息…",
+    "taggedPlaceholder": "已添加 [{{tag}}] 标签，输入消息…",
+    "servermsgPrefix": "通过",
+    "servermsgSuffix": "发送。标签仅用于展示，RCON 无法将消息路由到真实聊天频道。"
+  }
+}

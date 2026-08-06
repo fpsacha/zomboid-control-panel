@@ -1,6 +1,7 @@
 import { Wifi, WifiOff, Loader2 } from 'lucide-react'
 import { useConnectionStatus } from '@/contexts/SocketContext'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 import {
   Tooltip,
   TooltipContent,
@@ -14,6 +15,7 @@ interface ConnectionStatusProps {
 
 export function ConnectionStatus({ className, showLabel = false }: ConnectionStatusProps) {
   const { connected, reconnecting, reconnectAttempt, error } = useConnectionStatus()
+  const { t } = useTranslation('common')
 
   // Only show when not connected — a permanently visible "Connected" badge is noise
   if (connected && !reconnecting) return null
@@ -24,8 +26,8 @@ export function ConnectionStatus({ className, showLabel = false }: ConnectionSta
         icon: Wifi,
         color: 'text-primary',
         surface: 'border-primary/20 bg-primary/10',
-        label: 'Connected',
-        description: 'Real-time updates active',
+        label: t('connectionStatus.connected'),
+        description: t('connectionStatus.connectedDescription'),
       }
     }
     if (reconnecting) {
@@ -33,8 +35,8 @@ export function ConnectionStatus({ className, showLabel = false }: ConnectionSta
         icon: Loader2,
         color: 'text-warning',
         surface: 'border-warning/24 bg-warning/10',
-        label: 'Reconnecting...',
-        description: `Attempt ${reconnectAttempt}/10`,
+        label: t('connectionStatus.reconnecting'),
+        description: t('connectionStatus.attempt', { count: reconnectAttempt }),
         animate: true,
       }
     }
@@ -42,8 +44,8 @@ export function ConnectionStatus({ className, showLabel = false }: ConnectionSta
       icon: WifiOff,
       color: 'text-destructive',
       surface: 'border-destructive/24 bg-destructive/10',
-      label: 'Panel Disconnected',
-      description: error || 'WebSocket connection to the panel backend lost',
+      label: t('connectionStatus.disconnected'),
+      description: error || t('connectionStatus.disconnectedDescription'),
     }
   }
 

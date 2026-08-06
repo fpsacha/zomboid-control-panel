@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 export interface ConfirmOptions {
   title?: string
@@ -38,6 +39,7 @@ const ConfirmContext = createContext<ConfirmFn>(async () => false)
  * Usage: const confirm = useConfirm(); if (!(await confirm({ description: '...' }))) return
  */
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common')
   const [options, setOptions] = useState<ConfirmOptions | null>(null)
   const [open, setOpen] = useState(false)
   const resolveRef = useRef<((value: boolean) => void) | null>(null)
@@ -64,7 +66,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       <AlertDialog open={open} onOpenChange={(next) => { if (!next) settle(false) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{options?.title ?? 'Are you sure?'}</AlertDialogTitle>
+            <AlertDialogTitle>{options?.title ?? t('dialog.confirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription className="whitespace-pre-line">
               {options?.description}
             </AlertDialogDescription>
@@ -78,13 +80,13 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => settle(false)}>
-              {options?.cancelLabel ?? 'Cancel'}
+              {options?.cancelLabel ?? t('actions.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => settle(true)}
               className={cn(options?.destructive !== false && buttonVariants({ variant: 'destructive' }))}
             >
-              {options?.confirmLabel ?? 'Confirm'}
+              {options?.confirmLabel ?? t('actions.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

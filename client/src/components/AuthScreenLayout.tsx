@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 
 import { Card, CardContent } from '../components/ui/card'
+import { useTranslation } from 'react-i18next'
 
 interface AuthScreenLayoutProps {
   /** Optional small uppercase tag rendered above the title (e.g. "Account Recovery"). Use sparingly. */
@@ -34,6 +35,7 @@ export function AuthScreenLayout({
   children,
   footer,
 }: AuthScreenLayoutProps) {
+  const { t } = useTranslation('common')
   const [status, setStatus] = useState<PanelStatus>('checking')
   const [version, setVersion] = useState<string | null>(null)
 
@@ -70,7 +72,7 @@ export function AuthScreenLayout({
         href="#auth-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:text-sm"
       >
-        Skip to content
+        {t('auth.skipToContent')}
       </a>
 
       {/* Warm ember + moss radial wash */}
@@ -97,14 +99,14 @@ export function AuthScreenLayout({
         className="absolute top-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.32em] text-muted-foreground/70 [contain:layout_style_paint]"
       >
         <span>// ZCP_CTRL</span>
-        <span>node: {status === 'online' ? '01' : '--'}</span>
+        <span>{t('auth.node')}: {status === 'online' ? '01' : '--'}</span>
       </div>
       <div
         aria-hidden="true"
         className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.32em] text-muted-foreground/55 [contain:layout_style_paint]"
       >
-        <span>{version ? `build ${version}` : 'build ----'}</span>
-        <span>sig: {status === 'online' ? 'ack' : status === 'checking' ? '...' : 'lost'}</span>
+        <span>{version ? t('auth.build', { version }) : t('auth.buildUnknown')}</span>
+        <span>{t('auth.signature')}: {status === 'online' ? 'ack' : status === 'checking' ? '...' : 'lost'}</span>
       </div>
 
       <main
@@ -191,21 +193,22 @@ function BrandMark({ className = '' }: { className?: string }) {
 }
 
 function PanelStatusPill({ status, className = '' }: { status: PanelStatus; className?: string }) {
+  const { t } = useTranslation('common')
   const map: Record<PanelStatus, { label: string; dot: string; text: string; ring: string }> = {
     checking: {
-      label: 'Reaching panel service',
+      label: t('auth.reachingPanelService'),
       dot: 'bg-muted-foreground/70 animate-pulse',
       text: 'text-muted-foreground',
       ring: 'border-border/55 bg-card/40',
     },
     online: {
-      label: 'Panel service online',
+      label: t('auth.panelServiceOnline'),
       dot: 'bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.55)]',
       text: 'text-foreground/85',
       ring: 'border-primary/30 bg-primary/8',
     },
     unreachable: {
-      label: 'Panel service unreachable',
+      label: t('auth.panelServiceUnreachable'),
       dot: 'bg-destructive shadow-[0_0_8px_hsl(var(--destructive)/0.6)] animate-pulse',
       text: 'text-destructive',
       ring: 'border-destructive/40 bg-destructive/8',

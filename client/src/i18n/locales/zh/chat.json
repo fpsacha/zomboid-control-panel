@@ -1,0 +1,80 @@
+{
+    "placeholders": {
+        "postAsAdmin": "以管理员身份发布",
+        "broadcast": "广播消息",
+        "adminOnlyHidden": "管理员频道（对玩家隐藏）",
+        "adminOnly": "仅管理员频道",
+        "newPreset": "添加新的快捷消息..."
+    },
+    "noMessages": {
+        "description": "玩家开始聊天后，消息将显示在这里",
+        "title": "暂无消息"
+    },
+    "description": "发送和接收游戏聊天消息",
+    "presets": {
+        "edit": "编辑",
+        "done": "完成",
+        "noPresets": "// 暂无预设 — 点击编辑添加"
+    },
+    "quickBroadcasts": "快速广播",
+    "messageCount": {
+        "msg": "条消息",
+        "msgs": "条消息"
+    },
+    "errors": {
+        "sendFailed": "发送消息失败",
+        "couldNotSavePresets": "保存预设失败",
+        "unknownError": "未知错误",
+        "error": "错误"
+    },
+    "players": "玩家",
+    "chatStream": "聊天流",
+    "actions": {
+        "send": "发送",
+        "refresh": "刷新"
+    },
+    "title": "游戏内聊天",
+    "labels": {
+        "player": "玩家",
+        "save": "保存",
+        "chatMessage": "聊天消息",
+        "chatMessages": "聊天消息",
+        "admin": "管理员",
+        "chatChannel": "聊天频道",
+        "cancel": "取消",
+        "server": "服务器",
+        "addPreset": "添加预设",
+        "doneEditingPresets": "完成编辑预设",
+        "editPresets": "编辑预设",
+        "deletePreset": "删除预设"
+    },
+    "channels": {
+        "serverBroadcast": "服务器广播",
+        "adminChat": "管理员聊天",
+        "generalChat": "公共聊天"
+    },
+    "status": {
+        "live": "在线",
+        "offline": "离线",
+        "noPlayersConnected": "暂无玩家连接",
+        "noPlayersOnlineServerLog": "无在线玩家 — 仅服务器日志",
+        "broadcastingTo_one": "正在向 {{count}} 个玩家广播",
+        "broadcastingTo_other": "正在向 {{count}} 个玩家广播",
+        "online": "{{count}} 人在线"
+    },
+    "toast": {
+        "adminMessageSent": "管理员消息已发送",
+        "adminMessageSentDesc": "仅对游戏内管理员可见。",
+        "postedToChat": "已发布到聊天",
+        "postedToChatDesc": "已发布到公共聊天流。",
+        "broadcastSent": "广播已发送",
+        "broadcastSentDesc": "消息已发送给所有在线玩家。"
+    },
+    "defaultPresets": [
+        "服务器将在 5 分钟后重启！",
+        "欢迎来到服务器！",
+        "请在 /rules 阅读规则",
+        "服务器即将开始维护",
+        "玩得开心，注意安全！"
+    ]
+}

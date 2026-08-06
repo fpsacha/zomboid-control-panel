@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/button'
@@ -13,7 +14,7 @@ type PasswordStrength = {
   tone: 'empty' | 'weak' | 'fair' | 'good' | 'strong'
 }
 
-function scorePassword(pw: string): PasswordStrength {
+function scorePassword(pw: string, t: (key: string) => string): PasswordStrength {
   if (!pw) return { score: 0, label: '', tone: 'empty' }
   let score = 0
   if (pw.length >= 6) score++
@@ -22,16 +23,17 @@ function scorePassword(pw: string): PasswordStrength {
   if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score++
   if (pw.length >= 14) score = Math.min(4, score + 1)
   const map: Record<number, PasswordStrength> = {
-    0: { score: 1, label: 'Too short', tone: 'weak' },
-    1: { score: 1, label: 'Weak', tone: 'weak' },
-    2: { score: 2, label: 'Fair', tone: 'fair' },
-    3: { score: 3, label: 'Good', tone: 'good' },
-    4: { score: 4, label: 'Strong', tone: 'strong' },
+    0: { score: 1, label: t('passwordStrength.tooShort'), tone: 'weak' },
+    1: { score: 1, label: t('passwordStrength.weak'), tone: 'weak' },
+    2: { score: 2, label: t('passwordStrength.fair'), tone: 'fair' },
+    3: { score: 3, label: t('passwordStrength.good'), tone: 'good' },
+    4: { score: 4, label: t('passwordStrength.strong'), tone: 'strong' },
   }
   return map[Math.min(4, score) as 0 | 1 | 2 | 3 | 4]
 }
 
 export default function Setup() {
+  const { t } = useTranslation('setup');
   const { setup } = useAuth()
   const [username, setUsername] = useState('admin')
   const [password, setPassword] = useState('')
@@ -49,7 +51,7 @@ export default function Setup() {
   const passwordsMatch = password === confirmPassword
   const passwordLongEnough = password.length >= 6
   const usernameValid = /^[a-zA-Z0-9_-]{3,32}$/.test(username)
-  const strength = useMemo(() => scorePassword(password), [password])
+  const strength = useMemo(() => scorePassword(password, t), [password, t])
 
   const detectCaps = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // getModifierState is supported across all evergreen browsers; guard for safety.
@@ -63,15 +65,15 @@ export default function Setup() {
     setError('')
 
     if (!usernameValid) {
-      setError('Username must be 3-32 characters (letters, numbers, _ or -)')
+      setError(t('errors.usernameInvalid'))
       return
     }
     if (!passwordLongEnough) {
-      setError('Password must be at least 6 characters')
+      setError(t('errors.passwordTooShort'))
       return
     }
     if (!passwordsMatch) {
-      setError('Passwords do not match')
+      setError(t('errors.passwordsNoMatch'))
       return
     }
 
@@ -79,7 +81,7 @@ export default function Setup() {
     try {
       await setup(username, password, rememberMe)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed')
+      setError(err instanceof Error ? err.message : t('errors.setupFailed'))
     } finally {
       setLoading(false)
     }
@@ -87,17 +89,16 @@ export default function Setup() {
 
   return (
     <AuthScreenLayout
-      badge="Initial Provisioning"
-      title="Zomboid Control Panel"
-      description="Create the first admin account for this panel, then continue to the rest of setup."
-      cardTitle="Create Admin Account"
-      cardDescription="This account unlocks the control panel and signs you in right away."
+      badge={t('badge')}
+      title={t('title')}
+      description={t('description')}
+      cardTitle={t('cardTitle')}
+      cardDescription={t('cardDescription')}
       footer={
         <span className="inline-flex items-start gap-1.5 text-left">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning/80" aria-hidden="true" />
           <span>
-            Store this password safely. There is no email recovery — resetting it later requires
-            filesystem access to this server.
+            {t('footer')}
           </span>
         </span>
       }
@@ -105,21 +106,21 @@ export default function Setup() {
       {/* ─── Step indicator ─── */}
       <ol
         className="-mt-1 mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground"
-        aria-label="Setup progress"
+        aria-label={t('steps.progress')}
       >
         <li className="flex items-center gap-1.5">
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-primary/40 bg-primary/15 text-[10px] font-semibold text-primary">1</span>
-          <span className="text-foreground/80">Account</span>
+          <span className="text-foreground/80">{t('steps.account')}</span>
         </li>
         <span aria-hidden="true" className="h-px w-6 bg-border/60" />
         <li className="flex items-center gap-1.5 opacity-70">
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-muted/20 text-[10px] font-semibold text-muted-foreground">2</span>
-          <span>Server</span>
+          <span>{t('steps.server')}</span>
         </li>
         <span aria-hidden="true" className="h-px w-6 bg-border/60" />
         <li className="flex items-center gap-1.5 opacity-50">
           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border/60 bg-muted/20 text-[10px] font-semibold text-muted-foreground">3</span>
-          <span>Online</span>
+          <span>{t('status.online')}</span>
         </li>
       </ol>
 
@@ -137,13 +138,13 @@ export default function Setup() {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="username">Username</Label>
+          <Label htmlFor="username">{t('labels.username')}</Label>
           <Input
             id="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="admin"
+            placeholder={t('labels.username')}
             autoComplete="username"
             autoFocus
             maxLength={32}
@@ -155,17 +156,17 @@ export default function Setup() {
           <div id={usernameHintId} className="flex items-center gap-1.5 text-xs leading-5">
             {username.length === 0 ? (
               <span className="text-muted-foreground">
-                Use 3-32 characters: letters, numbers, underscores, or hyphens.
+                {t('labels.usernameHint')}
               </span>
             ) : usernameValid ? (
               <>
                 <CheckCircle className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                <span className="text-primary">Looks good.</span>
+                <span className="text-primary">{t('status.looksGood')}</span>
               </>
             ) : (
               <>
                 <div className="h-3.5 w-3.5 rounded-full border border-destructive" aria-hidden="true" />
-                <span className="text-destructive">3-32 chars; letters, numbers, _ or - only.</span>
+                <span className="text-destructive">{t('status.usernameFormat')}</span>
               </>
             )}
           </div>
@@ -173,11 +174,11 @@ export default function Setup() {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('labels.password')}</Label>
             {capsLockOn && (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning" role="status">
                 <KeyRound className="h-3 w-3" aria-hidden="true" />
-                Caps Lock is on
+                {t('status.capsLockOn')}
               </span>
             )}
           </div>
@@ -190,7 +191,7 @@ export default function Setup() {
               onKeyDown={detectCaps}
               onKeyUp={detectCaps}
               onBlur={() => setCapsLockOn(false)}
-              placeholder="••••••••"
+              placeholder={t('placeholders.password')}
               autoComplete="new-password"
               disabled={loading}
               aria-describedby={[passwordHintId, errorId].filter(Boolean).join(' ')}
@@ -201,7 +202,7 @@ export default function Setup() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? t('actions.hidePassword') : t('actions.showPassword')}
               aria-pressed={showPassword}
             >
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -239,7 +240,7 @@ export default function Setup() {
                   <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30" aria-hidden="true" />
                 )}
                 <span className={passwordLongEnough ? 'text-primary' : 'text-muted-foreground'}>
-                  Use at least 6 characters.
+                  {t('status.passwordMinimum')}
                 </span>
               </span>
               {strength.label && (
@@ -263,7 +264,7 @@ export default function Setup() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+          <Label htmlFor="confirmPassword">{t('labels.confirmPassword')}</Label>
           <Input
             id="confirmPassword"
             type={showPassword ? 'text' : 'password'}
@@ -272,7 +273,7 @@ export default function Setup() {
             onKeyDown={detectCaps}
             onKeyUp={detectCaps}
             onBlur={() => setCapsLockOn(false)}
-            placeholder="••••••••"
+            placeholder={t('placeholders.password')}
             autoComplete="new-password"
             disabled={loading}
             aria-describedby={[confirmHintId, errorId].filter(Boolean).join(' ')}
@@ -287,13 +288,13 @@ export default function Setup() {
                 <div className="h-3.5 w-3.5 rounded-full border border-destructive" aria-hidden="true" />
               )}
               <span className={passwordsMatch ? 'text-primary' : 'text-destructive'}>
-                {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                {passwordsMatch ? t('passwordMatch.match') : t('passwordMatch.noMatch')}
               </span>
             </div>
           )}
           {!confirmPassword && (
             <p id={confirmHintId} className="text-xs leading-5 text-muted-foreground">
-              Type the same password again to confirm it.
+              {t('labels.confirmHint')}
             </p>
           )}
         </div>
@@ -305,7 +306,7 @@ export default function Setup() {
             onCheckedChange={(checked) => setRememberMe(checked === true)}
           />
           <Label htmlFor="rememberMe" className="cursor-pointer text-sm font-normal text-foreground/90">
-            Keep me signed in on this browser
+            {t('labels.keepSignedIn')}
           </Label>
         </div>
 
@@ -317,11 +318,11 @@ export default function Setup() {
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              Creating admin account...
+              {t('actions.creating')}
             </>
           ) : (
             <>
-              Create account &amp; continue
+              {t('actions.createAccount')}
               <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
             </>
           )}
@@ -331,10 +332,10 @@ export default function Setup() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <ArrowRight className="h-4 w-4 text-primary" aria-hidden="true" />
-              After this step
+              {t('afterStep.title')}
             </div>
             <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-              Preview
+              {t('afterStep.preview')}
             </span>
           </div>
           <div className="mission-step-grid mt-3 space-y-2">
@@ -343,9 +344,9 @@ export default function Setup() {
                 <Server className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
               <div className="min-w-0 pt-0.5">
-                <p className="text-[13px] font-medium leading-tight text-foreground">Bring a server into the panel</p>
+                <p className="text-[13px] font-medium leading-tight text-foreground">{t('afterStep.bringServer.title')}</p>
                 <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  Add an existing install or run the guided setup to create one.
+                  {t('afterStep.bringServer.description')}
                 </p>
               </div>
             </div>
@@ -355,9 +356,9 @@ export default function Setup() {
                 <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
               <div className="min-w-0 pt-0.5">
-                <p className="text-[13px] font-medium leading-tight text-foreground">Confirm RCON and paths</p>
+                <p className="text-[13px] font-medium leading-tight text-foreground">{t('afterStep.confirmRCON.title')}</p>
                 <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  The panel needs to authenticate against the server before it can do anything useful.
+                  {t('afterStep.confirmRCON.description')}
                 </p>
               </div>
             </div>
@@ -367,9 +368,9 @@ export default function Setup() {
                 <RadioTower className="h-3.5 w-3.5" aria-hidden="true" />
               </div>
               <div className="min-w-0 pt-0.5">
-                <p className="text-[13px] font-medium leading-tight text-foreground">Take the dashboard live</p>
+                <p className="text-[13px] font-medium leading-tight text-foreground">{t('afterStep.takeLive.title')}</p>
                 <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                  Verify status, players, backups, and quick admin actions from one screen.
+                  {t('afterStep.takeLive.description')}
                 </p>
               </div>
             </div>

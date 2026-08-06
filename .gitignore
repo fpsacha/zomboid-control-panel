@@ -52,3 +52,9 @@ release-notes-*.md
 *.ipynb
 lh-*.json
 _artifacts/
+
+# Local assistant context and runtime artifacts
+.claude/
+CLAUDE.md
+data/backups/
+data/panel.lock

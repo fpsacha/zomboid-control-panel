@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -38,6 +39,7 @@ function usePanelHealth() {
 }
 
 export default function Login() {
+  const { t } = useTranslation('login');
   const { login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -100,7 +102,7 @@ export default function Login() {
     try {
       await login(username, password, rememberMe)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : t('errors.loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -111,15 +113,15 @@ export default function Login() {
     setError('')
     setResetSuccess('')
     if (!resetToken || resetToken.trim().length < 8) {
-      setError('Reset token must be at least 8 characters')
+      setError(t('errors.tokenTooShort'))
       return
     }
     if (!newPassword || newPassword.length < 6) {
-      setError('Password must be at least 6 characters')
+      setError(t('errors.passwordTooShort'))
       return
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('errors.passwordsNoMatch'))
       return
     }
     setLoading(true)
@@ -140,7 +142,7 @@ export default function Login() {
         },
       )
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Reset failed')
+      if (!res.ok) throw new Error(data.error || t('errors.resetFailed'))
       setResetSuccess(data.message)
       setResetToken('')
       setNewPassword('')
@@ -153,7 +155,7 @@ export default function Login() {
       }, 3000)
       resetTimerRef.current = timer
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reset failed')
+      setError(err instanceof Error ? err.message : t('errors.resetFailed'))
     } finally {
       setLoading(false)
     }
@@ -186,9 +188,9 @@ export default function Login() {
         return
       }
 
-      setError('No recovery token found yet. Create data/reset-token.txt on the panel host, then try again.')
+      setError(t('errors.recoveryTokenNotFound'))
     } catch {
-      setError('Could not check recovery status. Try again in a moment.')
+      setError(t('errors.recoveryStatusCheckFailed'))
     } finally {
       setCheckingResetStatus(false)
     }
@@ -201,26 +203,26 @@ export default function Login() {
     try {
       const res = await fetch('/api/auth/reset-token/local', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Could not create a recovery token')
+      if (!res.ok) throw new Error(data.error || t('errors.createTokenFailed'))
 
       setResetAvailable(true)
       setLocalResetSupported(true)
       setResetToken('')
       setShowRecoveryHelp(false)
-      setResetSuccess(typeof data.message === 'string' ? data.message : 'Recovery token created at data/reset-token.txt. Paste it below to continue.')
+      setResetSuccess(typeof data.message === 'string' ? data.message : t('recovery.tokenCreated'))
       setResetMode(true)
     } catch (err) {
       setShowRecoveryHelp(true)
-      setError(err instanceof Error ? err.message : 'Could not create a recovery token')
+      setError(err instanceof Error ? err.message : t('errors.createTokenFailed'))
     } finally {
       setCreatingLocalReset(false)
     }
   }
 
   const statusMap: Record<PanelStatus, { label: string; tone: string; dot: string }> = {
-    checking: { label: 'Checking', tone: 'text-muted-foreground', dot: 'bg-muted-foreground/60' },
-    online: { label: 'Online', tone: 'text-success', dot: 'bg-success' },
-    unreachable: { label: 'Offline', tone: 'text-destructive', dot: 'bg-destructive' },
+    checking: { label: t('status.checking'), tone: 'text-muted-foreground', dot: 'bg-muted-foreground/60' },
+    online: { label: t('status.online'), tone: 'text-success', dot: 'bg-success' },
+    unreachable: { label: t('status.offline'), tone: 'text-destructive', dot: 'bg-destructive' },
   }
   const s = statusMap[status]
 
@@ -230,7 +232,7 @@ export default function Login() {
         href="#login-form"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:text-primary-foreground"
       >
-        Skip to form
+        {t('actions.skipToForm')}
       </a>
 
       <div
@@ -244,8 +246,8 @@ export default function Login() {
 
       <header className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 text-sm sm:px-8">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-foreground">Project Zomboid Control Panel</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Admin access</p>
+          <p className="text-sm font-medium text-foreground">{t('projectZomboidControlPanel')}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t('adminAccess')}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
           <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
@@ -261,15 +263,15 @@ export default function Login() {
         >
           <div className="mb-6 space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              {resetMode ? 'Account recovery' : 'Secure sign in'}
+              {resetMode ? t('page.accountRecovery') : t('page.secureSignIn')}
             </p>
             <h1 id="login-title" className="text-2xl font-semibold tracking-normal text-foreground">
-              {resetMode ? 'Reset your password' : 'Sign in'}
+              {resetMode ? t('page.resetPassword') : t('actions.signIn')}
             </h1>
             <p className="text-sm leading-6 text-muted-foreground">
               {resetMode
-                ? 'Use the recovery token from the panel host to choose a new admin password.'
-                : 'Use your admin account to manage this server.'}
+                ? t('page.resetDescription')
+                : t('page.loginDescription')}
             </p>
           </div>
 
@@ -296,14 +298,14 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="resetToken" className="text-sm font-medium text-foreground">
-                  {resetAvailable ? 'Recovery token' : 'Recovery code'}
+                  {t('recovery.tokenLabel')}
                 </Label>
                 <Input
                   id="resetToken"
                   type="text"
                   value={resetToken}
                   onChange={(e) => setResetToken(e.target.value)}
-                  placeholder={resetAvailable ? 'Paste token' : 'XXXXX-XXXXX-XXXXX'}
+                  placeholder={t('recovery.tokenPlaceholder')}
                   autoFocus
                   disabled={loading}
                   required
@@ -311,16 +313,12 @@ export default function Login() {
                   maxLength={512}
                   className="text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  {resetAvailable
-                    ? 'Stored at data/reset-token.txt on the panel host.'
-                    : 'One of the recovery codes you saved from Settings → Security. Each code works once.'}
-                </p>
+                <p className="text-xs text-muted-foreground">{t('storedAtDataresettokentxtOnThePanelHost')}</p>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="newPassword" className="text-sm font-medium text-foreground">
-                  New password
+                  {t('recovery.newPasswordLabel')}
                 </Label>
                 <div className="relative">
                   <Input
@@ -328,7 +326,7 @@ export default function Login() {
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
+                    placeholder={t('recovery.newPasswordPlaceholder')}
                     className="pr-10 text-sm"
                     disabled={loading}
                     required
@@ -339,7 +337,7 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     className="absolute inset-y-0 right-3 flex items-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showNewPassword ? t('actions.hidePassword') : t('actions.showPassword')}
                     aria-pressed={showNewPassword}
                   >
                     {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -349,14 +347,14 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                  Confirm password
+                  {t('recovery.confirmPasswordLabel')}
                 </Label>
                 <Input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat new password"
+                  placeholder={t('recovery.confirmPasswordPlaceholder')}
                   disabled={loading}
                   required
                   minLength={6}
@@ -366,7 +364,7 @@ export default function Login() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /> Resetting…</>) : 'Reset password'}
+                {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /> {t('recovery.resetting')}</>) : t('recovery.resetButton')}
               </Button>
 
               <Button
@@ -376,7 +374,7 @@ export default function Login() {
                 onClick={() => { setResetMode(false); setError(''); setResetSuccess('') }}
               >
                 <ArrowLeft className="mr-1.5 h-4 w-4" />
-                Back to sign in
+                {t('recovery.backToLogin')}
               </Button>
             </form>
           ) : (
@@ -394,14 +392,14 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="username" className="text-sm font-medium text-foreground">
-                  Username
+                  {t('labels.username')}
                 </Label>
                 <Input
                   id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin"
+                  placeholder={t('labels.username')}
                   autoComplete="username"
                   autoFocus
                   maxLength={32}
@@ -415,7 +413,7 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                  Password
+                  {t('labels.password')}
                 </Label>
                 <div className="relative">
                   <Input
@@ -423,7 +421,7 @@ export default function Login() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
+                    placeholder={t('labels.password')}
                     autoComplete="current-password"
                     className="pr-10 text-sm"
                     disabled={loading}
@@ -436,7 +434,7 @@ export default function Login() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-3 flex items-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? t('actions.hidePassword') : t('actions.showPassword')}
                     aria-pressed={showPassword}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -451,13 +449,13 @@ export default function Login() {
                   onCheckedChange={(checked) => setRememberMe(checked === true)}
                 />
                 <Label htmlFor="rememberMe" className="cursor-pointer text-sm font-normal text-muted-foreground">
-                  Keep me signed in
+                  {t('labels.keepSignedIn')}
                 </Label>
               </div>
 
               <div className="space-y-2 pt-1">
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>) : 'Sign in'}
+                  {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /> {t('actions.signingIn')}</>) : t('actions.signIn')}
                 </Button>
 
                 <Button
@@ -469,29 +467,29 @@ export default function Login() {
                 >
                   {creatingLocalReset ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
                   {creatingLocalReset
-                    ? 'Preparing recovery…'
+                    ? t('recovery.preparing')
                     : resetAvailable
-                      ? 'Use recovery token'
+                      ? t('recovery.useToken')
                       : localResetSupported
-                        ? 'Create recovery file'
-                        : 'Recover account'}
+                        ? t('recovery.createFile')
+                        : t('recovery.recoverAccount')}
                 </Button>
               </div>
 
               {showRecoveryHelp && !resetAvailable && (
                 <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-3 text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground">Account recovery</p>
+                  <p className="font-medium text-foreground">{t('recovery.title')}</p>
                   {localResetSupported ? (
                     <p className="mt-2 leading-6">
-                      This browser is running on the panel host. Create a recovery file, then use its token to reset the admin password.
+                      {t('recovery.localDescription')}
                     </p>
                   ) : (
                     <>
                       <p className="mt-2 leading-6">
-                        Create data/reset-token.txt on the panel host with any token at least 8 characters long.
+                        {t('recovery.remoteDescription')}
                       </p>
                       <p className="mt-2 leading-6">
-                        You can also start the panel with <span className="font-mono text-foreground/85">--reset-password</span> from the server terminal.
+                        {t('recovery.altMethod')} <span className="font-mono text-foreground/85">--reset-password</span> {t('recovery.altMethodSuffix')}
                       </p>
                     </>
                   )}
@@ -504,7 +502,7 @@ export default function Login() {
                         onClick={() => void handleCreateLocalReset()}
                         disabled={creatingLocalReset || checkingResetStatus || loading}
                       >
-                        {creatingLocalReset ? (<><Loader2 className="h-4 w-4 animate-spin" /> Preparing…</>) : 'Create file'}
+                        {creatingLocalReset ? (<><Loader2 className="h-4 w-4 animate-spin" /> {t('recovery.preparingFile')}</>) : t('recovery.createFileButton')}
                       </Button>
                     ) : (
                       <Button
@@ -514,7 +512,7 @@ export default function Login() {
                         onClick={handleRecoveryCheck}
                         disabled={checkingResetStatus || loading}
                       >
-                        {checkingResetStatus ? (<><Loader2 className="h-4 w-4 animate-spin" /> Checking…</>) : 'Check token'}
+                        {checkingResetStatus ? (<><Loader2 className="h-4 w-4 animate-spin" /> {t('recovery.checking')}</>) : t('recovery.checkToken')}
                       </Button>
                     )}
                     <Button
@@ -524,7 +522,7 @@ export default function Login() {
                       onClick={() => { setShowRecoveryHelp(false); setError('') }}
                       disabled={creatingLocalReset || checkingResetStatus || loading}
                     >
-                      Cancel
+                      {t('recovery.cancel')}
                     </Button>
                   </div>
                 </div>
@@ -536,4 +534,5 @@ export default function Login() {
     </div>
   )
 }
+
 

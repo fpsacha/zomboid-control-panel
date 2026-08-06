@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useContext, useRef, useMemo } from "react";
 import {
   Download,
@@ -107,15 +108,18 @@ function formatBytes(bytes: number): string {
 
 const LINUX_SERVICE_INSTALL_PATH = "/opt/zomboid-panel/data/pzserver";
 
-function installationErrorGuidance(message: string) {
+function installationErrorGuidance(message: string, guidance: string) {
   if (!message.startsWith("Installation path is not writable:")) {
     return message;
   }
 
-  return `${message} On Linux, use ${LINUX_SERVICE_INSTALL_PATH}, or add both your install folder and its _Data folder to ReadWritePaths in zomboid-panel.service, then restart the service.`;
+  return `${message} ${guidance}`;
 }
 
 export default function ServerSetup() {
+  const { t } = useTranslation('serverSetup');
+  
+  
   const [setupMode, setSetupMode] = useState<SetupMode>("select");
   const [currentStep, setCurrentStep] = useState(1);
 
@@ -130,8 +134,8 @@ export default function ServerSetup() {
   const [availableBranches, setAvailableBranches] = useState<
     Array<{ name: string; description: string; buildId?: string | null }>
   >([
-    { name: "public", description: "Stable release (Build 42)" },
-    { name: "b41multiplayer", description: "Build 41 Multiplayer" },
+    { name: "public", description: t('server.stableRelease') },
+    { name: "b41multiplayer", description: t('server.build41Multiplayer') },
   ]);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [useCustomDataPath, setUseCustomDataPath] = useState(false);
@@ -181,7 +185,7 @@ export default function ServerSetup() {
   const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [startingServer, setStartingServer] = useState(false);
 
-  // Refs for socket handler closure — avoids re-registering socket listeners when form state changes
+  // Refs for socket handler closure 鈥?avoids re-registering socket listeners when form state changes
   const formStateRef = useRef({
     serverName,
     installPath,
@@ -369,7 +373,7 @@ export default function ServerSetup() {
           percent,
           downloaded,
           total,
-          status: "Downloading...",
+          status: t('status.downloading'),
         });
       }
       // Parse validation: "Validating files... 50%"
@@ -379,13 +383,13 @@ export default function ServerSetup() {
           percent: parseInt(validateMatch[1]),
           downloaded: "",
           total: "",
-          status: "Validating files...",
+          status: t('status.validating'),
         });
       }
       // Parse update state
       if (text.includes("Update state") && text.includes("verifying")) {
         setInstallProgress((prev) =>
-          prev ? { ...prev, status: "Verifying installation..." } : null,
+          prev ? { ...prev, status: t('status.verifying') } : null,
         );
       }
       if (text.includes("Success!") || text.includes("fully installed")) {
@@ -393,7 +397,7 @@ export default function ServerSetup() {
           percent: 100,
           downloaded: "",
           total: "",
-          status: "Complete!",
+          status: t('status.complete'),
         });
       }
     };
@@ -441,7 +445,7 @@ export default function ServerSetup() {
             ...prev,
             {
               type: "success",
-              message: "Server registered in panel database",
+              message: t('logs.serverRegistered'),
               timestamp: new Date(),
             },
           ]);
@@ -453,7 +457,7 @@ export default function ServerSetup() {
               ...prev,
               {
                 type: "success",
-                message: "Switched active server to new installation",
+                message: t('logs.activeServerSwitched'),
                 timestamp: new Date(),
               },
             ]);
@@ -464,16 +468,16 @@ export default function ServerSetup() {
             ...prev,
             {
               type: "error",
-              message: "Warning: Failed to register server in panel.",
+              message: t('logs.serverRegistrationWarning'),
               timestamp: new Date(),
             },
           ]);
         }
 
         toast({
-          title: "Server Installed",
+          title: t('toast.serverInstalled'),
           description:
-            "Project Zomboid server files were installed successfully.",
+            t('toast.serverInstalledDescription'),
         });
       } else {
         setLogs((prev) => [
@@ -481,7 +485,7 @@ export default function ServerSetup() {
           { type: "error", message: data.message, timestamp: new Date() },
         ]);
         toast({
-          title: "Installation Failed",
+          title: t('toast.installationFailed'),
           description: data.message,
           variant: "destructive",
         });
@@ -502,13 +506,13 @@ export default function ServerSetup() {
         setHasSteamCmd(true);
         setDownloadingSteamCmd(false);
         toast({
-          title: "SteamCMD Ready",
-          description: "SteamCMD is installed and ready to use.",
+          title: t('toast.steamcmdReady'),
+          description: t('toast.steamcmdReadyDescription'),
         });
       } else if (data.status === "error") {
         setDownloadingSteamCmd(false);
         toast({
-          title: "SteamCMD Setup Failed",
+          title: t('toast.steamcmdSetupFailed'),
           description: data.message,
           variant: "destructive",
         });
@@ -528,7 +532,7 @@ export default function ServerSetup() {
       socket.off("steamcmd:status", handleSteamCmdStatus);
       socket.off("steamcmd:log", handleSteamCmdLog);
     };
-  }, [socket, toast]);
+  }, [socket, t, toast]);
 
   const addLog = (type: InstallLog["type"], message: string) => {
     setLogs((prev) => [...prev, { type, message, timestamp: new Date() }]);
@@ -536,17 +540,17 @@ export default function ServerSetup() {
 
   const handleAutoDownloadSteamCmd = async () => {
     setDownloadingSteamCmd(true);
-    setSteamCmdStatus("Starting download...");
+    setSteamCmdStatus(t('status.startingDownload'));
     try {
       await serverApi.downloadSteamCmd(steamCmdPath);
     } catch (error) {
       setDownloadingSteamCmd(false);
       toast({
-        title: "Download Failed",
+        title: t('toast.downloadFailed'),
         description:
           error instanceof Error
             ? error.message
-            : "Failed to start SteamCMD download.",
+            : t('errors.startSteamcmdDownloadFailed'),
         variant: "destructive",
       });
     }
@@ -593,8 +597,8 @@ export default function ServerSetup() {
     copyText(rconPassword);
     setCopiedPassword(true);
     toast({
-      title: "Password Copied",
-      description: "RCON password copied to clipboard.",
+      title: t('toast.passwordCopied'),
+      description: t('toast.passwordCopiedDescription'),
     });
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     copyTimeoutRef.current = setTimeout(() => setCopiedPassword(false), 2000);
@@ -610,16 +614,16 @@ export default function ServerSetup() {
   const handleRegeneratePassword = () => {
     setRconPassword(generatePassword(12));
     toast({
-      title: "Password Generated",
-      description: "A new RCON password has been generated.",
+      title: t('toast.passwordGenerated'),
+      description: t('toast.passwordGeneratedDescription'),
     });
   };
 
   const handleInstall = async () => {
     if (!adminPassword) {
       toast({
-        title: "Admin Password Required",
-        description: "Enter an admin password before starting installation.",
+        title: t('errors.adminPasswordRequired'),
+        description: t('errors.adminPasswordBeforeInstall'),
         variant: "destructive",
       });
       return;
@@ -627,7 +631,7 @@ export default function ServerSetup() {
     setInstalling(true);
     setLogs([]);
     setInstallProgress(null);
-    addLog("info", "Starting installation...");
+    addLog("info", t('logs.startingInstallation'));
 
     try {
       await serverApi.install({
@@ -647,12 +651,12 @@ export default function ServerSetup() {
         rconPort,
       });
     } catch (error) {
-      const rawMessage = error instanceof Error ? error.message : "Unknown error";
-      const msg = installationErrorGuidance(rawMessage);
+      const rawMessage = error instanceof Error ? error.message : t('errors.unknown');
+      const msg = installationErrorGuidance(rawMessage, t('errors.installationPathGuidance', { path: LINUX_SERVICE_INSTALL_PATH }));
       addLog("error", msg);
       setInstalling(false);
       toast({
-        title: "Installation Failed",
+        title: t('toast.installationFailed'),
         description: msg,
         variant: "destructive",
       });
@@ -662,15 +666,15 @@ export default function ServerSetup() {
   const handleQuickSetup = async () => {
     if (!adminPassword) {
       toast({
-        title: "Admin Password Required",
-        description: "Enter an admin password before creating this server.",
+        title: t('errors.adminPasswordRequired'),
+        description: t('errors.adminPasswordBeforeCreate'),
         variant: "destructive",
       });
       return;
     }
     setInstalling(true);
     setLogs([]);
-    addLog("info", "Creating server configuration...");
+    addLog("info", t('logs.creatingServerConfiguration'));
 
     try {
       const data = await serverApi.quickSetup({
@@ -689,7 +693,7 @@ export default function ServerSetup() {
       });
 
       if (data) {
-        addLog("success", "Server configuration created successfully!");
+        addLog("success", t('logs.serverConfigurationCreated'));
 
         try {
           // Use data from server response which has computed paths
@@ -708,27 +712,27 @@ export default function ServerSetup() {
             useNoSteam: useNoSteam,
             useDebug: useDebug,
           });
-          addLog("success", "Server registered in panel database");
+          addLog("success", t('logs.serverRegistered'));
 
           // Activate the newly created server so "Start Server Now" starts this one
           if (createResult.server?.id) {
             await serversApi.activate(createResult.server.id);
-            addLog("success", "Switched active server to new installation");
+          addLog("success", t('logs.activeServerSwitched'));
           }
         } catch (error) {
           reportClientError("Failed to create server entry.", error);
-          addLog("error", "Warning: Failed to register server in panel.");
+          addLog("error", t('logs.serverRegistrationWarning'));
         }
 
         setInstallComplete(true);
         toast({
-          title: "Server Added",
-          description: "Server configuration was created successfully.",
+          title: t('toast.serverAdded'),
+          description: t('toast.serverAddedDescription'),
         });
       } else {
         addLog("error", data.error);
         toast({
-          title: "Setup Failed",
+          title: t('toast.setupFailed'),
           description: data.error,
           variant: "destructive",
         });
@@ -737,10 +741,10 @@ export default function ServerSetup() {
       const msg =
         error instanceof Error
           ? error.message
-          : "Unexpected error while creating server.";
+          : t('errors.unexpectedCreateServer');
       addLog("error", msg);
       toast({
-        title: "Setup Failed",
+        title: t('toast.setupFailed'),
         description: msg,
         variant: "destructive",
       });
@@ -754,13 +758,13 @@ export default function ServerSetup() {
       await configApi.updateAppSettings({ steamcmdPath: steamCmdPath });
       setHasSteamCmd(true);
       toast({
-        title: "Path Saved",
-        description: "SteamCMD path saved successfully.",
+        title: t('toast.pathSaved'),
+        description: t('toast.pathSavedDescription'),
       });
     } catch {
       toast({
-        title: "Save Failed",
-        description: "Could not save SteamCMD path.",
+        title: t('toast.saveFailed'),
+        description: t('errors.saveSteamcmdPathFailed'),
         variant: "destructive",
       });
     }
@@ -776,11 +780,11 @@ export default function ServerSetup() {
               className="inline-block w-1.5 h-1.5 rounded-full bg-primary"
               aria-hidden="true"
             />
-            New Server
+            {t('selectMode.newServer')}
           </span>
-          <h1 className="text-3xl font-bold">Server Setup</h1>
+          <h1 className="text-3xl font-bold">{t('serverSetup')}</h1>
           <p className="text-muted-foreground text-base">
-            Choose how you want to bring a Project Zomboid server online.
+            {t('selectMode.description')}
           </p>
         </div>
 
@@ -810,19 +814,19 @@ export default function ServerSetup() {
                     variant="secondary"
                     className="text-[10px] font-medium uppercase tracking-wide"
                   >
-                    Recommended
+                     {t('selectMode.recommended')}
                   </Badge>
                 </div>
                 <CardHeader className="pb-3">
                   <div className="grid place-items-center w-11 h-11 rounded-md border border-primary/30 bg-primary/[0.08] text-primary mb-3 transition-colors group-hover:bg-primary/15">
                     <Download className="w-5 h-5" />
                   </div>
-                  <CardTitle className="text-lg">Fresh Install</CardTitle>
+                  <CardTitle className="text-lg">{t('freshInstall')}</CardTitle>
                   <CardDescription
                     id="full-setup-description"
                     className="text-xs"
                   >
-                    Download and configure a new dedicated server from scratch
+                    {t('selectMode.freshDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 pb-5">
@@ -830,23 +834,23 @@ export default function ServerSetup() {
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-primary shrink-0" />
                       <span>
-                        Downloads server files via SteamCMD{" "}
+                        {t('selectMode.downloadsViaSteamcmd')} {" "}
                         <span className="text-foreground/60">(~3 GB)</span>
                       </span>
                     </li>
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-primary shrink-0" />
-                      <span>Choose game version branch</span>
+                      <span>{t('chooseGameVersionBranch')}</span>
                     </li>
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-primary shrink-0" />
                       <span>
-                        Generates config and startup files automatically
+                        {t('selectMode.generatesFiles')}
                       </span>
                     </li>
                   </ul>
                   <div className="flex items-center gap-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-primary/90">
-                    Begin install{" "}
+                    {t('selectMode.beginInstall')} {" "}
                     <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                   </div>
                 </CardContent>
@@ -874,31 +878,31 @@ export default function ServerSetup() {
                   <div className="grid place-items-center w-11 h-11 rounded-md border border-border/55 bg-muted/40 text-muted-foreground mb-3 transition-colors group-hover:border-primary/30 group-hover:bg-primary/[0.06] group-hover:text-primary">
                     <Plus className="w-5 h-5" />
                   </div>
-                  <CardTitle className="text-lg">Use Existing Files</CardTitle>
+                  <CardTitle className="text-lg">{t('selectMode.existingFiles')}</CardTitle>
                   <CardDescription
                     id="quick-setup-description"
                     className="text-xs"
                   >
-                    Register a server using files you already downloaded
+                    {t('selectMode.existingDescription')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3 pb-5">
                   <ul className="space-y-1.5 text-[13px]">
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-muted-foreground/70 shrink-0" />
-                      <span>No download required</span>
+                      <span>{t('noDownloadRequired')}</span>
                     </li>
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-muted-foreground/70 shrink-0" />
-                      <span>Point to an existing PZ server folder</span>
+                      <span>{t('pointToAnExistingPzServerFolder')}</span>
                     </li>
                     <li className="flex items-start gap-2 text-muted-foreground">
                       <CheckCircle className="w-3.5 h-3.5 mt-0.5 text-muted-foreground/70 shrink-0" />
-                      <span>Fast 3-step setup</span>
+                      <span>{t('fast3stepSetup')}</span>
                     </li>
                   </ul>
                   <div className="flex items-center gap-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground transition-colors group-hover:text-primary/90">
-                    Register server{" "}
+                    {t('selectMode.registerServer')} {" "}
                     <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                   </div>
                 </CardContent>
@@ -915,11 +919,10 @@ export default function ServerSetup() {
                 <Info className="w-5 h-5 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="font-medium">Not sure which to choose?</p>
+                <p className="font-medium">{t('notSureWhichToChoose')}</p>
                 <p className="text-sm text-muted-foreground">
-                  If you've never set up a Project Zomboid server before, choose{" "}
-                  <strong>Fresh Install</strong>. It will download everything
-                  you need automatically.
+                  {t('selectMode.tipPrefix')} {" "}
+                  <strong>{t('freshInstall')}</strong>{t('selectMode.tipSuffix')}
                 </p>
               </div>
             </div>
@@ -934,15 +937,15 @@ export default function ServerSetup() {
     const steps =
       setupMode === "quick"
         ? [
-            { id: 1, label: "Location", icon: HardDrive },
-            { id: 2, label: "Configure", icon: Settings2 },
-            { id: 3, label: "Create", icon: Plus },
+            { id: 1, label: t('steps.location'), icon: HardDrive },
+            { id: 2, label: t('steps.configure'), icon: Settings2 },
+            { id: 3, label: t('steps.create'), icon: Plus },
           ]
         : [
-            { id: 1, label: "SteamCMD", icon: Download },
-            { id: 2, label: "Server", icon: Server },
-            { id: 3, label: "Settings", icon: Settings2 },
-            { id: 4, label: "Install", icon: Zap },
+            { id: 1, label: t('steps.steamcmd'), icon: Download },
+            { id: 2, label: t('steps.server'), icon: Server },
+            { id: 3, label: t('steps.settings'), icon: Settings2 },
+            { id: 4, label: t('steps.install'), icon: Zap },
           ];
 
     return (
@@ -1007,11 +1010,8 @@ export default function ServerSetup() {
   const renderFullStep1 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Set Up SteamCMD</h2>
-        <p className="text-muted-foreground">
-          SteamCMD is required to download and update Project Zomboid dedicated
-          server files.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('setUpSteamcmd')}</h2>
+        <p className="text-muted-foreground">{t('steamcmd.stepDescription')}</p>
       </div>
 
       {!hasSteamCmd ? (
@@ -1025,9 +1025,9 @@ export default function ServerSetup() {
                 </div>
                 <div className="flex-1 space-y-4">
                   <div>
-                    <h3 className="font-semibold text-lg">One-Click Setup</h3>
+                    <h3 className="font-semibold text-lg">{t('oneclickSetup')}</h3>
                     <p className="text-sm text-muted-foreground">
-                      We will install SteamCMD and prepare it for this panel.
+                      {t('steamcmd.oneClickDescription')}
                     </p>
                   </div>
 
@@ -1035,7 +1035,7 @@ export default function ServerSetup() {
                     <Input
                       value={steamCmdPath}
                       onChange={(e) => setSteamCmdPath(e.target.value)}
-                      placeholder="Select or enter the SteamCMD folder path"
+                      placeholder={t('steamcmd.folderPlaceholder')}
                       className="font-mono flex-1"
                       disabled={downloadingSteamCmd}
                       maxLength={260}
@@ -1049,17 +1049,17 @@ export default function ServerSetup() {
                             onClick={() =>
                               handleBrowseFolder(
                                 setSteamCmdPath,
-                                "Select SteamCMD folder",
+                                t('steamcmd.selectFolder'),
                                 steamCmdPath,
                               )
                             }
                             disabled={downloadingSteamCmd}
-                            aria-label="Browse SteamCMD folder"
+                            aria-label={t('steamcmd.browse')}
                           >
                             <FolderOpen className="w-4 h-4" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Browse folder</TooltipContent>
+                        <TooltipContent>{t('browseFolder')}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -1073,12 +1073,12 @@ export default function ServerSetup() {
                     {downloadingSteamCmd ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {steamCmdStatus || "Installing SteamCMD..."}
+                        {steamCmdStatus || t('status.installingSteamcmd')}
                       </>
                     ) : (
                       <>
                         <Download className="w-4 h-4 mr-2" />
-                        Install SteamCMD Automatically
+                        {t('steamcmd.installAutomatically')}
                       </>
                     )}
                   </Button>
@@ -1093,30 +1093,30 @@ export default function ServerSetup() {
               <AccordionTrigger className="px-4 hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Settings2 className="w-4 h-4" />
-                  <span>Already have SteamCMD? Set the folder manually</span>
+                  <span>{t('alreadyHaveSteamcmdSetTheFolderManually')}</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="px-4 pb-4">
                 <div className="space-y-4">
                   <div className="bg-warning/10 border border-warning/40 rounded-lg p-4 text-sm shadow-sm">
-                    <p className="font-medium text-warning">Manual Setup</p>
+                    <p className="font-medium text-warning">{t('manualSetup')}</p>
                     <ol className="list-decimal list-inside space-y-1 text-muted-foreground mt-2">
-                      <li>Download SteamCMD from Valve</li>
+                      <li>{t('downloadSteamcmdFromValve')}</li>
                       <li>
-                        Extract to a folder (e.g.,{" "}
+                        {t('steamcmd.extractPrefix')} {" "}
                         <code className="bg-muted px-1 rounded">
                           C:\SteamCMD
                         </code>{" "}
-                        or{" "}
+                         {" "}
                         <code className="bg-muted px-1 rounded">
                           ~/steamcmd
                         </code>
-                        )
+                        {t('steamcmd.extractSuffix')}
                       </li>
                       <li>
-                        Run{" "}
+                        {t('steamcmd.runPrefix')} {" "}
                         <code className="bg-muted px-1 rounded">steamcmd</code>{" "}
-                        once so it can self-update
+                        {t('steamcmd.runSuffix')}
                       </li>
                     </ol>
                     <Button
@@ -1131,7 +1131,7 @@ export default function ServerSetup() {
                       }
                     >
                       <Download className="w-4 h-4 mr-2" />
-                      Download SteamCMD
+                      {t('steamcmd.download')}
                       <ExternalLink className="w-3 h-3 ml-2" />
                     </Button>
                   </div>
@@ -1140,7 +1140,7 @@ export default function ServerSetup() {
                     <Input
                       value={steamCmdPath}
                       onChange={(e) => setSteamCmdPath(e.target.value)}
-                      placeholder="Path to your existing SteamCMD folder"
+                      placeholder={t('steamcmd.existingPlaceholder')}
                       className="font-mono flex-1"
                       maxLength={260}
                     />
@@ -1150,15 +1150,15 @@ export default function ServerSetup() {
                       onClick={() =>
                         handleBrowseFolder(
                           setSteamCmdPath,
-                          "Select SteamCMD folder",
+                          t('steamcmd.selectFolder'),
                           steamCmdPath,
                         )
                       }
-                      aria-label="Browse SteamCMD folder"
+                      aria-label={t('steamcmd.browse')}
                     >
                       <FolderOpen className="w-4 h-4" />
                     </Button>
-                    <Button onClick={handleSaveSteamCmdPath}>Save Path</Button>
+                    <Button onClick={handleSaveSteamCmdPath}>{t('savePath')}</Button>
                   </div>
                 </div>
               </AccordionContent>
@@ -1173,7 +1173,7 @@ export default function ServerSetup() {
                 <CheckCircle className="w-6 h-6 text-primary" />
               </div>
               <div className="flex-1">
-                <p className="font-semibold">SteamCMD Ready</p>
+                <p className="font-semibold">{t('steamcmdReady')}</p>
                 <p className="text-sm text-muted-foreground font-mono">
                   {steamCmdPath}
                 </p>
@@ -1183,7 +1183,7 @@ export default function ServerSetup() {
                 size="sm"
                 onClick={() => setHasSteamCmd(false)}
               >
-                Change Path
+                {t('steamcmd.changePath')}
               </Button>
             </div>
           </CardContent>
@@ -1196,17 +1196,15 @@ export default function ServerSetup() {
   const renderFullStep2 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Server Details</h2>
-        <p className="text-muted-foreground">
-          Choose where files are installed and set the server identity.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('serverDetails')}</h2>
+        <p className="text-muted-foreground">{t('serverDetailsDescription')}</p>
       </div>
 
       <div className="grid gap-6">
         {/* Installation Path */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
-            <Label className="text-base">Install Folder</Label>
+            <Label className="text-base">{t('installFolder')}</Label>
             <Button
               type="button"
               variant="ghost"
@@ -1214,14 +1212,14 @@ export default function ServerSetup() {
               className="h-auto px-0 text-xs"
               onClick={() => setInstallPath(LINUX_SERVICE_INSTALL_PATH)}
             >
-              Use Linux service path
+              {t('install.useLinuxServicePath')}
             </Button>
           </div>
           <div className="flex gap-2">
             <Input
               value={installPath}
               onChange={(e) => setInstallPath(e.target.value)}
-              placeholder="Folder where server files will be installed"
+              placeholder={t('install.folderPlaceholder')}
               className="font-mono flex-1"
               maxLength={260}
             />
@@ -1234,63 +1232,62 @@ export default function ServerSetup() {
                     onClick={() =>
                       handleBrowseFolder(
                         setInstallPath,
-                        "Select server folder",
+                        t('install.selectFolder'),
                         installPath,
                       )
                     }
-                    aria-label="Browse install folder"
+                    aria-label={t('install.browse')}
                   >
                     <FolderOpen className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Browse folder</TooltipContent>
+                <TooltipContent>{t('browseFolder')}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           </div>
           <p className="text-xs text-muted-foreground">
-            SteamCMD downloads approximately 3 GB here. The panel service must
-            be allowed to write to this folder.
+            {t('install.folderDescription')}
           </p>
         </div>
 
         <div className="border border-border/60 bg-muted/40 rounded-lg p-4 text-sm space-y-2">
           <p className="font-medium flex items-center gap-2">
             <Info className="w-4 h-4 text-primary" />
-            Linux service installs
+            {t('install.linuxServiceTitle')}
           </p>
           <p className="text-muted-foreground">
-            If the panel runs through the bundled systemd service, use{" "}
+            {t('install.linuxServiceDescriptionPrefix')} {" "}
             <code className="bg-muted px-1 rounded">{LINUX_SERVICE_INSTALL_PATH}</code>.
-            Other folders require a systemd permission change.
+            {" "}{t('install.linuxServiceDescriptionSuffix')}
           </p>
           <p className="text-muted-foreground">
-            The server data folder is created beside the install folder: {" "}
+            {t('install.dataFolderDescriptionPrefix')} {" "}
             <code className="bg-muted px-1 rounded break-all">
               {installPath.trim() ? `${installPath.trim()}_Data` : "your-install-folder_Data"}
-            </code>. Both folders must be writable.
+            </code>. {t('install.dataFolderDescriptionSuffix')}
           </p>
         </div>
 
         {/* Server Name */}
         <div className="space-y-2">
-          <Label className="text-base">Server Name</Label>
+          <Label className="text-base">{t('serverName')}</Label>
           <Input
             value={serverName}
             onChange={(e) =>
               setServerName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))
             }
-            placeholder="myserver"
+            placeholder={t('server.namePlaceholder')}
             className="font-mono"
             maxLength={64}
           />
           <p className="text-xs text-muted-foreground">
-            Alphanumeric and underscores only. Used for config files.
+            {t('server.nameDescription')}
           </p>
         </div>
 
         {/* Branch Selection */}
         <div className="space-y-2">
-          <Label className="text-base">Game Version</Label>
+          <Label className="text-base">{t('gameVersion')}</Label>
           <Select
             value={branch}
             onValueChange={setBranch}
@@ -1300,8 +1297,8 @@ export default function ServerSetup() {
               <SelectValue
                 placeholder={
                   loadingBranches
-                    ? "Loading available versions..."
-                    : "Select game version"
+                    ? t('status.loadingVersions')
+                    : t('server.selectGameVersion')
                 }
               />
             </SelectTrigger>
@@ -1311,12 +1308,12 @@ export default function ServerSetup() {
                   <div className="flex flex-col">
                     <span>
                       {b.name === "public"
-                        ? "Build 42 (Stable)"
+                        ? t('server.build42Stable')
                         : b.description || b.name}
                     </span>
                     {b.buildId && (
                       <span className="text-xs text-muted-foreground">
-                        Build: {b.buildId}
+                        {t('server.buildLabel')}: {b.buildId}
                       </span>
                     )}
                   </div>
@@ -1332,10 +1329,10 @@ export default function ServerSetup() {
             <AccordionTrigger className="px-4 hover:no-underline">
               <div className="flex items-center gap-2 text-sm">
                 <FolderOpen className="w-4 h-4" />
-                <span>Custom config location</span>
+                <span>{t('customConfigLocation')}</span>
                 {useCustomDataPath && zomboidDataPath && (
                   <Badge variant="secondary" className="ml-2">
-                    Set
+                    {t('server.set')}
                   </Badge>
                 )}
               </div>
@@ -1343,23 +1340,21 @@ export default function ServerSetup() {
             <AccordionContent className="px-4 pb-4">
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Leave this blank to create a data folder beside the install
-                  folder. In Docker, choose a bind-mounted folder when
-                  overriding it.
+                  {t('server.customDataDescription')}
                 </p>
                 <div className="flex items-center gap-3">
                   <Switch
                     checked={useCustomDataPath}
                     onCheckedChange={setUseCustomDataPath}
                   />
-                  <Label>Use custom location</Label>
+                  <Label>{t('useCustomLocation')}</Label>
                 </div>
                 {useCustomDataPath && (
                   <div className="flex gap-2">
                     <Input
                       value={zomboidDataPath}
                       onChange={(e) => setZomboidDataPath(e.target.value)}
-                      placeholder="Custom data folder path"
+                      placeholder={t('server.dataPathPlaceholder')}
                       className="font-mono flex-1"
                       maxLength={260}
                     />
@@ -1369,11 +1364,11 @@ export default function ServerSetup() {
                       onClick={() =>
                         handleBrowseFolder(
                           setZomboidDataPath,
-                          "Select config folder",
+                          t('server.selectConfigFolder'),
                           zomboidDataPath,
                         )
                       }
-                      aria-label="Browse config folder"
+                      aria-label={t('server.browseData')}
                     >
                       <FolderOpen className="w-4 h-4" />
                     </Button>
@@ -1391,9 +1386,9 @@ export default function ServerSetup() {
   const renderFullStep3 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Server Settings</h2>
+        <h2 className="text-2xl font-semibold">{t('serverSettings')}</h2>
         <p className="text-muted-foreground">
-          Configure remote control access and runtime options.
+          {t('serverSettingsDescription')}
         </p>
       </div>
 
@@ -1402,17 +1397,17 @@ export default function ServerSetup() {
         <CardHeader className="pb-4">
           <div className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            <CardTitle className="text-lg">Remote Control (RCON)</CardTitle>
-            <Badge className="ml-auto">Required</Badge>
+            <CardTitle className="text-lg">{t('rcon.title')}</CardTitle>
+            <Badge className="ml-auto">{t('rcon.required')}</Badge>
           </div>
           <CardDescription>
-            This panel uses RCON to run commands on your server.
+            {t('rcon.description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>RCON Password</Label>
+              <Label>{t('rconPassword')}</Label>
               <div className="flex gap-1">
                 <div className="relative flex-1">
                   <Input
@@ -1429,8 +1424,8 @@ export default function ServerSetup() {
                     onClick={() => setShowRconPassword(!showRconPassword)}
                     aria-label={
                       showRconPassword
-                        ? "Hide RCON password"
-                        : "Show RCON password"
+                        ? t('rcon.hidePassword')
+                        : t('rcon.showPassword')
                     }
                   >
                     {showRconPassword ? (
@@ -1447,7 +1442,7 @@ export default function ServerSetup() {
                         variant="outline"
                         size="icon"
                         onClick={handleCopyPassword}
-                        aria-label="Copy password"
+                        aria-label={t('server.copyPassword')}
                       >
                         {copiedPassword ? (
                           <Check className="w-4 h-4" />
@@ -1456,7 +1451,7 @@ export default function ServerSetup() {
                         )}
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Copy password</TooltipContent>
+                    <TooltipContent>{t('copyPassword')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <TooltipProvider>
@@ -1466,22 +1461,22 @@ export default function ServerSetup() {
                         variant="outline"
                         size="icon"
                         onClick={handleRegeneratePassword}
-                        aria-label="Generate new password"
+                        aria-label={t('server.generatePassword')}
                       >
                         <RefreshCw className="w-4 h-4" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Generate new password</TooltipContent>
+                    <TooltipContent>{t('generateNewPassword')}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
               {rconPassword.length > 0 && rconPassword.length < 6 && (
-                <p className="text-xs text-destructive">Minimum 6 characters</p>
+                <p className="text-xs text-destructive">{t('minimum6Characters')}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label>RCON Port</Label>
+              <Label>{t('rconPort')}</Label>
               <Input
                 type="number"
                 value={rconPort}
@@ -1499,16 +1494,16 @@ export default function ServerSetup() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Cpu className="w-5 h-5" />
-              <CardTitle className="text-lg">Memory Allocation</CardTitle>
+              <CardTitle className="text-lg">{t('memorySettings.title')}</CardTitle>
             </div>
             {detectingRam ? (
               <Badge variant="outline" className="animate-pulse">
-                Detecting RAM...
+                {t('memorySettings.detecting')}
               </Badge>
             ) : (
               systemRam && (
                 <Badge variant="outline">
-                  {systemRam.totalGB} GB RAM detected
+                  {t('memorySettings.detected', { size: systemRam.totalGB })}
                 </Badge>
               )
             )}
@@ -1518,7 +1513,7 @@ export default function ServerSetup() {
           <div className="grid gap-6 sm:grid-cols-2">
             <div className="space-y-3">
               <div className="flex justify-between">
-                <Label>Minimum RAM</Label>
+                <Label>{t('minimumRam')}</Label>
                 <span className="font-mono font-medium">{minMemory}GB</span>
               </div>
               <Slider
@@ -1530,13 +1525,13 @@ export default function ServerSetup() {
                 min={2}
                 max={16}
                 step={1}
-                aria-label={`Minimum RAM: ${minMemory}GB`}
+                aria-label={t('memorySettings.minimumAria', { size: minMemory })}
               />
             </div>
 
             <div className="space-y-3">
               <div className="flex justify-between">
-                <Label>Maximum RAM</Label>
+                <Label>{t('maximumRam')}</Label>
                 <span className="font-mono font-medium">{maxMemory}GB</span>
               </div>
               <Slider
@@ -1548,7 +1543,7 @@ export default function ServerSetup() {
                 min={2}
                 max={16}
                 step={1}
-                aria-label={`Maximum RAM: ${maxMemory}GB`}
+                aria-label={t('memorySettings.maximumAria', { size: maxMemory })}
               />
             </div>
           </div>
@@ -1561,13 +1556,13 @@ export default function ServerSetup() {
           <AccordionTrigger className="px-4 hover:no-underline">
             <div className="flex items-center gap-2">
               <Settings2 className="w-4 h-4" />
-              <span>Advanced Options</span>
+              <span>{t('advancedOptions')}</span>
             </div>
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Game Port</Label>
+                <Label>{t('gamePort')}</Label>
                 <Input
                   type="number"
                   value={serverPort}
@@ -1577,20 +1572,20 @@ export default function ServerSetup() {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Default port: 16261
+                  {t('server.defaultPort', { port: 16261 })}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label>
-                  Admin Password <span className="text-destructive">*</span>
+                  {t('server.adminPassword')} <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
                   <Input
                     type={showAdminPassword ? "text" : "password"}
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
-                    placeholder="Required before first server start"
+                    placeholder={t('server.passwordPlaceholder')}
                     className="pr-10"
                     maxLength={128}
                   />
@@ -1602,8 +1597,8 @@ export default function ServerSetup() {
                     onClick={() => setShowAdminPassword(!showAdminPassword)}
                     aria-label={
                       showAdminPassword
-                        ? "Hide admin password"
-                        : "Show admin password"
+                        ? t('server.hideAdminPassword')
+                        : t('server.showAdminPassword')
                     }
                   >
                     {showAdminPassword ? (
@@ -1614,7 +1609,7 @@ export default function ServerSetup() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Required before first server start.
+                  {t('server.adminPasswordDescription')}
                 </p>
               </div>
             </div>
@@ -1622,43 +1617,43 @@ export default function ServerSetup() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="text-sm font-medium">UPnP</p>
+                  <p className="text-sm font-medium">{t('upnp')}</p>
                   <p className="text-xs text-muted-foreground">
-                    Attempt automatic router port forwarding
+                    {t('options.upnpDescription')}
                   </p>
                 </div>
                 <Switch
                   checked={useUpnp}
                   onCheckedChange={setUseUpnp}
-                  aria-label="Enable UPnP"
+                  aria-label={t('options.upnp')}
                 />
               </div>
 
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="text-sm font-medium">No Steam</p>
+                  <p className="text-sm font-medium">{t('noSteam')}</p>
                   <p className="text-xs text-muted-foreground">
-                    Use non-Steam mode (for GOG and LAN setups)
+                    {t('options.noSteamDescription')}
                   </p>
                 </div>
                 <Switch
                   checked={useNoSteam}
                   onCheckedChange={setUseNoSteam}
-                  aria-label="Enable no-Steam mode"
+                  aria-label={t('options.noSteam')}
                 />
               </div>
 
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <p className="text-sm font-medium">Debug</p>
+                  <p className="text-sm font-medium">{t('debug')}</p>
                   <p className="text-xs text-muted-foreground">
-                    Enable verbose startup and runtime logs
+                    {t('options.debugDescription')}
                   </p>
                 </div>
                 <Switch
                   checked={useDebug}
                   onCheckedChange={setUseDebug}
-                  aria-label="Enable debug mode"
+                  aria-label={t('options.debug')}
                 />
               </div>
             </div>
@@ -1672,10 +1667,8 @@ export default function ServerSetup() {
   const renderFullStep4 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Review and Install</h2>
-        <p className="text-muted-foreground">
-          Confirm your settings, then begin the server download.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('reviewAndInstall')}</h2>
+        <p className="text-muted-foreground">{t('reviewInstallDescription')}</p>
       </div>
 
       {/* Summary */}
@@ -1683,31 +1676,31 @@ export default function ServerSetup() {
         <CardContent className="pt-6">
           <div className="grid gap-3 text-sm">
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Installation Path</span>
+              <span className="text-muted-foreground">{t('installationPath')}</span>
               <span className="font-mono text-right max-w-[300px] truncate">
                 {installPath}
               </span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Server Name</span>
+              <span className="text-muted-foreground">{t('serverName')}</span>
               <span className="font-mono">{serverName}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Game Version</span>
-              <span>{branch === "public" ? "Build 42 (Stable)" : branch}</span>
+              <span className="text-muted-foreground">{t('gameVersion')}</span>
+              <span>{branch === "public" ? t('server.build42Stable') : branch}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Memory</span>
+              <span className="text-muted-foreground">{t('memory')}</span>
               <span className="font-mono">
                 {minMemory}GB - {maxMemory}GB
               </span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Game Port</span>
+              <span className="text-muted-foreground">{t('gamePort')}</span>
               <span className="font-mono">{serverPort}</span>
             </div>
             <div className="flex justify-between py-2">
-              <span className="text-muted-foreground">RCON Port</span>
+              <span className="text-muted-foreground">{t('rconPort')}</span>
               <span className="font-mono">{rconPort}</span>
             </div>
           </div>
@@ -1718,19 +1711,18 @@ export default function ServerSetup() {
       <div className="bg-muted/50 border border-border/60 rounded-lg p-4 text-sm shadow-sm">
         <p className="font-medium flex items-center gap-2">
           <Info className="w-4 h-4 text-primary" />
-          Firewall / Port Forwarding
+          {t('network.title')}
         </p>
         <p className="text-muted-foreground mt-1">
-          Make sure your firewall or router allows:
+          {t('network.description')}
         </p>
         <ul className="mt-2 space-y-1 text-muted-foreground">
           <li>
-            • <code className="bg-muted px-1 rounded">{serverPort}</code> UDP -
-            Game traffic
+            • <code className="bg-muted px-1 rounded">{serverPort}</code> UDP - {t('network.gameTraffic')}
           </li>
           <li>
             • <code className="bg-muted px-1 rounded">{serverPort + 1}</code>{" "}
-            UDP - Direct connect
+            UDP - {t('network.directConnect')}
           </li>
         </ul>
       </div>
@@ -1745,19 +1737,19 @@ export default function ServerSetup() {
         {installing ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Installing server... check the log below
+            {t('status.installingServer')}
           </>
         ) : (
           <>
             <Download className="w-4 h-4 mr-2" />
-            Install Project Zomboid Server
+            {t('actions.installServer')}
           </>
         )}
       </Button>
 
       {missingAdminPassword && (
         <p className="text-sm text-warning">
-          Add an Admin Password in Advanced Options before installing.
+          {t('errors.adminPasswordBeforeInstall')}
         </p>
       )}
 
@@ -1786,7 +1778,7 @@ export default function ServerSetup() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Terminal className="w-4 h-4" />
-            <span className="text-sm font-medium">Installation Log</span>
+            <span className="text-sm font-medium">{t('installationLog')}</span>
           </div>
           <ScrollArea className="h-[200px] bg-black rounded-lg p-3">
             <div className="font-mono text-xs space-y-0.5">
@@ -1821,18 +1813,17 @@ export default function ServerSetup() {
           <CardContent className="pt-6 space-y-4">
             <div className="flex items-center gap-2 text-primary">
               <CheckCircle className="w-5 h-5" />
-              <span className="font-medium">Installation Complete</span>
+              <span className="font-medium">{t('installationComplete')}</span>
             </div>
 
             {/* First-run setup notice */}
             <div className="bg-warning/10 border border-warning/40 rounded-lg p-4 text-sm shadow-sm">
               <p className="font-medium flex items-center gap-2 text-warning">
                 <Info className="w-4 h-4" />
-                First Start Required
+                {t('postInstall.firstStartRequired')}
               </p>
               <p className="text-muted-foreground mt-1">
-                Start the server once to generate configuration files and world
-                data. The first startup can take up to a minute.
+                {t('postInstall.firstStartDescription')}
               </p>
             </div>
 
@@ -1843,8 +1834,8 @@ export default function ServerSetup() {
                   try {
                     await serverApi.start();
                     toast({
-                      title: "Server Starting",
-                      description: "Redirecting to the dashboard...",
+                      title: t('toast.serverStarting'),
+                      description: t('toast.redirectingDashboard'),
                     });
                     navigateTimerRef.current = setTimeout(
                       () => navigate("/"),
@@ -1852,11 +1843,11 @@ export default function ServerSetup() {
                     );
                   } catch (error) {
                     toast({
-                      title: "Start Failed",
+                      title: t('toast.startFailed'),
                       description:
                         error instanceof Error
                           ? error.message
-                          : "Unknown error",
+                          : t('errors.unknown'),
                       variant: "destructive",
                     });
                   } finally {
@@ -1869,16 +1860,16 @@ export default function ServerSetup() {
                 {startingServer ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
-                    Starting...
+                    {t('status.startingServer')}
                   </>
                 ) : (
                   <>
-                    <Play className="w-4 h-4 mr-2" /> Start Server
+                    <Play className="w-4 h-4 mr-2" /> {t('actions.startServer')}
                   </>
                 )}
               </Button>
               <Button variant="outline" onClick={() => navigate("/")}>
-                Open Dashboard
+                {t('actions.openDashboard')}
               </Button>
             </div>
           </CardContent>
@@ -1891,10 +1882,8 @@ export default function ServerSetup() {
   const renderQuickStep1 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Select Server Files</h2>
-        <p className="text-muted-foreground">
-          Choose the existing Project Zomboid dedicated server folder.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('selectServerFiles')}</h2>
+        <p className="text-muted-foreground">{t('quick.selectFilesDescription')}</p>
       </div>
 
       <Card className="bg-secondary/40 border-primary/24 shadow-sm">
@@ -1904,14 +1893,14 @@ export default function ServerSetup() {
               <HardDrive className="w-5 h-5 text-primary" />
             </div>
             <div className="space-y-1">
-              <p className="font-medium">Using existing files</p>
+              <p className="font-medium">{t('usingExistingFiles')}</p>
               <p className="text-sm text-muted-foreground">
-                The folder should contain{" "}
+                {t('quick.folderContainsPrefix')} {" "}
                 <code className="bg-muted px-1 rounded">StartServer64.bat</code>{" "}
-                (Windows) or{" "}
+                {t('quick.folderContainsWindowsOr')} {" "}
                 <code className="bg-muted px-1 rounded">start-server.sh</code>{" "}
-                (Linux), plus the{" "}
-                <code className="bg-muted px-1 rounded">java</code> folder.
+                {t('quick.folderContainsLinuxPlus')} {" "}
+                <code className="bg-muted px-1 rounded">java</code> {t('quick.folderContainsSuffix')}
               </p>
             </div>
           </div>
@@ -1919,12 +1908,12 @@ export default function ServerSetup() {
       </Card>
 
       <div className="space-y-2">
-        <Label className="text-base">Server Files Location</Label>
+        <Label className="text-base">{t('serverFilesLocation')}</Label>
         <div className="flex gap-2">
           <Input
             value={installPath}
             onChange={(e) => setInstallPath(e.target.value)}
-            placeholder="Path to your existing dedicated server folder"
+            placeholder={t('server.existingPlaceholder')}
             className="font-mono flex-1"
             maxLength={260}
           />
@@ -1941,18 +1930,17 @@ export default function ServerSetup() {
                       installPath,
                     )
                   }
-                  aria-label="Browse server files folder"
+                  aria-label={t('server.browseExisting')}
                 >
                   <FolderOpen className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Browse folder</TooltipContent>
+              <TooltipContent>{t('browseFolder')}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
         <p className="text-xs text-muted-foreground">
-          Folder that already contains your Project Zomboid dedicated server
-          files.
+          {t('quick.folderDescription')}
         </p>
       </div>
     </div>
@@ -1962,28 +1950,24 @@ export default function ServerSetup() {
   const renderQuickStep2 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Configure Server</h2>
-        <p className="text-muted-foreground">
-          Set server name, RCON access, and memory limits.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('configureServer')}</h2>
+        <p className="text-muted-foreground">{t('quick.configureDescription')}</p>
       </div>
 
       <div className="grid gap-6">
         {/* Server Name */}
         <div className="space-y-2">
-          <Label className="text-base">Server Name</Label>
+          <Label className="text-base">{t('serverName')}</Label>
           <Input
             value={serverName}
             onChange={(e) =>
               setServerName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))
             }
-            placeholder="myserver"
+            placeholder={t('server.namePlaceholder')}
             className="font-mono"
             maxLength={64}
           />
-          <p className="text-xs text-muted-foreground">
-            Each server needs a unique name. Creates separate config files.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('quick.serverNameDescription')}</p>
         </div>
 
         {/* RCON - Critical */}
@@ -1991,14 +1975,14 @@ export default function ServerSetup() {
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-primary" />
-              <CardTitle className="text-lg">Remote Control (RCON)</CardTitle>
-              <Badge className="ml-auto">Required</Badge>
+              <CardTitle className="text-lg">{t('rcon.title')}</CardTitle>
+              <Badge className="ml-auto">{t('rcon.required')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>RCON Password</Label>
+                <Label>{t('rconPassword')}</Label>
                 <div className="flex gap-1">
                   <div className="relative flex-1">
                     <Input
@@ -2016,8 +2000,8 @@ export default function ServerSetup() {
                       onClick={() => setShowRconPassword(!showRconPassword)}
                       aria-label={
                         showRconPassword
-                          ? "Hide RCON password"
-                          : "Show RCON password"
+                          ? t('rcon.hidePassword')
+                          : t('rcon.showPassword')
                       }
                     >
                       {showRconPassword ? (
@@ -2034,7 +2018,7 @@ export default function ServerSetup() {
                           variant="outline"
                           size="icon"
                           onClick={handleCopyPassword}
-                          aria-label="Copy password"
+                          aria-label={t('server.copyPassword')}
                         >
                           {copiedPassword ? (
                             <Check className="w-4 h-4" />
@@ -2043,7 +2027,7 @@ export default function ServerSetup() {
                           )}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Copy password</TooltipContent>
+                      <TooltipContent>{t('copyPassword')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <TooltipProvider>
@@ -2053,24 +2037,24 @@ export default function ServerSetup() {
                           variant="outline"
                           size="icon"
                           onClick={handleRegeneratePassword}
-                          aria-label="Generate new password"
+                          aria-label={t('server.generatePassword')}
                         >
                           <RefreshCw className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Generate new password</TooltipContent>
+                      <TooltipContent>{t('generateNewPassword')}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
                 {rconPassword.length > 0 && rconPassword.length < 6 && (
                   <p className="text-xs text-destructive">
-                    Minimum 6 characters
+                    {t('minimum6Characters')}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label>RCON Port</Label>
+                <Label>{t('rconPort')}</Label>
                 <Input
                   type="number"
                   value={rconPort}
@@ -2080,7 +2064,7 @@ export default function ServerSetup() {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Default port: 27015
+                  {t('server.defaultPort', { port: 27015 })}
                 </p>
               </div>
             </div>
@@ -2093,16 +2077,16 @@ export default function ServerSetup() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Cpu className="w-5 h-5" />
-                <CardTitle className="text-lg">Memory Allocation</CardTitle>
+                <CardTitle className="text-lg">{t('memorySettings.title')}</CardTitle>
               </div>
               {detectingRam ? (
                 <Badge variant="outline" className="animate-pulse">
-                  Detecting RAM...
+                  {t('memorySettings.detecting')}
                 </Badge>
               ) : (
                 systemRam && (
                   <Badge variant="outline">
-                    {systemRam.totalGB} GB detected
+                    {t('memorySettings.detectedShort', { size: systemRam.totalGB })}
                   </Badge>
                 )
               )}
@@ -2112,7 +2096,7 @@ export default function ServerSetup() {
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <Label>Minimum RAM</Label>
+                  <Label>{t('minimumRam')}</Label>
                   <span className="font-mono">{minMemory}GB</span>
                 </div>
                 <Slider
@@ -2124,13 +2108,13 @@ export default function ServerSetup() {
                   min={2}
                   max={16}
                   step={1}
-                  aria-label={`Minimum RAM: ${minMemory}GB`}
+                  aria-label={t('memorySettings.minimumAria', { size: minMemory })}
                 />
               </div>
 
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <Label>Maximum RAM</Label>
+                  <Label>{t('maximumRam')}</Label>
                   <span className="font-mono">{maxMemory}GB</span>
                 </div>
                 <Slider
@@ -2142,7 +2126,7 @@ export default function ServerSetup() {
                   min={2}
                   max={16}
                   step={1}
-                  aria-label={`Maximum RAM: ${maxMemory}GB`}
+                  aria-label={t('memorySettings.maximumAria', { size: maxMemory })}
                 />
               </div>
             </div>
@@ -2155,7 +2139,7 @@ export default function ServerSetup() {
             <AccordionTrigger className="px-4 hover:no-underline">
               <div className="flex items-center gap-2">
                 <Settings2 className="w-4 h-4" />
-                <span>Advanced Options</span>
+                <span>{t('advancedOptions')}</span>
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 pb-4 space-y-4">
@@ -2164,14 +2148,14 @@ export default function ServerSetup() {
                   checked={useCustomDataPath}
                   onCheckedChange={setUseCustomDataPath}
                 />
-                <Label>Custom config location</Label>
+                <Label>{t('customConfigLocation')}</Label>
               </div>
               {useCustomDataPath && (
                 <div className="flex gap-2">
                   <Input
                     value={zomboidDataPath}
                     onChange={(e) => setZomboidDataPath(e.target.value)}
-                    placeholder="Custom data folder path"
+                    placeholder={t('server.dataPathPlaceholder')}
                     className="font-mono flex-1"
                     maxLength={260}
                   />
@@ -2181,11 +2165,11 @@ export default function ServerSetup() {
                     onClick={() =>
                       handleBrowseFolder(
                         setZomboidDataPath,
-                        "Select config folder",
+                        t('server.selectConfigFolder'),
                         zomboidDataPath,
                       )
                     }
-                    aria-label="Browse config folder"
+                    aria-label={t('server.browseData')}
                   >
                     <FolderOpen className="w-4 h-4" />
                   </Button>
@@ -2194,7 +2178,7 @@ export default function ServerSetup() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Game Port</Label>
+                  <Label>{t('gamePort')}</Label>
                   <Input
                     type="number"
                     value={serverPort}
@@ -2204,19 +2188,19 @@ export default function ServerSetup() {
                     className="font-mono"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Default port: 16261
+                    {t('server.defaultPort', { port: 16261 })}
                   </p>
                 </div>
                 <div className="space-y-2">
                   <Label>
-                    Admin Password <span className="text-destructive">*</span>
+                    {t('server.adminPassword')} <span className="text-destructive">*</span>
                   </Label>
                   <div className="relative">
                     <Input
                       type={showAdminPassword ? "text" : "password"}
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
-                      placeholder="Required before first server start"
+                      placeholder={t('server.passwordPlaceholder')}
                       className="pr-10"
                       maxLength={128}
                     />
@@ -2228,8 +2212,8 @@ export default function ServerSetup() {
                       onClick={() => setShowAdminPassword(!showAdminPassword)}
                       aria-label={
                         showAdminPassword
-                          ? "Hide admin password"
-                          : "Show admin password"
+                          ? t('server.hideAdminPassword')
+                          : t('server.showAdminPassword')
                       }
                     >
                       {showAdminPassword ? (
@@ -2240,7 +2224,7 @@ export default function ServerSetup() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Required before first server start.
+                  {t('server.adminPasswordDescription')}
                   </p>
                 </div>
               </div>
@@ -2248,41 +2232,41 @@ export default function ServerSetup() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="text-sm font-medium">UPnP</p>
+                    <p className="text-sm font-medium">{t('upnp')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Attempt automatic router port forwarding
+                    {t('options.upnpDescription')}
                     </p>
                   </div>
                   <Switch
                     checked={useUpnp}
                     onCheckedChange={setUseUpnp}
-                    aria-label="Enable UPnP"
+                    aria-label={t('options.upnp')}
                   />
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="text-sm font-medium">No Steam</p>
+                    <p className="text-sm font-medium">{t('noSteam')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Use non-Steam mode (for GOG and LAN setups)
+                    {t('options.noSteamDescription')}
                     </p>
                   </div>
                   <Switch
                     checked={useNoSteam}
                     onCheckedChange={setUseNoSteam}
-                    aria-label="Enable no-Steam mode"
+                    aria-label={t('options.noSteam')}
                   />
                 </div>
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
-                    <p className="text-sm font-medium">Debug</p>
+                    <p className="text-sm font-medium">{t('debug')}</p>
                     <p className="text-xs text-muted-foreground">
-                      Enable verbose startup and runtime logs
+                    {t('options.debugDescription')}
                     </p>
                   </div>
                   <Switch
                     checked={useDebug}
                     onCheckedChange={setUseDebug}
-                    aria-label="Enable debug mode"
+                    aria-label={t('options.debug')}
                   />
                 </div>
               </div>
@@ -2297,10 +2281,8 @@ export default function ServerSetup() {
   const renderQuickStep3 = () => (
     <div className="space-y-6">
       <div className="text-center space-y-2 pb-6 border-b">
-        <h2 className="text-2xl font-semibold">Review and Create</h2>
-        <p className="text-muted-foreground">
-          Confirm these settings, then create your server entry.
-        </p>
+        <h2 className="text-2xl font-semibold">{t('reviewAndCreate')}</h2>
+        <p className="text-muted-foreground">{t('quick.reviewDescription')}</p>
       </div>
 
       {/* Summary */}
@@ -2308,27 +2290,27 @@ export default function ServerSetup() {
         <CardContent className="pt-6">
           <div className="grid gap-3 text-sm">
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Server Files</span>
+              <span className="text-muted-foreground">{t('serverFiles')}</span>
               <span className="font-mono text-right max-w-[300px] truncate">
                 {installPath}
               </span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Server Name</span>
+              <span className="text-muted-foreground">{t('serverName')}</span>
               <span className="font-mono">{serverName}</span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Memory</span>
+              <span className="text-muted-foreground">{t('memory')}</span>
               <span className="font-mono">
                 {minMemory}GB - {maxMemory}GB
               </span>
             </div>
             <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Game Port</span>
+              <span className="text-muted-foreground">{t('gamePort')}</span>
               <span className="font-mono">{serverPort}</span>
             </div>
             <div className="flex justify-between py-2">
-              <span className="text-muted-foreground">RCON Port</span>
+              <span className="text-muted-foreground">{t('rconPort')}</span>
               <span className="font-mono">{rconPort}</span>
             </div>
           </div>
@@ -2345,19 +2327,19 @@ export default function ServerSetup() {
         {installing ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Creating server...
+            {t('status.creatingServer')}
           </>
         ) : (
           <>
             <Plus className="w-4 h-4 mr-2" />
-            Create Server
+            {t('actions.createServer')}
           </>
         )}
       </Button>
 
       {missingAdminPassword && (
         <p className="text-sm text-warning">
-          Add an Admin Password in Advanced Options before creating the server.
+          {t('errors.adminPasswordBeforeCreate')}
         </p>
       )}
 
@@ -2366,7 +2348,7 @@ export default function ServerSetup() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Terminal className="w-4 h-4" />
-            <span className="text-sm font-medium">Setup Log</span>
+            <span className="text-sm font-medium">{t('setupLog')}</span>
           </div>
           <ScrollArea className="h-[150px] bg-black rounded-lg p-3">
             <div className="font-mono text-xs space-y-0.5">
@@ -2396,7 +2378,7 @@ export default function ServerSetup() {
           <CardContent className="pt-6 space-y-4">
             <div className="flex items-center gap-2 text-primary">
               <CheckCircle className="w-5 h-5" />
-              <span className="font-medium">Server Created!</span>
+              <span className="font-medium">{t('serverCreated')}</span>
             </div>
 
             <div className="flex gap-3">
@@ -2406,8 +2388,8 @@ export default function ServerSetup() {
                   try {
                     await serverApi.start();
                     toast({
-                      title: "Server Starting",
-                      description: "Redirecting to the dashboard...",
+                      title: t('toast.serverStarting'),
+                      description: t('toast.redirectingDashboard'),
                     });
                     navigateTimerRef.current = setTimeout(
                       () => navigate("/"),
@@ -2415,11 +2397,11 @@ export default function ServerSetup() {
                     );
                   } catch (error) {
                     toast({
-                      title: "Start Failed",
+                      title: t('toast.startFailed'),
                       description:
                         error instanceof Error
                           ? error.message
-                          : "Unknown error",
+                          : t('errors.unknown'),
                       variant: "destructive",
                     });
                   } finally {
@@ -2432,16 +2414,16 @@ export default function ServerSetup() {
                 {startingServer ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
-                    Starting...
+                    {t('status.startingServer')}
                   </>
                 ) : (
                   <>
-                    <Play className="w-4 h-4 mr-2" /> Start Server
+                    <Play className="w-4 h-4 mr-2" /> {t('actions.startServer')}
                   </>
                 )}
               </Button>
               <Button variant="outline" onClick={() => navigate("/")}>
-                Open Dashboard
+                {t('actions.openDashboard')}
               </Button>
             </div>
           </CardContent>
@@ -2480,30 +2462,30 @@ export default function ServerSetup() {
   const getStepRequirementMessage = () => {
     if (setupMode === "quick") {
       if (currentStep === 1)
-        return "Select the dedicated server folder to continue.";
+        return t('validation.selectServerFolder');
       if (currentStep === 2) {
         if (!serverName.trim() && rconPassword.length < 6)
-          return "Enter a server name and an RCON password (minimum 6 characters).";
-        if (!serverName.trim()) return "Enter a server name to continue.";
+          return t('validation.serverNameAndRcon');
+        if (!serverName.trim()) return t('validation.serverName');
         if (rconPassword.length < 6)
-          return "RCON password must be at least 6 characters.";
+          return t('validation.rconPassword');
       }
       return "";
     }
 
     if (currentStep === 1) {
       if (!steamCmdPath.trim())
-        return "Set a SteamCMD folder path to continue.";
-      if (!hasSteamCmd) return "Install or confirm SteamCMD to continue.";
+        return t('validation.steamcmdPath');
+      if (!hasSteamCmd) return t('validation.installSteamcmd');
     }
     if (currentStep === 2) {
       if (!installPath.trim() && !serverName.trim())
-        return "Set an install folder and server name to continue.";
-      if (!installPath.trim()) return "Set an install folder to continue.";
-      if (!serverName.trim()) return "Enter a server name to continue.";
+        return t('validation.installFolderAndName');
+      if (!installPath.trim()) return t('validation.installFolder');
+      if (!serverName.trim()) return t('validation.serverName');
     }
     if (currentStep === 3 && rconPassword.length < 6)
-      return "RCON password must be at least 6 characters.";
+      return t('validation.rconPassword');
     return "";
   };
 
@@ -2513,12 +2495,12 @@ export default function ServerSetup() {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold">
-            {setupMode === "quick" ? "Quick Setup" : "Fresh Install"}
+            {setupMode === "quick" ? t('quick.title') : t('freshInstall')}
           </h1>
           <p className="text-muted-foreground">
             {setupMode === "quick"
-              ? "Create and register a server using existing dedicated server files."
-              : "Download, configure, and register a new dedicated server."}
+              ? t('quick.headerDescription')
+              : t('full.headerDescription')}
           </p>
         </div>
 
@@ -2545,14 +2527,14 @@ export default function ServerSetup() {
                 }}
               >
                 <ChevronLeft className="w-4 h-4 mr-2" />
-                {currentStep === 1 ? "Choose Setup Type" : "Back"}
+                {currentStep === 1 ? t('actions.chooseSetupType') : t('actions.back')}
               </Button>
 
               <Button
                 onClick={() => setCurrentStep((s) => s + 1)}
                 disabled={!canProceed}
               >
-                Next Step
+                {t('actions.nextStep')}
                 <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -2572,7 +2554,7 @@ export default function ServerSetup() {
               onClick={() => setCurrentStep((s) => s - 1)}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
-              Back
+              {t('actions.back')}
             </Button>
           </div>
         )}

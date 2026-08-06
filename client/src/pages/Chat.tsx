@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import {
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { 
   MessagesSquare,
   Send,
   Users,
@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/components/ui/use-toast'
+import { useTranslation } from 'react-i18next';
 import { panelBridgeApi, playersApi, configApi } from '@/lib/api'
 import { useSocket } from '@/contexts/SocketContext'
 import { EmptyState } from '@/components/EmptyState'
@@ -40,15 +41,9 @@ interface Player {
 
 type ChatChannel = 'server' | 'admin' | 'general'
 
-const DEFAULT_PRESETS = [
-  'Server will restart in 5 minutes!',
-  'Welcome to the server!',
-  'Please read the rules at /rules',
-  'Server maintenance starting soon',
-  'Have fun and stay safe!',
-]
-
 export default function Chat() {
+  const { t } = useTranslation('chat');
+  const DEFAULT_PRESETS = useMemo(() => t('defaultPresets', { returnObjects: true }) as string[], [t]);
   const [message, setMessage] = useState('')
   const [players, setPlayers] = useState<Player[]>([])
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
@@ -126,18 +121,11 @@ export default function Chat() {
              const incomingTs = Number.isFinite(parsedTs) ? parsedTs : Date.now()
              const recent = prev.slice(-20)
              const hasSameSocketId = data.id ? recent.some(m => m.id === data.id) : false
-             const bracketedServerEcho = (data.type === 'server' || !data.type)
-               ? msg.match(/^\[([^\]]+)\]\s+(.+)$/)
-               : null
              const isOptimisticEcho = recent.some(m =>
                m.id.startsWith('local-') &&
-               Math.abs(m.timestamp.getTime() - incomingTs) < 15000 &&
-               (
-                 (m.message === msg && m.author?.toLowerCase() === data.author?.toLowerCase()) ||
-                 (bracketedServerEcho !== null &&
-                   m.message === bracketedServerEcho[2] &&
-                   m.author?.toLowerCase() === bracketedServerEcho[1].toLowerCase())
-               )
+               m.message === msg &&
+               m.author === data.author &&
+               Math.abs(m.timestamp.getTime() - incomingTs) < 15000
              )
              if (hasSameSocketId || isOptimisticEcho) return prev
 
@@ -169,11 +157,10 @@ export default function Chat() {
       //   general → posts as a custom author into the public chat stream
       let result: { success?: boolean; error?: string } | undefined
       let localType: ChatMessage['type'] = 'server'
-      let localAuthor = 'Server'
+      let localAuthor: string | undefined
       if (channel === 'admin') {
         result = await panelBridgeApi.sendToAdminChat(message)
         localType = 'admin'
-        localAuthor = 'Admin'
       } else if (channel === 'general') {
         result = await panelBridgeApi.sendToGeneralChat(message, 'Admin')
         localType = 'general'
@@ -197,22 +184,22 @@ export default function Chat() {
         setMessage('')
         toast({
           title:
-            channel === 'admin' ? 'Admin Message Sent'
-            : channel === 'general' ? 'Posted to Chat'
-            : 'Broadcast Sent',
+            channel === 'admin' ? t('toast.adminMessageSent')
+            : channel === 'general' ? t('toast.postedToChat')
+            : t('toast.broadcastSent'),
           description:
-            channel === 'admin' ? 'Visible only to admins in-game.'
-            : channel === 'general' ? 'Posted into the public chat stream.'
-            : 'Message delivered to all connected players.',
+            channel === 'admin' ? t('toast.adminMessageSentDesc')
+            : channel === 'general' ? t('toast.postedToChatDesc')
+            : t('toast.broadcastSentDesc'),
           variant: 'success' as const,
         })
       } else {
-        throw new Error(result?.error || 'Failed to send message')
+        throw new Error(result?.error || t('errors.sendFailed'))
       }
     } catch (error) {
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to send message',
+        title: t('errors.error'),
+        description: error instanceof Error ? error.message : t('errors.sendFailed'),
         variant: 'destructive',
       })
     } finally {
@@ -234,7 +221,7 @@ export default function Chat() {
       })
       .catch(() => { /* fall back to defaults silently */ })
     return () => { cancelled = true }
-  }, [])
+  }, [DEFAULT_PRESETS])
 
   const persistPresets = useCallback(async (next: string[]) => {
     setPresets(next)
@@ -243,12 +230,12 @@ export default function Chat() {
     } catch (error) {
       reportClientError('Failed to save chat presets.', error)
       toast({
-        title: 'Could not save presets',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('errors.couldNotSavePresets'),
+        description: error instanceof Error ? error.message : t('errors.unknownError'),
         variant: 'destructive',
       })
     }
-  }, [toast])
+  }, [t, toast])
 
   const handleAddPreset = useCallback(() => {
     const trimmed = newPresetDraft.trim()
@@ -292,21 +279,21 @@ export default function Chat() {
   }
 
   const getMessageMeta = (msg: ChatMessage) => {
-    if (msg.type === 'server') return { icon: <Megaphone className="w-3 h-3" />, label: msg.author || 'Server', labelClass: 'text-amber-400', dotClass: 'bg-amber-400/80' }
-    if (msg.type === 'admin')  return { icon: <Shield className="w-3 h-3" />,    label: msg.author || 'Admin',  labelClass: 'text-destructive', dotClass: 'bg-destructive/80' }
-    return { icon: <MessageSquare className="w-3 h-3" />, label: msg.author || 'Player', labelClass: 'text-primary', dotClass: 'bg-primary/80' }
+    if (msg.type === 'server') return { icon: <Megaphone className="w-3 h-3" />, label: msg.author || t('labels.server'), labelClass: 'text-amber-400', dotClass: 'bg-amber-400/80' }
+    if (msg.type === 'admin')  return { icon: <Shield className="w-3 h-3" />,    label: msg.author || t('labels.admin'),  labelClass: 'text-destructive', dotClass: 'bg-destructive/80' }
+    return { icon: <MessageSquare className="w-3 h-3" />, label: msg.author || t('labels.player'), labelClass: 'text-primary', dotClass: 'bg-primary/80' }
   }
 
   return (
     <div className="space-y-6 page-transition">
       <PageHeader
-        title="In-Game Chat"
-        description="Broadcast messages to all connected players and see their chat in real time."
+        title={t("title")}
+        description={t("description")}
         icon={<MessagesSquare className="w-5 h-5" />}
         actions={
           <Button variant="outline" size="sm" onClick={fetchPlayers} className="gap-2">
             <RefreshCw className="w-4 h-4" />
-            Refresh
+            {t('actions.refresh')}
           </Button>
         }
       />
@@ -325,22 +312,22 @@ export default function Chat() {
             <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 bg-muted/30 font-mono text-[9px] uppercase tracking-[0.24em] select-none shrink-0">
               <span className="flex items-center gap-1.5 text-primary/70">
                 <MessagesSquare className="w-3 h-3" />
-                <span>chat stream</span>
+                <span>{t('chatStream')}</span>
                 <span className="text-muted-foreground/40 normal-case tracking-normal">·</span>
-                <span className="text-muted-foreground/80 normal-case tracking-normal tabular-nums">{chatHistory.length} {chatHistory.length === 1 ? 'msg' : 'msgs'}</span>
+                <span className="text-muted-foreground/80 normal-case tracking-normal tabular-nums">{chatHistory.length} {chatHistory.length === 1 ? t('messageCount.msg') : t('messageCount.msgs')}</span>
               </span>
               <span className="flex items-center gap-1.5 text-muted-foreground/60">
                 <span className={cn('w-1.5 h-1.5 rounded-full', socket?.connected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40')} />
-                <span>{socket?.connected ? 'LIVE' : 'OFFLINE'}</span>
+                <span>{socket?.connected ? t('status.live') : t('status.offline')}</span>
               </span>
             </div>
 
             <div className="flex-1 flex flex-col p-0 min-h-0">
               {/* Messages Area */}
-              <ScrollArea className="flex-1 px-3" role="log" aria-live="polite" aria-label="Chat messages">
+              <ScrollArea className="flex-1 px-3" role="log" aria-live="polite" aria-label={t('labels.chatMessages')}>
                 <div className="py-3 space-y-2">
                   {chatHistory.length === 0 ? (
-                    <EmptyState type="noMessages" title="No chat messages yet" description="Player messages and your broadcasts will appear here in real time." compact />
+                    <EmptyState type="noMessages" title={t("noMessages.title")} description={t("noMessages.description")} compact />
                   ) : (
                     chatHistory.map((msg) => {
                       const meta = getMessageMeta(msg)
@@ -371,26 +358,26 @@ export default function Chat() {
               <div className="p-3 border-t border-border/50 bg-muted/20">
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <Select value={channel} onValueChange={(v) => setChannel(v as ChatChannel)} disabled={sending}>
-                    <SelectTrigger className="h-10 sm:w-52 font-mono text-[11px] uppercase tracking-[0.16em] bg-card/70 border-border/55" aria-label="Chat channel">
+                    <SelectTrigger className="h-10 sm:w-52 font-mono text-[11px] uppercase tracking-[0.16em] bg-card/70 border-border/55" aria-label={t('labels.chatChannel')}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="server">
                         <span className="flex items-center gap-2">
                           <Megaphone className="w-3.5 h-3.5 text-amber-400" />
-                          Server broadcast
+                          {t('channels.serverBroadcast')}
                         </span>
                       </SelectItem>
                       <SelectItem value="admin">
                         <span className="flex items-center gap-2">
                           <Shield className="w-3.5 h-3.5 text-destructive" />
-                          Admin chat
+                          {t('channels.adminChat')}
                         </span>
                       </SelectItem>
                       <SelectItem value="general">
                         <span className="flex items-center gap-2">
                           <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                          General chat
+                          {t('channels.generalChat')}
                         </span>
                       </SelectItem>
                     </SelectContent>
@@ -399,12 +386,12 @@ export default function Chat() {
                     ref={messageInputRef}
                     placeholder={
                       channel === 'admin'
-                        ? 'admins only — press enter to send…'
+                        ? t('placeholders.adminOnly')
                         : channel === 'general'
-                          ? 'post as Admin — press enter to send…'
-                          : 'broadcast to all players — press enter to send…'
+                          ? t('placeholders.postAsAdmin')
+                          : t('placeholders.broadcast')
                     }
-                    aria-label="Chat message"
+                    aria-label={t('labels.chatMessage')}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -417,16 +404,16 @@ export default function Chat() {
                     disabled={sending || !message.trim()}
                     className="h-10 min-w-20 sm:min-w-24 gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em]"
                   >
-                    {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3.5 h-3.5" />send</>}
+                    {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Send className="w-3.5 h-3.5" />{t('actions.send')}</>}
                   </Button>
                 </div>
                 <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/65">
                   <span>
                     {channel === 'admin'
-                      ? 'admins only — hidden from regular players'
+                      ? t('placeholders.adminOnlyHidden')
                       : players.length === 0
-                        ? 'no players online — server log only'
-                        : `broadcasting to ${players.length} ${players.length === 1 ? 'player' : 'players'}`}
+                        ? t('status.noPlayersOnlineServerLog')
+                        : t('status.broadcastingTo', { count: players.length })}
                   </span>
                   <span className={cn('tabular-nums', message.length > 450 ? 'text-amber-400' : '')}>
                     {message.length}/500
@@ -446,14 +433,14 @@ export default function Chat() {
             <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 bg-muted/30 font-mono text-[9px] uppercase tracking-[0.24em] select-none">
               <span className="flex items-center gap-1.5 text-primary/70">
                 <Users className="w-3 h-3" />
-                <span>players</span>
+                <span>{t('players')}</span>
               </span>
-              <span className="text-muted-foreground/70 tabular-nums normal-case tracking-normal">{players.length} online</span>
+              <span className="text-muted-foreground/70 tabular-nums normal-case tracking-normal">{t('status.online', { count: players.length })}</span>
             </div>
             <div className="p-2">
               {players.length === 0 ? (
                 <div className="px-2 py-3 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 italic">
-                  no players connected
+                  {t('status.noPlayersConnected')}
                 </div>
               ) : (
                 <div className="space-y-1">
@@ -475,7 +462,7 @@ export default function Chat() {
             <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/50 bg-muted/30 font-mono text-[9px] uppercase tracking-[0.24em] select-none">
               <span className="flex items-center gap-1.5 text-amber-400/80">
                 <Megaphone className="w-3 h-3" />
-                <span>quick broadcasts</span>
+                <span>{t('quickBroadcasts')}</span>
               </span>
               <Button
                 variant="ghost"
@@ -487,14 +474,14 @@ export default function Chat() {
                   setEditingDraft('')
                   setNewPresetDraft('')
                 }}
-                aria-label={presetsEditing ? 'Done editing presets' : 'Edit presets'}
+                aria-label={presetsEditing ? t('labels.doneEditingPresets') : t('labels.editPresets')}
               >
-                {presetsEditing ? <><Check className="w-3 h-3 mr-1" />done</> : <><Pencil className="w-3 h-3 mr-1" />edit</>}
+                {presetsEditing ? <><Check className="w-3 h-3 mr-1" />{t('presets.done')}</> : <><Pencil className="w-3 h-3 mr-1" />{t('presets.edit')}</>}
               </Button>
             </div>
             <div className="p-2 space-y-1.5">
               {presets.length === 0 && !presetsEditing && (
-                <p className="px-2 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">// no presets — click edit to add</p>
+                <p className="px-2 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">{t('presets.noPresets')}</p>
               )}
               {presets.map((quickMsg, idx) => {
                 const isEditing = presetsEditing && editingIdx === idx
@@ -512,10 +499,10 @@ export default function Chat() {
                         autoFocus
                         className="h-9 flex-1 text-sm"
                       />
-                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleSaveEdit} aria-label="Save">
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleSaveEdit} aria-label={t('labels.save')}>
                         <Check className="w-4 h-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditingIdx(null); setEditingDraft('') }} aria-label="Cancel">
+                      <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => { setEditingIdx(null); setEditingDraft('') }} aria-label={t('labels.cancel')}>
                         <X className="w-4 h-4" />
                       </Button>
                     </div>
@@ -544,7 +531,7 @@ export default function Chat() {
                         size="icon"
                         className="h-9 w-9 text-destructive hover:text-destructive"
                         onClick={() => handleDeletePreset(idx)}
-                        aria-label={`Delete preset ${idx + 1}`}
+                        aria-label={`${t('labels.deletePreset')} ${idx + 1}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -555,7 +542,7 @@ export default function Chat() {
               {presetsEditing && (
                 <div className="flex items-center gap-1 pt-2 mt-1 border-t border-border/40">
                   <Input
-                    placeholder="add a new quick message…"
+                    placeholder={t('placeholders.newPreset')}
                     value={newPresetDraft}
                     onChange={(e) => setNewPresetDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -570,7 +557,7 @@ export default function Chat() {
                     className="h-9 w-9"
                     onClick={handleAddPreset}
                     disabled={!newPresetDraft.trim()}
-                    aria-label="Add preset"
+                    aria-label={t('labels.addPreset')}
                   >
                     <Plus className="w-4 h-4" />
                   </Button>

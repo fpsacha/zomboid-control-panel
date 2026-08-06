@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useSocket } from '@/contexts/SocketContext'
@@ -66,8 +67,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { panelBridgeApi, updateApi, serversApi, mapApi, playersApi } from '@/lib/api'
+import { panelBridgeApi, updateApi, serversApi, mapApi } from '@/lib/api'
 import { useToast } from '@/components/ui/use-toast'
+
+
 import { cn } from '@/lib/utils'
 
 const TILE_RETRY_MS = [2_000, 10_000, 60_000] as const
@@ -129,16 +132,15 @@ interface MapVehicle {
   id: number
   x: number
   y: number
-  persisted?: boolean
-  z?: number
-  scriptName?: string
-  type?: string
-  speedKmh?: number
-  batteryCharge?: number
-  fuelPct?: number
-  alarmed?: boolean
-  sirening?: boolean
-  trunkLocked?: boolean
+  z: number
+  scriptName: string
+  type: string
+  speedKmh: number
+  batteryCharge: number
+  fuelPct: number
+  alarmed: boolean
+  sirening: boolean
+  trunkLocked: boolean
 }
 
 interface MapSafehouse {
@@ -156,12 +158,12 @@ interface MapSafehouse {
 
 // Airdrop preset definitions
 const AIRDROP_PRESETS = [
-  { id: 'military',  label: 'Military',   icon: Swords,           desc: 'Rifles, ammo, armor, comms' },
-  { id: 'medical',   label: 'Medical',    icon: Pill,             desc: 'Bandages, antibiotics, first aid' },
-  { id: 'food',      label: 'Food',       icon: UtensilsCrossed,  desc: 'Canned food, water, MREs' },
-  { id: 'building',  label: 'Building',   icon: Hammer,           desc: 'Planks, nails, tools, rope' },
-  { id: 'weapons',   label: 'Weapons',    icon: Target,           desc: 'Shotguns, melee weapons, holsters' },
-  { id: 'tools',     label: 'Tools',      icon: Wrench,           desc: 'Axes, wrenches, blowtorch, tape' },
+  { id: 'military',  labelKey: 'presets.military', icon: Swords,          descKey: 'presets.militaryDescription' },
+  { id: 'medical',   labelKey: 'presets.medical', icon: Pill,              descKey: 'presets.medicalDescription' },
+  { id: 'food',      labelKey: 'presets.food', icon: UtensilsCrossed,     descKey: 'presets.foodDescription' },
+  { id: 'building',  labelKey: 'presets.building', icon: Hammer,            descKey: 'presets.buildingDescription' },
+  { id: 'weapons',   labelKey: 'presets.weapons', icon: Target,           descKey: 'presets.weaponsDescription' },
+  { id: 'tools',     labelKey: 'presets.tools', icon: Wrench,              descKey: 'presets.toolsDescription' },
 ] as const
 
 // ─── DZI Map Constants ────────────────────────────────────
@@ -198,88 +200,33 @@ const MAP_B42: MapConfig = {
   label: 'B42',
 }
 
-// The game tile MAP_B42.defaultCenter points at, so the default view stays put
-// no matter which build's projection is resolved.
-const B42_DEFAULT_CENTER_TILE = { x: 10486.75, y: 6678.75 }
-
 // PZ renders each map build at its own resolution — 42.19.0 is 1157312 wide
-// with 1024px tiles, 42.20.0 doubled to 2318656 with 2048px tiles.
-//
-// The projection origin CANNOT be recovered by rescaling: 42.20.0 is exactly
-// 2x the height of 42.19.0 but 4032 px wider, because each build is cropped
-// and padded independently. So the backend reads the real origin out of the
-// build's own base/map_info.json, matching what map.projectzomboid.com's own
-// viewer does:
-//   imageX = (x0 + (gx - gy) * sqr / 2) / scale
-//   imageY = (y0 + (gx + gy) * sqr / 4) / scale
-// The MAP_B42 constants above are exactly 42.19.0's values under that formula
-// (1036288/2 = 518144, -139296/2 = -69648, 128/2/2 = 32, 128/4/2 = 16).
-//
-// Only when the backend can't supply the origin do we fall back to the old
-// width-ratio guess, which is ~2300 px (~36 tiles) west on 42.20.0.
-// Origins for builds we've already read map_info.json for. Lets an older
-// panel backend (which doesn't forward the origin yet) still project 42.20.0
-// correctly, and keeps the map right if map.projectzomboid.com is briefly
-// unreachable. Values are verbatim from <build>/base/map_info.json.
-const B42_KNOWN_ORIGINS: Record<
-  string,
-  { x0: number; y0: number; sqr: number; scale: number }
-> = {
-  // skip:1 -> scale 1<<1 = 2
-  '42.19.0': { x0: 1036288, y0: -139296, sqr: 128, scale: 2 },
-  // skip:0 -> scale 1<<0 = 1
-  '42.20.0': { x0: 1040384, y0: -139296, sqr: 128, scale: 1 },
-}
-
+// with 1024px tiles, 42.20.0 doubled to 2318656 with 2048px tiles. The
+// projection constants above are expressed against MAP_B42.fullWidth, so
+// rescale them by whatever the backend reports it is actually proxying.
 function b42ConfigFor(info: {
   tileSize: number
   width: number
   height: number
   maxLevel: number
-  b42Dir?: string
-  x0?: number
-  y0?: number
-  sqr?: number
-  scale?: number
 }): MapConfig {
-  const origin =
-    Number.isFinite(info.x0) &&
-    Number.isFinite(info.y0) &&
-    !!info.sqr &&
-    !!info.scale
-      ? { x0: info.x0!, y0: info.y0!, sqr: info.sqr!, scale: info.scale! }
-      : B42_KNOWN_ORIGINS[info.b42Dir ?? ''] || null
-
   const k = info.width / MAP_B42.fullWidth
-
-  const isoX0 = origin ? origin.x0 / origin.scale : MAP_B42.isoX0 * k
-  const isoY0 = origin ? origin.y0 / origin.scale : MAP_B42.isoY0 * k
-  const isoHalfSqr = origin
-    ? origin.sqr / 2 / origin.scale
-    : MAP_B42.isoHalfSqr * k
-  const isoQuarterSqr = origin
-    ? origin.sqr / 4 / origin.scale
-    : MAP_B42.isoQuarterSqr * k
-
-  const cfg: MapConfig = {
+  return {
     ...MAP_B42,
     tileSize: info.tileSize,
     fullWidth: info.width,
     fullHeight: info.height,
     maxLevel: info.maxLevel,
-    isoX0,
-    isoY0,
-    isoHalfSqr,
-    isoQuarterSqr,
-    defaultScale: (MAP_B42.defaultScale * MAP_B42.isoHalfSqr) / isoHalfSqr,
-    defaultCenter: MAP_B42.defaultCenter,
+    isoX0: MAP_B42.isoX0 * k,
+    isoY0: MAP_B42.isoY0 * k,
+    isoHalfSqr: MAP_B42.isoHalfSqr * k,
+    isoQuarterSqr: MAP_B42.isoQuarterSqr * k,
+    defaultCenter: {
+      x: MAP_B42.defaultCenter.x * k,
+      y: MAP_B42.defaultCenter.y * k,
+    },
+    defaultScale: MAP_B42.defaultScale / k,
   }
-  cfg.defaultCenter = gameTileToDzi(
-    B42_DEFAULT_CENTER_TILE.x,
-    B42_DEFAULT_CENTER_TILE.y,
-    cfg,
-  )
-  return cfg
 }
 
 const MAP_B41: MapConfig = {
@@ -483,9 +430,6 @@ function resolveCanvasColors() {
     shadowOpaque: 'rgba(0,0,0,1)',
     // Player markers
     headHighlight: 'rgba(255,255,255,0.3)',
-    playerRim: 'rgba(10,12,16,0.92)',
-    playerGlyph: 'rgba(10,12,16,0.85)',
-    playerInfectedRing: hslToken('--destructive', 0.85),
     adminStar: hslToken('--warning', 0.9),
     healthBarBg: 'rgba(0,0,0,0.5)',
     healthGood: hslToken('--success', 0.8),
@@ -539,14 +483,13 @@ const PZ_LANDMARKS = [
   { name: 'March Ridge',    gx: 10100, gy: 12700 },
   { name: 'Valley Station', gx: 13200, gy:  5300 },
   { name: 'Fallas Lake',    gx:  7460, gy:  9050 },
-  { name: 'Ekron',          gx:   550, gy:  9750 },
-  { name: 'Brandenburg',    gx:  2100, gy:  6080 },
-  { name: 'Irvington',      gx:  2500, gy: 14250 },
-  { name: 'Echo Creek',     gx:  3520, gy: 10930 },
 ]
 
 // ─── Component ────────────────────────────────────────────
 export default function WorldMap() {
+  const { t } = useTranslation('worldMap');
+  
+  
   const { theme } = useTheme()
   const socket = useSocket()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -637,17 +580,17 @@ export default function WorldMap() {
       // localStorage full / unavailable — silent
     }
   }, [])
-  const [floor, setFloor] = useState(0)    // Published B42 map layers: -1 = basement, 0 = ground, 1-7 = upper floors
+  const [floor, setFloor] = useState(0)    // PZ floor: 0 = ground, 1+ = upper, -1 = basement
   const floorRef = useRef(0)
   const { toast } = useToast()
 
   // Floor label helper
   const floorLabel = (f: number) =>
-    f === 0 ? 'Ground' : f > 0 ? `Floor ${f}` : `B${Math.abs(f)}`
+    f === 0 ? t('floorLabels.ground') : f > 0 ? t('floorLabels.floor', { floor: f }) : `B${Math.abs(f)}`
 
   // Change floor — clears tile cache since tiles differ per floor
   const changeFloor = useCallback((newFloor: number) => {
-    const clamped = Math.max(-1, Math.min(7, newFloor))
+    const clamped = Math.max(-17, Math.min(29, newFloor))
     setFloor(clamped)
     floorRef.current = clamped
     // Mark all in-flight loads as orphaned so their callbacks are no-ops
@@ -706,9 +649,7 @@ export default function WorldMap() {
       if (
         cur.label === targetCfg.label &&
         cur.tileSize === targetCfg.tileSize &&
-        cur.fullWidth === targetCfg.fullWidth &&
-        cur.isoX0 === targetCfg.isoX0 &&
-        cur.isoY0 === targetCfg.isoY0
+        cur.fullWidth === targetCfg.fullWidth
       ) return
 
       setMapCfg(targetCfg)
@@ -915,8 +856,7 @@ export default function WorldMap() {
       }
     }
 
-    // Every B42 layer DZI declares JPEG tiles, including upper floors.
-    const ext = 'jpg'
+    const ext = f === 0 ? 'jpg' : 'webp'
     const proxyFloorParam = f !== 0 ? `?floor=${f}` : ''
     const proxyUrl = `${mapCfgRef.current.tileUrl}/${level}/${col}_${row}.${ext}${proxyFloorParam}`
 
@@ -1110,30 +1050,16 @@ export default function WorldMap() {
   const fetchOverlays = useCallback(async () => {
     if (!mountedRef.current || !hasActiveServer) return
     try {
-      const [vRes, persistedRes, sRes] = await Promise.allSettled([
+      const [vRes, sRes] = await Promise.allSettled([
         panelBridgeApi.sendCommand('getVehiclesDetailed'),
-        mapApi.vehicles(),
         panelBridgeApi.sendCommand('getSafehouses'),
       ])
       if (!mountedRef.current) return
-      const vehicleById = new Map<number, MapVehicle>()
-      if (persistedRes.status === 'fulfilled') {
-        for (const vehicle of persistedRes.value.vehicles) {
-          if (Number.isFinite(vehicle.id) && Number.isFinite(vehicle.x) && Number.isFinite(vehicle.y)) {
-            vehicleById.set(vehicle.id, { ...vehicle, persisted: true })
-          }
-        }
-      }
       if (vRes.status === 'fulfilled' && vRes.value.success && vRes.value.data) {
         const vData = vRes.value.data as Record<string, unknown>
         const vList = Array.isArray(vData) ? vData : Array.isArray(vData.vehicles) ? vData.vehicles : []
-        for (const vehicle of vList as MapVehicle[]) {
-          if (typeof vehicle.id === 'number' && typeof vehicle.x === 'number' && typeof vehicle.y === 'number' && isFinite(vehicle.x) && isFinite(vehicle.y)) {
-            vehicleById.set(vehicle.id, vehicle)
-          }
-        }
+        setVehicles((vList as MapVehicle[]).filter(v => typeof v.x === 'number' && typeof v.y === 'number' && isFinite(v.x) && isFinite(v.y)))
       }
-      setVehicles([...vehicleById.values()])
       if (sRes.status === 'fulfilled' && sRes.value.success && sRes.value.data) {
         const sData = sRes.value.data as Record<string, unknown>
         const sList = Array.isArray(sData) ? sData : Array.isArray(sData.safehouses) ? sData.safehouses : []
@@ -1417,7 +1343,7 @@ export default function WorldMap() {
           ctx.font = `500 ${vFontSize}px ui-sans-serif, system-ui, sans-serif`
           ctx.textAlign = 'center'
           ctx.fillStyle = C.vehicleLabel
-          const shortName = vehicle.type || vehicle.scriptName?.split('.').pop() || 'Vehicle'
+          const shortName = vehicle.type || vehicle.scriptName?.split('.').pop() || t('vehicle')
           ctx.fillText(shortName, vp.x, vp.y - half - 4)
         }
       }
@@ -1425,7 +1351,7 @@ export default function WorldMap() {
 
     // ── Player markers ──
     const currentPlayers = playersRef.current
-    const mRadius = Math.max(5, Math.min(16, s * 1400))
+    const mRadius = Math.max(5, Math.min(9, s * 1400))
 
     for (const player of currentPlayers) {
       // Interpolate position (skip if reduced motion)
@@ -1447,16 +1373,19 @@ export default function WorldMap() {
       const isInfected = !!player.isInfected && !isDead
       const pinScale = isHovered || isSelected ? 1.2 : 1
 
-      // Top-down survivor token, centred on the real tile position so players
-      // read the same way as the top-down vehicle icons.
-      const r = mRadius * pinScale
+      // Pin geometry — a refined teardrop anchored at p.x, p.y
+      const tipX = p.x
+      const tipY = p.y
+      const headR = mRadius * 1.0 * pinScale
+      const headCenterY = tipY - headR * 2.2 // head sits above the tip
+      const shoulderOffset = headR * 0.85 // where the teardrop sides meet the head
       const color = getPlayerColor(player, 0.95)
 
-      // 1. Ground shadow
+      // 1. Ground shadow — soft ellipse beneath the tip to anchor the pin
       ctx.save()
       ctx.fillStyle = 'rgba(0,0,0,0.35)'
       ctx.beginPath()
-      ctx.ellipse(p.x, p.y + r * 0.8, r * 0.8, r * 0.3, 0, 0, Math.PI * 2)
+      ctx.ellipse(tipX, tipY + 1.5, headR * 0.9, headR * 0.3, 0, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
 
@@ -1464,9 +1393,11 @@ export default function WorldMap() {
       if (!prefersReducedMotion.current && !isDead) {
         const seed = player.username.charCodeAt(0) / 26
         const pulsePhase = (now / 1800 + seed) % 1
+        const pulseRadius = headR + 2 + pulsePhase * 10
+        const pulseAlpha = 0.32 * (1 - pulsePhase)
         ctx.beginPath()
-        ctx.arc(p.x, p.y, r + 1 + pulsePhase * 9, 0, Math.PI * 2)
-        ctx.strokeStyle = getPlayerColor(player, 0.3 * (1 - pulsePhase))
+        ctx.arc(p.x, headCenterY, pulseRadius, 0, Math.PI * 2)
+        ctx.strokeStyle = getPlayerColor(player, pulseAlpha)
         ctx.lineWidth = 1.5
         ctx.stroke()
       }
@@ -1474,87 +1405,147 @@ export default function WorldMap() {
       // 3. Selection / hover halo
       if (isHovered || isSelected) {
         ctx.beginPath()
-        ctx.arc(p.x, p.y, r + 4.5, 0, Math.PI * 2)
-        ctx.fillStyle = getPlayerColor(player, 0.18)
+        ctx.arc(p.x, headCenterY, headR + 4, 0, Math.PI * 2)
+        ctx.fillStyle = getPlayerColor(player, 0.2)
         ctx.fill()
+      }
+
+      // 4. Teardrop body — rounded top, tapered to tip
+      // Using bezier curves from tip → left shoulder → top arc → right shoulder → back to tip.
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.45)'
+      ctx.shadowBlur = 4
+      ctx.shadowOffsetX = 0
+      ctx.shadowOffsetY = 2
+
+      ctx.beginPath()
+      ctx.moveTo(tipX, tipY)
+      // Left side: tip → left shoulder
+      ctx.quadraticCurveTo(
+        tipX - shoulderOffset * 0.4,
+        tipY - headR * 1.2,
+        tipX - shoulderOffset,
+        headCenterY + headR * 0.55
+      )
+      // Top arc: left shoulder → over the head → right shoulder
+      ctx.arc(p.x, headCenterY, headR * 1.05, Math.PI + 0.55, -0.55, false)
+      // Right side: right shoulder → tip
+      ctx.quadraticCurveTo(
+        tipX + shoulderOffset * 0.4,
+        tipY - headR * 1.2,
+        tipX,
+        tipY
+      )
+      ctx.closePath()
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.restore()
+
+      // 5. Pin outline for crispness
+      ctx.beginPath()
+      ctx.moveTo(tipX, tipY)
+      ctx.quadraticCurveTo(
+        tipX - shoulderOffset * 0.4,
+        tipY - headR * 1.2,
+        tipX - shoulderOffset,
+        headCenterY + headR * 0.55
+      )
+      ctx.arc(p.x, headCenterY, headR * 1.05, Math.PI + 0.55, -0.55, false)
+      ctx.quadraticCurveTo(
+        tipX + shoulderOffset * 0.4,
+        tipY - headR * 1.2,
+        tipX,
+        tipY
+      )
+      ctx.closePath()
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      // 6. Inner head disc — a darker plate that the 'face' sits on
+      ctx.beginPath()
+      ctx.arc(p.x, headCenterY, headR * 0.72, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(0,0,0,0.32)'
+      ctx.fill()
+
+      // 7. Face disc — solid head in the player color, with rim
+      ctx.beginPath()
+      ctx.arc(p.x, headCenterY, headR * 0.58, 0, Math.PI * 2)
+      ctx.fillStyle = color
+      ctx.fill()
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)'
+      ctx.lineWidth = 0.8
+      ctx.stroke()
+
+      // 8. Specular highlight on the head
+      ctx.beginPath()
+      ctx.arc(p.x - headR * 0.22, headCenterY - headR * 0.25, headR * 0.2, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255,255,255,0.38)'
+      ctx.fill()
+
+      // 9. Infected indicator — a jagged viral ring
+      if (isInfected && !prefersReducedMotion.current) {
+        const spikes = 8
+        const innerR = headR * 0.85
+        const outerR = headR * 1.15 + Math.sin(now / 400) * 0.8
         ctx.beginPath()
-        ctx.arc(p.x, p.y, r + 4.5, 0, Math.PI * 2)
-        ctx.strokeStyle = getPlayerColor(player, 0.9)
+        for (let i = 0; i < spikes * 2; i++) {
+          const angle = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2
+          const r = i % 2 === 0 ? outerR : innerR
+          const x = p.x + Math.cos(angle) * r
+          const y = headCenterY + Math.sin(angle) * r
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        }
+        ctx.closePath()
+        ctx.strokeStyle = hslToken('--destructive', 0.75)
         ctx.lineWidth = 1.2
         ctx.stroke()
       }
 
-      // 4. Token disc — dark rim keeps the marker legible over any terrain
-      ctx.save()
-      ctx.shadowColor = 'rgba(0,0,0,0.5)'
-      ctx.shadowBlur = 4
-      ctx.shadowOffsetY = 1
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
-      ctx.fillStyle = C.playerRim
-      ctx.fill()
-      ctx.restore()
-
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, r * 0.84, 0, Math.PI * 2)
-      ctx.fillStyle = color
-      ctx.fill()
-
-      // 5. Survivor glyph — head over shoulders, dropped when it would blur
-      if (r >= 6.5) {
-        ctx.save()
-        ctx.fillStyle = C.playerGlyph
-        ctx.beginPath()
-        ctx.arc(p.x, p.y - r * 0.28, r * 0.3, 0, Math.PI * 2)
-        ctx.fill()
-        // Shoulders are a dome so the pair never reads as a face
-        ctx.beginPath()
-        ctx.arc(p.x, p.y + r * 0.58, r * 0.56, Math.PI, 0)
-        ctx.closePath()
-        ctx.fill()
-        ctx.restore()
-      }
-
-      // 6. Infected ring
-      if (isInfected) {
-        const wobble = prefersReducedMotion.current ? 0 : Math.sin(now / 400) * 0.6
-        ctx.save()
-        ctx.setLineDash([2.5, 2.5])
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, r + 3.2 + wobble, 0, Math.PI * 2)
-        ctx.strokeStyle = C.playerInfectedRing
-        ctx.lineWidth = 1.4
-        ctx.stroke()
-        ctx.restore()
-      }
-
-      // 7. Dead overlay
+      // 10. Dead overlay — X through the pin
       if (isDead) {
-        const xLen = r * 0.44
+        const xLen = headR * 0.65
         ctx.save()
         ctx.strokeStyle = 'rgba(255,255,255,0.9)'
-        ctx.lineWidth = 1.6
+        ctx.lineWidth = 1.5
         ctx.lineCap = 'round'
         ctx.beginPath()
-        ctx.moveTo(p.x - xLen, p.y - xLen)
-        ctx.lineTo(p.x + xLen, p.y + xLen)
-        ctx.moveTo(p.x + xLen, p.y - xLen)
-        ctx.lineTo(p.x - xLen, p.y + xLen)
+        ctx.moveTo(p.x - xLen, headCenterY - xLen)
+        ctx.lineTo(p.x + xLen, headCenterY + xLen)
+        ctx.moveTo(p.x + xLen, headCenterY - xLen)
+        ctx.lineTo(p.x - xLen, headCenterY + xLen)
         ctx.stroke()
         ctx.restore()
       }
 
-      // 8. Admin ring
+      // 11. Admin crown badge — replaces the old 5-point star
       if (isAdmin) {
+        const bx = p.x + headR * 0.95
+        const by = headCenterY - headR * 0.85
+        ctx.save()
+        ctx.fillStyle = C.adminStar
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+        ctx.lineWidth = 0.8
+        // Tiny crown shape (3 points + base)
+        const crownH = headR * 0.55
+        const crownW = headR * 0.8
         ctx.beginPath()
-        ctx.arc(p.x, p.y, r + 1.6, 0, Math.PI * 2)
-        ctx.strokeStyle = C.adminStar
-        ctx.lineWidth = 1.6
+        ctx.moveTo(bx - crownW / 2, by + crownH / 2)
+        ctx.lineTo(bx - crownW / 2, by - crownH / 4)
+        ctx.lineTo(bx - crownW / 4, by + crownH / 4)
+        ctx.lineTo(bx, by - crownH / 2)
+        ctx.lineTo(bx + crownW / 4, by + crownH / 4)
+        ctx.lineTo(bx + crownW / 2, by - crownH / 4)
+        ctx.lineTo(bx + crownW / 2, by + crownH / 2)
+        ctx.closePath()
+        ctx.fill()
         ctx.stroke()
+        ctx.restore()
       }
 
-      // 9. Username label above the token
-      const labelY = p.y - r - 7
+      // 12. Username label above the pin
+      const labelY = headCenterY - headR - 6
       const labelAlpha = isHovered || isSelected ? 1 : 0.85
       ctx.font = `600 ${Math.max(10, Math.min(13, s * 2500))}px ui-sans-serif, system-ui, sans-serif`
       ctx.textAlign = 'center'
@@ -1566,12 +1557,12 @@ export default function WorldMap() {
       ctx.fillText(player.displayName || player.username, p.x, labelY)
       ctx.restore()
 
-      // 10. Health bar below the token
+      // 13. Health bar below the tip
       if (player.health !== undefined && s > 0.0005 && !isDead) {
         const barW = 26
         const barH = 3
         const barX = p.x - barW / 2
-        const barY = p.y + r + 5
+        const barY = tipY + 4
         const healthPct = Math.max(0, Math.min(100, player.health)) / 100
 
         // Backdrop
@@ -1702,7 +1693,7 @@ export default function WorldMap() {
         ctx.shadowBlur = 3
         ctx.shadowOffsetY = 1
         ctx.fillStyle = hslToken('--warning', 0.9 * fadeAlpha)
-        ctx.fillText(presetDef.label, ap.x, ap.y - dropSize * 2.2)
+        ctx.fillText(t(presetDef.labelKey), ap.x, ap.y - dropSize * 2.2)
         ctx.restore()
       }
     }
@@ -1712,10 +1703,10 @@ export default function WorldMap() {
       ctx.textAlign = 'center'
       ctx.fillStyle = C.emptyTitle
       ctx.font = '600 14px ui-sans-serif, system-ui, sans-serif'
-      ctx.fillText('No players on the map', W / 2, H / 2 - 8)
+      ctx.fillText(t('canvas.noPlayers'), W / 2, H / 2 - 8)
       ctx.font = '400 11px ui-sans-serif, system-ui, sans-serif'
       ctx.fillStyle = C.emptySubtitle
-      ctx.fillText('Player positions appear when PanelBridge is connected', W / 2, H / 2 + 10)
+      ctx.fillText(t('canvas.bridgePositions'), W / 2, H / 2 + 10)
     }
 
     // Crosshair at cursor
@@ -1732,7 +1723,7 @@ export default function WorldMap() {
       ctx.stroke()
       ctx.setLineDash([])
     }
-  }, [canvasSize, loadDziTile, playerToScreen, hoveredPlayer, selectedPlayer, cursorWorldPos, isDragging, showVehicles, showSafehouses, hoveredVehicle])
+  }, [canvasSize, loadDziTile, playerToScreen, hoveredPlayer, selectedPlayer, cursorWorldPos, isDragging, showVehicles, showSafehouses, hoveredVehicle, t])
 
   // ─── Animation loop ─────────────────────────────────────
   useEffect(() => {
@@ -1913,12 +1904,18 @@ export default function WorldMap() {
       const wp = screenToTile(mx, my)
       setCursorWorldPos(wp)
 
-      // Hit test players — the token is centred on the tile position
+      // Hit test players — pin anchors at tip, head sits ~18px above; accept either.
       let found: string | null = null
       for (const player of playersRef.current) {
         const p = playerToScreen(player.x, player.y)
-        const hitR = Math.max(MARKER_HIT_RADIUS, Math.max(5, Math.min(16, scaleRef.current * 1400)) + 4)
-        if (Math.hypot(mx - p.x, my - p.y) < hitR) {
+        const pinR = Math.max(5, Math.min(9, scaleRef.current * 1400))
+        const headY = p.y - pinR * 2.2
+        // Closest vertical point on pin (tip or head)
+        const dxTip = mx - p.x, dyTip = my - p.y
+        const dxHead = mx - p.x, dyHead = my - headY
+        const distTip = Math.sqrt(dxTip * dxTip + dyTip * dyTip)
+        const distHead = Math.sqrt(dxHead * dxHead + dyHead * dyHead)
+        if (distTip < MARKER_HIT_RADIUS || distHead < MARKER_HIT_RADIUS) {
           found = player.username
           break
         }
@@ -1985,8 +1982,11 @@ export default function WorldMap() {
       let clickedPlayer: MapPlayer | undefined
       for (const player of playersRef.current) {
         const p = playerToScreen(player.x, player.y)
-        const hitR = Math.max(MARKER_HIT_RADIUS, Math.max(5, Math.min(16, scaleRef.current * 1400)) + 4)
-        if (Math.hypot(mx - p.x, my - p.y) < hitR) {
+        const pinR = Math.max(5, Math.min(9, scaleRef.current * 1400))
+        const headY = p.y - pinR * 2.2
+        const distTip = Math.sqrt((mx - p.x) ** 2 + (my - p.y) ** 2)
+        const distHead = Math.sqrt((mx - p.x) ** 2 + (my - headY) ** 2)
+        if (distTip < MARKER_HIT_RADIUS || distHead < MARKER_HIT_RADIUS) {
           clickedPlayer = player
           break
         }
@@ -2175,16 +2175,16 @@ export default function WorldMap() {
       try {
         const res = await panelBridgeApi.triggerLightning(x, y, true, true, true)
         if (res.success) {
-          toast({ title: 'Lightning strike', description: `Struck at ${x}, ${y}` })
+          toast({ title: t('toast.lightningStrike'), description: t('toast.struckAt', { x, y }) })
         }
       } catch {
-        toast({ title: 'Error', description: 'Failed to trigger lightning', variant: 'destructive' })
+        toast({ title: t('toast.error'), description: t('errors.lightningFailed'), variant: 'destructive' })
       } finally {
         setActionLoading(null)
         setContextMenu(null)
       }
     },
-    [toast]
+    [t, toast]
   )
 
   const createNoiseAt = useCallback(
@@ -2193,16 +2193,16 @@ export default function WorldMap() {
       try {
         const res = await panelBridgeApi.playWorldSound(x, y, 0, 200, 100)
         if (res.success) {
-          toast({ title: 'Noise Created', description: `Sound at ${x}, ${y} — attracting zombies` })
+          toast({ title: t('toast.noiseCreated'), description: t('toast.soundAttracting', { x, y }) })
         }
       } catch {
-        toast({ title: 'Error', description: 'Failed to create noise', variant: 'destructive' })
+        toast({ title: t('toast.error'), description: t('errors.noiseFailed'), variant: 'destructive' })
       } finally {
         setActionLoading(null)
         setContextMenu(null)
       }
     },
-    [toast]
+    [t, toast]
   )
 
   const callAirdrop = useCallback(
@@ -2215,29 +2215,29 @@ export default function WorldMap() {
         if (!mountedRef.current) return
         if (res.success) {
           const presetDef = AIRDROP_PRESETS.find((p) => p.id === preset)
-          const label = presetDef?.label ?? preset
+          const label = presetDef ? t(presetDef.labelKey) : preset
           const data = res.data as Record<string, unknown> | undefined
           const itemCount = typeof data?.itemCount === 'number' ? data.itemCount : undefined
           const failed = typeof data?.failed === 'number' ? data.failed : 0
           const coords = `${Math.round(x)}, ${Math.round(y)}`
           let desc = itemCount
-            ? `${itemCount} items dropped at ${coords}`
-            : `Supply drop at ${coords}`
+            ? t('toast.itemsDroppedAt', { count: itemCount, coords })
+            : t('toast.supplyDropAt', { coords })
           if (failed > 0) {
-            desc += ` (${failed} failed)`
+            desc += ` (${t('toast.failedCount', { count: failed })})`
           }
-          toast({ title: `${label} airdrop deployed`, description: desc })
+          toast({ title: t('toast.airdropDeployed', { label }), description: desc })
           setAirdropMarkers((prev) => {
             const next = [...prev, { x, y, preset, time: Date.now() }]
             return next.length > 50 ? next.slice(-50) : next // cap at 50 markers
           })
         } else {
-          toast({ title: 'Airdrop failed', description: res.error || 'Area may not be loaded — a player must be nearby', variant: 'destructive' })
+          toast({ title: t('toast.airdropFailed'), description: res.error || t('errors.areaNotLoaded'), variant: 'destructive' })
         }
       } catch (err) {
         if (!mountedRef.current) return
-        const msg = err instanceof Error ? err.message : 'Failed to call airdrop'
-        toast({ title: 'Airdrop error', description: msg, variant: 'destructive' })
+        const msg = err instanceof Error ? err.message : t('errors.airdropCallFailed')
+        toast({ title: t('toast.airdropError'), description: msg, variant: 'destructive' })
       } finally {
         actionLoadingRef.current = null
         if (mountedRef.current) {
@@ -2246,7 +2246,7 @@ export default function WorldMap() {
         }
       }
     },
-    [toast]
+    [t, toast]
   )
 
   // Clean up expired airdrop markers (older than 5 minutes)
@@ -2282,7 +2282,7 @@ export default function WorldMap() {
         }))
         .filter((it) => it.itemType.length > 0)
       if (cleaned.length === 0) {
-        toast({ title: 'No items', description: 'Add at least one item to drop', variant: 'destructive' })
+        toast({ title: t('toast.noItems'), description: t('errors.addItem'), variant: 'destructive' })
         return
       }
       // Module must start with a letter; item name may start with a digit (e.g. 9mmClip, 556Bullets).
@@ -2290,14 +2290,14 @@ export default function WorldMap() {
       const bad = cleaned.find((it) => !ID_RE.test(it.itemType))
       if (bad) {
         toast({
-          title: 'Invalid item',
-          description: `${bad.itemType} — expected format: Module.Item`,
+          title: t('toast.invalidItem'),
+          description: t('errors.invalidItem', { item: bad.itemType }),
           variant: 'destructive',
         })
         return
       }
       if (cleaned.length > 50) {
-        toast({ title: 'Too many items', description: 'Max 50 item entries per drop', variant: 'destructive' })
+        toast({ title: t('toast.tooManyItems'), description: t('errors.tooManyItems'), variant: 'destructive' })
         return
       }
       actionLoadingRef.current = 'drop'
@@ -2317,12 +2317,12 @@ export default function WorldMap() {
           const failed = typeof data?.failed === 'number' ? data.failed : 0
           const totalQty = cleaned.reduce((sum, it) => sum + it.count, 0)
           const coords = `${Math.round(opts.x)}, ${Math.round(opts.y)}`
-          const title = opts.label ? `${opts.label} dropped` : 'Drop deployed'
+          const title = opts.label ? t('toast.dropLabel', { label: opts.label }) : t('toast.dropDeployed')
           let desc =
             cleaned.length === 1
-              ? `${cleaned[0].itemType.replace(/^[^.]+\./, '')}${cleaned[0].count > 1 ? ` × ${cleaned[0].count}` : ''} at ${coords}`
-              : `${cleaned.length} items (${totalQty} total) at ${coords}`
-          if (failed > 0) desc += ` (${failed} failed)`
+              ? t('toast.singleItemAt', { item: cleaned[0].itemType.replace(/^[^.]+\./, ''), quantity: cleaned[0].count > 1 ? ` × ${cleaned[0].count}` : '', coords })
+              : t('toast.multipleItemsAt', { count: cleaned.length, total: totalQty, coords })
+          if (failed > 0) desc += ` (${t('toast.failedCount', { count: failed })})`
           if (!opts.silent) toast({ title, description: desc })
           setAirdropMarkers((prev) => {
             const next = [...prev, { x: opts.x, y: opts.y, preset: 'custom', time: Date.now() }]
@@ -2335,12 +2335,12 @@ export default function WorldMap() {
               : `${cleaned.length}-item package`),
           })
         } else {
-          toast({ title: 'Drop failed', description: res.error || 'Area may not be loaded — a player must be nearby', variant: 'destructive' })
+          toast({ title: t('toast.dropFailed'), description: res.error || t('errors.areaNotLoaded'), variant: 'destructive' })
         }
       } catch (err) {
         if (!mountedRef.current) return
-        const msg = err instanceof Error ? err.message : 'Failed to drop item'
-        toast({ title: 'Drop error', description: msg, variant: 'destructive' })
+        const msg = err instanceof Error ? err.message : t('errors.dropItemFailed')
+        toast({ title: t('toast.dropError'), description: msg, variant: 'destructive' })
       } finally {
         actionLoadingRef.current = null
         if (mountedRef.current) {
@@ -2348,7 +2348,7 @@ export default function WorldMap() {
         }
       }
     },
-    [toast, fetchPlayerPositions]
+    [t, toast]
   )
 
   // Teleport an arbitrary online player to the right-clicked coordinate.
@@ -2365,26 +2365,26 @@ export default function WorldMap() {
         if (!mountedRef.current) return
         if (res.success) {
           toast({
-            title: 'Player teleported',
-            description: `${username} → ${Math.round(x)}, ${Math.round(y)}`,
+            title: t('toast.playerTeleported'),
+            description: t('toast.playerTeleportedDescription', { username, x: Math.round(x), y: Math.round(y) }),
           })
           fetchPlayerPositions()
         } else {
           toast({
-            title: 'Teleport failed',
-            description: res.error || 'Grid square may not be loaded at destination',
+            title: t('toast.teleportFailed'),
+            description: res.error || t('errors.destinationNotLoaded'),
             variant: 'destructive',
           })
         }
       } catch (err) {
         if (!mountedRef.current) return
-        const msg = err instanceof Error ? err.message : 'Teleport error'
-        toast({ title: 'Teleport error', description: msg, variant: 'destructive' })
+        const msg = err instanceof Error ? err.message : t('errors.teleport')
+        toast({ title: t('toast.teleportError'), description: msg, variant: 'destructive' })
       } finally {
         if (mountedRef.current) setActionLoading(null)
       }
     },
-    [toast]
+    [fetchPlayerPositions, t, toast]
   )
 
   // Copy map coordinates to the clipboard.
@@ -2393,12 +2393,12 @@ export default function WorldMap() {
       const text = `${Math.round(x)}, ${Math.round(y)}`
       try {
         await navigator.clipboard.writeText(text)
-        toast({ title: 'Copied', description: text })
+        toast({ title: t('toast.copied'), description: text })
       } catch {
-        toast({ title: 'Copy failed', description: 'Clipboard unavailable', variant: 'destructive' })
+        toast({ title: t('toast.copyFailed'), description: t('errors.clipboardUnavailable'), variant: 'destructive' })
       }
     },
-    [toast]
+    [t, toast]
   )
 
   // Pan to player (from player list click)
@@ -2417,8 +2417,8 @@ export default function WorldMap() {
   return (
     <div className="space-y-4 page-transition">
       <PageHeader
-        title="World Map"
-        description="Live player positions on the Knox County map. Right-click for actions."
+        title={t("title")}
+        description={t("description")}
         icon={<MapIcon className="w-5 h-5" />}
         actions={
           <div className="flex items-center gap-2">
@@ -2430,7 +2430,7 @@ export default function WorldMap() {
               className="gap-2"
             >
               <RefreshCw className="w-4 h-4" />
-              Refresh
+              {t('actions.refresh')}
             </Button>
           </div>
         }
@@ -2447,30 +2447,30 @@ export default function WorldMap() {
         <div className="absolute top-3 left-3 z-10 w-12 rounded-md border border-border/55 bg-card/85 backdrop-blur-md shadow-lg overflow-hidden">
           <div className="flex items-center justify-center gap-1 px-1.5 py-1 border-b border-border/40 bg-muted/40 font-mono text-[9px] uppercase tracking-[0.24em] text-primary/70">
             <span className="text-primary/60">//</span>
-            <span>ctrl</span>
+            <span>{t('ctrl')}</span>
           </div>
           <div className="flex flex-col gap-px p-1">
             <button
               onClick={zoomIn}
-              aria-label="Zoom in"
+              aria-label={t('controls.zoomIn')}
               className="group h-9 w-9 rounded-sm border border-transparent hover:border-border/50 hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
-              title="Zoom in"
+              title={t('controls.zoomIn')}
             >
               <ZoomIn className="w-4 h-4" />
             </button>
             <button
               onClick={zoomOut}
-              aria-label="Zoom out"
+              aria-label={t('controls.zoomOut')}
               className="group h-9 w-9 rounded-sm border border-transparent hover:border-border/50 hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
-              title="Zoom out"
+              title={t('controls.zoomOut')}
             >
               <ZoomOut className="w-4 h-4" />
             </button>
             <button
               onClick={fitToPlayers}
-              aria-label="Fit to players"
+              aria-label={t('controls.fitToPlayers')}
               className="group h-9 w-9 rounded-sm border border-transparent hover:border-border/50 hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
-              title="Fit to players"
+              title={t('controls.fitToPlayers')}
             >
               <Maximize2 className="w-4 h-4" />
             </button>
@@ -2480,37 +2480,37 @@ export default function WorldMap() {
           {mapCfg.label === 'B42' && (
             <>
               <div className="flex items-center justify-center gap-1 px-1.5 py-1 border-y border-border/40 bg-muted/30 font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground/70">
-                <span>floor</span>
+                <span>{t('floor')}</span>
               </div>
               <div className="flex flex-col items-center p-1 gap-px">
                 <button
                   onClick={() => changeFloor(floor + 1)}
                   disabled={floor >= 29}
-                  aria-label="Floor up"
+                  aria-label={t('controls.floorUp')}
                   className="h-6 w-9 rounded-sm border border-transparent hover:border-border/50 hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-transparent"
-                  title="Floor up"
+                  title={t('controls.floorUp')}
                 >
                   <ChevronUp className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => changeFloor(0)}
-                  aria-label={`Current floor: ${floorLabel(floor)}`}
+                  aria-label={t('controls.currentFloor', { floor: floorLabel(floor) })}
                   className={cn(
                     'h-7 w-9 rounded-sm border flex items-center justify-center transition-colors text-[10px] font-mono font-semibold tabular-nums focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
                     floor !== 0
                       ? 'bg-accent/20 border-accent/40 text-accent shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]'
                       : 'bg-muted/30 border-border/40 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
                   )}
-                  title={`${floorLabel(floor)} — click to reset to ground`}
+                  title={t('controls.resetFloor', { floor: floorLabel(floor) })}
                 >
                   {floor === 0 ? <Layers className="w-3.5 h-3.5" /> : (floor > 0 ? `+${floor}` : floor)}
                 </button>
                 <button
                   onClick={() => changeFloor(floor - 1)}
-                  disabled={floor <= -1}
-                  aria-label="Floor down"
+                  disabled={floor <= -17}
+                  aria-label={t('controls.floorDown')}
                   className="h-6 w-9 rounded-sm border border-transparent hover:border-border/50 hover:bg-muted/60 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-transparent"
-                  title="Floor down"
+                  title={t('controls.floorDown')}
                 >
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
@@ -2519,12 +2519,12 @@ export default function WorldMap() {
           )}
 
           <div className="flex items-center justify-center gap-1 px-1.5 py-1 border-y border-border/40 bg-muted/30 font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground/70">
-            <span>layers</span>
+            <span>{t('layers')}</span>
           </div>
           <div className="flex flex-col gap-px p-1">
             <button
               onClick={() => setShowVehicles((v) => !v)}
-              aria-label={showVehicles ? `Hide vehicles (${vehicles.length} loaded)` : `Show vehicles (${vehicles.length} loaded)`}
+              aria-label={showVehicles ? t('controls.hideVehicles', { count: vehicles.length }) : t('controls.showVehicles', { count: vehicles.length })}
               aria-pressed={showVehicles}
               className={cn(
                 'h-9 w-9 rounded-sm border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
@@ -2532,13 +2532,13 @@ export default function WorldMap() {
                   ? 'bg-info/20 border-info/40 text-info'
                   : 'border-transparent text-muted-foreground hover:border-border/50 hover:bg-muted/60 hover:text-foreground'
               )}
-              title={`${showVehicles ? 'Hide' : 'Show'} vehicles (${vehicles.length}) — only vehicles near players are visible`}
+              title={t('controls.vehiclesTitle', { action: showVehicles ? t('controls.hide') : t('controls.show'), count: vehicles.length })}
             >
               <Car className="w-4 h-4" />
             </button>
             <button
               onClick={() => setShowSafehouses((v) => !v)}
-              aria-label={showSafehouses ? `Hide safehouses (${safehouses.length} loaded)` : `Show safehouses (${safehouses.length} loaded)`}
+              aria-label={showSafehouses ? t('controls.hideSafehouses', { count: safehouses.length }) : t('controls.showSafehouses', { count: safehouses.length })}
               aria-pressed={showSafehouses}
               className={cn(
                 'h-9 w-9 rounded-sm border flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
@@ -2546,7 +2546,7 @@ export default function WorldMap() {
                   ? 'bg-success/20 border-success/40 text-success'
                   : 'border-transparent text-muted-foreground hover:border-border/50 hover:bg-muted/60 hover:text-foreground'
               )}
-              title={`${showSafehouses ? 'Hide' : 'Show'} safehouses (${safehouses.length})`}
+              title={t('controls.safehousesTitle', { action: showSafehouses ? t('controls.hide') : t('controls.show'), count: safehouses.length })}
             >
               <Home className="w-4 h-4" />
             </button>
@@ -2565,26 +2565,23 @@ export default function WorldMap() {
               <div className="flex items-center justify-between gap-2 px-3 py-1 border-b border-warning/30 bg-warning/20 font-mono text-[10px] uppercase tracking-[0.24em] text-warning">
                 <span className="flex items-center gap-1.5">
                   <AlertTriangle className="w-3 h-3" />
-                  <span>signal.lost</span>
+                  <span>{t('status.signalLost')}</span>
                 </span>
-                <span className="text-warning/70">tiles offline</span>
+                <span className="text-warning/70">{t('tilesOffline')}</span>
               </div>
               <div className="px-3 py-2 text-xs leading-snug">
                 {tileFailureKind === 'coverage' ? (
                   <>
-                    <div className="font-semibold text-foreground">No map tiles at this zoom</div>
+                    <div className="font-semibold text-foreground">{t('noMapTilesAtThisZoom')}</div>
                     <div className="text-muted-foreground mt-0.5">
-                      <span className="font-mono text-warning/90">map.projectzomboid.com</span> is
-                      reachable but hasn't rendered this area at this detail level. Zoom out, or
-                      try Refresh later.
+                      <span className="font-mono text-warning/90">map.projectzomboid.com</span> {t('mapErrors.coverageDescription')}
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="font-semibold text-foreground">Map tiles aren't loading</div>
+                    <div className="font-semibold text-foreground">{t('mapTilesArentLoading')}</div>
                     <div className="text-muted-foreground mt-0.5">
-                      Panel can't reach <span className="font-mono text-warning/90">map.projectzomboid.com</span>.
-                      Check outbound HTTPS access and try Refresh.
+                      {t('mapErrors.networkPrefix')} <span className="font-mono text-warning/90">map.projectzomboid.com</span>. {t('mapErrors.networkSuffix')}
                     </div>
                   </>
                 )}
@@ -2599,11 +2596,11 @@ export default function WorldMap() {
             <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border/40 bg-muted/40 font-mono text-[10px] uppercase tracking-[0.22em] text-primary/70">
               <span className="flex items-center gap-1.5">
                 <span className="text-primary/60">//</span>
-                <span>roster</span>
+                <span>{t('roster')}</span>
                 <span className="text-muted-foreground/50">·</span>
                 <span className={cn('flex items-center gap-1', bridgeConnected ? 'text-emerald-400/90' : 'text-muted-foreground/60')}>
                   <span className={cn('h-1.5 w-1.5 rounded-full', bridgeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40')} />
-                  {bridgeConnected ? 'live' : 'offline'}
+                  {bridgeConnected ? t('status.live') : t('status.offline')}
                 </span>
               </span>
               <span className="text-foreground tabular-nums font-semibold">{players.length}</span>
@@ -2614,7 +2611,7 @@ export default function WorldMap() {
                   <button
                     key={p.username}
                     onClick={() => panToPlayer(p)}
-                    aria-label={`Pan to ${p.displayName || p.username}${p.health !== undefined ? `, health ${Math.round(p.health)}%` : ''}`}
+                    aria-label={t('controls.panToPlayer', { name: p.displayName || p.username, health: p.health !== undefined ? `, ${t('hp')} ${Math.round(p.health)}%` : '' })}
                     className={cn(
                       'w-full px-2.5 py-1.5 flex items-center gap-2 text-left text-xs transition-colors border-l-2 border-transparent hover:bg-muted/50',
                       selectedPlayer?.username === p.username && 'bg-muted/50 border-primary/60'
@@ -2640,7 +2637,7 @@ export default function WorldMap() {
               <div className="px-3 py-3 flex items-center gap-2 text-[11px] font-mono text-muted-foreground/70">
                 <span className={cn('h-1.5 w-1.5 rounded-full', bridgeConnected ? 'bg-muted-foreground/40' : 'bg-destructive/70')} />
                 <span>
-                  {loading ? 'loading…' : bridgeConnected ? 'no players online' : 'bridge offline'}
+                  {loading ? t('status.loading') : bridgeConnected ? t('status.noPlayersOnline') : t('status.bridgeOffline')}
                 </span>
               </div>
             )}
@@ -2657,7 +2654,7 @@ export default function WorldMap() {
                   <span className="text-muted-foreground/60">x</span>{cursorWorldPos.x.toString().padStart(5, ' ')}<span className="mx-1 text-muted-foreground/40">·</span><span className="text-muted-foreground/60">y</span>{cursorWorldPos.y.toString().padStart(5, ' ')}
                 </span>
               ) : (
-                <span className="text-muted-foreground/50">hover for coords</span>
+                <span className="text-muted-foreground/50">{t('hoverForCoords')}</span>
               )}
             </div>
             <div className="flex items-center gap-1 px-2.5 py-1.5 border-r border-border/40">
@@ -2665,7 +2662,7 @@ export default function WorldMap() {
               <span className={cn(floor !== 0 ? 'text-accent' : 'text-muted-foreground/70')}>{floorLabel(floor)}</span>
             </div>
             <div className="flex items-center gap-1 px-2.5 py-1.5">
-              <span className="text-muted-foreground/50 text-[9px] uppercase tracking-[0.22em]">zm</span>
+              <span className="text-muted-foreground/50 text-[9px] uppercase tracking-[0.22em]">{t('zm')}</span>
               <span className="text-muted-foreground/80">{(scale / mapCfg.defaultScale * 100).toFixed(0)}%</span>
             </div>
           </div>
@@ -2682,14 +2679,14 @@ export default function WorldMap() {
               <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 border-b border-border/40 bg-muted/40 font-mono text-[10px] uppercase tracking-[0.22em] text-primary/70">
                 <span className="flex items-center gap-1.5">
                   <span className="text-primary/60">//</span>
-                  <span>dossier</span>
+                  <span>{t('dossier')}</span>
                   <span className="text-muted-foreground/50">·</span>
-                  <span className="text-emerald-400/90">target.acquired</span>
+                  <span className="text-emerald-400/90">{t('status.targetAcquired')}</span>
                 </span>
                 <button
                   onClick={() => setSelectedPlayer(null)}
                   className="p-0.5 -m-0.5 rounded text-muted-foreground/70 hover:text-foreground hover:bg-muted/60 transition-colors"
-                  aria-label="Close dossier"
+                  aria-label={t('controls.closeDossier')}
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -2707,16 +2704,16 @@ export default function WorldMap() {
               </div>
               <div className="px-3 py-2 text-xs space-y-1.5">
                 <div className="flex justify-between items-baseline">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">pos</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">{t('pos')}</span>
                   <span className="font-mono tabular-nums">{Math.round(selectedPlayer.x)}, {Math.round(selectedPlayer.y)}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">floor</span>
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">{t('floor')}</span>
                   <span className="font-mono tabular-nums">{selectedPlayer.z}</span>
                 </div>
                 {selectedPlayer.health !== undefined && (
                   <div className="flex justify-between items-center">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">hp</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">{t('hp')}</span>
                     <div className="flex items-center gap-1.5">
                       <div className="w-16 h-1.5 rounded-sm bg-muted/60 overflow-hidden ring-1 ring-black/20">
                         <div
@@ -2736,16 +2733,16 @@ export default function WorldMap() {
                 )}
                 {selectedPlayer.accessLevel && selectedPlayer.accessLevel !== 'none' && selectedPlayer.accessLevel !== 'user' && selectedPlayer.accessLevel !== '' && (
                   <div className="flex justify-between items-baseline">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">role</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">{t('role')}</span>
                     <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-400">{selectedPlayer.accessLevel}</span>
                   </div>
                 )}
                 {selectedPlayer.isInfected && (
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">status</span>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground/70">{t('status.label')}</span>
                     <span className="flex items-center gap-1 text-destructive font-mono text-[10px] uppercase tracking-[0.18em]">
                       <Skull className="w-3 h-3" />
-                      <span>infected</span>
+                      <span>{t('infected')}</span>
                     </span>
                   </div>
                 )}
@@ -2757,12 +2754,12 @@ export default function WorldMap() {
                   onClick={() => {
                     setActionLoading('heal-card')
                     panelBridgeApi.sendCommand('healPlayer', { username: selectedPlayer.username })
-                      .then(() => { toast({ title: 'Healed', description: `${selectedPlayer.username} healed` }); fetchPlayerPositions() })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .then(() => { toast({ title: t('toast.healed'), description: t('toast.playerHealed', { username: selectedPlayer.username }) }); fetchPlayerPositions() })
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => setActionLoading(null))
                   }}
                 >
-                  <Heart className="w-3 h-3" /> Heal
+                  <Heart className="w-3 h-3" /> {t('controls.heal')}
                 </Button>
                 <Button
                   size="sm" variant="ghost" className="h-7 text-xs gap-1 flex-1"
@@ -2770,12 +2767,12 @@ export default function WorldMap() {
                   onClick={() => {
                     setActionLoading('god-card')
                     panelBridgeApi.sendCommand('setGodMode', { username: selectedPlayer.username, enabled: true })
-                      .then(() => toast({ title: 'God mode enabled' }))
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .then(() => toast({ title: t('toast.godModeEnabled') }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => setActionLoading(null))
                   }}
                 >
-                  <Shield className="w-3 h-3" /> God
+                  <Shield className="w-3 h-3" /> {t('controls.godMode')}
                 </Button>
               </div>
             </div>
@@ -2793,21 +2790,15 @@ export default function WorldMap() {
               }
             }}
             role="menu"
-            aria-label="Map actions"
-            className="absolute z-20 min-w-[220px] sm:min-w-[260px] rounded-md bg-card/95 backdrop-blur-md border border-border/55 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.6)] ring-1 ring-primary/10 overflow-y-auto overscroll-contain"
+            aria-label={t('controls.mapActions')}
+            className="absolute z-20 min-w-[220px] sm:min-w-[260px] rounded-md bg-card/95 backdrop-blur-md border border-border/55 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.6)] ring-1 ring-primary/10 overflow-hidden"
             style={{
               left: contextMenu.screenX,
               top: contextMenu.screenY,
               transform: [
-                contextMenu.screenX > (canvasSize.width || 800) / 2 ? 'translateX(-100%)' : '',
-                contextMenu.screenY > (canvasSize.height || 600) / 2 ? 'translateY(-100%)' : '',
+                contextMenu.screenX > (canvasSize.width || 800) - 240 ? 'translateX(-100%)' : '',
+                contextMenu.screenY > (canvasSize.height || 600) - 420 ? 'translateY(-100%)' : '',
               ].filter(Boolean).join(' ') || undefined,
-              maxHeight: Math.max(
-                160,
-                (contextMenu.screenY > (canvasSize.height || 600) / 2
-                  ? contextMenu.screenY
-                  : (canvasSize.height || 600) - contextMenu.screenY) - 12,
-              ),
               animation: 'popoverEnter 0.15s ease-out',
             }}
             onKeyDown={(e) => {
@@ -2830,7 +2821,7 @@ export default function WorldMap() {
             <div className="flex items-center justify-between gap-1 px-2 py-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-primary/70 border-b border-border/40 select-none bg-muted/30">
               <span className="flex items-center gap-1.5">
                 <span className="text-primary/60">//</span>
-                <span>actions</span>
+                <span>{t('controls.mapActions')}</span>
                 <span className="text-muted-foreground/40 normal-case tracking-normal">·</span>
                 <span className="text-foreground tabular-nums normal-case tracking-normal">{Math.round(contextMenu.worldX)}, {Math.round(contextMenu.worldY)}</span>
                 <span className="text-muted-foreground/40 normal-case tracking-normal">·</span>
@@ -2838,8 +2829,8 @@ export default function WorldMap() {
               </span>
               <button
                 type="button"
-                title="Copy coordinates"
-                aria-label="Copy coordinates"
+                title={t('controls.copyCoordinates')}
+                aria-label={t('controls.copyCoordinates')}
                 className="p-1 -m-1 rounded hover:bg-muted/60 text-muted-foreground/60 hover:text-foreground transition-colors"
                 onClick={(ev) => {
                   ev.stopPropagation()
@@ -2855,7 +2846,7 @@ export default function WorldMap() {
                 <div className="px-2.5 pt-2 pb-1.5 border-b border-border/30 select-none">
                   <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.24em] text-primary/60 mb-1">
                     <span>›</span>
-                    <span>target</span>
+                    <span>{t('target')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span
@@ -2867,12 +2858,12 @@ export default function WorldMap() {
                 </div>
                 <ContextMenuItem
                   icon={<Heart className="w-3.5 h-3.5 text-emerald-400" />}
-                  label="Heal player"
+                  label={t('controls.healPlayer')}
                   tone="success"
                   onClick={() => {
                     panelBridgeApi.sendCommand('healPlayer', { username: contextMenu.player!.username })
-                      .then(() => { toast({ title: 'Healed', description: `${contextMenu.player!.username} healed` }); fetchPlayerPositions() })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .then(() => { toast({ title: t('toast.healed'), description: t('toast.playerHealed', { username: contextMenu.player!.username }) }); fetchPlayerPositions() })
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                     setContextMenu(null)
                   }}
                 />
@@ -2885,15 +2876,15 @@ export default function WorldMap() {
                   <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.24em] text-info/70 mb-1.5">
                     <span>›</span>
                     <Car className="w-2.5 h-2.5" />
-                    <span>vehicle</span>
+                    <span>{t('vehicle')}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs">
-                    <strong className="text-foreground truncate">{contextMenu.vehicle.type || contextMenu.vehicle.scriptName?.split('.').pop() || 'Vehicle'}</strong>
+                    <strong className="text-foreground truncate">{contextMenu.vehicle.type || contextMenu.vehicle.scriptName?.split('.').pop() || t('vehicle')}</strong>
                   </div>
                   <div className="mt-1.5 space-y-1">
                     {contextMenu.vehicle.fuelPct != null && (
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 w-9">fuel</span>
+                        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 w-9">{t('fuel')}</span>
                         <div className="flex-1 h-1.5 rounded-sm bg-muted/60 overflow-hidden ring-1 ring-black/20">
                           <div
                             className={cn("h-full transition-all", contextMenu.vehicle.fuelPct > 30 ? "bg-info/80" : contextMenu.vehicle.fuelPct > 10 ? "bg-amber-400/80" : "bg-destructive/80")}
@@ -2905,7 +2896,7 @@ export default function WorldMap() {
                     )}
                     {contextMenu.vehicle.batteryCharge != null && (
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 w-9">batt</span>
+                        <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/70 w-9">{t('batt')}</span>
                         <div className="flex-1 h-1.5 rounded-sm bg-muted/60 overflow-hidden ring-1 ring-black/20">
                           <div
                             className={cn("h-full transition-all", contextMenu.vehicle.batteryCharge > 30 ? "bg-info/80" : contextMenu.vehicle.batteryCharge > 10 ? "bg-amber-400/80" : "bg-destructive/80")}
@@ -2916,39 +2907,33 @@ export default function WorldMap() {
                       </div>
                     )}
                     {contextMenu.vehicle.fuelPct == null && contextMenu.vehicle.batteryCharge == null && (
-                      <div className="font-mono text-[10px] text-muted-foreground/50 italic">no telemetry</div>
+                      <div className="font-mono text-[10px] text-muted-foreground/50 italic">{t('noTelemetry')}</div>
                     )}
                   </div>
                 </div>
-                {contextMenu.vehicle.persisted ? (
-                  <div className="px-2.5 py-2 text-[11px] text-muted-foreground/70 border-t border-border/30">
-                    Load this vehicle&apos;s area in-game before using vehicle controls.
-                  </div>
-                ) : (
-                  <>
-                    <ContextMenuItem
-                      icon={<Wrench className="w-3.5 h-3.5 text-info" />}
-                      label="Repair vehicle"
-                      tone="info"
-                      loading={actionLoading === 'vehicle-repair'}
-                      onClick={() => {
+                <ContextMenuItem
+                  icon={<Wrench className="w-3.5 h-3.5 text-info" />}
+                  label={t('controls.repairVehicle')}
+                  tone="info"
+                  loading={actionLoading === 'vehicle-repair'}
+                  onClick={() => {
                     setActionLoading('vehicle-repair')
                     panelBridgeApi.sendCommand('vehicleRepair', { vehicleId: contextMenu.vehicle!.id })
                       .then((res) => {
                         if (res.success) {
-                          toast({ title: 'Vehicle repaired' })
+                          toast({ title: t('toast.vehicleRepaired') })
                           fetchOverlays()
                         } else {
-                          toast({ title: 'Repair failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                          toast({ title: t('toast.repairFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                         }
                       })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => { setActionLoading(null); setContextMenu(null) })
-                      }}
-                    />
-                    <ContextMenuItem
+                  }}
+                />
+                <ContextMenuItem
                   icon={<Fuel className="w-3.5 h-3.5 text-info" />}
-                  label="Fill fuel"
+                  label={t('controls.fillFuel')}
                   tone="info"
                   loading={actionLoading === 'vehicle-fuel'}
                   onClick={() => {
@@ -2956,19 +2941,19 @@ export default function WorldMap() {
                     panelBridgeApi.sendCommand('vehicleSetFuel', { vehicleId: contextMenu.vehicle!.id, percent: 100 })
                       .then((res) => {
                         if (res.success) {
-                          toast({ title: 'Fuel filled to 100%' })
+                          toast({ title: t('toast.fuelFilled') })
                           fetchOverlays()
                         } else {
-                          toast({ title: 'Fuel failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                          toast({ title: t('toast.fuelFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                         }
                       })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => { setActionLoading(null); setContextMenu(null) })
-                      }}
-                    />
-                    <ContextMenuItem
+                  }}
+                />
+                <ContextMenuItem
                   icon={<Battery className="w-3.5 h-3.5 text-info" />}
-                  label="Charge battery"
+                  label={t('controls.chargeBattery')}
                   tone="info"
                   loading={actionLoading === 'vehicle-battery'}
                   onClick={() => {
@@ -2976,19 +2961,19 @@ export default function WorldMap() {
                     panelBridgeApi.sendCommand('vehicleSetBattery', { vehicleId: contextMenu.vehicle!.id, charge: 100 })
                       .then((res) => {
                         if (res.success) {
-                          toast({ title: 'Battery charged to 100%' })
+                          toast({ title: t('toast.batteryCharged') })
                           fetchOverlays()
                         } else {
-                          toast({ title: 'Battery failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                          toast({ title: t('toast.batteryFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                         }
                       })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => { setActionLoading(null); setContextMenu(null) })
-                      }}
-                    />
-                    <ContextMenuItem
+                  }}
+                />
+                <ContextMenuItem
                   icon={<Trash2 className="w-3.5 h-3.5 text-destructive" />}
-                  label="Remove vehicle"
+                  label={t('controls.removeVehicle')}
                   tone="danger"
                   loading={actionLoading === 'vehicle-remove'}
                   onClick={() => {
@@ -2996,19 +2981,19 @@ export default function WorldMap() {
                     panelBridgeApi.sendCommand('removeVehicle', { vehicleId: contextMenu.vehicle!.id })
                       .then((res) => {
                         if (res.success) {
-                          toast({ title: 'Vehicle removed' })
+                          toast({ title: t('toast.vehicleRemoved') })
                           fetchOverlays()
                         } else {
-                          toast({ title: 'Remove failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                          toast({ title: t('toast.removeFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                         }
                       })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => { setActionLoading(null); setContextMenu(null) })
-                      }}
-                    />
-                    <ContextMenuItem
+                  }}
+                />
+                <ContextMenuItem
                   icon={<Zap className="w-3.5 h-3.5 text-amber-400" />}
-                  label="Hotwire & start engine"
+                  label={t('controls.hotwire')}
                   tone="warning"
                   loading={actionLoading === 'vehicle-hotwire'}
                   onClick={() => {
@@ -3016,24 +3001,22 @@ export default function WorldMap() {
                     panelBridgeApi.sendCommand('vehicleHotwire', { vehicleId: contextMenu.vehicle!.id })
                       .then((res) => {
                         if (res.success) {
-                          toast({ title: 'Vehicle hotwired', description: 'Engine started' })
+                          toast({ title: t('toast.vehicleHotwired'), description: t('toast.engineStarted') })
                         } else {
-                          toast({ title: 'Hotwire failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                          toast({ title: t('toast.hotwireFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                         }
                       })
-                      .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                      .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                       .finally(() => { setActionLoading(null); setContextMenu(null) })
-                      }}
-                    />
-                  </>
-                )}
+                  }}
+                />
               </>
             )}
 
             {/* ── Teleport players to this spot ── */}
             {playersRef.current.length > 0 && (
               <div className="border-t border-border/30">
-                <ContextMenuSection label="teleport" icon={<Locate className="w-2.5 h-2.5" />} tone="primary" />
+                <ContextMenuSection label={t('controls.teleport')} icon={<Locate className="w-2.5 h-2.5" />} tone="primary" />
                 {playersRef.current.slice(0, 6).map((pl) => {
                   const pColor = pl.isInfected
                     ? 'text-destructive'
@@ -3058,7 +3041,7 @@ export default function WorldMap() {
                 })}
                 {playersRef.current.length > 6 && (
                   <div className="px-2.5 py-1 font-mono text-[10px] text-muted-foreground/50 italic select-none">
-                    +{playersRef.current.length - 6} more online
+                    {t('status.moreOnline', { count: playersRef.current.length - 6 })}
                   </div>
                 )}
               </div>
@@ -3066,27 +3049,27 @@ export default function WorldMap() {
 
             {/* ── World effects section ── */}
             <div className="border-t border-border/30">
-              <ContextMenuSection label="effects" icon={<Zap className="w-2.5 h-2.5" />} tone="info" />
+              <ContextMenuSection label={t('controls.effects')} icon={<Zap className="w-2.5 h-2.5" />} tone="info" />
               <ContextMenuItem
                 icon={<CloudLightning className="w-3.5 h-3.5 text-info" />}
-                label="Lightning strike"
-                description="Single bolt + thunder"
+                label={t('controls.lightningStrike')}
+                description={t('tools.thunder')}
                 tone="info"
                 loading={actionLoading === 'lightning'}
                 onClick={() => triggerLightningAt(contextMenu.worldX, contextMenu.worldY)}
               />
               <ContextMenuItem
                 icon={<Volume2 className="w-3.5 h-3.5 text-amber-400" />}
-                label="Create noise"
-                description="Pull zombies this way"
+                label={t('controls.createNoise')}
+                description={t('tools.pullZombies')}
                 tone="warning"
                 loading={actionLoading === 'noise'}
                 onClick={() => createNoiseAt(contextMenu.worldX, contextMenu.worldY)}
               />
               <ContextMenuItem
                 icon={<Car className="w-3.5 h-3.5 text-muted-foreground" />}
-                label="Spawn vehicle here"
-                description="Pick a vehicle to spawn"
+                label={t('controls.spawnVehicleHere')}
+                description={t('tools.spawnVehicle')}
                 disabled={!bridgeConnected}
                 onClick={() => {
                   setSpawnDialog({ x: Math.round(contextMenu.worldX), y: Math.round(contextMenu.worldY), z: floor })
@@ -3098,11 +3081,11 @@ export default function WorldMap() {
 
             {/* ── Drops section ── */}
             <div className="border-t border-border/30">
-              <ContextMenuSection label="drops" icon={<Package className="w-2.5 h-2.5" />} tone="warning" />
+              <ContextMenuSection label={t('controls.drops')} icon={<Package className="w-2.5 h-2.5" />} tone="warning" />
               <ContextMenuItem
                 icon={<Package className="w-3.5 h-3.5 text-amber-400" />}
-                label="Custom drop…"
-                description="Build a package — items, quantities, templates"
+                label={t('controls.customDrop')}
+                description={t('tools.buildPackage')}
                 tone="warning"
                 disabled={!bridgeConnected}
                 onClick={() => {
@@ -3125,7 +3108,7 @@ export default function WorldMap() {
               {lastDrop && (
                 <ContextMenuItem
                   icon={<RefreshCw className="w-3.5 h-3.5 text-amber-400/80" />}
-                  label="Repeat last drop"
+                  label={t('controls.repeatLastDrop')}
                   description={lastDrop.label}
                   tone="warning"
                   loading={actionLoading === 'drop'}
@@ -3146,13 +3129,13 @@ export default function WorldMap() {
               )}
               {dropTemplates.length > 0 && (
                 <>
-                  <ContextMenuSection label="saved packages" icon={<Save className="w-2.5 h-2.5" />} tone="muted" />
+                  <ContextMenuSection label={t('controls.savedPackages')} icon={<Save className="w-2.5 h-2.5" />} tone="muted" />
                   {dropTemplates.slice(0, 8).map((tpl) => (
                     <ContextMenuItem
                       key={tpl.id}
                       icon={<Package className="w-3.5 h-3.5 text-amber-400/70" />}
                       label={tpl.name}
-                      description={`${tpl.items.length} items`}
+                      description={t('drop.itemsCount', { count: tpl.items.length })}
                       tone="warning"
                       loading={actionLoading === 'drop'}
                       disabled={!bridgeConnected}
@@ -3172,13 +3155,13 @@ export default function WorldMap() {
                   ))}
                 </>
               )}
-              <ContextMenuSection label="preset crates" icon={<Package className="w-2.5 h-2.5" />} tone="muted" />
+              <ContextMenuSection label={t('controls.presetCrates')} icon={<Package className="w-2.5 h-2.5" />} tone="muted" />
               {AIRDROP_PRESETS.map((preset) => (
                 <ContextMenuItem
                   key={preset.id}
                   icon={<preset.icon className="w-3.5 h-3.5 text-amber-400/80" />}
-                  label={preset.label}
-                  description={preset.desc}
+                  label={t(preset.labelKey)}
+                  description={t(preset.descKey)}
                   tone="warning"
                   loading={actionLoading === 'airdrop'}
                   disabled={!bridgeConnected}
@@ -3188,7 +3171,7 @@ export default function WorldMap() {
               {!bridgeConnected && (
                 <div className="mt-1 mx-2 mb-1.5 px-2 py-1.5 rounded-sm border border-destructive/30 bg-destructive/10 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-destructive/85">
                   <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse" />
-                  <span>bridge offline — drops unavailable</span>
+                  <span>{t('bridgeOfflineDropsUnavailable')}</span>
                 </div>
               )}
             </div>
@@ -3205,7 +3188,7 @@ export default function WorldMap() {
             ref={canvasRef}
             tabIndex={0}
             role="img"
-            aria-label="World map showing Knox County with player positions. Use arrow keys to pan, plus/minus to zoom."
+            aria-label={t('controls.mapDescription')}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -3226,12 +3209,12 @@ export default function WorldMap() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Car className="w-5 h-5" />
-              Spawn Vehicle
+              {t('spawn.title')}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="text-xs text-muted-foreground font-mono tabular-nums">
-              Location: {spawnDialog?.x}, {spawnDialog?.y} · Floor {spawnDialog?.z ?? 0}
+              {t('spawn.location')}: {spawnDialog?.x}, {spawnDialog?.y} · {t('floor')} {spawnDialog?.z ?? 0}
             </div>
             <VehiclePicker
               value={spawnVehicleId}
@@ -3239,33 +3222,33 @@ export default function WorldMap() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSpawnDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setSpawnDialog(null)}>{t('cancel')}</Button>
             <Button
               disabled={!spawnVehicleId || actionLoading === 'spawn-vehicle'}
               onClick={() => {
                 if (!spawnDialog || !spawnVehicleId) return
                 setActionLoading('spawn-vehicle')
-                playersApi.addVehicleAt(
-                  spawnVehicleId,
-                  spawnDialog.x,
-                  spawnDialog.y,
-                  spawnDialog.z,
-                )
+                panelBridgeApi.sendCommand('spawnVehicleAt', {
+                  vehicle: spawnVehicleId,
+                  x: spawnDialog.x,
+                  y: spawnDialog.y,
+                  z: spawnDialog.z,
+                })
                   .then((res) => {
                     if (res.success) {
-                      toast({ title: 'Vehicle spawned', description: `${spawnVehicleId.split('.').pop()} at ${spawnDialog.x}, ${spawnDialog.y}` })
+                      toast({ title: t('toast.vehicleSpawned'), description: t('toast.vehicleSpawnedDescription', { vehicle: spawnVehicleId.split('.').pop(), x: spawnDialog.x, y: spawnDialog.y }) })
                       fetchOverlays()
                       setSpawnDialog(null)
                     } else {
-                      toast({ title: 'Spawn failed', description: res.error || 'Unknown error', variant: 'destructive' })
+                      toast({ title: t('toast.spawnFailed'), description: res.error || t('errors.unknown'), variant: 'destructive' })
                     }
                   })
-                  .catch(() => toast({ title: 'Error', variant: 'destructive' }))
+                  .catch(() => toast({ title: t('toast.error'), variant: 'destructive' }))
                   .finally(() => setActionLoading(null))
               }}
             >
               {actionLoading === 'spawn-vehicle' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
-              Spawn
+              {t('spawn.action')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3277,7 +3260,7 @@ export default function WorldMap() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Package className="w-5 h-5 text-warning" />
-              Custom item drop
+              {t('drop.title')}
               {activeTemplateId && (() => {
                 const tpl = dropTemplates.find((t) => t.id === activeTemplateId)
                 return tpl ? (
@@ -3301,7 +3284,7 @@ export default function WorldMap() {
               <button
                 type="button"
                 className="text-muted-foreground/60 hover:text-foreground"
-                title="Copy coordinates"
+                title={t('controls.copyCoordinates')}
                 onClick={() => dropDialog && copyCoords(dropDialog.x, dropDialog.y)}
               >
                 <Copy className="w-3.5 h-3.5" />
@@ -3312,7 +3295,7 @@ export default function WorldMap() {
             <div className="flex items-center gap-2 flex-wrap">
               <Label className="text-xs text-muted-foreground flex items-center gap-1.5 mr-auto">
                 <Save className="w-3.5 h-3.5" />
-                Package templates
+                {t('drop.packageTemplates')}
               </Label>
               {dropTemplates.length > 0 ? (
                 <>
@@ -3332,7 +3315,7 @@ export default function WorldMap() {
                     }}
                     className="h-8 rounded-md border border-border/60 bg-background px-2 text-xs min-w-[140px] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
-                    <option value="">Load package…</option>
+                    <option value="">{t('loadPackage')}</option>
                     {dropTemplates.map((tpl) => (
                       <option key={tpl.id} value={tpl.id}>
                         {tpl.name} ({tpl.items.length})
@@ -3345,7 +3328,7 @@ export default function WorldMap() {
                       variant="outline"
                       size="sm"
                       className="h-8 px-2 text-destructive hover:text-destructive"
-                      title="Delete this package"
+                      title={t('actions.deletePackage')}
                       onClick={() => setDeleteTemplateId(activeTemplateId)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -3353,7 +3336,7 @@ export default function WorldMap() {
                   )}
                 </>
               ) : (
-                <span className="text-[11px] text-muted-foreground/60 italic">No packages yet — build one and save below</span>
+                <span className="text-[11px] text-muted-foreground/60 italic">{t('noPackagesYetBuildOneAndSaveBelow')}</span>
               )}
             </div>
 
@@ -3361,14 +3344,14 @@ export default function WorldMap() {
             <div className="rounded-md border border-border/50 bg-muted/10 divide-y divide-border/30">
               {dropItems.length === 0 && (
                 <div className="px-3 py-4 text-center text-xs text-muted-foreground/60 italic">
-                  No items — add at least one below.
+                  {t('drop.noItems')}
                 </div>
               )}
               {dropItems.map((item, idx) => (
                 <div key={idx} className="flex items-end gap-2 px-2 py-2">
                   <div className="flex-1 min-w-0">
                     {idx === 0 && (
-                      <Label className="text-[10px] text-muted-foreground/70 mb-1 block">Item</Label>
+                      <Label className="text-[10px] text-muted-foreground/70 mb-1 block">{t('item')}</Label>
                     )}
                     <ItemPicker
                       value={item.itemType}
@@ -3376,12 +3359,12 @@ export default function WorldMap() {
                         setDropItems((prev) => prev.map((it, i) => (i === idx ? { ...it, itemType: val } : it)))
                         setActiveTemplateId(null)
                       }}
-                      placeholder="Search catalog..."
+                      placeholder={t('placeholders.searchCatalog')}
                     />
                   </div>
                   <div className="w-16 shrink-0">
                     {idx === 0 && (
-                      <Label className="text-[10px] text-muted-foreground/70 mb-1 block">Qty</Label>
+                      <Label className="text-[10px] text-muted-foreground/70 mb-1 block">{t('qty')}</Label>
                     )}
                     <Input
                       type="number"
@@ -3402,7 +3385,7 @@ export default function WorldMap() {
                     variant="ghost"
                     size="sm"
                     className="h-9 w-9 p-0 shrink-0 text-muted-foreground/60 hover:text-destructive"
-                    title="Remove item"
+                    title={t('actions.removeItem')}
                     onClick={() => {
                       setDropItems((prev) => (prev.length <= 1 ? [{ itemType: '', count: 1 }] : prev.filter((_, i) => i !== idx)))
                       setActiveTemplateId(null)
@@ -3426,10 +3409,10 @@ export default function WorldMap() {
                 }}
               >
                 <Plus className="w-3.5 h-3.5 mr-1" />
-                Add item
+                {t('drop.addItem')}
               </Button>
               <div className="text-[11px] text-muted-foreground/70 tabular-nums">
-                {dropItems.filter((it) => it.itemType.trim()).length} / {dropItems.length} valid · max 50
+                {t('drop.validCount', { valid: dropItems.filter((it) => it.itemType.trim()).length, total: dropItems.length })}
               </div>
             </div>
 
@@ -3441,7 +3424,7 @@ export default function WorldMap() {
                   autoFocus
                   value={templateNameInput}
                   onChange={(e) => setTemplateNameInput(e.target.value.slice(0, 40))}
-                  placeholder="Package name (e.g. 'Winter starter')"
+                  placeholder={t('placeholders.packageName')}
                   className="h-8 flex-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -3450,7 +3433,7 @@ export default function WorldMap() {
                       if (!name) return
                       const valid = dropItems.filter((it) => it.itemType.trim())
                       if (valid.length === 0) {
-                        toast({ title: 'Cannot save empty package', variant: 'destructive' })
+                        toast({ title: t('toast.emptyPackage'), variant: 'destructive' })
                         return
                       }
                       const id = `tpl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
@@ -3459,7 +3442,7 @@ export default function WorldMap() {
                       setActiveTemplateId(id)
                       setSavingTemplate(false)
                       setTemplateNameInput('')
-                      toast({ title: 'Package saved', description: name })
+                      toast({ title: t('toast.packageSaved'), description: name })
                     } else if (e.key === 'Escape') {
                       setSavingTemplate(false)
                       setTemplateNameInput('')
@@ -3481,10 +3464,10 @@ export default function WorldMap() {
                     setActiveTemplateId(id)
                     setSavingTemplate(false)
                     setTemplateNameInput('')
-                    toast({ title: 'Package saved', description: name })
+                    toast({ title: t('toast.packageSaved'), description: name })
                   }}
                 >
-                  Save
+                  {t('drop.save')}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setSavingTemplate(false); setTemplateNameInput('') }}>
                   <X className="w-3.5 h-3.5" />
@@ -3500,7 +3483,7 @@ export default function WorldMap() {
                 onClick={() => { setSavingTemplate(true); setTemplateNameInput('') }}
               >
                 <Save className="w-3.5 h-3.5 mr-2" />
-                Save current items as package…
+                {t('drop.saveAsPackage')}
               </Button>
             )}
 
@@ -3510,8 +3493,8 @@ export default function WorldMap() {
                 <div className="flex items-start gap-2.5 min-w-0">
                   <Megaphone className="w-4 h-4 text-muted-foreground/70 mt-0.5 flex-none" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">Announce to players</div>
-                    <div className="text-[11px] text-muted-foreground/70">Broadcast drop location in server chat</div>
+                    <div className="text-sm font-medium">{t('announceToPlayers')}</div>
+                    <div className="text-[11px] text-muted-foreground/70">{t('broadcastDropLocationInServerChat')}</div>
                   </div>
                 </div>
                 <Switch checked={dropAnnounce} onCheckedChange={setDropAnnounce} />
@@ -3520,8 +3503,8 @@ export default function WorldMap() {
                 <div className="flex items-start gap-2.5 min-w-0">
                   <BellRing className="w-4 h-4 text-muted-foreground/70 mt-0.5 flex-none" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">Attract zombies</div>
-                    <div className="text-[11px] text-muted-foreground/70">Creates noise when items land</div>
+                    <div className="text-sm font-medium">{t('attractZombies')}</div>
+                    <div className="text-[11px] text-muted-foreground/70">{t('createsNoiseWhenItemsLand')}</div>
                   </div>
                 </div>
                 <Switch checked={dropAttractZombies} onCheckedChange={setDropAttractZombies} />
@@ -3529,8 +3512,8 @@ export default function WorldMap() {
               {dropAttractZombies && (
                 <div className="px-3 py-2.5">
                   <div className="flex items-center justify-between mb-1.5">
-                    <Label className="text-xs text-muted-foreground">Noise radius</Label>
-                    <span className="text-xs font-mono tabular-nums text-muted-foreground/80">{dropSoundRadius} tiles</span>
+                    <Label className="text-xs text-muted-foreground">{t('noiseRadius')}</Label>
+                    <span className="text-xs font-mono tabular-nums text-muted-foreground/80">{t('noiseRadiusValue', { count: dropSoundRadius })}</span>
                   </div>
                   <Input
                     type="range"
@@ -3542,16 +3525,16 @@ export default function WorldMap() {
                     className="h-1.5 accent-warning"
                   />
                   <div className="flex justify-between text-[9px] text-muted-foreground/50 mt-1">
-                    <span>whisper</span>
-                    <span>gunshot</span>
-                    <span>explosion</span>
+                    <span>{t('whisper')}</span>
+                    <span>{t('gunshot')}</span>
+                    <span>{t('explosion')}</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDropDialog(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDropDialog(null)}>{t('cancel')}</Button>
             <Button
               disabled={dropItems.filter((it) => it.itemType.trim()).length === 0 || actionLoading === 'drop'}
               onClick={async () => {
@@ -3581,9 +3564,9 @@ export default function WorldMap() {
               {(() => {
                 const validCount = dropItems.filter((it) => it.itemType.trim()).length
                 const totalQty = dropItems.filter((it) => it.itemType.trim()).reduce((s, it) => s + it.count, 0)
-                if (validCount === 0) return 'Drop'
-                if (validCount === 1) return `Drop${totalQty > 1 ? ` × ${totalQty}` : ''}`
-                return `Drop ${validCount} items`
+                if (validCount === 0) return t('drop.action')
+                if (validCount === 1) return t('drop.singleAction', { quantity: totalQty > 1 ? ` × ${totalQty}` : '' })
+                return t('drop.multipleAction', { count: validCount })
               })()}
             </Button>
           </DialogFooter>
@@ -3597,17 +3580,17 @@ export default function WorldMap() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete package?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deletePackage')}</AlertDialogTitle>
             <AlertDialogDescription>
               {(() => {
                 const tpl = dropTemplates.find((t) => t.id === deleteTemplateId)
-                if (!tpl) return 'This package will be removed.'
-                return `“${tpl.name}” (${tpl.items.length} item${tpl.items.length === 1 ? '' : 's'}) will be removed from your saved packages. This cannot be undone.`
+                if (!tpl) return t('drop.packageWillBeRemoved')
+                return t('drop.deleteDescription', { name: tpl.name, count: tpl.items.length })
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
@@ -3617,10 +3600,10 @@ export default function WorldMap() {
                 persistDropTemplates(dropTemplates.filter((t) => t.id !== id))
                 if (activeTemplateId === id) setActiveTemplateId(null)
                 setDeleteTemplateId(null)
-                if (tpl) toast({ title: 'Package deleted', description: tpl.name })
+                if (tpl) toast({ title: t('toast.packageDeleted'), description: tpl.name })
               }}
             >
-              Delete
+              {t('actions.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

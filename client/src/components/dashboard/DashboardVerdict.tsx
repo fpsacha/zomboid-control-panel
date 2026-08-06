@@ -3,6 +3,7 @@ import { ChevronRight, Loader2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useTranslation } from 'react-i18next'
 
 /* -------------------------------------------------------------------------- */
 /*  Verdict                                                                   */
@@ -69,14 +70,15 @@ function VerdictActionButton({ action }: { action: VerdictAction }) {
  * numbers from four minutes ago".
  */
 function Freshness({ lastUpdated, stale }: { lastUpdated: Date | null; stale: boolean }) {
+  const { t } = useTranslation('dashboard')
   const label = (() => {
-    if (!lastUpdated) return 'no update yet'
+    if (!lastUpdated) return t('freshness.noUpdateYet')
     const secs = Math.max(0, Math.round((Date.now() - lastUpdated.getTime()) / 1000))
-    if (secs < 10) return 'updated just now'
-    if (secs < 60) return `updated ${secs}s ago`
+    if (secs < 10) return t('freshness.updatedJustNow')
+    if (secs < 60) return t('freshness.updatedSAgo', { count: secs })
     const mins = Math.floor(secs / 60)
-    if (mins < 60) return `updated ${mins}m ago`
-    return `updated ${Math.floor(mins / 60)}h ago`
+    if (mins < 60) return t('freshness.updatedMAgo', { count: mins })
+    return t('freshness.updatedHAgo', { count: Math.floor(mins / 60) })
   })()
 
   return (
@@ -96,7 +98,7 @@ function Freshness({ lastUpdated, stale }: { lastUpdated: Date | null; stale: bo
           )}
         />
       </span>
-      {stale ? `link may be stale, ${label}` : label}
+      {stale ? t('freshness.linkMayBeStale', { label }) : label}
     </p>
   )
 }
@@ -114,12 +116,13 @@ export function VerdictBand({
   lastUpdated: Date | null
   stale: boolean
 }) {
+  const { t } = useTranslation('dashboard')
   // With nothing wrong and nobody online the band is just the freshness line,
   // so it should not reserve the space of a full section.
   const hasBody = Boolean(verdict.headline || verdict.action) || (showPresence && players.length > 0)
   return (
     <section
-      aria-label="Server verdict"
+      aria-label={t('verdictBand.serverVerdict')}
       role={verdict.level === 'critical' ? 'alert' : 'status'}
       className={cn(
         'px-1',
@@ -186,7 +189,7 @@ export function VerdictBand({
             ))}
             {players.length > 10 && (
               <li className="font-mono text-[11px] tabular-nums text-foreground/35">
-                and {players.length - 10} more
+                {t('verdictBand.andNMore', { count: players.length - 10 })}
               </li>
             )}
           </ul>
@@ -224,8 +227,9 @@ const WORK_STATE_TONE: Record<'default' | 'good' | 'warning' | 'bad', string> = 
  * act on instead of in a separate read-only panel.
  */
 export function WorkList({ items }: { items: WorkItem[] }) {
+  const { t } = useTranslation('dashboard')
   return (
-    <nav aria-label="Server sections" className="divide-y divide-border/25">
+    <nav aria-label={t('verdictBand.serverSections')} className="divide-y divide-border/25">
       {items.map(({ to, icon: Icon, label, state, tone }) => (
         <Link
           key={to}

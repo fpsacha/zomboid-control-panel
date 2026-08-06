@@ -12,6 +12,7 @@ import {
   FolderOpen
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTranslation } from 'react-i18next'
 
 // Pre-built icon sets for common empty states
 const emptyStateIcons = {
@@ -28,16 +29,16 @@ const emptyStateIcons = {
 } as const
 
 const emptyStateEyebrows = {
-  noData: 'No Data',
-  noResults: 'Nothing Matched',
-  serverOffline: 'Server Offline',
-  noPlayers: 'No Players Online',
-  noFile: 'Missing File',
-  disconnected: 'Disconnected',
-  noSchedule: 'No Tasks Armed',
-  noMods: 'No Mods Tracked',
-  noMessages: 'No Messages',
-  empty: 'Empty',
+  noData: 'emptyState.noData',
+  noResults: 'emptyState.noResults',
+  serverOffline: 'emptyState.serverOffline',
+  noPlayers: 'emptyState.noPlayers',
+  noFile: 'emptyState.noFile',
+  disconnected: 'emptyState.disconnected',
+  noSchedule: 'emptyState.noSchedule',
+  noMods: 'emptyState.noMods',
+  noMessages: 'emptyState.noMessages',
+  empty: 'emptyState.empty',
 } as const
 
 export type EmptyStateType = keyof typeof emptyStateIcons
@@ -71,8 +72,9 @@ export function EmptyState({
   compact = false,
   className = ''
 }: EmptyStateProps) {
+  const { t } = useTranslation('common')
   const IconComponent = emptyStateIcons[type]
-  const eyebrow = emptyStateEyebrows[type]
+  const eyebrow = t(emptyStateEyebrows[type])
   const iconSize = compact ? 'w-10 h-10' : 'w-14 h-14'
   const containerSize = compact ? 'w-16 h-16' : 'w-20 h-20'
   const padding = compact ? 'py-8' : 'py-16'

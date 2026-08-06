@@ -1,0 +1,39 @@
+{
+    "dashboard":  "Dashboard",
+    "console":  "Server Console",
+    "players":  "Online Players",
+    "chat":  "In-Game Chat",
+    "events":  "Events \u0026 Weather",
+    "worldMap":  "World Map",
+    "serverConfig":  "Server Configuration",
+    "mods":  "Mod Manager",
+    "scheduler":  "Scheduled Tasks",
+    "backups":  "World Backups",
+    "chunks":  "Map Cleanup",
+    "myServers":  "My Servers",
+    "serverSetup":  "Server Setup",
+    "browsePublic":  "Browse Public",
+    "discord":  "Discord",
+    "settings":  "Panel Settings",
+    "debug":  "Debug Logs",
+    "sections":  {
+                     "live":  "Live",
+                     "world":  "World",
+                     "config":  "Config",
+                     "maintain":  "Maintain",
+                     "servers":  "Servers",
+                     "system":  "Settings \u0026 Tools"
+                 },
+    "server":  {
+                   "status":  "Server Status",
+                   "running":  "Server is running",
+                   "stopped":  "Server is stopped",
+                   "start":  "Start Server",
+                   "stop":  "Stop Server",
+                   "restart":  "Restart Server",
+                   "save":  "Save World",
+                   "backup":  "Create Backup"
+               },
+    "skipToContent":  "Skip to content",
+    "appName":  "Zomboid Control Panel"
+}

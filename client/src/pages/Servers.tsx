@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react'
 import { 
   Server, 
@@ -36,6 +37,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
+
+
 import { reportClientError, reportClientWarning } from '@/lib/client-errors'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -165,6 +168,9 @@ const defaultNewServer: NewServerForm = {
 }
 
 export default function Servers() {
+  const { t } = useTranslation('servers');
+  
+  
   const [servers, setServers] = useState<ServerInstance[]>([])
   const [serverStatuses, setServerStatuses] = useState<Record<string, { running: boolean; pid: string | null }>>({})
   const [loading, setLoading] = useState(true)
@@ -206,8 +212,8 @@ export default function Servers() {
   const [updateInfo, setUpdateInfo] = useState<UpdateStatus | null>(null)
   const [gameVersion, setGameVersion] = useState<string | null>(null)
   const [availableBranches, setAvailableBranches] = useState<Array<{name: string, description: string, buildId?: string | null, timeUpdated?: string | null}>>([
-    { name: 'public', description: 'Public (Stable)' },
-    { name: 'unstable', description: 'Unstable beta' }
+    { name: 'public', description: '' },
+    { name: 'unstable', description: '' }
   ])
   const [loadingBranches, setLoadingBranches] = useState(false)
   
@@ -215,6 +221,13 @@ export default function Servers() {
   const socket = useContext(SocketContext)
   const navigate = useNavigate()
 
+  const getBranchLabel = (name: string) => name === 'public' ? t('steam.publicStable') : name
+  const getBranchDescription = (branch: { name: string; description: string }) => {
+    if (branch.name === 'public') return t('branches.publicDescription')
+    if (branch.name === 'unstable') return t('branches.unstableDescription')
+    if (branch.name === 'iwbums') return t('branches.iwbumsDescription')
+    return branch.description
+  }
 
 
   // Fetch servers
@@ -224,11 +237,11 @@ export default function Servers() {
       setServers(data.servers || [])
     } catch (error) {
       reportClientError('Failed to fetch servers.', error)
-      toast({ title: 'Error', description: 'Failed to load servers', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('toasts.failedToLoadServers'), variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [t, toast])
 
   // Per-server running status — scans host processes once and attributes
   // matches to each configured server's install path. Refreshes on a slow
@@ -322,10 +335,10 @@ export default function Servers() {
             for (const name of candidates) {
               if (!have.has(name)) {
                 const description = name === 'unstable'
-                  ? 'Build 42 testing branch. Back up saves and expect mod incompatibilities.'
+                  ? t('branches.unstableDescription')
                   : name === 'iwbums'
-                    ? 'Experimental testing branch. Back up saves before switching.'
-                    : 'Beta branch selected for this server.'
+                    ? t('branches.iwbumsDescription')
+                    : t('branches.customDescription')
                 extras.push({ name, description })
                 have.add(name)
               }
@@ -355,7 +368,7 @@ export default function Servers() {
     }
     
     fetchBranches()
-  }, [steamOperation, steamcmdPath, updateInfo?.installed?.branch])
+  }, [steamOperation, steamcmdPath, updateInfo?.installed?.branch, t])
 
   // Listen for server changes
   useEffect(() => {
@@ -389,7 +402,7 @@ export default function Servers() {
       setSteamCompleted(data.success ? 'success' : 'error')
       setSteamLogs(prev => [...prev, '', data.success ? '✓ ' + data.message : '✗ ' + data.message])
       toast({
-        title: data.success ? 'Success' : 'Failed',
+        title: data.success ? t('toasts.success') : t('toasts.failed'),
         description: data.message,
         variant: data.success ? 'default' : 'destructive'
       })
@@ -404,12 +417,12 @@ export default function Servers() {
       socket.off('steam:log', handleSteamLog)
       socket.off('steam:complete', handleSteamComplete)
     }
-  }, [socket, toast])
+  }, [socket, t, toast])
 
   // Detect server settings from data path
   const handleDetectServer = async () => {
     if (!newServer.zomboidDataPath.trim()) {
-      toast({ title: 'Error', description: 'Please enter the server data path first', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.enterServerDataPath'), variant: 'destructive' })
       return
     }
     
@@ -425,7 +438,7 @@ export default function Servers() {
       }) as unknown as DetectResult & { error?: string }
       
       if (!data || data.error) {
-        setDetectError(data?.error || 'Detection failed')
+        setDetectError(data?.error || t('validation.detectionFailed'))
         return
       }
       
@@ -436,8 +449,8 @@ export default function Servers() {
         handleSelectServerConfig(data.detectedServers[0], data)
       } else if (data.detectedServers.length > 1) {
         toast({ 
-          title: 'Multiple Servers Found', 
-          description: 'Please select which server configuration to use'
+          title: t('toasts.multipleServersFound'),
+          description: t('toasts.selectServerConfiguration')
         })
       }
       
@@ -447,7 +460,7 @@ export default function Servers() {
       }
       
     } catch (error) {
-      setDetectError(error instanceof Error ? error.message : 'Detection failed')
+      setDetectError(error instanceof Error ? error.message : t('validation.detectionFailed'))
     } finally {
       setDetecting(false)
     }
@@ -456,7 +469,7 @@ export default function Servers() {
   // Auto-scan a folder to find all PZ server paths
   const handleAutoScan = async () => {
     if (!autoScanPath.trim()) {
-      toast({ title: 'Error', description: 'Please enter a folder path to scan', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.enterScanPath'), variant: 'destructive' })
       return
     }
     
@@ -467,7 +480,7 @@ export default function Servers() {
       const data = await serversDetectApi.autoScan({ scanPath: autoScanPath, maxDepth: 4 }) as unknown as AutoScanResult & { error?: string }
       
       if (!data || data.error) {
-        toast({ title: 'Scan Failed', description: data.error || 'Unknown error', variant: 'destructive' })
+        toast({ title: t('toasts.scanFailed'), description: data.error || t('toasts.unknownError'), variant: 'destructive' })
         return
       }
       
@@ -475,20 +488,20 @@ export default function Servers() {
       
       if (data.detectedConfigs.length === 0) {
         toast({ 
-          title: 'No servers found', 
-          description: 'No Project Zomboid servers were found in the scanned folder'
+          title: t('toasts.noServersFound'),
+          description: t('toasts.noServersFoundDescription')
         })
       } else {
         toast({ 
-          title: 'Servers found!', 
-          description: `Found ${data.detectedConfigs.length} server configuration(s)`
+          title: t('toasts.serversFound'),
+          description: t('toasts.serverConfigurationsFound', { count: data.detectedConfigs.length })
         })
       }
       
     } catch (error) {
       toast({ 
-        title: 'Scan Failed', 
-        description: error instanceof Error ? error.message : 'Auto-scan failed', 
+        title: t('toasts.scanFailed'),
+        description: error instanceof Error ? error.message : t('toasts.autoScanFailed'),
         variant: 'destructive' 
       })
     } finally {
@@ -551,8 +564,8 @@ export default function Servers() {
     
     if (!config.hasRcon) {
       toast({
-        title: 'RCON not configured',
-        description: 'This server has no RCON password set. You\'ll need to configure it in the server INI file.',
+        title: t('toasts.rconNotConfigured'),
+        description: t('toasts.rconNotConfiguredDescription'),
         variant: 'destructive'
       })
     }
@@ -565,20 +578,20 @@ export default function Servers() {
     try {
       await serversApi.activate(server.id)
       toast({ 
-        title: 'Server Activated', 
-        description: `Now managing: ${server.name}` 
+        title: t('toasts.serverActivated'),
+        description: t('toasts.nowManaging', { name: server.name })
       })
       fetchServers()
     } catch (error) {
       toast({ 
-        title: 'Error', 
-        description: error instanceof Error ? error.message : 'Failed to activate server',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToActivate'),
         variant: 'destructive'
       })
     } finally {
       setActivating(null)
     }
-  }, [toast, fetchServers])
+  }, [fetchServers, t, toast])
 
   // Inline Start/Stop on server cards. The Node side `serverApi.start/stop`
   // operate on the currently-active instance only, so for inactive servers
@@ -592,19 +605,19 @@ export default function Servers() {
         await serversApi.activate(server.id)
       }
       await serverApi.start()
-      toast({ title: 'Server Starting', description: server.name || server.serverName })
+      toast({ title: t('toasts.serverStarting'), description: server.name || server.serverName })
       fetchServers()
       fetchServerStatuses()
     } catch (error) {
       toast({
-        title: 'Failed to start server',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('toasts.failedToStart'),
+        description: error instanceof Error ? error.message : t('toasts.unknownError'),
         variant: 'destructive',
       })
     } finally {
       setServerActionPending(null)
     }
-  }, [toast, fetchServers, fetchServerStatuses])
+  }, [fetchServerStatuses, fetchServers, t, toast])
 
   const handleInlineStop = useCallback(async (server: ServerInstance) => {
     setServerActionPending(`stop-${server.id}`)
@@ -613,19 +626,19 @@ export default function Servers() {
         await serversApi.activate(server.id)
       }
       await serverApi.stop()
-      toast({ title: 'Server Stopping', description: server.name || server.serverName })
+      toast({ title: t('toasts.serverStopping'), description: server.name || server.serverName })
       fetchServers()
       fetchServerStatuses()
     } catch (error) {
       toast({
-        title: 'Failed to stop server',
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: t('toasts.failedToStop'),
+        description: error instanceof Error ? error.message : t('toasts.unknownError'),
         variant: 'destructive',
       })
     } finally {
       setServerActionPending(null)
     }
-  }, [toast, fetchServers, fetchServerStatuses])
+  }, [fetchServerStatuses, fetchServers, t, toast])
 
   const handleDeleteServer = async () => {
     if (!deleteServer) return
@@ -648,16 +661,16 @@ export default function Servers() {
           const result = await serversDetectApi.deleteFiles(deleteServer.installPath) as { error?: string }
           if (result?.error) {
             toast({ 
-              title: 'File deletion failed', 
+              title: t('toasts.fileDeletionFailed'),
               description: result.error,
               variant: 'destructive'
             })
           }
         } catch (e) {
-          const msg = e instanceof Error ? e.message : 'Could not delete server files'
+          const msg = e instanceof Error ? e.message : t('toasts.couldNotDeleteServerFiles')
           toast({ 
-            title: 'Warning', 
-            description: `${msg} — removing from panel anyway.`,
+            title: t('toasts.warning'),
+            description: t('toasts.removeFromPanelAnyway', { message: msg }),
             variant: 'destructive'
           })
         }
@@ -671,18 +684,18 @@ export default function Servers() {
       await new Promise(r => setTimeout(r, 350))
 
       toast({ 
-        title: 'Deleted', 
+        title: t('toasts.deleted'),
         description: deleteFiles 
-          ? `Server "${deleteServer.name}" and its files have been deleted`
-          : `Server "${deleteServer.name}" removed from panel`
+          ? t('toasts.serverAndFilesDeleted', { name: deleteServer.name })
+          : t('toasts.serverRemoved', { name: deleteServer.name })
       })
       setDeleteServer(null)
       setDeleteFiles(false)
       fetchServers()
     } catch (error) {
       toast({ 
-        title: 'Error', 
-        description: error instanceof Error ? error.message : 'Failed to delete server',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToDeleteServer'),
         variant: 'destructive'
       })
     } finally {
@@ -697,20 +710,20 @@ export default function Servers() {
     
     // Validate port range
     if (editingServer.rconPort < 1 || editingServer.rconPort > 65535) {
-      toast({ title: 'Error', description: 'RCON port must be between 1 and 65535', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.rconPortRange'), variant: 'destructive' })
       return
     }
     
     setSavingEdit(true)
     try {
       await serversApi.update(editingServer.id, editingServer)
-      toast({ title: 'Saved', description: 'Server settings updated' })
+      toast({ title: t('toasts.saved'), description: t('toasts.serverSettingsUpdated') })
       setEditingServer(null)
       fetchServers()
     } catch (error) {
       toast({ 
-        title: 'Error', 
-        description: error instanceof Error ? error.message : 'Failed to update server',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToUpdateServer'),
         variant: 'destructive'
       })
     } finally {
@@ -721,13 +734,13 @@ export default function Servers() {
   // Start Steam update/verify operation
   const handleStartSteamOperation = async () => {
     if (!steamOperation || !steamcmdPath.trim()) {
-      toast({ title: 'Error', description: 'Please enter the SteamCMD path', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.enterSteamcmdPath'), variant: 'destructive' })
       return
     }
     
     const installFolder = getInstallFolder(steamOperation.server.installPath)
     if (!installFolder) {
-      toast({ title: 'Error', description: 'Server install path not configured', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.installPathNotConfigured'), variant: 'destructive' })
       return
     }
     
@@ -751,8 +764,8 @@ export default function Servers() {
     } catch (error) {
       setSteamRunning(false)
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to start operation',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToStartOperation'),
         variant: 'destructive'
       })
     }
@@ -768,7 +781,7 @@ export default function Servers() {
     if (!steamOperation) return
     const installFolder = getInstallFolder(steamOperation.server.installPath)
     if (!installFolder) {
-      toast({ title: 'Error', description: 'Server install path not configured', variant: 'destructive' })
+      toast({ title: t('toasts.error'), description: t('validation.installPathNotConfigured'), variant: 'destructive' })
       return
     }
 
@@ -776,19 +789,19 @@ export default function Servers() {
     try {
       const result = await serversDetectApi.deleteFiles(installFolder) as { error?: string }
       if (result?.error) {
-        toast({ title: 'Could Not Clear Folder', description: result.error, variant: 'destructive' })
+        toast({ title: t('toasts.couldNotClearFolder'), description: result.error, variant: 'destructive' })
         return
       }
       setSteamLogs([])
       setSteamCompleted(null)
       toast({
-        title: 'Installation Folder Cleared',
-        description: 'The folder was wiped. Click Start Update to reinstall from scratch.',
+        title: t('toasts.installationFolderCleared'),
+        description: t('toasts.installationFolderClearedDescription'),
       })
     } catch (error) {
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to clear installation folder',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToClearInstallationFolder'),
         variant: 'destructive',
       })
     } finally {
@@ -840,25 +853,25 @@ export default function Servers() {
     // For remote servers, only need name, rcon credentials
     if (addMode === 'remote') {
       if (!newServer.name.trim()) {
-        toast({ title: 'Error', description: 'Server name is required', variant: 'destructive' })
+        toast({ title: t('toasts.error'), description: t('validation.serverNameRequired'), variant: 'destructive' })
         return
       }
       if (!newServer.rconHost.trim()) {
-        toast({ title: 'Error', description: 'RCON host is required', variant: 'destructive' })
+        toast({ title: t('toasts.error'), description: t('validation.rconHostRequired'), variant: 'destructive' })
         return
       }
       if (!newServer.rconPassword.trim()) {
-        toast({ title: 'Error', description: 'RCON password is required', variant: 'destructive' })
+        toast({ title: t('toasts.error'), description: t('validation.rconPasswordRequired'), variant: 'destructive' })
         return
       }
     } else {
       // Local server validation
       if (!selectedServerConfig) {
-        toast({ title: 'Error', description: 'Please detect a server first', variant: 'destructive' })
+        toast({ title: t('toasts.error'), description: t('validation.detectServerFirst'), variant: 'destructive' })
         return
       }
       if (!newServer.rconPassword.trim()) {
-        toast({ title: 'Error', description: 'RCON password is required. Configure it in your server INI file first.', variant: 'destructive' })
+        toast({ title: t('toasts.error'), description: t('validation.rconPasswordConfigureIni'), variant: 'destructive' })
         return
       }
     }
@@ -886,7 +899,7 @@ export default function Servers() {
         await serversApi.activate(createResult.server.id)
       }
       
-      toast({ title: 'Server Added', description: `"${newServer.name}" added to panel` })
+      toast({ title: t('toasts.serverAdded'), description: t('toasts.serverAddedDescription', { name: newServer.name }) })
       setShowAddDialog(false)
       setNewServer(defaultNewServer)
       setDetectResult(null)
@@ -895,8 +908,8 @@ export default function Servers() {
       fetchServers()
     } catch (error) {
       toast({ 
-        title: 'Error', 
-        description: error instanceof Error ? error.message : 'Failed to add server',
+        title: t('toasts.error'),
+        description: error instanceof Error ? error.message : t('toasts.failedToAddServer'),
         variant: 'destructive'
       })
     } finally {
@@ -928,21 +941,21 @@ export default function Servers() {
     <div className="space-y-6 page-transition">
       {/* Header */}
       <PageHeader
-        title="Managed Servers"
-        description="Manage multiple Project Zomboid servers from one panel"
-        eyebrow="Fleet"
+        title={t("title")}
+        description={t("description")}
+        eyebrow={t('fleet')}
         tone="servers"
         icon={<Server className="w-5 h-5 text-primary" />}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => { setAddMode('remote'); setShowAddDialog(true) }}>
-              <Globe className="w-4 h-4 mr-2" /> Add Remote Server
+              <Globe className="w-4 h-4 mr-2" /> {t('ui.addRemoteServer')}
             </Button>
             <Button variant="outline" onClick={() => { setAddMode('local'); setShowAddDialog(true) }}>
-              <FolderOpen className="w-4 h-4 mr-2" /> Add Existing Server
+              <FolderOpen className="w-4 h-4 mr-2" /> {t('ui.addExistingServer')}
             </Button>
             <Button variant="command" onClick={() => navigate('/server-setup')}>
-              <Download className="w-4 h-4 mr-2" /> Install New Server
+              <Download className="w-4 h-4 mr-2" /> {t('ui.installNewServer')}
             </Button>
           </div>
         }
@@ -957,9 +970,9 @@ export default function Servers() {
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
                   <Server className="h-7 w-7" />
                 </div>
-                <h3 className="text-xl font-semibold text-foreground">No Servers Configured</h3>
+                <h3 className="text-xl font-semibold text-foreground">{t('noServersConfigured')}</h3>
                 <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Start with one server. After it is active, dashboard, players, backups, mods, and remote actions come online.
+                  {t('onboarding.startWithOneServer')}
                 </p>
               </div>
 
@@ -968,13 +981,13 @@ export default function Servers() {
                   <div className="mission-step-icon mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                     <FolderOpen className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Add an existing local server</p>
+                  <p className="text-sm font-semibold text-foreground">{t('addAnExistingLocalServer')}</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Use this when server files already exist on this machine.
+                    {t('onboarding.existingServerDescription')}
                   </p>
                   <Button variant="outline" className="onboarding-cta mt-4 w-full" onClick={() => { setAddMode('local'); setShowAddDialog(true) }}>
                     <FolderOpen className="mr-2 h-4 w-4" />
-                    Add Existing Server
+                    {t('ui.addExistingServer')}
                   </Button>
                 </div>
 
@@ -982,13 +995,13 @@ export default function Servers() {
                   <div className="mission-step-icon mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                     <Download className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Install a new local server</p>
+                  <p className="text-sm font-semibold text-foreground">{t('installANewLocalServer')}</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Use the installer when you need files, ports, passwords, and memory setup in one flow.
+                    {t('onboarding.installNewServerDescription')}
                   </p>
                   <Button className="onboarding-cta mt-4 w-full" onClick={() => navigate('/server-setup')}>
                     <Download className="mr-2 h-4 w-4" />
-                    Install New Server
+                    {t('ui.installNewServer')}
                   </Button>
                 </div>
 
@@ -996,29 +1009,29 @@ export default function Servers() {
                   <div className="mission-step-icon mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
                     <Globe className="h-5 w-5" />
                   </div>
-                  <p className="text-sm font-semibold text-foreground">Connect a remote server</p>
+                  <p className="text-sm font-semibold text-foreground">{t('connectARemoteServer')}</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    Use this for servers running on another machine through RCON.
+                    {t('onboarding.remoteServerDescription')}
                   </p>
                   <Button variant="secondary" className="onboarding-cta mt-4 w-full" onClick={() => { setAddMode('remote'); setShowAddDialog(true) }}>
                     <Globe className="mr-2 h-4 w-4" />
-                    Add Remote Server
+                    {t('ui.addRemoteServer')}
                   </Button>
                 </div>
               </div>
 
               <div className="grid gap-3 rounded-2xl border border-border/60 bg-background/30 p-5 md:grid-cols-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Step 1</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">Bring in one server</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t('step1')}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{t('bringInOneServer')}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Step 2</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">Set it active and verify RCON</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t('step2')}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{t('setItActiveAndVerifyRcon')}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">Step 3</p>
-                  <p className="mt-1 text-sm font-medium text-foreground">Return to Dashboard for live control</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{t('step3')}</p>
+                  <p className="mt-1 text-sm font-medium text-foreground">{t('returnToDashboardForLiveControl')}</p>
                 </div>
               </div>
             </div>
@@ -1052,35 +1065,35 @@ export default function Servers() {
                       <span className="truncate">{server.name}</span>
                       {server.isActive ? (
                         <Badge variant="default" className="text-xs">
-                          <Star className="w-3 h-3 mr-1" /> Active
+                         <Star className="w-3 h-3 mr-1" /> {t('cardStatus.active')}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-xs text-muted-foreground">
-                          Inactive
+                           {t('cardStatus.inactive')}
                         </Badge>
                       )}
                       {(() => {
                         const status = serverStatuses[String(server.id)]
                         if (!status) return null
-                        return status.running ? (
-                          <Badge variant="success" className="text-xs" title={status.pid ? `PID ${status.pid}` : 'Process detected'}>
-                            <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" />
-                            Running
+                         return status.running ? (
+                           <Badge variant="success" className="text-xs" title={status.pid ? t('cardStatus.pid', { pid: status.pid }) : t('cardStatus.processDetected')}>
+                             <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" />
+                             {t('status.running')}
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-xs text-muted-foreground" title="No matching PZ server process found on this host">
-                            Stopped
+                          <Badge variant="outline" className="text-xs text-muted-foreground" title={t('empty.noServers')}>
+                           {t('status.stopped')}
                           </Badge>
                         )
                       })()}
                       {server.isRemote && (
                         <Badge variant="outline" className="text-xs">
-                          <Globe className="w-3 h-3 mr-1" /> Remote
+                           <Globe className="w-3 h-3 mr-1" /> {t('cardStatus.remote')}
                         </Badge>
                       )}
                       {hasUpdate && (
                         <Badge variant="warning" className="text-xs">
-                          <RefreshCw className="w-3 h-3 mr-1" /> Update Available
+                           <RefreshCw className="w-3 h-3 mr-1" /> {t('cardStatus.updateAvailable')}
                         </Badge>
                       )}
                     </CardTitle>
@@ -1091,27 +1104,27 @@ export default function Servers() {
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="iconDense" className="shrink-0" aria-label={`Options for ${server.name || server.serverName}`}>
+                       <Button variant="ghost" size="iconDense" className="shrink-0" aria-label={t('ui.optionsFor', { name: server.name || server.serverName })}>
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setEditingServer({ ...server })}>
-                        <Edit2 className="w-4 h-4 mr-2" /> Edit
+                         <Edit2 className="w-4 h-4 mr-2" /> {t('ui.edit')}
                       </DropdownMenuItem>
                       {!server.isActive && (
                         <DropdownMenuItem onClick={() => handleActivateServer(server)} disabled={activating !== null}>
-                          <Power className="w-4 h-4 mr-2" /> Set Active
+                          <Power className="w-4 h-4 mr-2" /> {t('ui.setActive')}
                         </DropdownMenuItem>
                       )}
                       {!server.isRemote && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => openSteamOperation(server, 'update')}>
-                            <RefreshCw className="w-4 h-4 mr-2" /> Update Server
+                            <RefreshCw className="w-4 h-4 mr-2" /> {t('ui.updateServer')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openSteamOperation(server, 'verify')}>
-                            <ShieldCheck className="w-4 h-4 mr-2" /> Verify Files
+                            <ShieldCheck className="w-4 h-4 mr-2" /> {t('ui.verifyFiles')}
                           </DropdownMenuItem>
                         </>
                       )}
@@ -1120,7 +1133,7 @@ export default function Servers() {
                         onClick={() => setDeleteServer(server)}
                         className="text-destructive focus:text-destructive"
                       >
-                        <Trash2 className="w-4 h-4 mr-2" /> Remove from Panel
+                        <Trash2 className="w-4 h-4 mr-2" /> {t('ui.removeFromPanel')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -1135,7 +1148,7 @@ export default function Servers() {
                       <div className="flex items-start gap-2.5 px-3 py-2">
                         <HardDrive className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Install Path</p>
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('installPath')}</p>
                           <p className="font-mono text-xs text-foreground/85 truncate mt-0.5" title={server.installPath}>{server.installPath}</p>
                         </div>
                       </div>
@@ -1144,7 +1157,7 @@ export default function Servers() {
                       <div className="flex items-start gap-2.5 px-3 py-2">
                         <Database className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Data Path</p>
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('dataPath')}</p>
                           <p className="font-mono text-xs text-foreground/85 truncate mt-0.5" title={server.zomboidDataPath}>{server.zomboidDataPath}</p>
                         </div>
                       </div>
@@ -1159,7 +1172,7 @@ export default function Servers() {
                       <Network className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">RCON</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('rcon')}</p>
                       <p className="font-mono text-xs text-foreground/90 truncate tabular-nums">{server.rconHost}:{server.rconPort}</p>
                     </div>
                   </div>
@@ -1168,7 +1181,7 @@ export default function Servers() {
                       <Globe className="w-3.5 h-3.5" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Game Port</p>
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('gamePort')}</p>
                       <p className="font-mono text-xs text-foreground/90 tabular-nums">{server.serverPort}</p>
                     </div>
                   </div>
@@ -1178,7 +1191,7 @@ export default function Servers() {
                         <Cpu className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Memory</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('memory')}</p>
                         <p className="font-mono text-xs text-foreground/90 tabular-nums">{server.minMemory}–{server.maxMemory} GB</p>
                       </div>
                     </div>
@@ -1202,7 +1215,7 @@ export default function Servers() {
                       </div>
                       {updateInfo && (
                         <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">Build:</span>
+                          <span className="text-muted-foreground">{t('build')}</span>
                           <span className="font-mono font-medium">{updateInfo.installed.buildId}</span>
                           {updateInfo.updateAvailable && (
                             <>
@@ -1220,7 +1233,7 @@ export default function Servers() {
                 {!server.isActive && server.branch && (
                   <div className="flex items-center gap-2">
                     <GitBranch className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Branch:</span>
+                    <span className="text-xs text-muted-foreground">{t('branch')}</span>
                     <Badge variant="secondary" className="text-xs font-mono">{server.branch}</Badge>
                   </div>
                 )}
@@ -1239,12 +1252,12 @@ export default function Servers() {
                         variant="outline"
                         onClick={() => handleInlineStop(server)}
                         disabled={stopPending || serverActionPending !== null}
-                        title="Stop this server"
+                        title={t('actions.stopServer')}
                       >
                         {stopPending ? (
-                          <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Stopping...</>
+                          <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> {t('status.stopping')}</>
                         ) : (
-                          <><Square className="w-4 h-4 mr-1.5" /> Stop</>
+                          <><Square className="w-4 h-4 mr-1.5" /> {t('ui.stop')}</>
                         )}
                       </Button>
                     ) : (
@@ -1253,12 +1266,12 @@ export default function Servers() {
                         variant="outline"
                         onClick={() => handleInlineStart(server)}
                         disabled={startPending || serverActionPending !== null}
-                        title={server.isActive ? 'Start this server' : 'Switch to this server and start it'}
+                         title={server.isActive ? t('ui.startThisServer') : t('ui.switchAndStartServer')}
                       >
                         {startPending ? (
-                          <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Starting...</>
+                          <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> {t('status.starting')}</>
                         ) : (
-                          <><Play className="w-4 h-4 mr-1.5" /> Start</>
+                          <><Play className="w-4 h-4 mr-1.5" /> {t('ui.start')}</>
                         )}
                       </Button>
                     )
@@ -1269,7 +1282,7 @@ export default function Servers() {
                       variant="warning"
                       onClick={() => openSteamOperation(server, 'update')}
                     >
-                      <RefreshCw className="w-4 h-4 mr-1.5" /> Update Now
+                       <RefreshCw className="w-4 h-4 mr-1.5" /> {t('ui.updateNow')}
                     </Button>
                   )}
                   {!server.isActive && (
@@ -1281,9 +1294,9 @@ export default function Servers() {
                       disabled={activating === server.id}
                     >
                       {activating === server.id ? (
-                        <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Activating...</>
+                         <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> {t('cardStatus.activating')}</>
                       ) : (
-                        <><Power className="w-4 h-4 mr-1.5" /> Switch to This Server</>
+                         <><Power className="w-4 h-4 mr-1.5" /> {t('ui.switchToThisServer')}</>
                       )}
                     </Button>
                   )}
@@ -1292,7 +1305,7 @@ export default function Servers() {
                 {/* Created date */}
                 {server.createdAt && (
                   <p className="text-[11px] text-muted-foreground/60 pt-1">
-                    Added {new Date(server.createdAt).toLocaleDateString()}
+                     {t('cardStatus.addedOn', { date: new Date(server.createdAt).toLocaleDateString() })}
                   </p>
                 )}
               </CardContent>
@@ -1305,11 +1318,11 @@ export default function Servers() {
       <Dialog open={showAddDialog} onOpenChange={(open) => !open && resetAddDialog()}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{addMode === 'remote' ? 'Add Remote Server' : 'Add Existing Server'}</DialogTitle>
+            <DialogTitle>{addMode === 'remote' ? t('ui.addRemoteServer') : t('ui.addExistingServer')}</DialogTitle>
             <DialogDescription>
               {addMode === 'remote' 
-                ? 'Connect to a PZ server on another machine via RCON. Only RCON-based features will be available.'
-                : 'Scan a folder to auto-detect server paths, or enter them manually'}
+                ? t('dialog.remoteDescription')
+                : t('dialog.existingDescription')}
             </DialogDescription>
           </DialogHeader>
           
@@ -1325,8 +1338,8 @@ export default function Servers() {
             >
               <Monitor className={`w-5 h-5 ${addMode === 'local' ? 'text-primary' : 'text-muted-foreground'}`} />
               <div className="text-left">
-                <p className="text-sm font-medium">Local Server</p>
-                <p className="text-xs text-muted-foreground">Same machine as panel</p>
+                <p className="text-sm font-medium">{t('localServer')}</p>
+                <p className="text-xs text-muted-foreground">{t('sameMachineAsPanel')}</p>
               </div>
             </button>
             <button
@@ -1339,8 +1352,8 @@ export default function Servers() {
             >
               <Globe className={`w-5 h-5 ${addMode === 'remote' ? 'text-primary' : 'text-muted-foreground'}`} />
               <div className="text-left">
-                <p className="text-sm font-medium">Remote Server</p>
-                <p className="text-xs text-muted-foreground">RCON only — another machine</p>
+                <p className="text-sm font-medium">{t('remoteServer')}</p>
+                <p className="text-xs text-muted-foreground">{t('rconOnlyAnotherMachine')}</p>
               </div>
             </button>
           </div>
@@ -1349,9 +1362,9 @@ export default function Servers() {
           {addMode === 'remote' && (
             <Alert className="border-primary/20 bg-primary/5">
               <Wifi className="h-4 w-4 text-primary" />
-              <AlertTitle>RCON-Only Connection</AlertTitle>
+              <AlertTitle>{t('rcononlyConnection')}</AlertTitle>
               <AlertDescription>
-                Features like config editing, mod management, backups, server start/stop, and file operations will be unavailable. You can still use the console, manage players, send chat messages, control weather and events, and run scheduled commands.
+                {t('dialog.remoteFeaturesDescription')}
               </AlertDescription>
             </Alert>
           )}
@@ -1361,28 +1374,28 @@ export default function Servers() {
               /* ========== REMOTE SERVER FORM ========== */
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Server Display Name *</Label>
+                  <Label>{t('serverDisplayName')}</Label>
                   <Input
                     value={newServer.name}
                     onChange={e => setNewServer({ ...newServer, name: e.target.value })}
-                    placeholder="My Remote PZ Server"
+                    placeholder={t('placeholders.serverName')}
                     maxLength={64}
                   />
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>RCON Host / IP *</Label>
+                    <Label>{t('rconHostIp')}</Label>
                     <Input
                       value={newServer.rconHost}
                       onChange={e => setNewServer({ ...newServer, rconHost: e.target.value })}
-                      placeholder="192.168.1.100 or myserver.com"
+                      placeholder={t('placeholders.serverAddress')}
                       className="font-mono text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">The IP address or hostname of the remote PZ server</p>
+                    <p className="text-xs text-muted-foreground">{t('theIpAddressOrHostnameOfTheRemotePzServer')}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>RCON Port *</Label>
+                    <Label>{t('rconPort')}</Label>
                     <Input
                       type="number"
                       value={newServer.rconPort}
@@ -1392,23 +1405,23 @@ export default function Servers() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>RCON Password *</Label>
+                  <Label>{t('rconPassword')}</Label>
                   <Input
                     type="password"
                     value={newServer.rconPassword}
                     onChange={e => setNewServer({ ...newServer, rconPassword: e.target.value })}
-                    placeholder="Enter the RCON password set in the server's INI file"
+                    placeholder={t('placeholders.rconPassword')}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Game Port (optional)</Label>
+                  <Label>{t('gamePortOptional')}</Label>
                   <Input
                     type="number"
                     value={newServer.serverPort}
                     onChange={e => setNewServer({ ...newServer, serverPort: parseInt(e.target.value) || 16261 })}
                   />
-                  <p className="text-xs text-muted-foreground">The PZ game port — used for display purposes only</p>
+                  <p className="text-xs text-muted-foreground">{t('thePzGamePortUsedForDisplayPurposesOnly')}</p>
                 </div>
               </div>
             ) : (
@@ -1418,15 +1431,15 @@ export default function Servers() {
             <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-sm">Auto Detect Servers</p>
-                  <p className="text-xs text-muted-foreground">Scan a folder to find all PZ servers automatically</p>
+                  <p className="font-medium text-sm">{t('autoDetectServers')}</p>
+                  <p className="text-xs text-muted-foreground">{t('scanAFolderToFindAllPzServersAutomatically')}</p>
                 </div>
                 <Button 
                   variant="outline" 
                   size="sm"
                   onClick={() => setShowAutoScan(!showAutoScan)}
                 >
-                  {showAutoScan ? 'Manual Entry' : 'Auto Scan'}
+                  {showAutoScan ? t('scan.manualEntry') : t('scan.autoScan')}
                 </Button>
               </div>
               
@@ -1436,7 +1449,7 @@ export default function Servers() {
                     <Input
                       value={autoScanPath}
                       onChange={e => setAutoScanPath(e.target.value)}
-                      placeholder="Path to scan for PZ servers"
+                      placeholder={t('placeholders.scanPath')}
                       className="font-mono text-sm flex-1"
                     />
                     <Button 
@@ -1446,7 +1459,7 @@ export default function Servers() {
                       {autoScanning ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <><Search className="w-4 h-4 mr-1" /> Scan</>
+                        <><Search className="w-4 h-4 mr-1" /> {t('scan.scan')}</>
                       )}
                     </Button>
                   </div>
@@ -1455,7 +1468,7 @@ export default function Servers() {
                   {autoScanResult && autoScanResult.detectedConfigs.length > 0 && (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">
-                        Found {autoScanResult.detectedConfigs.length} server(s). Click to select:
+                        {t('scan.foundServers', { count: autoScanResult.detectedConfigs.length })}
                       </p>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {autoScanResult.detectedConfigs.map((config, idx) => (
@@ -1470,20 +1483,20 @@ export default function Servers() {
                                 {config.serverName}.ini
                               </Badge>
                             </div>
-                            <div className="text-xs text-muted-foreground mt-1 font-mono truncate">
-                              📁 Data: {config.dataPath}
+                              <div className="text-xs text-muted-foreground mt-1 font-mono truncate">
+                               {t('scan.dataPath')}: {config.dataPath}
                             </div>
                             {config.matchedBatFile ? (
                               <div className="mt-1 text-xs font-mono text-primary truncate">
-                                ✓ Matched: {config.matchedBatFile}
+                                 {t('scan.matchedStartupScript')}: {config.matchedBatFile}
                               </div>
                             ) : autoScanResult.installPaths.length > 0 ? (
                               <div className="mt-1 text-xs text-warning">
-                                ⚠ No matching startup script - will use default install path
+                                 {t('scan.noMatchingStartupScript')}
                               </div>
                             ) : (
                               <div className="mt-1 text-xs text-warning">
-                                ⚠ No install path found - enter manually below
+                                 {t('scan.noInstallPathFound')}
                               </div>
                             )}
                           </div>
@@ -1493,10 +1506,10 @@ export default function Servers() {
                       {/* Show available paths summary */}
                       <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
                         {autoScanResult.installPaths.length > 0 && (
-                          <p>📁 Install paths found: {autoScanResult.installPaths.length}</p>
+                           <p>{t('scan.installPathsFound', { count: autoScanResult.installPaths.length })}</p>
                         )}
                         {autoScanResult.customBatFiles && autoScanResult.customBatFiles.length > 0 && (
-                          <p>🎯 Custom startup scripts: {autoScanResult.customBatFiles.map(b => b.fileName).join(', ')}</p>
+                           <p>{t('scan.customStartupScripts')}: {autoScanResult.customBatFiles.map(b => b.fileName).join(', ')}</p>
                         )}
                       </div>
                     </div>
@@ -1509,7 +1522,7 @@ export default function Servers() {
             {!showAutoScan && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Server Data Path *</Label>
+                <Label>{t('serverDataPath')}</Label>
                 <div className="flex gap-2">
                   <Input
                     value={newServer.zomboidDataPath}
@@ -1518,7 +1531,7 @@ export default function Servers() {
                       setDetectResult(null)
                       setDetectError(null)
                     }}
-                    placeholder="Path to Zomboid data folder"
+                    placeholder={t('placeholders.dataPath')}
                     className="font-mono text-sm flex-1"
                     maxLength={260}
                   />
@@ -1530,21 +1543,21 @@ export default function Servers() {
                     {detecting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <><Search className="w-4 h-4 mr-1" /> Detect</>
+                      <><Search className="w-4 h-4 mr-1" /> {t('scan.scan')}</>
                     )}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  The folder containing Server/, Saves/, Logs/ subfolders
+                   {t('scan.serverDataPathHint')}
                 </p>
               </div>
               
               <div className="space-y-2">
-                <Label>Server Install Path (Optional)</Label>
+                <Label>{t('serverInstallPathOptional')}</Label>
                 <Input
                   value={newServer.installPath}
                   onChange={e => setNewServer({ ...newServer, installPath: e.target.value })}
-                  placeholder="Path to PZ server folder (contains StartServer64.bat or start-server.sh)"
+                  placeholder={t('placeholders.serverPath')}
                   className="font-mono text-sm"
                   maxLength={260}
                 />
@@ -1566,15 +1579,15 @@ export default function Servers() {
                 {detectResult.detectedServers.length === 0 ? (
                   <Alert className="border-warning/40 bg-warning/10">
                     <AlertCircle className="h-4 w-4 text-warning" />
-                    <AlertTitle className="text-warning">No server configs found</AlertTitle>
-                    <AlertDescription>Run the server once to create the INI file.</AlertDescription>
+                    <AlertTitle className="text-warning">{t('noServerConfigsFound')}</AlertTitle>
+                    <AlertDescription>{t('runTheServerOnceToCreateTheIniFile')}</AlertDescription>
                   </Alert>
                 ) : (
                   <>
                     {/* Server Selection (if multiple) */}
                     {detectResult.detectedServers.length > 1 && (
                       <div className="space-y-2">
-                        <Label>Select Server Configuration</Label>
+                        <Label>{t('selectServerConfiguration')}</Label>
                         <Select 
                           value={selectedServerConfig} 
                           onValueChange={(val) => {
@@ -1583,7 +1596,7 @@ export default function Servers() {
                           }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Choose a server..." />
+                            <SelectValue placeholder={t('placeholders.selectServer')} />
                           </SelectTrigger>
                           <SelectContent>
                             {detectResult.detectedServers.map(s => (
@@ -1601,45 +1614,45 @@ export default function Servers() {
                       <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
                         <div className="mb-3 flex items-center gap-2 text-primary">
                           <CheckCircle className="w-4 h-4" />
-                          <span className="font-medium">Server detected successfully!</span>
+                          <span className="font-medium">{t('serverDetectedSuccessfully')}</span>
                         </div>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                           <div>
-                            <span className="text-muted-foreground">Server Name:</span>
+                            <span className="text-muted-foreground">{t('serverName')}</span>
                             <p className="font-medium">{newServer.name}</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Config File:</span>
+                            <span className="text-muted-foreground">{t('configFile')}</span>
                             <p className="font-mono">{newServer.serverName}.ini</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Game Port:</span>
+                            <span className="text-muted-foreground">{t('gamePort')}</span>
                             <p className="font-mono">{newServer.serverPort}</p>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">RCON Port:</span>
+                            <span className="text-muted-foreground">{t('rconPort')}</span>
                             <p className="font-mono">{newServer.rconPort}</p>
                           </div>
                         </div>
                         
                         {/* RCON Password Section */}
                         <div className="space-y-2 mt-2">
-                          <Label>RCON Password *</Label>
+                          <Label>{t('rconPassword')}</Label>
                           <Input
                             type="password"
-                            placeholder="Enter RCON password"
+                            placeholder={t('placeholders.rconEnter')}
                             value={newServer.rconPassword}
                             className="bg-background"
                             onChange={e => setNewServer({ ...newServer, rconPassword: e.target.value })}
                           />
                           {!newServer.rconPassword ? (
                             <p className="text-xs text-warning">
-                              Required for server control. You can also set <code className="rounded bg-warning/20 px-1">RCONPassword=yourpassword</code> in your {newServer.serverName}.ini file.
+                              {t('scan.rconPasswordRequiredHint')}{' '}<code className="rounded bg-warning/20 px-1">RCONPassword=yourpassword</code>{' '}{t('scan.inIniFile', { serverName: newServer.serverName })}
                             </p>
                           ) : (
                             <p className="flex items-center gap-1 text-xs text-primary">
-                              <CheckCircle className="w-3 h-3" /> Password set
+                              <CheckCircle className="w-3 h-3" /> {t('scan.passwordSet')}
                             </p>
                           )}
                         </div>
@@ -1647,7 +1660,7 @@ export default function Servers() {
                         {/* Memory Configuration */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                           <div className="space-y-2">
-                            <Label>Min Memory (GB)</Label>
+                            <Label>{t('minMemoryGb')}</Label>
                             <Input
                               type="number"
                               min={1}
@@ -1658,7 +1671,7 @@ export default function Servers() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Max Memory (GB)</Label>
+                            <Label>{t('maxMemoryGb')}</Label>
                             <Input
                               type="number"
                               min={1}
@@ -1681,16 +1694,16 @@ export default function Servers() {
           
           <DialogFooter>
             <Button variant="outline" onClick={resetAddDialog}>
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button 
               onClick={handleAddExistingServer} 
               disabled={addingServer || (addMode === 'local' ? (!selectedServerConfig || !newServer.rconPassword) : (!newServer.name || !newServer.rconHost || !newServer.rconPassword))}
             >
               {addingServer ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Adding...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('cardStatus.adding')}</>
               ) : (
-                <><Plus className="w-4 h-4 mr-2" /> Add Server</>
+                <><Plus className="w-4 h-4 mr-2" /> {t('actions.addServer')}</>
               )}
             </Button>
           </DialogFooter>
@@ -1701,9 +1714,9 @@ export default function Servers() {
       <Dialog open={!!editingServer} onOpenChange={() => setEditingServer(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit Server</DialogTitle>
+            <DialogTitle>{t('editServer')}</DialogTitle>
             <DialogDescription>
-              Update server configuration settings
+              {t('dialog.editDescription')}
             </DialogDescription>
           </DialogHeader>
           
@@ -1713,14 +1726,14 @@ export default function Servers() {
               {editingServer.isRemote && (
                 <Alert className="border-primary/20 bg-primary/5">
                   <Globe className="h-4 w-4 text-primary" />
-                  <AlertTitle>Remote Server</AlertTitle>
-                  <AlertDescription>RCON-only management is available for this server.</AlertDescription>
+                  <AlertTitle>{t('remoteServer')}</AlertTitle>
+                  <AlertDescription>{t('rcononlyManagementIsAvailableForThisServer')}</AlertDescription>
                 </Alert>
               )}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Display Name</Label>
+                  <Label>{t('displayName')}</Label>
                   <Input
                     value={editingServer.name}
                     onChange={e => setEditingServer({ ...editingServer, name: e.target.value })}
@@ -1728,7 +1741,7 @@ export default function Servers() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Server Name</Label>
+                  <Label>{t('serverName')}</Label>
                   <Input
                     value={editingServer.serverName}
                     onChange={e => setEditingServer({ ...editingServer, serverName: e.target.value })}
@@ -1740,7 +1753,7 @@ export default function Servers() {
               {!editingServer.isRemote && (
               <>
               <div className="space-y-2">
-                <Label>Install Path</Label>
+                <Label>{t('installPath')}</Label>
                 <Input
                   value={editingServer.installPath}
                   onChange={e => setEditingServer({ ...editingServer, installPath: e.target.value })}
@@ -1749,24 +1762,24 @@ export default function Servers() {
               </div>
               
               <div className="space-y-2">
-                <Label>Zomboid Data Path</Label>
+                <Label>{t('zomboidDataPath')}</Label>
                 <Input
                   value={editingServer.zomboidDataPath || ''}
                   onChange={e => setEditingServer({ ...editingServer, zomboidDataPath: e.target.value })}
                   className="font-mono text-sm"
-                  placeholder="Leave empty for default"
+                  placeholder={t('placeholders.defaultArgs')}
                 />
               </div>
               
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
-                  Custom Start Command
+                  {t('extraLabels.customStartCommand')}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[280px]">
-                      <p className="text-xs">Override the default startup script with a custom command. Supports arguments. Leave empty to use the default bat/sh file detection.</p>
+                      <p className="text-xs">{t('overrideTheDefaultStartupScriptWithACustomCommandSupportsArgumentsLeaveEmptyToUseTheDefaultBatshFileDetection')}</p>
                     </TooltipContent>
                   </Tooltip>
                 </Label>
@@ -1774,11 +1787,11 @@ export default function Servers() {
                   value={editingServer.startCommand || ''}
                   onChange={e => setEditingServer({ ...editingServer, startCommand: e.target.value })}
                   className="font-mono text-sm"
-                  placeholder="e.g. ./start-server.sh -servername MyServer"
+                  placeholder={t('placeholders.customArgs')}
                   maxLength={1024}
                 />
                 {editingServer.startCommand && /[&|;<>`${}()!\[\]]/.test(editingServer.startCommand) && (
-                  <p className="text-xs text-destructive">Command contains disallowed shell characters</p>
+                  <p className="text-xs text-destructive">{t('commandContainsDisallowedShellCharacters')}</p>
                 )}
               </div>
               </>
@@ -1787,13 +1800,13 @@ export default function Servers() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
-                    RCON Host
+                    {t('extraLabels.rconHost')}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[200px]">
-                        <p className="text-xs">Leave as 127.0.0.1 if the panel runs on the same machine as the game server</p>
+                        <p className="text-xs">{t('leaveAs127001IfThePanelRunsOnTheSameMachineAsTheGameServer')}</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
@@ -1803,7 +1816,7 @@ export default function Servers() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>RCON Port</Label>
+                  <Label>{t('rconPort')}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -1819,7 +1832,7 @@ export default function Servers() {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>RCON Password</Label>
+                  <Label>{t('rconPassword')}</Label>
                   <Input
                     type="password"
                     value={editingServer.rconPassword}
@@ -1829,13 +1842,13 @@ export default function Servers() {
                 {!editingServer.isRemote && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5">
-                    Admin Password
+                    {t('extraLabels.adminPassword')}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-[240px]">
-                        <p className="text-xs">Server admin password passed as -adminpassword launch argument. Takes effect on next server start.</p>
+                        <p className="text-xs">{t('serverAdminPasswordPassedAsAdminpasswordLaunchArgumentTakesEffectOnNextServerStart')}</p>
                       </TooltipContent>
                     </Tooltip>
                   </Label>
@@ -1843,7 +1856,7 @@ export default function Servers() {
                     type="password"
                     value={editingServer.adminPassword || ''}
                     onChange={e => setEditingServer({ ...editingServer, adminPassword: e.target.value })}
-                    placeholder="Set admin password"
+                    placeholder={t('placeholders.adminPassword')}
                   />
                 </div>
                 )}
@@ -1851,7 +1864,7 @@ export default function Servers() {
               
               <div className={editingServer.isRemote ? "grid grid-cols-1 gap-4" : "grid grid-cols-1 sm:grid-cols-3 gap-4"}>
                 <div className="space-y-2">
-                  <Label>Game Port</Label>
+                  <Label>{t('gamePort')}</Label>
                   <Input
                     type="number"
                     value={editingServer.serverPort}
@@ -1861,7 +1874,7 @@ export default function Servers() {
                 {!editingServer.isRemote && (
                 <>
                 <div className="space-y-2">
-                  <Label>Min Memory (GB)</Label>
+                  <Label>{t('minMemoryGb')}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -1871,7 +1884,7 @@ export default function Servers() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max Memory (GB)</Label>
+                  <Label>{t('maxMemoryGb')}</Label>
                   <Input
                     type="number"
                     min={1}
@@ -1888,10 +1901,10 @@ export default function Servers() {
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingServer(null)}>
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button onClick={handleSaveEdit} disabled={savingEdit}>
-              <Check className="w-4 h-4 mr-2" /> {savingEdit ? 'Saving...' : 'Save Changes'}
+              <Check className="w-4 h-4 mr-2" /> {savingEdit ? t('cardStatus.saving') : t('extraActions.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1901,10 +1914,10 @@ export default function Servers() {
       <AlertDialog open={!!deleteServer} onOpenChange={(open) => { if (!open && !deleting) { setDeleteServer(null); setDeleteFiles(false); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Server from Panel?</AlertDialogTitle>
+            <AlertDialogTitle>{t('removeServerFromPanel')}</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-4">
-                <p>This will remove "{deleteServer?.name}" from the panel management.</p>
+                <p>{t('delete.removeDescription', { name: deleteServer?.name || '' })}</p>
                 
                 {deleteServer?.installPath && (
                   <div className="flex items-start gap-3 p-3 rounded-lg border bg-muted/50">
@@ -1916,9 +1929,9 @@ export default function Servers() {
                       className="mt-1"
                     />
                     <label htmlFor="deleteFiles" className="text-sm cursor-pointer">
-                      <span className="font-medium text-destructive">Also delete server files</span>
+                      <span className="font-medium text-destructive">{t('alsoDeleteServerFiles')}</span>
                       <p className="text-muted-foreground mt-1">
-                        This will permanently delete all files in:<br />
+                         {t('delete.permanentDeleteDescription')}<br />
                         <code className="text-xs bg-background px-1 rounded">{deleteServer?.installPath}</code>
                       </p>
                     </label>
@@ -1927,7 +1940,7 @@ export default function Servers() {
                 
                 {!deleteFiles && !deleting && (
                   <p className="text-sm text-muted-foreground">
-                    Server files will NOT be deleted - you can add this server back later.
+                    {t('delete.filesWillBeRetained')}
                   </p>
                 )}
 
@@ -1935,7 +1948,7 @@ export default function Servers() {
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>{deleteFiles ? 'Deleting server files...' : 'Removing server...'}</span>
+                      <span>{deleteFiles ? t('cardStatus.deletingFiles') : t('cardStatus.removingServer')}</span>
                     </div>
                     <Progress value={deleteProgress} className="h-1.5" />
                   </div>
@@ -1944,15 +1957,15 @@ export default function Servers() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('cancel')}</AlertDialogCancel>
             <Button 
               onClick={handleDeleteServer} 
               disabled={deleting}
               className={deleteFiles ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
               {deleting ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Removing...</>
-              ) : deleteFiles ? 'Delete Everything' : 'Remove from Panel'}
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />{t('cardStatus.removing')}</>
+              ) : deleteFiles ? t('extraActions.deleteEverything') : t('ui.removeFromPanel')}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1964,36 +1977,36 @@ export default function Servers() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {steamOperation?.type === 'verify' ? (
-                <><ShieldCheck className="w-5 h-5" /> Verify Game Files</>
+                <><ShieldCheck className="w-5 h-5" /> {t('steam.verifyGameFiles')}</>
               ) : (
-                <><RefreshCw className="w-5 h-5" /> Update Server</>
+                <><RefreshCw className="w-5 h-5" /> {t('ui.updateServer')}</>
               )}
             </DialogTitle>
             <DialogDescription>
               {steamOperation?.type === 'verify' 
-                ? 'Check and repair game files using SteamCMD'
-                : 'Download the latest version using SteamCMD'
+                ? t('steam.verifyDescription')
+                : t('steam.updateDescription')
               }
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>SteamCMD Path *</Label>
+              <Label>{t('steamcmdPath')}</Label>
               <Input
                 value={steamcmdPath}
                 onChange={e => setSteamcmdPath(e.target.value)}
-                placeholder="Path to SteamCMD folder"
+                placeholder={t('placeholders.steamcmdPath')}
                 className="font-mono text-sm"
                 disabled={steamRunning}
               />
               <p className="text-xs text-muted-foreground">
-                Folder containing steamcmd
+                {t('steam.folderHint')}
               </p>
             </div>
             
             <div className="space-y-2">
-              <Label>Server Install Path</Label>
+              <Label>{t('serverInstallPath')}</Label>
               <Input
                 value={getInstallFolder(steamOperation?.server.installPath)}
                 disabled
@@ -2007,17 +2020,15 @@ export default function Servers() {
                 disabled={steamRunning || clearingInstall}
                 onClick={() => setConfirmClearInstall(true)}
               >
-                <Trash2 className="w-3.5 h-3.5 mr-2" /> Clear Installation Folder
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> {t('extraActions.clearInstallationFolder')}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Deletes everything in the install path so you can reinstall from
-                scratch. Use this if SteamCMD updates keep failing (stuck or
-                corrupted download state) instead of fixing it manually.
+                {t('steam.clearInstallationDescription')}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label>Steam Branch {loadingBranches && <Loader2 className="inline-block w-3 h-3 ml-1 animate-spin" />}</Label>
+              <Label>{t('steam.branchLabel')} {loadingBranches && <Loader2 className="inline-block w-3 h-3 ml-1 animate-spin" />}</Label>
               <Select 
                 value={steamOperation?.branch || 'public'} 
                 onValueChange={(value) => steamOperation && setSteamOperation({ ...steamOperation, branch: value })}
@@ -2026,17 +2037,17 @@ export default function Servers() {
                 <SelectTrigger className="w-full text-foreground">
                   {(() => {
                     const current = availableBranches.find(b => b.name === steamOperation?.branch)
-                    if (loadingBranches) return <span className="text-muted-foreground">Loading branches...</span>
-                    if (!current) return <span className="text-muted-foreground">Select branch</span>
+                    if (loadingBranches) return <span className="text-muted-foreground">{t('loadingBranches')}</span>
+                    if (!current) return <span className="text-muted-foreground">{t('selectBranch')}</span>
                     return (
                       <span className="flex items-center gap-2">
-                        <span className="capitalize">{current.name === 'public' ? 'Public (Stable)' : current.name}</span>
+                        <span className="capitalize">{getBranchLabel(current.name)}</span>
                         {(() => {
                           const sb = (steamOperation?.server.branch || '').trim().toLowerCase()
                           const ib = (updateInfo?.installed?.branch || '').trim().toLowerCase()
                           const isCurrent = current.name === ib || current.name === sb
                           return isCurrent ? (
-                            <span className="rounded border border-border/60 px-1 py-px font-mono text-[10px] uppercase tracking-wider text-muted-foreground">current</span>
+                            <span className="rounded border border-border/60 px-1 py-px font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{t('current')}</span>
                           ) : null
                         })()}
                       </span>
@@ -2047,8 +2058,8 @@ export default function Servers() {
                   {availableBranches.map((b) => (
                     <SelectItem key={b.name} value={b.name}>
                       <div className="flex flex-col">
-                        <span className="capitalize">{b.name === 'public' ? 'Public (Stable)' : b.name}</span>
-                        {b.description && <span className="text-xs text-muted-foreground">{b.description}</span>}
+                        <span className="capitalize">{getBranchLabel(b.name)}</span>
+                        {getBranchDescription(b) && <span className="text-xs text-muted-foreground">{getBranchDescription(b)}</span>}
                       </div>
                     </SelectItem>
                   ))}
@@ -2057,10 +2068,10 @@ export default function Servers() {
               <p className="text-xs text-muted-foreground">
                 {(() => {
                   const selected = availableBranches.find(b => b.name === steamOperation?.branch)
-                  if (!selected) return 'Select the Steam branch to download from'
-                  const details = [selected.description]
-                  if (selected.buildId) details.push(`Build ${selected.buildId}`)
-                  if (selected.timeUpdated) details.push(`Updated ${new Date(selected.timeUpdated).toLocaleString()}`)
+                   if (!selected) return t('steam.selectBranchHint')
+                   const details = [getBranchDescription(selected)]
+                   if (selected.buildId) details.push(t('steam.build', { buildId: selected.buildId }))
+                   if (selected.timeUpdated) details.push(t('steam.updated', { date: new Date(selected.timeUpdated).toLocaleString() }))
                   return details.join(' - ')
                 })()}
               </p>
@@ -2068,7 +2079,7 @@ export default function Servers() {
             
             {steamLogs.length > 0 && (
               <div className="space-y-2">
-                <Label>Progress</Label>
+                <Label>{t('progress')}</Label>
                 <div className="h-48 overflow-y-auto rounded-lg border bg-muted/40 p-3 font-mono text-xs text-foreground">
                   {steamLogs.map((log, i) => (
                     <div key={i}>{log}</div>
@@ -2084,7 +2095,7 @@ export default function Servers() {
               onClick={() => setSteamOperation(null)}
               disabled={steamRunning}
             >
-              {steamRunning ? 'Running...' : steamCompleted ? 'Close' : 'Cancel'}
+              {steamRunning ? t('cardStatus.runningEllipsis') : steamCompleted ? t('extraActions.close') : t('actions.cancel')}
             </Button>
             {!steamCompleted && (
               <Button 
@@ -2092,11 +2103,11 @@ export default function Servers() {
                 disabled={steamRunning || !steamcmdPath.trim()}
               >
                 {steamRunning ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('cardStatus.runningEllipsis')}</>
                 ) : steamOperation?.type === 'verify' ? (
-                  <><ShieldCheck className="w-4 h-4 mr-2" /> Start Verify</>
+                  <><ShieldCheck className="w-4 h-4 mr-2" /> {t('steam.startVerify')}</>
                 ) : (
-                  <><RefreshCw className="w-4 h-4 mr-2" /> Start Update</>
+                  <><RefreshCw className="w-4 h-4 mr-2" /> {t('steam.startUpdate')}</>
                 )}
               </Button>
             )}
@@ -2105,7 +2116,7 @@ export default function Servers() {
                 variant="default"
                 onClick={() => setSteamOperation(null)}
               >
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Done
+                <CheckCircle2 className="w-4 h-4 mr-2" /> {t('extraActions.done')}
               </Button>
             )}
             {steamCompleted === 'error' && (
@@ -2113,7 +2124,7 @@ export default function Servers() {
                 onClick={() => { setSteamCompleted(null); handleStartSteamOperation(); }}
                 disabled={!steamcmdPath.trim()}
               >
-                <RefreshCw className="w-4 h-4 mr-2" /> Retry
+                <RefreshCw className="w-4 h-4 mr-2" /> {t('extraActions.retry')}
               </Button>
             )}
           </DialogFooter>
@@ -2124,30 +2135,26 @@ export default function Servers() {
       <AlertDialog open={confirmClearInstall} onOpenChange={(open) => !open && !clearingInstall && setConfirmClearInstall(false)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Installation Folder?</AlertDialogTitle>
+            <AlertDialogTitle>{t('clearInstallationFolder')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes everything in{' '}
+              {t('steam.clearFolderWarningBeforePath')}{' '}
               <code className="text-xs bg-background px-1 rounded">
                 {getInstallFolder(steamOperation?.server.installPath)}
               </code>
-              {' '}— including the game files, SteamCMD's download state, and any
-              mods installed there. Use this to recover from a SteamCMD update
-              that keeps failing (corrupted or stuck installation). You'll need
-              to run Start Update again afterward to reinstall from scratch.
-              This does not affect your save data.
+              {' '}{t('steam.clearFolderWarningAfterPath')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={clearingInstall}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={clearingInstall}>{t('cancel')}</AlertDialogCancel>
             <Button
               onClick={handleClearInstallFolder}
               disabled={clearingInstall}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {clearingInstall ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Clearing...</>
+                 <><Loader2 className="w-4 h-4 animate-spin mr-2" />{t('cardStatus.clearing')}</>
               ) : (
-                <><Trash2 className="w-4 h-4 mr-2" />Clear Folder</>
+                 <><Trash2 className="w-4 h-4 mr-2" />{t('extraActions.clearFolder')}</>
               )}
             </Button>
           </AlertDialogFooter>

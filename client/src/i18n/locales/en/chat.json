@@ -1,0 +1,80 @@
+{
+    "placeholders": {
+        "postAsAdmin": "Post as admin",
+        "broadcast": "Broadcast message",
+        "adminOnlyHidden": "Admin channel (hidden from players)",
+        "adminOnly": "Admin only channel",
+        "newPreset": "Add a new quick message..."
+    },
+    "noMessages": {
+        "description": "Chat messages will appear here once players start talking",
+        "title": "No messages yet"
+    },
+    "description": "Send and receive messages in the game chat",
+    "presets": {
+        "edit": "edit",
+        "done": "done",
+        "noPresets": "// no presets — click edit to add"
+    },
+    "quickBroadcasts": "quick broadcasts",
+    "messageCount": {
+        "msg": "message",
+        "msgs": "messages"
+    },
+    "errors": {
+        "sendFailed": "Failed to send message",
+        "couldNotSavePresets": "Could not save presets",
+        "unknownError": "Unknown error",
+        "error": "Error"
+    },
+    "players": "players",
+    "chatStream": "chat stream",
+    "actions": {
+        "send": "Send",
+        "refresh": "Refresh"
+    },
+    "title": "In-Game Chat",
+    "labels": {
+        "player": "Player",
+        "save": "Save",
+        "chatMessage": "Chat message",
+        "chatMessages": "Chat messages",
+        "admin": "Admin",
+        "chatChannel": "Chat channel",
+        "cancel": "Cancel",
+        "server": "Server",
+        "addPreset": "Add preset",
+        "doneEditingPresets": "Done editing presets",
+        "editPresets": "Edit presets",
+        "deletePreset": "Delete preset"
+    },
+    "channels": {
+        "serverBroadcast": "Server broadcast",
+        "adminChat": "Admin chat",
+        "generalChat": "General chat"
+    },
+    "status": {
+        "live": "LIVE",
+        "offline": "OFFLINE",
+        "noPlayersConnected": "no players connected",
+        "noPlayersOnlineServerLog": "no players online — server log only",
+        "broadcastingTo_one": "broadcasting to {{count}} player",
+        "broadcastingTo_other": "broadcasting to {{count}} players",
+        "online": "{{count}} online"
+    },
+    "toast": {
+        "adminMessageSent": "Admin Message Sent",
+        "adminMessageSentDesc": "Visible only to admins in-game.",
+        "postedToChat": "Posted to Chat",
+        "postedToChatDesc": "Posted into the public chat stream.",
+        "broadcastSent": "Broadcast Sent",
+        "broadcastSentDesc": "Message delivered to all connected players."
+    },
+    "defaultPresets": [
+        "Server will restart in 5 minutes!",
+        "Welcome to the server!",
+        "Please read the rules at /rules",
+        "Server maintenance starting soon",
+        "Have fun and stay safe!"
+    ]
+}
