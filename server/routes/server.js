@@ -17,6 +17,7 @@ import { sanitizeError, sanitizeIniValue } from "../utils/sanitize.js";
 import { normalizeMemoryGb } from "../utils/memory.js";
 import { withFileLock, writeFileAtomic } from "../utils/fileWriteQueue.js";
 import { requireRole } from "../services/auth.js";
+import { runManagedLifecycle } from "../services/managedContainer.js";
 
 const router = express.Router();
 
@@ -674,6 +675,14 @@ router.post("/start", async (req, res) => {
     const serverManager = req.app.get("serverManager");
     const rconService = req.app.get("rconService");
 
+    // A container-managed server is started through Docker: the panel has no
+    // process to spawn, and after a `docker stop` there is nothing left running
+    // for it to reattach to.
+    const managed = await runManagedLifecycle("start");
+    if (managed.handled && !managed.success) {
+      return res.status(502).json({ error: sanitizeError(managed.error) });
+    }
+
     // Pre-configure RCON in the INI BEFORE starting the server process.
     // PZ reads the INI at startup, so we must write the password first.
     // On first run this also pre-creates the INI file with RCON settings.
@@ -690,8 +699,10 @@ router.post("/start", async (req, res) => {
       log.warn(`RCON pre-configuration failed: ${rconErr.message}`);
     }
 
-    // Regenerate startup scripts so any config changes (admin password, memory, etc.) take effect
+    // Regenerate startup scripts so any config changes (admin password, memory, etc.) take effect.
+    // Skipped for a managed container: its image owns the launch command.
     if (
+      !managed.handled &&
       activeServer &&
       !activeServer.startCommand &&
       activeServer.installPath
@@ -727,7 +738,9 @@ router.post("/start", async (req, res) => {
       }
     }
 
-    const result = await serverManager.startServer();
+    const result = managed.handled
+      ? { success: true, message: managed.message || "Container starting" }
+      : await serverManager.startServer();
 
     // Emit status update via Socket.IO
     const io = req.app.get("io");
@@ -917,8 +930,19 @@ router.post("/stop", async (req, res) => {
       });
     }
 
-    // Then quit
-    const result = await rconService.quit();
+    // A container-managed server must go down through Docker. RCON quit kills
+    // PID 1 inside the container, which exits the container and lets its
+    // restart policy bring the world straight back up.
+    const managed = await runManagedLifecycle("stop");
+    if (managed.handled && !managed.success) {
+      return res.status(502).json({
+        error: `The world was saved, but the container could not be stopped: ${sanitizeError(managed.error)}`,
+      });
+    }
+
+    const result = managed.handled
+      ? { success: true, message: managed.message || "Container stopping" }
+      : await rconService.quit();
 
     const io = req.app.get("io");
     if (io) io.to("server-status").emit("server:status", { running: false });
@@ -949,8 +973,23 @@ router.post("/force-stop", async (req, res) => {
       });
     }
 
+    // Killing the PID of a containerized server just triggers its restart
+    // policy. Docker's stop escalates SIGTERM to SIGKILL on its own and, unlike
+    // a process kill, keeps the container down afterwards.
+    const managed = await runManagedLifecycle("stop");
+    if (managed.handled && !managed.success) {
+      return res.status(502).json({ error: sanitizeError(managed.error) });
+    }
+
     const serverManager = req.app.get("serverManager");
-    const result = await serverManager.stopServer(false);
+    const result = managed.handled
+      ? {
+          success: true,
+          message:
+            managed.message ||
+            "Container stopped. Docker ran the container's own shutdown handler before killing it.",
+        }
+      : await serverManager.stopServer(false);
 
     const io = req.app.get("io");
     if (io) io.to("server-status").emit("server:status", { running: false });

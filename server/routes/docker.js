@@ -29,6 +29,9 @@ router.get("/status", requireRole("admin"), async (req, res) => {
     return res.json({
       enabled: true,
       available: dockerClient.available,
+      // An unreadable socket looks exactly like "no managed containers" without
+      // this: `available` only proves the socket file exists.
+      ...(dockerClient.lastError ? { error: sanitizeError(dockerClient.lastError) } : {}),
       containers: containers.map((container) => ({
         id: container.Id,
         name: (container.Names?.[0] || "").replace(/^\//, ""),

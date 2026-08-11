@@ -16,6 +16,7 @@ import { createLogger } from "../utils/logger.js";
 const log = createLogger("Discord");
 import { getSetting, setSetting } from "../database/init.js";
 import { sanitizeError } from "../utils/sanitize.js";
+import { runManagedLifecycle } from "./managedContainer.js";
 
 // Workaround for undici 8.x + Node.js 22+/24+: undici adds Symbol(sensitiveHeaders)
 // to response header objects, but the WebIDL ByteString converter in undici's
@@ -962,7 +963,12 @@ export class DiscordBot {
       return;
     }
 
-    const started = await this.serverManager.startServer();
+    // A container-managed server starts through Docker — the panel has no
+    // process to spawn inside another container.
+    const managed = await runManagedLifecycle("start");
+    const started = managed.handled
+      ? managed
+      : await this.serverManager.startServer();
     if (!started?.success) {
       await interaction.editReply(
         `❌ Failed to start the server: ${sanitizeError(started?.error || started?.message)}`,
@@ -1000,7 +1006,10 @@ export class DiscordBot {
       );
       return;
     }
-    const quit = await this.rconService.quit();
+    // A container-managed server must go down through Docker: RCON quit kills
+    // PID 1, the container exits, and its restart policy brings the world back.
+    const managed = await runManagedLifecycle("stop");
+    const quit = managed.handled ? managed : await this.rconService.quit();
     if (!quit?.success) {
       await interaction.editReply(
         `❌ The world was saved, but the shutdown command failed: ${sanitizeError(quit?.error)}`,

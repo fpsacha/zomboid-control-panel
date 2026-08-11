@@ -5,6 +5,13 @@ import { createLogger } from "../utils/logger.js";
 const log = createLogger("DockerClient");
 const MANAGED_LABEL = "zomboid-panel.managed";
 const REQUEST_TIMEOUT_MS = 5000;
+// Lifecycle calls block until Docker finishes. `POST /containers/{id}/stop`
+// waits out the container's own StopTimeout (Compose's `stop_grace_period`,
+// which a modded B42 world sets to 90s or more) before it answers, so the 5s
+// read timeout would abort the socket and report a failure on every successful
+// stop. Budget the container's shutdown window plus room for the daemon.
+const LIFECYCLE_GRACE_MS = 30000;
+const DEFAULT_STOP_TIMEOUT_SEC = 10;
 
 export function isManagedContainer(container) {
   const labels = container?.Labels || container?.Config?.Labels;
@@ -52,10 +59,29 @@ export function parseContainerStats(stats) {
   };
 }
 
+/**
+ * How long to hold the socket open for a lifecycle action. Docker answers only
+ * once the action completes, and a stop waits out the container's configured
+ * StopTimeout before escalating to SIGKILL. A restart pays that cost and then
+ * starts the container again.
+ */
+export function lifecycleTimeoutMs(action, container) {
+  if (action === "start") return LIFECYCLE_GRACE_MS;
+  const configured = Number(container?.Config?.StopTimeout);
+  const stopTimeoutSec = configured > 0 ? configured : DEFAULT_STOP_TIMEOUT_SEC;
+  const grace = action === "restart" ? LIFECYCLE_GRACE_MS * 2 : LIFECYCLE_GRACE_MS;
+  return stopTimeoutSec * 1000 + grace;
+}
+
 export class DockerClient {
   constructor({ socketPath = "/var/run/docker.sock", enabled = process.env.PANEL_DOCKER_CONTROL_ENABLED === "true" } = {}) {
     this.socketPath = socketPath;
     this.enabled = enabled;
+    // Last discovery failure, surfaced through /api/docker/status. `available`
+    // is only an existsSync check, so a socket the panel can stat but not open
+    // (root:docker 0660 vs. a non-root panel user) otherwise looks identical to
+    // "no managed containers exist".
+    this.lastError = null;
   }
 
   get available() {
@@ -66,9 +92,13 @@ export class DockerClient {
     if (!this.available) return [];
     try {
       const containers = await this._requestJson("GET", "/containers/json?all=true");
+      this.lastError = null;
       return Array.isArray(containers) ? containers.filter(isManagedContainer) : [];
     } catch (error) {
-      log.debug(`Docker discovery failed: ${error.message}`);
+      this.lastError = error.message;
+      log.warn(
+        `Docker discovery failed: ${error.message}. The panel can see ${this.socketPath} but cannot query it — check that its user is in the socket's group.`,
+      );
       return [];
     }
   }
@@ -104,6 +134,7 @@ export class DockerClient {
       const statusCode = await this._requestStatus(
         "POST",
         `/containers/${encodeURIComponent(containerId)}/${action}`,
+        lifecycleTimeoutMs(action, container),
       );
       if (statusCode === 304) return { success: true, message: "Container is already in the requested state" };
       if (statusCode >= 200 && statusCode < 300) return { success: true };
@@ -128,10 +159,10 @@ export class DockerClient {
     }
   }
 
-  _requestJson(method, requestPath) {
+  _requestJson(method, requestPath, timeoutMs = REQUEST_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const request = http.request(
-        { socketPath: this.socketPath, method, path: requestPath, timeout: REQUEST_TIMEOUT_MS },
+        { socketPath: this.socketPath, method, path: requestPath, timeout: timeoutMs },
         (response) => {
           const chunks = [];
           response.on("data", (chunk) => chunks.push(chunk));
@@ -154,10 +185,10 @@ export class DockerClient {
     });
   }
 
-  _requestStatus(method, requestPath) {
+  _requestStatus(method, requestPath, timeoutMs = REQUEST_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const request = http.request(
-        { socketPath: this.socketPath, method, path: requestPath, timeout: REQUEST_TIMEOUT_MS },
+        { socketPath: this.socketPath, method, path: requestPath, timeout: timeoutMs },
         (response) => {
           response.resume();
           response.on("end", () => resolve(response.statusCode));

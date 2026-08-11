@@ -4,6 +4,7 @@ import fs from "fs";
 import { createLogger } from "../utils/logger.js";
 const log = createLogger("Updates");
 import { getSetting, setSetting, getActiveServer } from "../database/init.js";
+import { resolveManagedContainer } from "./managedContainer.js";
 
 async function getSteamLoginArgs() {
   const account = String((await getSetting("steamUpdateAccount")) || "").trim();
@@ -487,6 +488,14 @@ export class UpdateChecker {
       }
       const activeServer = await getActiveServer();
       const steamcmdPath = await getSetting("steamcmdPath");
+      // Refuse a container-managed server outright. Its image owns the game
+      // install, and the stop below would RCON-quit a process the container's
+      // restart policy immediately brings back — turning this into a silent
+      // five-minute wait that ends in a misleading timeout.
+      const managed = await resolveManagedContainer({ serverId: activeServer?.id });
+      if (managed.handled) {
+        throw new Error("This server runs in a panel-managed Docker container. Update the container image instead — the panel does not run SteamCMD against a managed container.");
+      }
       if (!activeServer?.installPath || !steamcmdPath) throw new Error("SteamCMD path or server install path is not configured");
 
       if (await this.serverManager.checkServerRunning()) {

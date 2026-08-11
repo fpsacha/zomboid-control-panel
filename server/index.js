@@ -38,6 +38,7 @@ import {
 import { RconService } from "./services/rcon.js";
 import { ServerManager } from "./services/serverManager.js";
 import { DockerClient } from "./services/dockerClient.js";
+import { setDockerClient } from "./services/managedContainer.js";
 import { ModChecker } from "./services/modChecker.js";
 import { Scheduler } from "./services/scheduler.js";
 import { DiscordBot } from "./services/discordBot.js";
@@ -669,6 +670,9 @@ app.use("/api/panel-bridge/command", panelBridgeCommandLimiter);
 const rconService = new RconService();
 const serverManager = new ServerManager();
 const dockerClient = new DockerClient();
+// Lets the scheduler and the Discord bot route lifecycle actions to Docker
+// without threading the client through their constructors.
+setDockerClient(dockerClient);
 const modChecker = new ModChecker();
 const logTailer = new LogTailer();
 const scheduler = new Scheduler(rconService, serverManager);

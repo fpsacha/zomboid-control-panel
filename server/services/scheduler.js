@@ -4,6 +4,7 @@ const log = createLogger("Scheduler");
 import panelBridge from "./panelBridge.js";
 import { RconService } from "./rcon.js";
 import { ServerManager } from "./serverManager.js";
+import { runManagedLifecycle } from "./managedContainer.js";
 import {
   getScheduledTasks,
   updateTaskLastRun,
@@ -862,37 +863,62 @@ export class Scheduler {
       }
       await this.sleep(3000);
 
-      // Quit server - skip logging for automated quit
-      log.info("Auto-restart: Sending quit command...");
-      const quit = await rconService.quit({ skipLog: true });
-      if (!quit?.success) {
-        log.warn(
-          `Auto-restart: quit command failed (${quit?.error || "unknown error"}), falling back to a forced stop`,
+      // A container-managed server restarts through Docker. RCON quit only
+      // kills PID 1: the container exits, its restart policy races the panel to
+      // bring the world back, and the panel cannot spawn a process that lives
+      // inside another container anyway.
+      const managed = await runManagedLifecycle("restart", {
+        serverId: pinnedServerId,
+      });
+      if (managed.handled && !managed.success) {
+        const restartDuration = Date.now() - restartStartTime;
+        const errorMsg = `Container restart failed: ${managed.error || "unknown error"}`;
+        log.error(`Auto-restart failed: ${errorMsg}`);
+        await logScheduleExecution(
+          null,
+          "Auto Restart",
+          "restart",
+          false,
+          errorMsg,
+          restartDuration,
         );
-      }
-      await this.sleep(10000);
-
-      // Wait for server to stop
-      let attempts = 0;
-      while ((await serverManager.checkServerRunning()) && attempts < 60) {
-        await this.sleep(1000);
-        attempts++;
+        logServerEvent("auto_restart_error", errorMsg);
+        return { success: false, wasRunning: true, message: errorMsg };
       }
 
-      // Force stop if needed
-      if (await serverManager.checkServerRunning()) {
-        const forced = await serverManager.stopServer(false);
-        if (!forced?.success) {
+      if (!managed.handled) {
+        // Quit server - skip logging for automated quit
+        log.info("Auto-restart: Sending quit command...");
+        const quit = await rconService.quit({ skipLog: true });
+        if (!quit?.success) {
           log.warn(
-            `Auto-restart: forced stop reported failure: ${forced?.error || forced?.message || "unknown error"}`,
+            `Auto-restart: quit command failed (${quit?.error || "unknown error"}), falling back to a forced stop`,
           );
         }
-        await this.sleep(5000);
-      }
+        await this.sleep(10000);
 
-      // Extra delay after stop — give OS time to fully reap the process
-      // (zombie processes on Linux, WMI cache on Windows)
-      await this.sleep(3000);
+        // Wait for server to stop
+        let attempts = 0;
+        while ((await serverManager.checkServerRunning()) && attempts < 60) {
+          await this.sleep(1000);
+          attempts++;
+        }
+
+        // Force stop if needed
+        if (await serverManager.checkServerRunning()) {
+          const forced = await serverManager.stopServer(false);
+          if (!forced?.success) {
+            log.warn(
+              `Auto-restart: forced stop reported failure: ${forced?.error || forced?.message || "unknown error"}`,
+            );
+          }
+          await this.sleep(5000);
+        }
+
+        // Extra delay after stop — give OS time to fully reap the process
+        // (zombie processes on Linux, WMI cache on Windows)
+        await this.sleep(3000);
+      }
 
       // Set flag to prevent RCON auto-reconnect from interfering during startup
       // Use setServerStarting which has a 5-minute failsafe timeout
@@ -902,26 +928,35 @@ export class Scheduler {
         rconService.serverStarting = true;
       }
 
-      // Start server — skip the running check since we just confirmed the server stopped
-      log.info("Auto-restart: Starting server...");
-      await this._ensureRestartTarget(serverManager, pinnedServerId);
-      const restarted = await serverManager.startServer({
-        skipRunningCheck: true,
-      });
-      if (!restarted?.success) {
-        log.warn(
-          `Auto-restart: start command reported failure: ${restarted?.error || restarted?.message || "unknown error"}`,
-        );
-      }
-
-      // Wait for server process to be running (up to 60 seconds)
       let serverStarted = false;
-      for (let i = 0; i < 60; i++) {
-        await this.sleep(1000);
-        if (await serverManager.checkServerRunning()) {
-          serverStarted = true;
-          log.info("Auto-restart: Server process detected as running");
-          break;
+      if (managed.handled) {
+        // `docker restart` only answers once the container is running again, so
+        // there is nothing to poll for here. PZ itself is still booting — the
+        // RCON wait below is the real readiness gate. Polling the process table
+        // would fail outright unless the panel shares the host PID namespace.
+        serverStarted = true;
+        log.info("Auto-restart: Managed container restarted");
+      } else {
+        // Start server — skip the running check since we just confirmed the server stopped
+        log.info("Auto-restart: Starting server...");
+        await this._ensureRestartTarget(serverManager, pinnedServerId);
+        const restarted = await serverManager.startServer({
+          skipRunningCheck: true,
+        });
+        if (!restarted?.success) {
+          log.warn(
+            `Auto-restart: start command reported failure: ${restarted?.error || restarted?.message || "unknown error"}`,
+          );
+        }
+
+        // Wait for server process to be running (up to 60 seconds)
+        for (let i = 0; i < 60; i++) {
+          await this.sleep(1000);
+          if (await serverManager.checkServerRunning()) {
+            serverStarted = true;
+            log.info("Auto-restart: Server process detected as running");
+            break;
+          }
         }
       }
 
