@@ -72,21 +72,27 @@ function writeDiskCacheAsync(relPath, buffer) {
 // We resolve the latest B42 version directory dynamically from build_list.json
 // so tile loading stays current when PZ ships new map builds without a panel update.
 const PZ_MAP_ROOT = "https://map.projectzomboid.com";
-const B42_DIR_FALLBACK = "42.19.0";
+// 42.19.0 was removed from map.projectzomboid.com - /maps/42.19.0/base/ now
+// 404s in its entirety, so the previous fallback could not serve a single tile.
+// It is still listed in build_list.json, so "listed" is not evidence a build is
+// still rendered; only the fallback needs to be a build that actually exists.
+const B42_DIR_FALLBACK = "42.20.0";
 const B42_DIR_TTL_MS = 24 * 60 * 60 * 1000; // re-resolve at most once per 24 h
 const B42_DIR_RETRY_MS = 5 * 60 * 1000; // ...but retry a failed resolve sooner
 // Geometry of B42_DIR_FALLBACK, used only when layer0.dzi can't be fetched.
-// x0/y0/sqr/scale are the isometric projection origin, copied from 42.19.0's
-// own base/map_info.json (skip:1 => scale 1<<1 = 2).
+// x0/y0/sqr/scale are the isometric projection origin, copied from 42.20.0's
+// own base/map_info.json (skip:0 => scale 1<<0 = 1). Note x0 and scale both
+// differ from 42.19.0's, so the directory cannot be bumped on its own without
+// putting every player marker in the wrong place.
 const B42_GEOMETRY_FALLBACK = {
-  tileSize: 1024,
-  width: 1157312,
-  height: 509520,
-  maxLevel: 21,
-  x0: 1036288,
+  tileSize: 2048,
+  width: 2318656,
+  height: 1019040,
+  maxLevel: 22,
+  x0: 1040384,
   y0: -139296,
   sqr: 128,
-  scale: 2,
+  scale: 1,
 };
 
 // The projection origin is NOT derivable from the image dimensions: 42.20.0 is
@@ -242,21 +248,94 @@ async function getB42TopFormat(directory) {
   return TOP_FORMAT_FALLBACK;
 }
 
-async function getB42Map() {
+// ─── Versioned static root ───────────────────────────────────────────────────
+// map.projectzomboid.com moved build_list.json behind a cache-busting directory
+// (/static_<timestamp>/build_list.json); the bare /build_list.json it used to
+// serve now 404s. That failure is silent - getB42Map() simply falls back - so
+// every install quietly pinned itself to B42_DIR_FALLBACK, and once 42.19.0 was
+// deleted upstream that meant a blank map with no error surfaced anywhere.
+//
+// The root document publishes the current directory as
+//   window.__PZMAP_STATIC_ROOT = 'static_20260803224102/';
+// so read it from there rather than hardcoding a timestamp that would rot the
+// next time upstream re-versions.
+const STATIC_ROOT_TTL_MS = 24 * 60 * 60 * 1000;
+let _staticRoot = null; // "static_<ts>/", or "" meaning the bare site root
+let _staticRootFetchedAt = 0;
+
+async function getStaticRoot() {
   const now = Date.now();
-  if (_b42Map && now - _b42DirFetchedAt < B42_DIR_TTL_MS) {
-    return _b42Map;
+  if (_staticRoot !== null && now - _staticRootFetchedAt < STATIC_ROOT_TTL_MS) {
+    return _staticRoot;
   }
   try {
-    const resp = await fetch(`${PZ_MAP_ROOT}/build_list.json`, {
+    const resp = await fetch(`${PZ_MAP_ROOT}/`, {
       signal: AbortSignal.timeout(5000),
       headers: {
         "User-Agent":
           "ZomboidControlPanel/1.0 (+https://github.com/fpsacha/zomboid-control-panel)",
       },
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const list = await resp.json();
+    if (resp.ok) {
+      const html = await resp.text();
+      // Only the exact shape upstream publishes is accepted: this value becomes
+      // a URL path segment, so a looser pattern would let a malformed or
+      // adversarial match reach fetch().
+      const dir = html.match(
+        /__PZMAP_STATIC_ROOT\s*=\s*['"](static_\d+)\/?['"]/,
+      )?.[1];
+      if (dir) {
+        if (_staticRoot !== `${dir}/`) {
+          log.info(`PZ map static root resolved: ${dir}`);
+        }
+        _staticRoot = `${dir}/`;
+        _staticRootFetchedAt = now;
+        return _staticRoot;
+      }
+    }
+  } catch {
+    // Fall through to the bare site root below.
+  }
+  // Serving build_list.json from the site root is how upstream behaved before
+  // the move, so it stays the fallback: a revert keeps working untouched.
+  _staticRoot = _staticRoot ?? "";
+  _staticRootFetchedAt = now - STATIC_ROOT_TTL_MS + B42_DIR_RETRY_MS;
+  return _staticRoot;
+}
+
+// Try the versioned location first, then the legacy bare path, so the panel
+// keeps working whichever layout upstream is currently serving.
+async function fetchBuildList() {
+  const staticRoot = await getStaticRoot();
+  const candidates = staticRoot
+    ? [`${staticRoot}build_list.json`, "build_list.json"]
+    : ["build_list.json"];
+  let lastError = null;
+  for (const rel of candidates) {
+    try {
+      const resp = await fetch(`${PZ_MAP_ROOT}/${rel}`, {
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          "User-Agent":
+            "ZomboidControlPanel/1.0 (+https://github.com/fpsacha/zomboid-control-panel)",
+        },
+      });
+      if (resp.ok) return await resp.json();
+      lastError = new Error(`HTTP ${resp.status} for /${rel}`);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error("build_list.json is unreachable");
+}
+
+async function getB42Map() {
+  const now = Date.now();
+  if (_b42Map && now - _b42DirFetchedAt < B42_DIR_TTL_MS) {
+    return _b42Map;
+  }
+  try {
+    const list = await fetchBuildList();
     // Entries are ordered newest-first. Walk B42+ candidates until one
     // actually has rendered tile coverage, not just a build_list.json entry.
     // The full string (not just a prefix) must match a plain version
