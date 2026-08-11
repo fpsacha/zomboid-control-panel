@@ -531,7 +531,13 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        imgSrc: ["'self'", "data:", "https:"],
+          // blob: is required by the World Map tile loader: it fetches each
+          // tile, converts the response to a Blob and decodes it through
+          // URL.createObjectURL (WorldMap.tsx) so a decode failure can be told
+          // apart from a network failure. Without blob: the browser blocks
+          // img.src, img.onerror fires, and every such tile is recorded as a
+          // coverage failure even though its bytes arrived intact.
+          imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: ["'self'", "ws:", "wss:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
