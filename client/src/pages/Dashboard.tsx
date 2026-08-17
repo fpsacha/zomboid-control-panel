@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi, serversApi, debugApi,
-  panelUpdateApi, modsApi, schedulerApi, ServerInstance, PanelUpdateStatus,
+  panelUpdateApi, modsApi, schedulerApi, ServerInstance, PanelUpdateStatus, ComposedServerStatus,
 } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
 import { useSocket } from '@/contexts/SocketContext'
@@ -154,6 +154,7 @@ function ConnLine({
 export default function Dashboard() {
   /* ---------------------------- state ------------------------------------- */
   const [status, setStatus] = useState<ServerStatus | null>(null)
+  const [composedStatus, setComposedStatus] = useState<ComposedServerStatus | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus | null>(null)
   const [playerActivity, setPlayerActivity] = useState<PlayerActivity[]>([])
@@ -261,7 +262,14 @@ export default function Dashboard() {
     catch { setFetchError('Failed to connect to server.') }
   }, [])
 
-  usePageShortcut('r', () => { if (loading === null) fetchStatus() })
+  const fetchComposedStatus = useCallback(async () => {
+    try { setComposedStatus(await serversApi.getComposedStatus()) }
+    catch { setComposedStatus(null) }
+  }, [])
+
+  usePageShortcut('r', () => {
+    if (loading === null) { fetchStatus(); fetchComposedStatus() }
+  })
 
   const fetchPlayers = useCallback(async () => {
     try { const d = await playersApi.getPlayers(); if (d.players) setPlayers(d.players) } catch { setPlayers([]) }
@@ -351,7 +359,7 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        await Promise.allSettled([fetchStatus(), fetchPlayers(), fetchBridgeStatus()])
+        await Promise.allSettled([fetchStatus(), fetchComposedStatus(), fetchPlayers(), fetchBridgeStatus()])
         setInitialLoading(false)
         void Promise.allSettled([
           fetchPlayerActivity(),
@@ -374,6 +382,7 @@ export default function Dashboard() {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return
       fetchStatus()
+      fetchComposedStatus()
       fetchPlayers()
       fetchPlayerActivity()
     }, 15000)
@@ -388,7 +397,7 @@ export default function Dashboard() {
       clearInterval(maintenanceInterval)
       if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
     }
-  }, [fetchStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity,
+  }, [fetchStatus, fetchComposedStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity,
       fetchAutoStartSetting, fetchActiveServer, fetchMaintenance])
 
   useEffect(() => {
@@ -404,7 +413,7 @@ export default function Dashboard() {
     const onPlayers = (d: Player[]) => setPlayers(d)
     const onActiveServer = (d?: { server?: ServerInstance | null }) => {
       if (d?.server !== undefined) setActiveServer(d.server); else fetchActiveServer()
-      fetchStatus(); fetchPlayers(); fetchBridgeStatus()
+      fetchStatus(); fetchComposedStatus(); fetchPlayers(); fetchBridgeStatus()
     }
     const onBridgeMod = (d: { alive: boolean; version?: string; serverName?: string; playerCount?: number }) => {
       setBridgeStatus(prev => ({
@@ -429,7 +438,7 @@ export default function Dashboard() {
       socket.off('activeServerChanged', onActiveServer)
       socket.off('panelBridge:modStatus', onBridgeMod)
     }
-  }, [socket, fetchStatus, fetchPlayers, fetchBridgeStatus, fetchActiveServer])
+  }, [socket, fetchStatus, fetchComposedStatus, fetchPlayers, fetchBridgeStatus, fetchActiveServer])
 
   useEffect(() => {
     if (initialLoading || showPerformanceCharts) return
@@ -479,13 +488,13 @@ export default function Dashboard() {
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === 'visible') {
-        fetchStatus(); fetchPlayers(); fetchBridgeStatus(); fetchPlayerActivity()
+        fetchStatus(); fetchComposedStatus(); fetchPlayers(); fetchBridgeStatus(); fetchPlayerActivity()
         if (showPerformanceCharts) fetchPerformanceHistory()
       }
     }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
-  }, [fetchStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity, fetchPerformanceHistory, showPerformanceCharts])
+  }, [fetchStatus, fetchComposedStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity, fetchPerformanceHistory, showPerformanceCharts])
 
   /* ---------------------------- actions ----------------------------------- */
   const handleAction = async (action: string, fn: () => Promise<unknown>) => {
@@ -505,6 +514,7 @@ export default function Dashboard() {
           try {
             const data = await serverApi.getStatus()
             setStatus(data)
+            void fetchComposedStatus()
             if (data?.running || attempts >= 15) {
               if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
             }
@@ -514,7 +524,7 @@ export default function Dashboard() {
             }
           }
         }, 2000)
-      } else { fetchStatus() }
+      } else { fetchStatus(); fetchComposedStatus() }
     } catch (error) {
       toast({ title: 'Error', description: getUserErrorMessage(error, 'Action failed. Please try again.'), variant: 'destructive' })
     } finally { setLoading(null) }
@@ -535,7 +545,18 @@ export default function Dashboard() {
 
   /* ---------------------------- derived ----------------------------------- */
   const hasServer = !!activeServer
-  const online = hasServer && !!status?.running
+  const hostRunning = hasServer && (composedStatus ? composedStatus.host.status === 'running' : !!status?.running)
+  const rconConnected = composedStatus
+    ? composedStatus.server.status === 'connected'
+    : Boolean(status && status.rcon && status.rcon.connected)
+  const rconConnecting = composedStatus?.server.status === 'connecting'
+  const bridgeActive = composedStatus?.bridge.status === 'active'
+  const hostUnknown = composedStatus
+    ? ['unknown', 'not-applicable'].includes(composedStatus.host.status)
+    : false
+  const online = hasServer && (composedStatus
+    ? hostRunning || rconConnected || bridgeActive
+    : !!status?.running)
   const modsPending = maintenance.modUpdatesAvailable > 0
   const staleLink = !lastUpdated || Date.now() - lastUpdated.getTime() > 60_000
 
@@ -584,9 +605,9 @@ export default function Dashboard() {
     }
     if (!online) {
       return {
-        level: 'critical',
-        headline: 'Server stopped',
-        action: activeServer?.isRemote
+        level: hostUnknown ? 'warning' : 'critical',
+        headline: hostUnknown ? 'Server status unknown' : 'Server stopped',
+        action: hostUnknown || activeServer?.isRemote
           ? undefined
           : {
               label: 'Start server',
@@ -596,7 +617,7 @@ export default function Dashboard() {
             },
       }
     }
-    if (!status?.rcon?.connected) {
+    if (!rconConnected) {
       return {
         level: 'warning',
         headline: 'RCON disconnected',
@@ -690,8 +711,8 @@ export default function Dashboard() {
     },
     {
       to: '/console', icon: Wifi, label: 'Console',
-      state: status?.rcon?.connected ? 'rcon ready' : 'rcon offline',
-      tone: status?.rcon?.connected ? 'good' : 'warning',
+      state: rconConnected ? 'rcon ready' : 'rcon offline',
+      tone: rconConnected ? 'good' : 'warning',
     },
     {
       to: '/mods', icon: Gamepad2, label: 'Mods',
@@ -828,7 +849,7 @@ export default function Dashboard() {
           {!online ? (
             <Button
               onClick={() => handleAction('Start server', serverApi.start)}
-              disabled={!hasServer || loading !== null || activeServer?.isRemote}
+              disabled={!hasServer || hostUnknown || loading !== null || activeServer?.isRemote}
               variant="ghost"
               size="sm"
               className="h-8 gap-1.5 rounded-md border border-emerald-500/30 px-2.5 text-xs text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -846,7 +867,7 @@ export default function Dashboard() {
                   action: serverApi.stop,
                   variant: 'destructive',
                 })}
-                disabled={loading !== null}
+                disabled={loading !== null || !hostRunning}
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -861,7 +882,7 @@ export default function Dashboard() {
                   action: serverApi.forceStop,
                   variant: 'destructive',
                 })}
-                disabled={loading !== null || activeServer?.isRemote}
+                disabled={loading !== null || !hostRunning || activeServer?.isRemote}
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -877,7 +898,7 @@ export default function Dashboard() {
                   action: () => serverApi.restart(5),
                   variant: 'warning',
                 })}
-                disabled={loading !== null || activeServer?.isRemote}
+                disabled={loading !== null || !hostRunning || activeServer?.isRemote}
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-amber-500/30 px-2.5 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -887,7 +908,7 @@ export default function Dashboard() {
               </Button>
               <Button
                 onClick={() => handleAction('Save world', serverApi.save)}
-                disabled={loading !== null}
+                disabled={loading !== null || !rconConnected}
                 variant="ghost"
                 size="sm"
                 className="h-8 gap-1.5 rounded-md border border-sky-500/30 px-2.5 text-xs text-sky-400 hover:bg-sky-500/10 hover:text-sky-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -915,7 +936,7 @@ export default function Dashboard() {
               <DropdownMenuItem asChild>
                 <Link to="/settings" className="flex items-center"><Server className="mr-2 h-4 w-4" /> Bridge settings</Link>
               </DropdownMenuItem>
-              {!status?.rcon?.connected && (
+              {!rconConnected && (
                 <DropdownMenuItem onClick={handleConnect} disabled={!hasServer || loading !== null}>
                   <Wifi className="mr-2 h-4 w-4" /> Connect RCON
                 </DropdownMenuItem>
@@ -928,7 +949,7 @@ export default function Dashboard() {
                   action: () => serverApi.restart(0),
                   variant: 'destructive',
                 })}
-                disabled={!hasServer || !online || loading !== null || activeServer?.isRemote}
+                disabled={!hasServer || !hostRunning || loading !== null || activeServer?.isRemote}
                 className="text-destructive focus:text-destructive"
               >
                 <Zap className="mr-2 h-4 w-4" /> Restart now
@@ -1218,10 +1239,17 @@ export default function Dashboard() {
           <section>
             <WorkList items={workItems} />
             <div className="mt-2 border-t border-border/25 px-1 pt-1">
+              {composedStatus && (
+                <ConnLine
+                  label={composedStatus.host.label}
+                  state={hostRunning ? 'on' : ['unknown', 'not-applicable'].includes(composedStatus.host.status) ? 'wait' : 'off'}
+                  value={composedStatus.host.status.replace('-', ' ')}
+                />
+              )}
               <ConnLine
                 label="RCON"
-                state={status?.rcon?.connected ? 'on' : 'off'}
-                value={status?.rcon ? `${status.rcon.host}:${status.rcon.port}` : undefined}
+                state={rconConnected ? 'on' : rconConnecting ? 'wait' : 'off'}
+                value={composedStatus?.server.detail ?? (status?.rcon ? `${status.rcon.host}:${status.rcon.port}` : undefined)}
               />
               <ConnLine
                 label="Bridge"
