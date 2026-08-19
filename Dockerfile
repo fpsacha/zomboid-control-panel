@@ -18,7 +18,7 @@
 # target platform (e.g. arm64 on GitHub's amd64 runners) — esbuild/rollup's
 # native binaries under emulation are dramatically slower and can hang for
 # a very long time instead of the ~30s this takes natively.
-FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:26-alpine AS builder
 
 WORKDIR /app
 
@@ -36,7 +36,7 @@ COPY client/ ./client/
 RUN cd client && npm run build
 
 # --- Runtime stage ---
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 
 # The panel supports arm64 for remote-server administration. SteamCMD itself
 # is only usable on amd64, where its 32-bit runtime libraries are installed.
