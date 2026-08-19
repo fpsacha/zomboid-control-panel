@@ -36,7 +36,7 @@
     "react-router-dom": "^7.0.1",
     "recharts": "^3.7.0",
     "socket.io-client": "^4.8.1",
-    "tailwind-merge": "^2.6.0",
+    "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.3.6"
   },
