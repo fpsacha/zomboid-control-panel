@@ -44,7 +44,7 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@yao-pkg/pkg": "^6.19.0",
     "concurrently": "^9.1.0",
     "esbuild": "^0.28.1",
