@@ -31,7 +31,7 @@
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lowdb": "^7.0.1",
     "node-cron": "^4.5.0",
