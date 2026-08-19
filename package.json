@@ -36,7 +36,7 @@
     "lowdb": "^7.0.1",
     "node-cron": "^4.5.0",
     "socket.io": "^4.8.1",
-    "sql.js": "^1.14.1",
+    "sql.js": "^1.14.2",
     "ssh2-sftp-client": "^12.1.1",
     "undici": "^8.10.0",
     "unzipper": "^0.12.3",
