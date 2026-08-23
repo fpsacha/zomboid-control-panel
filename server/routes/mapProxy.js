@@ -96,6 +96,12 @@ const B42_GEOMETRY_FALLBACK = {
   scale: 1,
 };
 
+// ─── Correction url pzmap.org  ──────────────────────────────────────────────
+// pzmap.org migrated https://pzmap.org/maps to https://tiles.pzmap.org breaking
+// direct tileset loading. Accessing the third level domain, paths are the same
+// removing 'maps' directory, this should restore dynamic loading and caching.
+const PZ_TILES_ROOT = "https://tiles.pzmap.org"
+
 // The projection origin is NOT derivable from the image dimensions: 42.20.0 is
 // exactly 2x the height of 42.19.0 but 4032 px wider, because the renderer
 // crops/pads each build independently. map.projectzomboid.com publishes the
@@ -107,7 +113,7 @@ const B42_GEOMETRY_FALLBACK = {
 async function fetchMapProjection(directory) {
   try {
     const resp = await fetch(
-      `${PZ_MAP_ROOT}/maps/${directory}/base/map_info.json`,
+      `${PZ_TILES_ROOT}/${directory}/base/map_info.json`,
       {
         signal: AbortSignal.timeout(5000),
         headers: {
@@ -135,7 +141,7 @@ async function fetchMapProjection(directory) {
 async function fetchMapGeometry(directory) {
   try {
     const resp = await fetch(
-      `${PZ_MAP_ROOT}/maps/${directory}/base/layer0.dzi`,
+      `${PZ_TILES_ROOT}/${directory}/base/layer0.dzi`,
       {
         signal: AbortSignal.timeout(5000),
         headers: {
@@ -190,7 +196,7 @@ async function hasTileCoverage(directory, geometry) {
     const row = Math.floor((levelH * fy) / geometry.tileSize);
     try {
       const resp = await fetch(
-        `${PZ_MAP_ROOT}/maps/${directory}/base/layer0_files/${level}/${col}_${row}.jpg`,
+        `${PZ_TILES_ROOT}/${directory}/base/layer0_files/${level}/${col}_${row}.jpg`,
         {
           method: "HEAD",
           signal: AbortSignal.timeout(4000),
@@ -226,7 +232,7 @@ async function getB42TopFormat(directory) {
   if (cached) return cached;
   try {
     const resp = await fetch(
-      `${PZ_MAP_ROOT}/maps/${directory}/base_top/layer0.dzi`,
+      `${PZ_TILES_ROOT}/${directory}/base_top/layer0.dzi`,
       {
         signal: AbortSignal.timeout(5000),
         headers: {
@@ -544,9 +550,9 @@ router.get("/resolve", async (req, res) => {
   const map = await getB42Map();
   res.set("Cache-Control", "public, max-age=3600");
   res.json({
-    root: PZ_MAP_ROOT,
+    root: PZ_TILES_ROOT,
     b42Dir: map.directory,
-    b41Path: "maps/41.78.16/base/layer0_files",
+    b41Path: "41.78.16/base/layer0_files",
     tileSize: map.tileSize,
     width: map.width,
     height: map.height,
@@ -612,7 +618,7 @@ router.get("/tiles/:level/:tile", async (req, res) => {
   }
 
   const dir = await getB42Dir();
-  const url = `${PZ_MAP_ROOT}/maps/${dir}/base/layer${floor}_files/${level}/${tile}`;
+  const url = `${PZ_TILES_ROOT}/${dir}/base/layer${floor}_files/${level}/${tile}`;
   const contentType = "image/jpeg";
   const relPath = path.join("b42", dir, `layer${floor}`, String(level), tile);
   await serveTile(req, res, url, contentType, relPath);
@@ -638,7 +644,7 @@ router.get("/toptiles/:level/:tile", async (req, res) => {
   // given build was rendered in, so the upstream descriptor decides.
   const format = await getB42TopFormat(dir);
   const upstreamTile = `${parsed[1]}.${format}`;
-  const url = `${PZ_MAP_ROOT}/maps/${dir}/base_top/layer0_files/${level}/${upstreamTile}`;
+  const url = `${PZ_TILES_ROOT}/${dir}/base_top/layer0_files/${level}/${upstreamTile}`;
   const relPath = path.join("b42-top", dir, String(level), upstreamTile);
   await serveTile(req, res, url, TOP_CONTENT_TYPES[format], relPath);
 });
@@ -655,7 +661,7 @@ router.get("/b41tiles/:level/:tile", async (req, res) => {
     return res.status(400).json({ error: "Invalid tile" });
   }
 
-  const url = `${PZ_MAP_ROOT}/maps/41.78.16/base/layer0_files/${level}/${tile}`;
+  const url = `${PZ_TILES_ROOT}/41.78.16/base/layer0_files/${level}/${tile}`;
   const relPath = path.join("b41", String(level), tile);
   await serveTile(req, res, url, "image/jpeg", relPath);
 });
