@@ -41,6 +41,75 @@ const STEAM_HOST_PRIORITY = (host) => {
   if (host === 'store.steampowered.com' || host === '.steampowered.com') return 1;
   return 2;
 };
+const CHROMIUM_EPOCH_OFFSET_US = 11644473600000000n;
+
+function integerTimestamp(value) {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return BigInt(Math.trunc(value));
+  }
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+    return BigInt(value.trim());
+  }
+  return null;
+}
+
+function microsecondsToUnixMs(value, epochOffsetUs = 0n) {
+  const timestamp = integerTimestamp(value);
+  if (timestamp === null || timestamp <= epochOffsetUs) return null;
+  const milliseconds = Number((timestamp - epochOffsetUs) / 1000n);
+  return Number.isSafeInteger(milliseconds) && milliseconds > 0
+    ? milliseconds
+    : null;
+}
+
+function secondsToUnixMs(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const milliseconds = Math.trunc(seconds * 1000);
+  return Number.isSafeInteger(milliseconds) ? milliseconds : null;
+}
+
+export function normalizeChromiumCookieRow(row, profileId) {
+  const persistent = Number(row.is_persistent) === 1;
+  return {
+    ...row,
+    host: row.host_key,
+    value: row.value ? String(row.value) : '',
+    profileId,
+    expiresAt: persistent
+      ? microsecondsToUnixMs(row.expires_utc, CHROMIUM_EPOCH_OFFSET_US)
+      : null,
+    createdAt: microsecondsToUnixMs(row.creation_utc, CHROMIUM_EPOCH_OFFSET_US),
+    lastAccessedAt: microsecondsToUnixMs(row.last_access_utc, CHROMIUM_EPOCH_OFFSET_US),
+    isSession: !persistent,
+  };
+}
+
+export function normalizeFirefoxCookieRow(row, profileId) {
+  const expiresAt = secondsToUnixMs(row.expiry);
+  return {
+    ...row,
+    host: row.host,
+    value: row.value ? String(row.value) : '',
+    profileId,
+    expiresAt,
+    createdAt: microsecondsToUnixMs(row.creationTime),
+    lastAccessedAt: microsecondsToUnixMs(row.lastAccessed),
+    isSession: expiresAt === null,
+  };
+}
+
+function steamDomainFamily(host) {
+  const normalized = String(host || '').replace(/^\./, '').toLowerCase();
+  if (normalized === 'steamcommunity.com') return 'community';
+  if (normalized === 'steampowered.com' || normalized === 'store.steampowered.com') return 'store';
+  return normalized || 'unknown';
+}
+
+function cookieFreshness(cookie) {
+  return Number(cookie.lastAccessedAt || cookie.createdAt || 0);
+}
 
 let sqlPromise = null;
 // In-memory cache: master key per browser id. The key never changes for a
@@ -83,8 +152,8 @@ function defaultProfileRoots() {
   return { home, localAppData, roamingAppData };
 }
 
-function chromiumProfileDir(userDataDir) {
-  if (!fs.existsSync(userDataDir)) return null;
+function chromiumProfileDirs(userDataDir) {
+  if (!fs.existsSync(userDataDir)) return [];
   const candidates = ['Default'];
   try {
     const entries = fs.readdirSync(userDataDir);
@@ -93,24 +162,29 @@ function chromiumProfileDir(userDataDir) {
       .sort((a, b) => parseInt(b.match(/\d+/)[0], 10) - parseInt(a.match(/\d+/)[0], 10));
     candidates.push(...numbered);
   } catch { /* ignore */ }
+  const profiles = [];
   for (const c of candidates) {
     const dir = path.join(userDataDir, c);
     const networkPath = path.join(dir, 'Network', 'Cookies');
     const legacyPath = path.join(dir, 'Cookies');
-    if (fs.existsSync(networkPath)) return { profileDir: dir, cookiesPath: networkPath };
-    if (fs.existsSync(legacyPath)) return { profileDir: dir, cookiesPath: legacyPath };
+    if (fs.existsSync(networkPath)) profiles.push({ profileDir: dir, cookiesPath: networkPath });
+    else if (fs.existsSync(legacyPath)) profiles.push({ profileDir: dir, cookiesPath: legacyPath });
   }
-  return null;
+  return profiles;
 }
 
-function firefoxProfilePath() {
+function chromiumProfileDir(userDataDir) {
+  return chromiumProfileDirs(userDataDir)[0] || null;
+}
+
+function firefoxProfilePaths() {
   const { roamingAppData } = defaultProfileRoots();
   const profilesIni = path.join(roamingAppData, 'Mozilla', 'Firefox', 'profiles.ini');
-  if (!fs.existsSync(profilesIni)) return null;
+  if (!fs.existsSync(profilesIni)) return [];
   let ini;
-  try { ini = fs.readFileSync(profilesIni, 'utf-8'); } catch { return null; }
+  try { ini = fs.readFileSync(profilesIni, 'utf-8'); } catch { return []; }
   const blocks = ini.split(/\r?\n\s*\r?\n/);
-  let chosen = null;
+  const profiles = [];
   for (const block of blocks) {
     if (!/^\[Profile/.test(block.trim())) continue;
     const pathMatch = block.match(/^Path=(.+)$/m);
@@ -120,14 +194,21 @@ function firefoxProfilePath() {
     const full = isRel
       ? path.join(roamingAppData, 'Mozilla', 'Firefox', rel)
       : rel;
-    if (/^Default=1/m.test(block)) { chosen = full; break; }
-    if (!chosen && /\.default-release$/.test(rel)) chosen = full;
-    if (!chosen) chosen = full;
+    const cookiesPath = path.join(full, 'cookies.sqlite');
+    if (!fs.existsSync(cookiesPath)) continue;
+    profiles.push({
+      profileDir: full,
+      cookiesPath,
+      priority: /^Default=1/m.test(block) ? 0 : /\.default-release$/.test(rel) ? 1 : 2,
+    });
   }
-  if (!chosen) return null;
-  const cookiesPath = path.join(chosen, 'cookies.sqlite');
-  if (!fs.existsSync(cookiesPath)) return null;
-  return { profileDir: chosen, cookiesPath };
+  return profiles
+    .sort((a, b) => a.priority - b.priority)
+    .map(({ profileDir, cookiesPath }) => ({ profileDir, cookiesPath }));
+}
+
+function firefoxProfilePath() {
+  return firefoxProfilePaths()[0] || null;
 }
 
 const BROWSER_DEFS = [
@@ -136,6 +217,7 @@ const BROWSER_DEFS = [
     label: 'Firefox',
     family: 'firefox',
     find() { return firefoxProfilePath(); },
+    findAll() { return firefoxProfilePaths(); },
   },
   {
     id: 'chrome',
@@ -144,6 +226,10 @@ const BROWSER_DEFS = [
     find() {
       const { localAppData } = defaultProfileRoots();
       return chromiumProfileDir(path.join(localAppData, 'Google', 'Chrome', 'User Data'));
+    },
+    findAll() {
+      const { localAppData } = defaultProfileRoots();
+      return chromiumProfileDirs(path.join(localAppData, 'Google', 'Chrome', 'User Data'));
     },
     localStatePath() {
       const { localAppData } = defaultProfileRoots();
@@ -158,6 +244,10 @@ const BROWSER_DEFS = [
       const { localAppData } = defaultProfileRoots();
       return chromiumProfileDir(path.join(localAppData, 'Microsoft', 'Edge', 'User Data'));
     },
+    findAll() {
+      const { localAppData } = defaultProfileRoots();
+      return chromiumProfileDirs(path.join(localAppData, 'Microsoft', 'Edge', 'User Data'));
+    },
     localStatePath() {
       const { localAppData } = defaultProfileRoots();
       return path.join(localAppData, 'Microsoft', 'Edge', 'User Data', 'Local State');
@@ -170,6 +260,10 @@ const BROWSER_DEFS = [
     find() {
       const { localAppData } = defaultProfileRoots();
       return chromiumProfileDir(path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data'));
+    },
+    findAll() {
+      const { localAppData } = defaultProfileRoots();
+      return chromiumProfileDirs(path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data'));
     },
     localStatePath() {
       const { localAppData } = defaultProfileRoots();
@@ -285,7 +379,7 @@ async function readChromiumCookies(cookiesPath) {
     const buf = fs.readFileSync(tmpPath);
     const db = new SQL.Database(new Uint8Array(buf));
     const hostList = STEAM_HOSTS.map((h) => `'${h.replace(/'/g, "''")}'`).join(',');
-    const res = db.exec(`SELECT host_key, name, value, encrypted_value FROM cookies WHERE host_key IN (${hostList})`);
+    const res = db.exec(`SELECT host_key, name, value, encrypted_value, expires_utc, creation_utc, last_access_utc, is_persistent FROM cookies WHERE host_key IN (${hostList})`);
     db.close();
     if (!res || !res[0]) return { ok: true, rows: [] };
     const cols = res[0].columns;
@@ -313,7 +407,7 @@ async function readFirefoxCookies(cookiesPath) {
     const buf = fs.readFileSync(tmpPath);
     const db = new SQL.Database(new Uint8Array(buf));
     const hostList = STEAM_HOSTS.map((h) => `'${h.replace(/'/g, "''")}'`).join(',');
-    const res = db.exec(`SELECT host, name, value FROM moz_cookies WHERE host IN (${hostList})`);
+    const res = db.exec(`SELECT host, name, value, expiry, creationTime, lastAccessed FROM moz_cookies WHERE host IN (${hostList})`);
     db.close();
     if (!res || !res[0]) return { ok: true, rows: [] };
     const cols = res[0].columns;
@@ -412,17 +506,42 @@ export async function extractSteamCookies(browserId) {
   }
   const def = BROWSER_DEFS.find((b) => b.id === browserId);
   if (!def) return { ok: false, browser: browserId, error: 'Unknown browser id' };
-  const profile = def.find();
-  if (!profile) return { ok: false, browser: browserId, error: `${def.label} profile not found on this machine` };
+  const profiles = def.findAll ? def.findAll() : [def.find()].filter(Boolean);
+  if (profiles.length === 0) return { ok: false, browser: browserId, error: `${def.label} profile not found on this machine` };
 
   if (def.family === 'firefox') {
-    const r = await readFirefoxCookies(profile.cookiesPath);
-    if (!r.ok) return { ok: false, browser: browserId, error: r.error };
-    return pickSteamCookies(browserId, r.rows.map((row) => ({ name: row.name, value: row.value, host: row.host })));
+    const cookies = [];
+    const readErrors = [];
+    for (const profile of profiles) {
+      const result = await readFirefoxCookies(profile.cookiesPath);
+      if (!result.ok) {
+        readErrors.push(result.error);
+        continue;
+      }
+      cookies.push(...result.rows.map((row) => normalizeFirefoxCookieRow(row, profile.profileDir)));
+    }
+    if (cookies.length === 0 && readErrors.length === profiles.length) {
+      return { ok: false, browser: browserId, error: readErrors[0] };
+    }
+    const notes = readErrors.length > 0
+      ? [`Could not inspect ${readErrors.length} ${def.label} profile(s); selection used the readable profiles only.`]
+      : [];
+    return pickSteamCookies(browserId, cookies, notes);
   }
 
-  const r = await readChromiumCookies(profile.cookiesPath);
-  if (!r.ok) return { ok: false, browser: browserId, error: r.error };
+  const rowsByProfile = [];
+  const readErrors = [];
+  for (const profile of profiles) {
+    const result = await readChromiumCookies(profile.cookiesPath);
+    if (!result.ok) {
+      readErrors.push(result.error);
+      continue;
+    }
+    rowsByProfile.push(...result.rows.map((row) => ({ row, profileId: profile.profileDir })));
+  }
+  if (rowsByProfile.length === 0 && readErrors.length === profiles.length) {
+    return { ok: false, browser: browserId, error: readErrors[0] };
+  }
 
   let key = masterKeyCache.get(browserId);
   if (!key) {
@@ -436,11 +555,14 @@ export async function extractSteamCookies(browserId) {
   }
 
   const decoded = [];
-  const notes = [];
+  const notes = readErrors.length > 0
+    ? [`Could not inspect ${readErrors.length} ${def.label} profile(s); selection used the readable profiles only.`]
+    : [];
   let appBoundCount = 0;
-  for (const row of r.rows) {
+  for (const { row, profileId } of rowsByProfile) {
+    const normalized = normalizeChromiumCookieRow(row, profileId);
     if (row.value && row.value.length > 0) {
-      decoded.push({ name: row.name, value: String(row.value), host: row.host_key });
+      decoded.push(normalized);
       continue;
     }
     const enc = row.encrypted_value;
@@ -448,7 +570,7 @@ export async function extractSteamCookies(browserId) {
     const buf = Buffer.isBuffer(enc) ? enc : Buffer.from(enc);
     const dec = decryptChromiumValue(buf, key);
     if (dec.ok) {
-      decoded.push({ name: row.name, value: dec.value, host: row.host_key });
+      decoded.push({ ...normalized, value: dec.value });
     } else {
       if (dec.reason && dec.reason.startsWith('app-bound')) appBoundCount += 1;
       log.debug(`Skipped ${row.name}@${row.host_key}: ${dec.reason}`);
@@ -460,23 +582,69 @@ export async function extractSteamCookies(browserId) {
   return pickSteamCookies(browserId, decoded, notes);
 }
 
-function pickSteamCookies(browserId, cookies, notes = []) {
-  const find = (name) => {
-    // Sort matches by host priority (steamcommunity > store), then by value
-    // length descending so we don't accidentally pick an empty/stale cookie
-    // when a populated one is also present.
-    const matches = cookies
-      .filter((c) => c.name === name && c.value)
-      .sort((a, b) => {
-        const pa = STEAM_HOST_PRIORITY(a.host);
-        const pb = STEAM_HOST_PRIORITY(b.host);
-        if (pa !== pb) return pa - pb;
-        return (b.value?.length || 0) - (a.value?.length || 0);
+export function pickSteamCookies(browserId, cookies, notes = [], now = Date.now()) {
+  const outputNotes = [...notes];
+  const valid = cookies.filter((cookie) => {
+    if (!cookie.value || !['sessionid', 'steamLoginSecure'].includes(cookie.name)) {
+      return false;
+    }
+    const noExpiry = cookie.expiresAt === null || cookie.expiresAt === undefined || cookie.expiresAt === 0;
+    const sessionCookie = cookie.isSession === true || (cookie.isSession !== false && noExpiry);
+    return sessionCookie || Number(cookie.expiresAt) > now;
+  });
+  const sessions = valid.filter((cookie) => cookie.name === 'sessionid');
+  const logins = valid.filter((cookie) => cookie.name === 'steamLoginSecure');
+
+  for (const [name, matches] of [['sessionid', sessions], ['steamLoginSecure', logins]]) {
+    if (new Set(matches.map((cookie) => cookie.value)).size > 1) {
+      outputNotes.push(`Conflicting valid ${name} cookies were found; selected the newest compatible pair without exposing cookie values.`);
+    }
+  }
+
+  const pairs = [];
+  for (const session of sessions) {
+    for (const login of logins) {
+      const sessionProfile = session.profileId || browserId;
+      const loginProfile = login.profileId || browserId;
+      const sessionDomain = steamDomainFamily(session.host);
+      const loginDomain = steamDomainFamily(login.host);
+      pairs.push({
+        session,
+        login,
+        sameProfile: sessionProfile === loginProfile,
+        sameDomain: sessionDomain === loginDomain,
+        domainPriority: sessionDomain === loginDomain
+          ? Math.min(STEAM_HOST_PRIORITY(session.host), STEAM_HOST_PRIORITY(login.host))
+          : Math.min(STEAM_HOST_PRIORITY(session.host), STEAM_HOST_PRIORITY(login.host)) + 10,
+        freshness: Math.min(cookieFreshness(session), cookieFreshness(login)),
+        newestMember: Math.max(cookieFreshness(session), cookieFreshness(login)),
       });
-    return matches.length > 0 ? matches[0].value : null;
-  };
-  const sessionid = find('sessionid');
-  const steamLoginSecure = find('steamLoginSecure');
+    }
+  }
+  pairs.sort((a, b) => {
+    if (a.sameProfile !== b.sameProfile) return a.sameProfile ? -1 : 1;
+    if (a.sameDomain !== b.sameDomain) return a.sameDomain ? -1 : 1;
+    if (a.domainPriority !== b.domainPriority) return a.domainPriority - b.domainPriority;
+    if (a.freshness !== b.freshness) return b.freshness - a.freshness;
+    return b.newestMember - a.newestMember;
+  });
+
+  const selected = pairs[0] || null;
+  const newest = (matches) => [...matches].sort((a, b) => {
+    const priority = STEAM_HOST_PRIORITY(a.host) - STEAM_HOST_PRIORITY(b.host);
+    return priority || cookieFreshness(b) - cookieFreshness(a);
+  })[0] || null;
+  const selectedSession = selected?.session || newest(sessions);
+  const selectedLogin = selected?.login || newest(logins);
+  if (selected && !selected.sameProfile) {
+    outputNotes.push('Warning: selected Steam cookies from different browser profiles because no same-profile pair was available.');
+  }
+  if (selected && !selected.sameDomain) {
+    outputNotes.push('Warning: selected a cross-domain Steam cookie fallback pair because no same-domain pair was available.');
+  }
+
+  const sessionid = selectedSession?.value || null;
+  const steamLoginSecure = selectedLogin?.value || null;
   const missing = [];
   if (!sessionid) missing.push('sessionid');
   if (!steamLoginSecure) missing.push('steamLoginSecure');
@@ -486,7 +654,7 @@ function pickSteamCookies(browserId, cookies, notes = []) {
     sessionid: sessionid || null,
     steamLoginSecure: steamLoginSecure || null,
     missing,
-    notes,
+    notes: outputNotes,
     error: missing.length > 0
       ? `Missing ${missing.join(' + ')} — make sure you're logged into Steam in this browser`
       : null,
