@@ -449,7 +449,7 @@ export default function Dashboard() {
   const handleAutoStartChange = async (checked: boolean) => {
     setAutoStartServer(checked)
     try {
-      await configApi.updateAppSettings({ autoStartServer: String(checked) })
+      await configApi.updateAppSettings({ autoStartServer: checked })
       toast({
         title: checked ? t('toasts.autoStartEnabledTitle') : t('toasts.autoStartDisabledTitle'),
         description: checked ? t('toasts.autoStartEnabledDesc') : t('toasts.autoStartDisabledDesc'),
