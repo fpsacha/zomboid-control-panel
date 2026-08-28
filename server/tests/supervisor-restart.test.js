@@ -102,54 +102,17 @@ function setupPendingUpdate(dir) {
   fs.writeFileSync(path.join(dir, ".update-pending"), "pending");
 }
 
-function startExclusiveLocker(targetPath, holdMs = 120000) {
-  const readyPath = `${targetPath}.lock-ready-${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
-  const lockScript = `
-$deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt $deadline) {
-  $stream = $null
-  try {
-    $stream = [System.IO.File]::Open(
-      $env:ZCP_LOCK_TARGET,
-      [System.IO.FileMode]::Open,
-      [System.IO.FileAccess]::ReadWrite,
-      [System.IO.FileShare]::None
-    )
-    [System.IO.File]::WriteAllText($env:ZCP_LOCK_READY, "locked")
-    Start-Sleep -Milliseconds ([int]$env:ZCP_LOCK_HOLD_MS)
-    exit 0
-  } catch {
-    Start-Sleep -Milliseconds 10
-  } finally {
-    if ($null -ne $stream) { $stream.Dispose() }
-  }
-}
-exit 2
-`;
-  const child = spawn("powershell.exe", ["-NoProfile", "-Command", lockScript], {
-    windowsHide: true,
+function denyDelete(targetPath) {
+  execFileSync("icacls.exe", [targetPath, "/deny", "*S-1-1-0:(D)"], {
     stdio: "ignore",
-    env: {
-      ...process.env,
-      ZCP_LOCK_TARGET: targetPath,
-      ZCP_LOCK_READY: readyPath,
-      ZCP_LOCK_HOLD_MS: String(holdMs),
-    },
   });
-  return { child, readyPath };
 }
 
-function stopProcessTree(child) {
-  if (!child || child.exitCode !== null) return;
-  try {
-    execFileSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
-      stdio: "ignore",
-    });
-  } catch {
-    /* already gone */
-  }
+function allowDelete(targetPath) {
+  if (!fs.existsSync(targetPath)) return;
+  execFileSync("icacls.exe", [targetPath, "/remove:d", "*S-1-1-0"], {
+    stdio: "ignore",
+  });
 }
 
 async function waitForCondition(check, timeoutMs, description) {
@@ -594,41 +557,26 @@ describe.skipIf(!!skipReason)(
         setupStub(dir, [0], [0]);
         setupPendingUpdate(dir);
 
-        const locker = startExclusiveLocker(path.join(dir, ".update-pending"));
-        await waitForCondition(
-          () => fs.existsSync(locker.readyPath),
-          30000,
-          "the pending marker to be exclusively locked",
-        );
-
-        const supervisor = runSupervisor(
-          dir,
-          {
-            PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
-            PANEL_SUPERVISOR_MAX_CRASHES: "1",
-          },
-          120000,
-        );
-        let failureObserved = false;
+        const markerPath = path.join(dir, ".update-pending");
+        denyDelete(markerPath);
+        let result;
         try {
-          await waitForCondition(
-            () =>
-              /could not move pending marker/i.test(readSupervisorLog(dir)),
-            30000,
-            "the supervisor to report the marker transition failure",
+          result = await runSupervisor(
+            dir,
+            {
+              PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
+              PANEL_SUPERVISOR_MAX_CRASHES: "1",
+            },
+            120000,
           );
-          failureObserved = true;
-        } catch {
-          /* asserted after the child has been cleaned up */
         } finally {
-          stopProcessTree(locker.child);
+          allowDelete(markerPath);
         }
-        const result = await supervisor;
 
-        expect(failureObserved).toBe(true);
         expect(result.status).toBe(0);
         expect(countLaunches(result.stdout)).toBeGreaterThanOrEqual(1);
         const log = readSupervisorLog(dir);
+        expect(log).toMatch(/could not move pending marker/i);
         expect(log).not.toMatch(/bundle activated; waiting/i);
         expect(fs.existsSync(path.join(dir, "ZomboidControlPanel.exe"))).toBe(true);
         expect(
@@ -639,9 +587,9 @@ describe.skipIf(!!skipReason)(
     );
 
     it(
-      "retains the journal and reports an incomplete rollback when a backup restore is locked",
+      "retains the journal and reports an incomplete rollback when a backup cannot be restored",
       async () => {
-        const dir = freshScenarioDir("locked-backup-restore");
+        const dir = freshScenarioDir("denied-backup-restore");
         await writeStartBatInto(dir);
         setupStub(dir, [7, 0], [5000, 0]);
         setupPendingUpdate(dir);
@@ -650,33 +598,31 @@ describe.skipIf(!!skipReason)(
           dir,
           "ZomboidControlPanel.exe.bundle-previous",
         );
-        const locker = startExclusiveLocker(backupPath);
         const supervisor = runSupervisor(
           dir,
           { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
           120000,
         );
-        let lockObserved = false;
+        let permissionApplied = false;
+        let setupError;
+        let result;
         try {
           await waitForCondition(
-            () => fs.existsSync(locker.readyPath),
+            () => fs.existsSync(backupPath),
             30000,
-            "the binary backup to be exclusively locked",
+            "the binary backup to be created",
           );
-          lockObserved = true;
-          await waitForCondition(
-            () => /rollback incomplete/i.test(readSupervisorLog(dir)),
-            30000,
-            "the supervisor to report an incomplete rollback",
-          );
-        } catch {
-          /* asserted after the child has been cleaned up */
+          denyDelete(backupPath);
+          permissionApplied = true;
+        } catch (error) {
+          setupError = error;
         } finally {
-          stopProcessTree(locker.child);
+          result = await supervisor;
+          allowDelete(backupPath);
         }
-        const result = await supervisor;
 
-        expect(lockObserved).toBe(true);
+        if (setupError) throw setupError;
+        expect(permissionApplied).toBe(true);
         expect(result.status).toBe(1);
         expect(fs.existsSync(path.join(dir, "update-bundle.json"))).toBe(true);
         expect(fs.existsSync(path.join(dir, ".update-applying"))).toBe(true);
