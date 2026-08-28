@@ -559,18 +559,25 @@ describe.skipIf(!!skipReason)(
 
         const markerPath = path.join(dir, ".update-pending");
         denyDelete(markerPath);
+        const supervisor = runSupervisor(
+          dir,
+          {
+            PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
+            PANEL_SUPERVISOR_MAX_CRASHES: "1",
+          },
+          120000,
+        );
         let result;
         try {
-          result = await runSupervisor(
-            dir,
-            {
-              PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
-              PANEL_SUPERVISOR_MAX_CRASHES: "1",
-            },
-            120000,
+          await waitForCondition(
+            () =>
+              /could not move pending marker/i.test(readSupervisorLog(dir)),
+            30000,
+            "the supervisor to report the marker transition failure",
           );
         } finally {
           allowDelete(markerPath);
+          result = await supervisor;
         }
 
         expect(result.status).toBe(0);
