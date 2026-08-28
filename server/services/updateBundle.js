@@ -4,6 +4,26 @@ import path from "path";
 
 export const PANEL_API_CONTRACT_VERSION = 1;
 
+const JOURNAL_PHASES = new Set([
+  "staged",
+  "applying",
+  "binary_backed_up",
+  "client_backed_up",
+  "client_activated",
+  "awaiting_startup_ack",
+  "rollback_failed",
+  "rolled_back",
+]);
+
+const REQUIRED_JOURNAL_PATHS = [
+  "binary",
+  "stagedBinary",
+  "backupBinary",
+  "liveClient",
+  "stagedClient",
+  "backupClient",
+];
+
 function updateError(code, message, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
   error.code = code;
@@ -16,8 +36,23 @@ function sha256File(filePath) {
   return hash.digest("hex");
 }
 
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+function readJson(filePath, errorCode = "invalid_bundle") {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (error?.code === errorCode) throw error;
+    throw updateError(errorCode, `Could not read JSON from ${filePath}`, error);
+  }
+}
+
+function renameIfPresent(source, destination) {
+  try {
+    fs.renameSync(source, destination);
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 function writeJournal(journalPath, journal) {
@@ -25,14 +60,12 @@ function writeJournal(journalPath, journal) {
   const previousPath = `${journalPath}.previous`;
   fs.writeFileSync(temporaryPath, JSON.stringify(journal, null, 2), "utf8");
   fs.rmSync(previousPath, { force: true });
-  if (fs.existsSync(journalPath)) fs.renameSync(journalPath, previousPath);
+  renameIfPresent(journalPath, previousPath);
   try {
     fs.renameSync(temporaryPath, journalPath);
     fs.rmSync(previousPath, { force: true });
   } catch (error) {
-    if (!fs.existsSync(journalPath) && fs.existsSync(previousPath)) {
-      fs.renameSync(previousPath, journalPath);
-    }
+    renameIfPresent(previousPath, journalPath);
     fs.rmSync(temporaryPath, { force: true });
     throw error;
   }
@@ -44,6 +77,16 @@ function normalizedMetadata(value) {
     buildSha: String(value?.buildSha || ""),
     apiContractVersion: Number(value?.apiContractVersion),
   };
+}
+
+function hasValidMetadata(value) {
+  const metadata = normalizedMetadata(value);
+  return (
+    metadata.panelVersion !== "" &&
+    metadata.buildSha !== "" &&
+    Number.isInteger(metadata.apiContractVersion) &&
+    metadata.apiContractVersion > 0
+  );
 }
 
 export function validateBuildCompatibility(frontend, backend) {
@@ -65,21 +108,139 @@ export function validateBuildCompatibility(frontend, backend) {
 }
 
 function assertInsideInstall(installDir, candidate, label) {
-  const root = `${path.resolve(installDir)}${path.sep}`;
+  if (typeof installDir !== "string" || typeof candidate !== "string") {
+    throw updateError("invalid_bundle", `${label} is not a valid path`);
+  }
+  const resolvedInstallDir = path.resolve(installDir);
+  const root = `${resolvedInstallDir}${path.sep}`;
   const resolved = path.resolve(candidate);
-  if (resolved !== path.resolve(installDir) && !resolved.startsWith(root)) {
+  if (resolved !== resolvedInstallDir && !resolved.startsWith(root)) {
     throw updateError("invalid_bundle", `${label} is outside the install directory`);
   }
   return resolved;
 }
 
-function validateJournal(journal) {
-  if (!journal || journal.schemaVersion !== 1 || !journal.paths) {
+function validateJournal(journal, journalPath) {
+  if (
+    !journal ||
+    journal.schemaVersion !== 1 ||
+    typeof journal.transactionId !== "string" ||
+    journal.transactionId === "" ||
+    typeof journal.version !== "string" ||
+    !JOURNAL_PHASES.has(journal.phase) ||
+    typeof journal.installDir !== "string" ||
+    !hasValidMetadata(journal.metadata) ||
+    typeof journal.hashes?.binarySha256 !== "string" ||
+    journal.hashes.binarySha256 === "" ||
+    !journal.paths
+  ) {
     throw updateError("invalid_bundle", "Update bundle journal is invalid");
   }
-  for (const [label, candidate] of Object.entries(journal.paths)) {
-    assertInsideInstall(journal.installDir, candidate, label);
+
+  const installDir = path.resolve(journal.installDir);
+  if (path.dirname(path.resolve(journalPath)) !== installDir) {
+    throw updateError(
+      "invalid_bundle",
+      "Update bundle journal does not match its installation directory",
+    );
   }
+  assertInsideInstall(installDir, journalPath, "journal");
+  for (const label of REQUIRED_JOURNAL_PATHS) {
+    assertInsideInstall(installDir, journal.paths[label], label);
+  }
+  return journal;
+}
+
+export function readUpdateBundleJournalIfPresent(journalPath) {
+  let descriptor;
+  try {
+    descriptor = fs.openSync(journalPath, "r");
+    let journal;
+    try {
+      journal = JSON.parse(fs.readFileSync(descriptor, "utf8"));
+    } catch (error) {
+      throw updateError("invalid_bundle", "Update bundle journal is not valid JSON", error);
+    }
+    return validateJournal(journal, journalPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    if (error?.code === "invalid_bundle") throw error;
+    throw updateError("invalid_bundle", "Could not read update bundle journal", error);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+function markerIsPresent(markerPath, installDir) {
+  if (!markerPath) return false;
+  assertInsideInstall(installDir, markerPath, "applying marker");
+  let descriptor;
+  try {
+    descriptor = fs.openSync(markerPath, "r");
+    return true;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw updateError("invalid_bundle", "Could not inspect update applying marker", error);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+function ensureCompatibleBundle(journal, runningMetadata) {
+  const backendCompatibility = validateBuildCompatibility(
+    journal.metadata,
+    runningMetadata,
+  );
+  const frontendCompatibility = validateBuildCompatibility(
+    readJson(path.join(journal.paths.liveClient, "build-info.json")),
+    runningMetadata,
+  );
+  if (!backendCompatibility.compatible || !frontendCompatibility.compatible) {
+    throw updateError(
+      "version_mismatch",
+      "Applied frontend and backend metadata do not match",
+    );
+  }
+}
+
+function sameAcknowledgementState(previous, current) {
+  return (
+    previous.transactionId === current.transactionId &&
+    previous.phase === current.phase &&
+    previous.hashes.binarySha256 === current.hashes.binarySha256 &&
+    validateBuildCompatibility(previous.metadata, current.metadata).compatible &&
+    REQUIRED_JOURNAL_PATHS.every(
+      (label) => previous.paths[label] === current.paths[label],
+    )
+  );
+}
+
+export function inspectPendingUpdateBundle({
+  journalPath,
+  applyingMarkerPath,
+  runningMetadata,
+}) {
+  const journal = readUpdateBundleJournalIfPresent(journalPath);
+  if (!journal) {
+    return { pending: false, awaitingStartupAck: false };
+  }
+
+  const windowsApplication =
+    journal.phase === "staged" &&
+    markerIsPresent(applyingMarkerPath, journal.installDir);
+  const awaitingStartupAck =
+    journal.phase === "awaiting_startup_ack" || windowsApplication;
+
+  if (awaitingStartupAck) ensureCompatibleBundle(journal, runningMetadata);
+
+  return {
+    pending: true,
+    awaitingStartupAck,
+    phase: journal.phase,
+    transactionId: journal.transactionId,
+    metadata: normalizedMetadata(journal.metadata),
+    applyingMarkerPath,
+  };
 }
 
 export function stageUpdateBundle({
@@ -99,14 +260,30 @@ export function stageUpdateBundle({
   if (!compatibility.compatible) {
     throw updateError(compatibility.diagnosticCode, compatibility.reason);
   }
-  if (!fs.existsSync(stagedBinaryPath)) {
-    throw updateError("av_quarantine", "Staged update binary is missing");
+
+  let binarySha256;
+  try {
+    binarySha256 = sha256File(stagedBinaryPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw updateError("av_quarantine", "Staged update binary is missing", error);
+    }
+    throw error;
   }
-  if (!fs.existsSync(path.join(incomingClientPath, "index.html"))) {
-    throw updateError(
-      "frontend_swap_failed",
-      "Staged frontend does not contain index.html",
-    );
+  let indexDescriptor;
+  try {
+    indexDescriptor = fs.openSync(path.join(incomingClientPath, "index.html"), "r");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw updateError(
+        "frontend_swap_failed",
+        "Staged frontend does not contain index.html",
+        error,
+      );
+    }
+    throw error;
+  } finally {
+    if (indexDescriptor !== undefined) fs.closeSync(indexDescriptor);
   }
 
   const resolvedInstallDir = path.resolve(installDir);
@@ -147,7 +324,7 @@ export function stageUpdateBundle({
     stagedAt: new Date().toISOString(),
     installDir: resolvedInstallDir,
     metadata: expectedMetadata,
-    hashes: { binarySha256: sha256File(stagedBinaryPath) },
+    hashes: { binarySha256 },
     paths: {
       binary: path.resolve(binaryPath),
       stagedBinary: path.resolve(stagedBinaryPath),
@@ -165,10 +342,16 @@ function rollback(journalPath, journal, reason) {
   const { paths } = journal;
   const rollbackErrors = [];
   const restore = (live, backup, isDirectory) => {
+    const capturedBackup = `${backup}.restoring-${process.pid}`;
     try {
-      if (fs.existsSync(backup)) {
+      fs.rmSync(capturedBackup, { recursive: isDirectory, force: true });
+      if (!renameIfPresent(backup, capturedBackup)) return;
+      try {
         fs.rmSync(live, { recursive: isDirectory, force: true });
-        fs.renameSync(backup, live);
+        fs.renameSync(capturedBackup, live);
+      } catch (error) {
+        renameIfPresent(capturedBackup, backup);
+        throw error;
       }
     } catch (error) {
       rollbackErrors.push(error.message);
@@ -185,13 +368,19 @@ function rollback(journalPath, journal, reason) {
 }
 
 export function applyUpdateBundle(journalPath) {
-  const journal = readJson(journalPath);
-  validateJournal(journal);
+  const journal = readUpdateBundleJournalIfPresent(journalPath);
+  if (!journal) throw updateError("invalid_bundle", "Update bundle journal is missing");
   const { paths } = journal;
-  if (!fs.existsSync(paths.stagedBinary)) {
-    throw updateError("av_quarantine", "Staged update binary is missing");
+  let stagedBinaryHash;
+  try {
+    stagedBinaryHash = sha256File(paths.stagedBinary);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw updateError("av_quarantine", "Staged update binary is missing", error);
+    }
+    throw error;
   }
-  if (sha256File(paths.stagedBinary) !== journal.hashes.binarySha256) {
+  if (stagedBinaryHash !== journal.hashes.binarySha256) {
     throw updateError("av_quarantine", "Staged update binary hash changed");
   }
   const clientCompatibility = validateBuildCompatibility(
@@ -211,13 +400,11 @@ export function applyUpdateBundle(journalPath) {
   writeJournal(journalPath, journal);
 
   try {
-    if (fs.existsSync(paths.binary)) fs.renameSync(paths.binary, paths.backupBinary);
+    renameIfPresent(paths.binary, paths.backupBinary);
     journal.phase = "binary_backed_up";
     writeJournal(journalPath, journal);
 
-    if (fs.existsSync(paths.liveClient)) {
-      fs.renameSync(paths.liveClient, paths.backupClient);
-    }
+    renameIfPresent(paths.liveClient, paths.backupClient);
     journal.phase = "client_backed_up";
     writeJournal(journalPath, journal);
 
@@ -245,29 +432,69 @@ export function applyUpdateBundle(journalPath) {
   }
 }
 
-export function acknowledgeUpdateBundle(journalPath, runningMetadata) {
-  if (!fs.existsSync(journalPath)) return false;
-  const journal = readJson(journalPath);
-  validateJournal(journal);
-  if (journal.phase !== "awaiting_startup_ack") return false;
-  const backendCompatibility = validateBuildCompatibility(
-    journal.metadata,
-    runningMetadata,
-  );
-  const frontendCompatibility = validateBuildCompatibility(
-    readJson(path.join(journal.paths.liveClient, "build-info.json")),
-    runningMetadata,
-  );
-  if (!backendCompatibility.compatible || !frontendCompatibility.compatible) {
-    rollback(journalPath, journal, "version_mismatch");
+export function acknowledgeUpdateBundle(
+  journalPath,
+  runningMetadata,
+  { transactionId, expectedMetadata, applyingMarkerPath } = {},
+) {
+  const journal = readUpdateBundleJournalIfPresent(journalPath);
+  if (!journal) return false;
+
+  if (transactionId && journal.transactionId !== transactionId) {
     throw updateError(
-      "version_mismatch",
-      "Applied frontend and backend metadata do not match",
+      "invalid_bundle",
+      "Update bundle transaction changed before startup acknowledgement",
     );
   }
-  fs.rmSync(journal.paths.backupBinary, { force: true });
-  fs.rmSync(journal.paths.backupClient, { recursive: true, force: true });
+  if (
+    expectedMetadata &&
+    !validateBuildCompatibility(journal.metadata, expectedMetadata).compatible
+  ) {
+    throw updateError(
+      "invalid_bundle",
+      "Update bundle metadata changed before startup acknowledgement",
+    );
+  }
+
+  const windowsApplication =
+    journal.phase === "staged" &&
+    markerIsPresent(applyingMarkerPath, journal.installDir);
+  if (journal.phase !== "awaiting_startup_ack" && !windowsApplication) return false;
+
+  const confirmedJournal = readUpdateBundleJournalIfPresent(journalPath);
+  if (!confirmedJournal) return false;
+  if (!sameAcknowledgementState(journal, confirmedJournal)) {
+    throw updateError(
+      "invalid_bundle",
+      "Update bundle state changed before startup acknowledgement",
+    );
+  }
+  if (
+    windowsApplication &&
+    !markerIsPresent(applyingMarkerPath, confirmedJournal.installDir)
+  ) {
+    return false;
+  }
+
+  try {
+    ensureCompatibleBundle(confirmedJournal, runningMetadata);
+  } catch (error) {
+    if (error?.code !== "version_mismatch") throw error;
+    const rollbackErrors = rollback(
+      journalPath,
+      confirmedJournal,
+      "version_mismatch",
+    );
+    if (!rollbackErrors.length && applyingMarkerPath) {
+      fs.rmSync(applyingMarkerPath, { force: true });
+    }
+    throw error;
+  }
+
+  fs.rmSync(confirmedJournal.paths.backupBinary, { force: true });
+  fs.rmSync(confirmedJournal.paths.backupClient, { recursive: true, force: true });
   fs.rmSync(journalPath, { force: true });
+  if (applyingMarkerPath) fs.rmSync(applyingMarkerPath, { force: true });
   return true;
 }
 
@@ -275,9 +502,8 @@ export function recoverInterruptedUpdateBundle(
   journalPath,
   reason = "startup_handshake_failed",
 ) {
-  if (!fs.existsSync(journalPath)) return false;
-  const journal = readJson(journalPath);
-  validateJournal(journal);
+  const journal = readUpdateBundleJournalIfPresent(journalPath);
+  if (!journal) return false;
   if (journal.phase === "staged") return false;
   const errors = rollback(journalPath, journal, reason);
   if (errors.length) {

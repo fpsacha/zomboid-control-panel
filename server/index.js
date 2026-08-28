@@ -53,9 +53,9 @@ import { PanelUpdateChecker } from "./services/panelUpdateChecker.js";
 import {
   acknowledgeUpdateBundle,
   applyUpdateBundle,
+  inspectPendingUpdateBundle,
   PANEL_API_CONTRACT_VERSION as DEFAULT_API_CONTRACT_VERSION,
   recoverInterruptedUpdateBundle,
-  validateBuildCompatibility,
 } from "./services/updateBundle.js";
 import { LogTailer } from "./services/logTailer.js";
 import { DiskMonitor } from "./services/diskMonitor.js";
@@ -1348,27 +1348,15 @@ function updateBundleJournalPath() {
   return path.join(path.dirname(panelUpdateChecker.getExeBasePath()), "update-bundle.json");
 }
 
-function validatePendingUpdateBundle() {
+let _pendingUpdateInspection = { pending: false, awaitingStartupAck: false };
+
+function inspectPendingPanelUpdate() {
   const journalPath = updateBundleJournalPath();
-  if (!fs.existsSync(journalPath)) return;
-  const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
-  const applyingMarker = path.join(path.dirname(journalPath), ".update-applying");
-  if (journal.phase === "staged" && fs.existsSync(applyingMarker)) {
-    journal.phase = "awaiting_startup_ack";
-    journal.appliedAt = new Date().toISOString();
-    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2), "utf8");
-  }
-  if (journal.phase !== "awaiting_startup_ack") return;
-  const clientMetadata = JSON.parse(
-    fs.readFileSync(path.join(journal.paths.liveClient, "build-info.json"), "utf8"),
-  );
-  const backendResult = validateBuildCompatibility(journal.metadata, _buildMetadata);
-  const frontendResult = validateBuildCompatibility(clientMetadata, _buildMetadata);
-  if (!backendResult.compatible || !frontendResult.compatible) {
-    const error = new Error("Applied update bundle metadata does not match the running backend");
-    error.code = "version_mismatch";
-    throw error;
-  }
+  return inspectPendingUpdateBundle({
+    journalPath,
+    applyingMarkerPath: path.join(path.dirname(journalPath), ".update-applying"),
+    runningMetadata: _buildMetadata,
+  });
 }
 app.get("/api/health", (req, res) => {
   res.json({
@@ -2542,10 +2530,10 @@ async function start() {
 
     if (typeof process.pkg !== "undefined") {
       try {
-        validatePendingUpdateBundle();
+        _pendingUpdateInspection = inspectPendingPanelUpdate();
       } catch (error) {
         log.error(
-          `Update startup validation failed [${error.code || "version_mismatch"}]: ${error.message}`,
+          `Update startup validation failed [${error.code || "invalid_bundle"}]: ${error.message}`,
         );
         process.exit(76);
         return;
@@ -3002,10 +2990,14 @@ async function start() {
         logReady(urls);
         try {
           const journalPath = updateBundleJournalPath();
-          if (acknowledgeUpdateBundle(journalPath, _buildMetadata)) {
-            fs.rmSync(path.join(path.dirname(journalPath), ".update-applying"), {
-              force: true,
-            });
+          if (
+            _pendingUpdateInspection.awaitingStartupAck &&
+            acknowledgeUpdateBundle(journalPath, _buildMetadata, {
+              transactionId: _pendingUpdateInspection.transactionId,
+              expectedMetadata: _pendingUpdateInspection.metadata,
+              applyingMarkerPath: _pendingUpdateInspection.applyingMarkerPath,
+            })
+          ) {
             log.info("Update bundle startup acknowledged; previous artifacts removed");
           }
         } catch (error) {
