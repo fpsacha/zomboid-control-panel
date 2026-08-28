@@ -1476,7 +1476,7 @@ router.post("/collection/extract-cookies", async (req, res) => {
     // caller (this router's own permission floor) could ask this one
     // endpoint for the panel host's live Steam login token; now it can't
     // (2026-08-26 bug hunt, extract-cookies response shape finding).
-    setSteamSessionCredentials(result.sessionid, result.steamLoginSecure);
+    await setSteamSessionCredentials(result.sessionid, result.steamLoginSecure);
     res.json({
       ok: true,
       browser: result.browser,
@@ -1533,7 +1533,7 @@ router.post("/collection/extension-push", async (req, res) => {
         });
     }
 
-    setSteamSessionCredentials(sessionid, loginSecure);
+    await setSteamSessionCredentials(sessionid, loginSecure);
 
     log.info(
       `Steam cookies updated via browser extension (user: ${req.user?.username || "unknown"})`,

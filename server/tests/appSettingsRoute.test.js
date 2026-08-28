@@ -3,11 +3,16 @@ import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 
 const getAllSettings = vi.fn();
 const setSetting = vi.fn();
+const setSteamSessionCredentials = vi.fn();
 
 vi.mock("../database/init.js", () => ({
   getAllSettings,
   setSetting,
   getRoleByName: mockGetRoleByName,
+}));
+
+vi.mock("../services/steamSessionCredentials.js", () => ({
+  setSteamSessionCredentials,
 }));
 
 const { default: router } = await import("../routes/config.js");
@@ -63,10 +68,76 @@ describe("GET /api/config/app-settings", () => {
 });
 
 describe("PUT /api/config/app-settings", () => {
+  beforeEach(() => {
+    setSetting.mockReset();
+    setSteamSessionCredentials.mockReset().mockResolvedValue(undefined);
+  });
+
   function makeApp(overrides = {}) {
     const values = { modChecker: null, serverManager: null, rconService: null, ...overrides };
     return { get: (key) => values[key] };
   }
+
+  it("writes Steam cookies through canonical secret storage instead of db.json", async () => {
+    setSetting.mockReset();
+    setSteamSessionCredentials.mockReset().mockResolvedValue(undefined);
+    getAllSettings.mockResolvedValue({
+      steamSessionId: "old-session",
+      steamLoginSecure: "old-login",
+    });
+    const response = createResponse();
+
+    await runRoute(
+      "/app-settings",
+      "put",
+      {
+        body: {
+          settings: {
+            steamSessionId: "new-session",
+            steamLoginSecure: "new-login",
+          },
+        },
+        user: { role: "admin" },
+        app: makeApp(),
+      },
+      response,
+    );
+
+    expect(setSteamSessionCredentials).toHaveBeenCalledWith(
+      "new-session",
+      "new-login",
+    );
+    expect(setSetting).not.toHaveBeenCalledWith("steamSessionId", expect.anything());
+    expect(setSetting).not.toHaveBeenCalledWith("steamLoginSecure", expect.anything());
+  });
+
+  it("passes an omitted or masked Steam cookie as unchanged during a partial update", async () => {
+    setSetting.mockReset();
+    setSteamSessionCredentials.mockReset().mockResolvedValue(undefined);
+    getAllSettings.mockResolvedValue({ steamSessionId: "old-session" });
+    const response = createResponse();
+
+    await runRoute(
+      "/app-settings",
+      "put",
+      {
+        body: {
+          settings: {
+            steamSessionId: "replacement-session",
+            steamLoginSecure: "••••••••1234",
+          },
+        },
+        user: { role: "admin" },
+        app: makeApp(),
+      },
+      response,
+    );
+
+    expect(setSteamSessionCredentials).toHaveBeenCalledWith(
+      "replacement-session",
+      undefined,
+    );
+  });
 
   it("is rejected for a non-admin authenticated user (Finding 5)", async () => {
     const response = createResponse();

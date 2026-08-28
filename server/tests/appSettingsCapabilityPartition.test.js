@@ -46,11 +46,16 @@ const ROLES = {
 const getRoleByName = vi.fn(async (name) => ROLES[name] || null);
 const getAllSettings = vi.fn();
 const setSetting = vi.fn();
+const setSteamSessionCredentials = vi.fn();
 
 vi.mock("../database/init.js", () => ({
   getAllSettings,
   setSetting,
   getRoleByName,
+}));
+
+vi.mock("../services/steamSessionCredentials.js", () => ({
+  setSteamSessionCredentials,
 }));
 
 const { default: router } = await import("../routes/config.js");
@@ -91,6 +96,7 @@ describe("PUT /config/app-settings -- per-key capability partition", () => {
   beforeEach(() => {
     getAllSettings.mockReset();
     setSetting.mockReset();
+    setSteamSessionCredentials.mockReset().mockResolvedValue(undefined);
     getRoleByName.mockClear();
   });
 
@@ -226,7 +232,10 @@ describe("PUT /config/app-settings -- per-key capability partition", () => {
       "discordGuildId",
       "123456789012345678",
     );
-    expect(setSetting).toHaveBeenCalledWith("steamSessionId", "new-session");
+    expect(setSteamSessionCredentials).toHaveBeenCalledWith(
+      "new-session",
+      undefined,
+    );
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true }),
     );

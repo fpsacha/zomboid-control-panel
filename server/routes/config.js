@@ -36,6 +36,7 @@ import {
   MAX_MEMORY_GB_MAX,
 } from "./server.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
+import { setSteamSessionCredentials } from "../services/steamSessionCredentials.js";
 
 // Local to this route: autoExportMaxPerPlayer has no counterpart check in
 // server.js (or anywhere else), so unlike the port/memory constants above
@@ -773,8 +774,25 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
       });
     }
 
+    const steamSessionIdEntry = filtered.find(
+      ([key]) => key === "steamSessionId",
+    );
+    const steamLoginSecureEntry = filtered.find(
+      ([key]) => key === "steamLoginSecure",
+    );
+    if (steamSessionIdEntry || steamLoginSecureEntry) {
+      await setSteamSessionCredentials(
+        steamSessionIdEntry?.[1],
+        steamLoginSecureEntry?.[1],
+      );
+    }
+
     for (const [key, value] of filtered) {
-      if (key === "modCheckInterval") continue;
+      if (
+        key === "modCheckInterval" ||
+        key === "steamSessionId" ||
+        key === "steamLoginSecure"
+      ) continue;
       await setSetting(key, value);
     }
 

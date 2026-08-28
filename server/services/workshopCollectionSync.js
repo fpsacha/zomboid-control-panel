@@ -22,8 +22,13 @@
  */
 
 import { createLogger } from '../utils/logger.js';
-import { getSetting, setSetting } from '../database/init.js';
-import { loadUiSecret, writeUiSecretFile } from '../utils/uiSecretFile.js';
+import { getSetting } from '../database/init.js';
+import {
+  getSteamSessionCredentials,
+  setSteamSessionCredentials,
+} from './steamSessionCredentials.js';
+
+export { getSteamSessionCredentials, setSteamSessionCredentials };
 
 const log = createLogger('WorkshopCollectionSync');
 
@@ -148,32 +153,6 @@ export async function fetchPublishedFileTitles(workshopIds) {
  * goes through this instead of getSetting directly, so the migration logic
  * lives in one place.
  */
-export async function getSteamSessionCredentials() {
-  const [legacySessionId, legacyLoginSecure] = await Promise.all([
-    getSetting('steamSessionId'),
-    getSetting('steamLoginSecure'),
-  ]);
-  const [sessionId, loginSecure] = await Promise.all([
-    loadUiSecret('steamSessionId', {
-      legacyValue: legacySessionId,
-      clearLegacy: () => setSetting('steamSessionId', null),
-      log,
-    }),
-    loadUiSecret('steamLoginSecure', {
-      legacyValue: legacyLoginSecure,
-      clearLegacy: () => setSetting('steamLoginSecure', null),
-      log,
-    }),
-  ]);
-  return { sessionId, loginSecure };
-}
-
-/** Synchronous — file I/O, not a settings-store write. */
-export function setSteamSessionCredentials(sessionId, loginSecure) {
-  writeUiSecretFile('steamSessionId', sessionId);
-  writeUiSecretFile('steamLoginSecure', loginSecure);
-}
-
 /**
  * Build the cookie header from settings. Returns null if either piece is missing.
  */
