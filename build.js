@@ -243,8 +243,8 @@ set "APPLYING=%INSTALL_DIR%.update-applying"
 set "JOURNAL=%INSTALL_DIR%update-bundle.json"
 set "BASE_EXE=ZomboidControlPanel.exe"
 set "BIN_BACKUP=ZomboidControlPanel.exe.bundle-previous"
-set "CLIENT_LIVE=%INSTALL_DIR%client\dist"
-set "CLIENT_BACKUP=%INSTALL_DIR%client\dist.previous"
+set "CLIENT_LIVE=%INSTALL_DIR%client\\dist"
+set "CLIENT_BACKUP=%INSTALL_DIR%client\\dist.previous"
 set "LOG_DIR=%INSTALL_DIR%logs"
 set "LOG_FILE=%LOG_DIR%\\supervisor.log"
 
@@ -380,7 +380,7 @@ echo.
 rem ============================================================
 rem :apply_update  — activate the journaled frontend/backend bundle.
 rem  - Picks newest of .exe.new / .exe.new2 as the binary source.
-rem  - Backs up current .exe and client\dist under fixed transaction names.
+rem  - Backs up current .exe and client\\dist under fixed transaction names.
 rem  - Keeps both backups until the new backend acknowledges listener startup.
 rem ============================================================
 :apply_update
@@ -407,7 +407,7 @@ rem ============================================================
     call :stamp "Apply: staged frontend path missing from journal [version_mismatch]"
     goto :eof
   )
-  if not exist "!STAGED_CLIENT!\index.html" (
+  if not exist "!STAGED_CLIENT!\\index.html" (
     call :stamp "Apply: staged frontend missing index.html [frontend_swap_failed]"
     goto :eof
   )

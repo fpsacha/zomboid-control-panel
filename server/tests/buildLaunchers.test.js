@@ -13,6 +13,16 @@ describe("standalone launchers", () => {
     expect(generateStartBat()).not.toContain("localhost:3001");
   });
 
+  it("preserves Windows separators in generated frontend paths", () => {
+    const launcher = generateStartBat();
+
+    expect(launcher).toContain(
+      'set "CLIENT_LIVE=%INSTALL_DIR%client\\dist"',
+    );
+    expect(launcher).toContain('if not exist "!STAGED_CLIENT!\\index.html"');
+    expect(launcher).not.toContain("clientdist");
+  });
+
   it("checks that the pending marker becomes the applying marker before launch", () => {
     const launcher = generateStartBat();
     const moveStart = launcher.indexOf('move /y "%MARKER%" "%APPLYING%"');
