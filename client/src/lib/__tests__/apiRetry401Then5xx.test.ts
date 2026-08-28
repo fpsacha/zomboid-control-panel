@@ -2,16 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiFetch } from '../api'
 import { clearAccessToken, setAccessToken } from '../authToken'
 
-// fetchWithRetry's 401-refresh-then-retry and its own exponential-backoff
-// retry are two separate mechanisms. Before this fix, a response that
-// refreshed the token and retried, then got a TRANSIENT failure (5xx/429)
-// on that retried request, was returned unconditionally -- skipping the
-// backoff-retry loop entirely, unlike every other response in this
-// function. So the unluckiest requests (an expired token AND a transient
-// blip on the very next call) got the LEAST resilience, not the same as
-// everything else. A bare 5xx (no 401 involved) already worked before this
-// fix and would pass either way, so it proves nothing on its own -- these
-// tests specifically exercise the 401-then-5xx sequence.
+// Authentication replay and transport retries are deliberately separate.
+// TOKEN_EXPIRED permits one replay after refresh, but the replay is never
+// followed by another automatic send because the request may be a mutation.
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -20,7 +13,7 @@ function jsonResponse(status: number, body: unknown): Response {
   })
 }
 
-describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry', () => {
+describe('fetchWithRetry: TOKEN_EXPIRED allows exactly one authentication replay', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     setAccessToken('expired-token')
@@ -32,7 +25,7 @@ describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry
     clearAccessToken()
   })
 
-  it('retries a transient 5xx that arrives on the post-refresh retry, instead of returning it immediately', async () => {
+  it('returns a transient 5xx from the post-refresh replay without sending again', async () => {
     let targetCallCount = 0
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input.toString()
@@ -40,7 +33,7 @@ describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry
         return jsonResponse(200, { accessToken: 'fresh-token' })
       }
       targetCallCount++
-      if (targetCallCount === 1) return jsonResponse(401, { error: 'expired' })
+      if (targetCallCount === 1) return jsonResponse(401, { code: 'TOKEN_EXPIRED', error: 'expired' })
       if (targetCallCount === 2) return jsonResponse(503, { error: 'temporarily unavailable' })
       return jsonResponse(200, { ok: true })
     })
@@ -52,11 +45,8 @@ describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry
     await vi.advanceTimersByTimeAsync(3000)
     const response = await promise
 
-    expect(response.status).toBe(200)
-    // 401, then the 503 from the post-refresh retry, then the backoff
-    // retry that finally reaches 200 -- three calls to the target
-    // endpoint, not two. Two would mean the 503 was returned unfixed.
-    expect(targetCallCount).toBe(3)
+    expect(response.status).toBe(503)
+    expect(targetCallCount).toBe(2)
   })
 
   it('still returns a non-retryable status from the post-refresh retry immediately (unchanged behavior)', async () => {
@@ -67,7 +57,7 @@ describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry
         return jsonResponse(200, { accessToken: 'fresh-token' })
       }
       targetCallCount++
-      if (targetCallCount === 1) return jsonResponse(401, { error: 'expired' })
+      if (targetCallCount === 1) return jsonResponse(401, { code: 'TOKEN_EXPIRED', error: 'expired' })
       return jsonResponse(403, { error: 'forbidden' })
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -102,7 +92,7 @@ describe('fetchWithRetry: 401-refresh-then-retry does not skip the backoff retry
         return jsonResponse(200, { accessToken: 'fresh-token' })
       }
       targetCallCount++
-      return jsonResponse(401, { error: 'expired' })
+      return jsonResponse(401, { code: 'TOKEN_EXPIRED', error: 'expired' })
     })
     vi.stubGlobal('fetch', fetchMock)
 

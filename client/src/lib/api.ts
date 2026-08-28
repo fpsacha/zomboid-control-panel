@@ -98,6 +98,12 @@ const RETRY_CONFIG = {
   fetchTimeout: 15000, // 15 second timeout for fetch requests
 };
 
+const RETRY_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function requestMethod(options?: RequestInit): string {
+  return String(options?.method || "GET").toUpperCase();
+}
+
 // Exponential backoff with jitter
 function getRetryDelay(attempt: number): number {
   const delay = Math.min(
@@ -255,6 +261,24 @@ function buildResponseError(response: Response, payload?: unknown): ApiError {
   });
 }
 
+async function responseHasCode(
+  response: Response,
+  expectedCode: string,
+): Promise<boolean> {
+  if (response.status !== 401) return false;
+  try {
+    const payload = await response.clone().json();
+    return (
+      payload !== null &&
+      typeof payload === "object" &&
+      "code" in payload &&
+      payload.code === expectedCode
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function fetchWithRetry(
   url: string,
   options?: RequestInit & { timeout?: number },
@@ -262,8 +286,11 @@ async function fetchWithRetry(
 ): Promise<Response> {
   let lastError: unknown;
   const effectiveTimeout = options?.timeout || RETRY_CONFIG.fetchTimeout;
+  const method = requestMethod(options);
+  const transportRetries = RETRY_SAFE_METHODS.has(method) ? retries : 0;
+  let authenticationReplayUsed = false;
 
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  for (let attempt = 0; attempt <= transportRetries; attempt++) {
     try {
       // Create AbortController for timeout
       const controller = new AbortController();
@@ -284,18 +311,23 @@ async function fetchWithRetry(
       }
 
       try {
-        let response = await fetch(url, {
+        const response = await fetch(url, {
           ...withAuth(options),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
 
-        // Handle 401 — try token refresh once, then retry
+        // Authentication replay is separate from transport retries. It is
+        // allowed once, and only when the server explicitly says the access
+        // token expired. This remains safe for mutations because the server
+        // rejected the original request before performing it.
         if (
           response.status === 401 &&
-          attempt === 0 &&
-          !url.includes("/api/auth/")
+          !authenticationReplayUsed &&
+          !url.includes("/api/auth/") &&
+          (await responseHasCode(response, "TOKEN_EXPIRED"))
         ) {
+          authenticationReplayUsed = true;
           const refreshed = await tryRefreshToken();
           if (refreshed) {
             const retryController = new AbortController();
@@ -309,20 +341,13 @@ async function fetchWithRetry(
               signal: retryController.signal,
             }).finally(() => clearTimeout(retryTimeoutId));
             if (retryResponse.status === 401) {
-              // Refreshed token still 401s — nothing left to retry, force
-              // reload to show login.
+              clearAccessToken();
               window.location.reload();
-              return response;
             }
-            // The refresh-retry consumed this attempt's fetch, but a
-            // transient failure (5xx/429) on the RETRIED request still
-            // deserves the same backoff-retry resilience as every other
-            // response. Replace `response` and fall through to the shared
-            // retryable check below instead of returning unconditionally --
-            // returning here unconditionally used to skip fetchWithRetry's
-            // own retry loop entirely for exactly the unluckiest requests:
-            // an expired token AND a transient blip on the very next call.
-            response = retryResponse;
+            // The authentication replay is the final send for this logical
+            // request. A failure here must be surfaced rather than retried,
+            // especially when the request is a mutation.
+            return retryResponse;
           } else {
             // Refresh failed — force reload to show login.
             window.location.reload();
@@ -331,7 +356,10 @@ async function fetchWithRetry(
         }
 
         // If response is not retryable error, return it
-        if (!isRetryableError(null, response) || attempt === retries) {
+        if (
+          !isRetryableError(null, response) ||
+          attempt === transportRetries
+        ) {
           return response;
         }
       } catch (error) {
@@ -347,12 +375,15 @@ async function fetchWithRetry(
       lastError = toApiError(error);
 
       // Don't retry if it's the last attempt or non-retryable
-      if (attempt === retries || !isRetryableError(lastError)) {
+      if (
+        attempt === transportRetries ||
+        !isRetryableError(lastError)
+      ) {
         throw lastError;
       }
 
       reportClientWarning(
-        `Request failed, retrying (${attempt + 1}/${retries})...`,
+        `Request failed, retrying (${attempt + 1}/${transportRetries})...`,
         lastError,
       );
       await new Promise((resolve) =>
