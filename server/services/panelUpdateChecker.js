@@ -17,6 +17,7 @@ import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
 import { getDataPaths } from "../utils/paths.js";
 import { DockerUpdateProxy } from "./dockerUpdateProxy.js";
+import { stageUpdateBundle } from "./updateBundle.js";
 
 const log = createLogger("PanelUpdater");
 
@@ -476,6 +477,7 @@ export class PanelUpdateChecker {
       exeDir,
       `.client-dist-${this.latestRelease.version}.partial.${process.pid}${clientArchiveExtension}`,
     );
+    let incomingClientPath = null;
 
     try {
       log.info(
@@ -550,12 +552,13 @@ export class PanelUpdateChecker {
           `Could not verify ${clientArchive.name}; refusing to replace the web interface`,
         );
       }
-      await this.replaceClientDist(
+      const stagedClient = await this.stageClientDist(
         tmpClientArchivePath,
         isWindows,
         tmpDownloadPath,
         asset.name,
       );
+      incomingClientPath = stagedClient.incomingClientPath;
       fs.unlinkSync(tmpClientArchivePath);
 
       // Promote .partial → .new atomically. If a stale .new exists, drop it first.
@@ -573,6 +576,19 @@ export class PanelUpdateChecker {
           log.warn(`Could not chmod staged binary: ${chmodErr.message}`);
         }
       }
+
+      const exeBasePath = this.getExeBasePath();
+      const journalPath = stageUpdateBundle({
+        installDir: exeDir,
+        version: this.latestRelease.version,
+        binaryPath: exeBasePath,
+        stagedBinaryPath: stagedPath,
+        liveClientPath: path.join(exeDir, "client", "dist"),
+        incomingClientPath,
+        metadata: stagedClient.metadata,
+      });
+      fs.rmSync(incomingClientPath, { recursive: true, force: true });
+      incomingClientPath = null;
 
       // NOTE: We intentionally do NOT set `pendingPanelUpdate` here. That
       // setting is the "we actually committed to apply this" marker used by
@@ -607,6 +623,7 @@ export class PanelUpdateChecker {
       return {
         success: true,
         message: `Update to v${this.latestRelease.version} downloaded. Restart the panel to apply.`,
+        journal: path.basename(journalPath),
       };
     } catch (error) {
       this.lastError = error.message;
@@ -622,7 +639,16 @@ export class PanelUpdateChecker {
       } catch (delErr) {
         log.debug(`Failed to clean client archive after error: ${delErr.message}`);
       }
-      return { success: false, error: error.message };
+      if (incomingClientPath) {
+        fs.rmSync(incomingClientPath, { recursive: true, force: true });
+      }
+      if (
+        fs.existsSync(stagedPath) &&
+        !fs.existsSync(path.join(exeDir, "update-bundle.json"))
+      ) {
+        fs.rmSync(stagedPath, { force: true });
+      }
+      return { success: false, error: error.message, code: error.code };
     } finally {
       this.isDownloading = false;
     }
@@ -660,6 +686,9 @@ export class PanelUpdateChecker {
     const payload = {
       version: staged?.version || null,
       stagedFile: staged?.stagedPath ? path.basename(staged.stagedPath) : null,
+      journalFile: staged?.journalPath
+        ? path.basename(staged.journalPath)
+        : "update-bundle.json",
       stagedAt: new Date().toISOString(),
       requestedBy: `panel-pid-${process.pid}`,
     };
@@ -728,8 +757,24 @@ export class PanelUpdateChecker {
   getStagedUpdate() {
     if (typeof process.pkg === "undefined") return null;
     const exePath = process.execPath;
-    const stagedPath = this.findStagedFileOnDisk();
-    if (!stagedPath) return null;
+    const journalPath = path.join(
+      path.dirname(this.getExeBasePath()),
+      "update-bundle.json",
+    );
+    if (!fs.existsSync(journalPath)) return null;
+    let journal;
+    try {
+      journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    } catch (error) {
+      log.warn(`Ignoring invalid update bundle journal: ${error.message}`);
+      return null;
+    }
+    if (journal.phase !== "staged") return null;
+    const stagedPath = journal.paths?.stagedBinary;
+    if (!stagedPath || !fs.existsSync(journal.paths?.stagedClient || "")) {
+      log.warn("Ignoring incomplete staged update bundle");
+      return null;
+    }
     let size;
     try {
       const stats = fs.statSync(stagedPath);
@@ -749,9 +794,9 @@ export class PanelUpdateChecker {
     // latestRelease if we somehow never persisted it (older builds, manual
     // file drops). Reading the setting synchronously from the in-memory DB
     // is fine — this method is called often and must stay non-async.
-    let version = this._stagedVersionCache ?? null;
+    let version = journal.version || this._stagedVersionCache || null;
     if (!version) version = this.latestRelease?.version || null;
-    return { stagedPath, exePath, version, size };
+    return { stagedPath, exePath, version, size, journalPath, journal };
   }
 
   /**
@@ -1032,7 +1077,7 @@ export class PanelUpdateChecker {
   /**
    * Download a file with progress tracking
    */
-  async replaceClientDist(archivePath, isWindows, binaryPath, artifactName) {
+  async stageClientDist(archivePath, isWindows, binaryPath, artifactName) {
     const exeDir = path.dirname(process.execPath);
     const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), "zpanel-update-"));
     const escapePowerShellLiteral = (value) => String(value).replace(/'/g, "''");
@@ -1078,26 +1123,35 @@ export class PanelUpdateChecker {
       if (!fs.existsSync(path.join(incoming, "index.html"))) {
         throw new Error("Release archive does not contain client/dist/index.html");
       }
-
-      const clientDir = path.join(exeDir, "client");
-      const liveDist = path.join(clientDir, "dist");
-      const nextDist = path.join(clientDir, "dist.new");
-      const backupDist = path.join(clientDir, "dist.previous");
-      fs.mkdirSync(clientDir, { recursive: true });
-      fs.rmSync(nextDist, { recursive: true, force: true });
-      fs.cpSync(incoming, nextDist, { recursive: true });
-      fs.rmSync(backupDist, { recursive: true, force: true });
-      if (fs.existsSync(liveDist)) fs.renameSync(liveDist, backupDist);
-      try {
-        fs.renameSync(nextDist, liveDist);
-      } catch (error) {
-        if (fs.existsSync(backupDist) && !fs.existsSync(liveDist)) {
-          fs.renameSync(backupDist, liveDist);
-        }
-        throw error;
+      const metadata = {
+        panelVersion: manifest.version,
+        buildSha: manifest.buildSha,
+        apiContractVersion: manifest.apiContractVersion,
+      };
+      if (
+        !metadata.buildSha ||
+        Number(metadata.apiContractVersion) !== 1
+      ) {
+        throw new Error("Release archive is missing compatible build metadata");
       }
-      fs.rmSync(backupDist, { recursive: true, force: true });
-      log.info("Updated client/dist from verified release archive");
+      const clientMetadata = JSON.parse(
+        fs.readFileSync(path.join(incoming, "build-info.json"), "utf8"),
+      );
+      if (
+        clientMetadata.panelVersion !== metadata.panelVersion ||
+        clientMetadata.buildSha !== metadata.buildSha ||
+        Number(clientMetadata.apiContractVersion) !== metadata.apiContractVersion
+      ) {
+        throw new Error("Release frontend metadata does not match its backend artifact");
+      }
+      const incomingClientPath = path.join(
+        exeDir,
+        `.update-client-incoming-${process.pid}`,
+      );
+      fs.rmSync(incomingClientPath, { recursive: true, force: true });
+      fs.cpSync(incoming, incomingClientPath, { recursive: true });
+      log.info("Staged verified client bundle without changing live client/dist");
+      return { incomingClientPath, metadata };
     } finally {
       if (windowsArchiveCopy) {
         fs.rmSync(windowsArchiveCopy, { force: true });

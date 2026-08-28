@@ -5,6 +5,7 @@ import App from './App'
 import './index.css'
 import './i18n'
 import { isDemoMode, installDemoFetchShim } from './lib/demo'
+import { BuildCompatibilityGate } from './components/BuildCompatibilityGate'
 
 const Router = isDemoMode() ? HashRouter : BrowserRouter
 
@@ -18,7 +19,9 @@ if (isDemoMode()) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <Router>
-      <App />
+      <BuildCompatibilityGate>
+        <App />
+      </BuildCompatibilityGate>
     </Router>
   </React.StrictMode>,
 )

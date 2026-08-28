@@ -81,3 +81,40 @@ jobs:
       - name: Tests
         working-directory: client
         run: npx vitest run
+
+  windows-packaged-updater:
+    name: Windows packaged updater
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install server dependencies
+        run: npm install --no-audit --prefer-offline --include=optional
+
+      - name: Install client dependencies
+        working-directory: client
+        run: npm install --no-audit --prefer-offline --include=optional
+
+      - name: Exercise bundle transaction and generated supervisor
+        run: npx vitest run server/tests/panelUpdateBundle.test.js server/tests/supervisor-restart.test.js
+
+      - name: Build packaged Windows executable
+        run: node build.js --windows
+
+      - name: Verify packaged updater artifacts
+        shell: pwsh
+        run: |
+          if (-not (Test-Path release\ZomboidControlPanel.exe)) { throw "Packaged executable is missing" }
+          if (-not (Test-Path release\Start.bat)) { throw "Generated supervisor is missing" }
+          $buildInfo = Get-Content release\client\dist\build-info.json -Raw | ConvertFrom-Json
+          $manifest = Get-Content release\release-manifest.json -Raw | ConvertFrom-Json
+          if ($buildInfo.panelVersion -ne $manifest.version) { throw "Frontend/backend version mismatch" }
+          if ($buildInfo.buildSha -ne $manifest.buildSha) { throw "Frontend/backend build SHA mismatch" }
+          if ($buildInfo.apiContractVersion -ne $manifest.apiContractVersion) { throw "Frontend/backend API contract mismatch" }

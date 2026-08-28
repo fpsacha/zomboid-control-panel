@@ -27,6 +27,8 @@ export default [
         ...globals.node,
         // Injected by esbuild at build time; guarded with typeof at runtime.
         PANEL_VERSION: "readonly",
+        PANEL_BUILD_SHA: "readonly",
+        PANEL_API_CONTRACT_VERSION: "readonly",
         PANEL_BRIDGE_LUA_B64: "readonly",
       },
     },

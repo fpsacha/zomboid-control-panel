@@ -2,22 +2,55 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { readFileSync } from 'fs'
+import { execFileSync } from 'child_process'
 
 /// <reference types="vitest" />
 
 const rootPkg = JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'))
 
+function resolveBuildSha() {
+  if (process.env.PANEL_BUILD_SHA) return process.env.PANEL_BUILD_SHA
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: path.resolve(__dirname, '..'),
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const basePath = env.VITE_BASE_PATH || '/'
+  const buildSha = resolveBuildSha()
+  const apiContractVersion = Number(process.env.PANEL_API_CONTRACT_VERSION || 1)
 
   return {
     base: basePath,
     define: {
       __PANEL_VERSION__: JSON.stringify(rootPkg.version),
+      __PANEL_BUILD_SHA__: JSON.stringify(buildSha),
+      __PANEL_API_CONTRACT_VERSION__: JSON.stringify(apiContractVersion),
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'panel-build-info',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'build-info.json',
+            source: JSON.stringify({
+              panelVersion: rootPkg.version,
+              buildSha,
+              apiContractVersion,
+            }, null, 2),
+          })
+        },
+      },
+    ],
     esbuild: {
       drop: ['console', 'debugger'],
     },
