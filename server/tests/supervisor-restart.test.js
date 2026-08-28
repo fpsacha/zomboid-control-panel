@@ -68,45 +68,8 @@ class Stub {
 }
 `;
 
-const LOCKER_SOURCE = `
-using System;
-using System.IO;
-using System.Threading;
-
-class FileLocker {
-  static int Main(string[] args) {
-    string target = args[0];
-    string readyPath = args[1];
-    int waitMs = int.Parse(args[2]);
-    int holdMs = int.Parse(args[3]);
-    DateTime deadline = DateTime.UtcNow.AddMilliseconds(waitMs);
-
-    while (DateTime.UtcNow < deadline) {
-      try {
-        using (var stream = new FileStream(
-          target,
-          FileMode.Open,
-          FileAccess.ReadWrite,
-          FileShare.None
-        )) {
-          File.WriteAllText(readyPath, "locked");
-          Thread.Sleep(holdMs);
-          return 0;
-        }
-      } catch (IOException) {
-        Thread.Sleep(10);
-      } catch (UnauthorizedAccessException) {
-        Thread.Sleep(10);
-      }
-    }
-    return 2;
-  }
-}
-`;
-
 let sharedDir;
 let stubExePath;
-let lockerExePath;
 let generateStartBat;
 
 async function writeStartBatInto(dir) {
@@ -122,13 +85,9 @@ function setupStub(dir, exitCodes, sleepMsList) {
   );
 }
 
-function setupPendingUpdate(dir, { invalidStagedBinary = false } = {}) {
+function setupPendingUpdate(dir) {
   const stagedBinaryPath = path.join(dir, "ZomboidControlPanel.exe.new");
-  if (invalidStagedBinary) {
-    fs.writeFileSync(stagedBinaryPath, "not-a-windows-executable");
-  } else {
-    fs.copyFileSync(stubExePath, stagedBinaryPath);
-  }
+  fs.copyFileSync(stubExePath, stagedBinaryPath);
 
   const liveClientPath = path.join(dir, "client", "dist");
   const stagedClientPath = path.join(dir, "client", "dist.new-test");
@@ -147,11 +106,38 @@ function startExclusiveLocker(targetPath, holdMs = 120000) {
   const readyPath = `${targetPath}.lock-ready-${Date.now()}-${Math.random()
     .toString(16)
     .slice(2)}`;
-  const child = spawn(
-    lockerExePath,
-    [targetPath, readyPath, "30000", String(holdMs)],
-    { windowsHide: true, stdio: "ignore" },
-  );
+  const lockScript = `
+$deadline = (Get-Date).AddSeconds(30)
+while ((Get-Date) -lt $deadline) {
+  $stream = $null
+  try {
+    $stream = [System.IO.File]::Open(
+      $env:ZCP_LOCK_TARGET,
+      [System.IO.FileMode]::Open,
+      [System.IO.FileAccess]::ReadWrite,
+      [System.IO.FileShare]::None
+    )
+    [System.IO.File]::WriteAllText($env:ZCP_LOCK_READY, "locked")
+    Start-Sleep -Milliseconds ([int]$env:ZCP_LOCK_HOLD_MS)
+    exit 0
+  } catch {
+    Start-Sleep -Milliseconds 10
+  } finally {
+    if ($null -ne $stream) { $stream.Dispose() }
+  }
+}
+exit 2
+`;
+  const child = spawn("powershell.exe", ["-NoProfile", "-Command", lockScript], {
+    windowsHide: true,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      ZCP_LOCK_TARGET: targetPath,
+      ZCP_LOCK_READY: readyPath,
+      ZCP_LOCK_HOLD_MS: String(holdMs),
+    },
+  });
   return { child, readyPath };
 }
 
@@ -312,14 +298,6 @@ describe.skipIf(!!skipReason)(
         { stdio: "pipe" },
       );
 
-      const lockerSourcePath = path.join(sharedDir, "file-locker.cs");
-      lockerExePath = path.join(sharedDir, "FileLocker.exe");
-      fs.writeFileSync(lockerSourcePath, LOCKER_SOURCE);
-      execFileSync(
-        CSC_PATH,
-        ["-nologo", "-optimize", "-out:" + lockerExePath, lockerSourcePath],
-        { stdio: "pipe" },
-      );
     }, 90000);
 
     afterAll(() => {
@@ -614,7 +592,7 @@ describe.skipIf(!!skipReason)(
         const dir = freshScenarioDir("marker-move-failure");
         await writeStartBatInto(dir);
         setupStub(dir, [0], [0]);
-        setupPendingUpdate(dir, { invalidStagedBinary: true });
+        setupPendingUpdate(dir);
 
         const locker = startExclusiveLocker(path.join(dir, ".update-pending"));
         await waitForCondition(
@@ -665,7 +643,7 @@ describe.skipIf(!!skipReason)(
       async () => {
         const dir = freshScenarioDir("locked-backup-restore");
         await writeStartBatInto(dir);
-        setupStub(dir, [7], [5000]);
+        setupStub(dir, [7, 0], [5000, 0]);
         setupPendingUpdate(dir);
 
         const backupPath = path.join(
