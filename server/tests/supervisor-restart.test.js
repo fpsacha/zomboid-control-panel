@@ -68,8 +68,45 @@ class Stub {
 }
 `;
 
+const LOCKER_SOURCE = `
+using System;
+using System.IO;
+using System.Threading;
+
+class FileLocker {
+  static int Main(string[] args) {
+    string target = args[0];
+    string readyPath = args[1];
+    int waitMs = int.Parse(args[2]);
+    int holdMs = int.Parse(args[3]);
+    DateTime deadline = DateTime.UtcNow.AddMilliseconds(waitMs);
+
+    while (DateTime.UtcNow < deadline) {
+      try {
+        using (var stream = new FileStream(
+          target,
+          FileMode.Open,
+          FileAccess.ReadWrite,
+          FileShare.None
+        )) {
+          File.WriteAllText(readyPath, "locked");
+          Thread.Sleep(holdMs);
+          return 0;
+        }
+      } catch (IOException) {
+        Thread.Sleep(10);
+      } catch (UnauthorizedAccessException) {
+        Thread.Sleep(10);
+      }
+    }
+    return 2;
+  }
+}
+`;
+
 let sharedDir;
 let stubExePath;
+let lockerExePath;
 let generateStartBat;
 
 async function writeStartBatInto(dir) {
@@ -83,6 +120,59 @@ function setupStub(dir, exitCodes, sleepMsList) {
     path.join(dir, "sleep-ms.txt"),
     (sleepMsList || [0]).join("\n"),
   );
+}
+
+function setupPendingUpdate(dir, { invalidStagedBinary = false } = {}) {
+  const stagedBinaryPath = path.join(dir, "ZomboidControlPanel.exe.new");
+  if (invalidStagedBinary) {
+    fs.writeFileSync(stagedBinaryPath, "not-a-windows-executable");
+  } else {
+    fs.copyFileSync(stubExePath, stagedBinaryPath);
+  }
+
+  const liveClientPath = path.join(dir, "client", "dist");
+  const stagedClientPath = path.join(dir, "client", "dist.new-test");
+  fs.mkdirSync(liveClientPath, { recursive: true });
+  fs.mkdirSync(stagedClientPath, { recursive: true });
+  fs.writeFileSync(path.join(liveClientPath, "index.html"), "old-client");
+  fs.writeFileSync(path.join(stagedClientPath, "index.html"), "new-client");
+  fs.writeFileSync(
+    path.join(dir, "update-bundle.json"),
+    JSON.stringify({ paths: { stagedClient: stagedClientPath } }),
+  );
+  fs.writeFileSync(path.join(dir, ".update-pending"), "pending");
+}
+
+function startExclusiveLocker(targetPath, holdMs = 120000) {
+  const readyPath = `${targetPath}.lock-ready-${Date.now()}-${Math.random()
+    .toString(16)
+    .slice(2)}`;
+  const child = spawn(
+    lockerExePath,
+    [targetPath, readyPath, "30000", String(holdMs)],
+    { windowsHide: true, stdio: "ignore" },
+  );
+  return { child, readyPath };
+}
+
+function stopProcessTree(child) {
+  if (!child || child.exitCode !== null) return;
+  try {
+    execFileSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+    });
+  } catch {
+    /* already gone */
+  }
+}
+
+async function waitForCondition(check, timeoutMs, description) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`Timed out waiting for ${description}`);
 }
 
 // Async, not spawnSync -- spawnSync's own timeout only SIGTERMs the direct
@@ -219,6 +309,15 @@ describe.skipIf(!!skipReason)(
       execFileSync(
         CSC_PATH,
         ["-nologo", "-optimize", "-out:" + stubExePath, srcPath],
+        { stdio: "pipe" },
+      );
+
+      const lockerSourcePath = path.join(sharedDir, "file-locker.cs");
+      lockerExePath = path.join(sharedDir, "FileLocker.exe");
+      fs.writeFileSync(lockerSourcePath, LOCKER_SOURCE);
+      execFileSync(
+        CSC_PATH,
+        ["-nologo", "-optimize", "-out:" + lockerExePath, lockerSourcePath],
         { stdio: "pipe" },
       );
     }, 90000);
@@ -507,6 +606,109 @@ describe.skipIf(!!skipReason)(
         expect(log).not.toMatch(/Gave up/);
       },
       110000,
+    );
+
+    it(
+      "rolls back instead of launching when the pending marker cannot become the applying marker",
+      async () => {
+        const dir = freshScenarioDir("marker-move-failure");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir, { invalidStagedBinary: true });
+
+        const locker = startExclusiveLocker(path.join(dir, ".update-pending"));
+        await waitForCondition(
+          () => fs.existsSync(locker.readyPath),
+          30000,
+          "the pending marker to be exclusively locked",
+        );
+
+        const supervisor = runSupervisor(
+          dir,
+          {
+            PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
+            PANEL_SUPERVISOR_MAX_CRASHES: "1",
+          },
+          120000,
+        );
+        let failureObserved = false;
+        try {
+          await waitForCondition(
+            () =>
+              /could not move pending marker/i.test(readSupervisorLog(dir)),
+            30000,
+            "the supervisor to report the marker transition failure",
+          );
+          failureObserved = true;
+        } catch {
+          /* asserted after the child has been cleaned up */
+        } finally {
+          stopProcessTree(locker.child);
+        }
+        const result = await supervisor;
+
+        expect(failureObserved).toBe(true);
+        expect(result.status).toBe(0);
+        expect(countLaunches(result.stdout)).toBeGreaterThanOrEqual(1);
+        const log = readSupervisorLog(dir);
+        expect(log).not.toMatch(/bundle activated; waiting/i);
+        expect(fs.existsSync(path.join(dir, "ZomboidControlPanel.exe"))).toBe(true);
+        expect(
+          fs.readFileSync(path.join(dir, "client", "dist", "index.html"), "utf8"),
+        ).toBe("old-client");
+      },
+      135000,
+    );
+
+    it(
+      "retains the journal and reports an incomplete rollback when a backup restore is locked",
+      async () => {
+        const dir = freshScenarioDir("locked-backup-restore");
+        await writeStartBatInto(dir);
+        setupStub(dir, [7], [5000]);
+        setupPendingUpdate(dir);
+
+        const backupPath = path.join(
+          dir,
+          "ZomboidControlPanel.exe.bundle-previous",
+        );
+        const locker = startExclusiveLocker(backupPath);
+        const supervisor = runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          120000,
+        );
+        let lockObserved = false;
+        try {
+          await waitForCondition(
+            () => fs.existsSync(locker.readyPath),
+            30000,
+            "the binary backup to be exclusively locked",
+          );
+          lockObserved = true;
+          await waitForCondition(
+            () => /rollback incomplete/i.test(readSupervisorLog(dir)),
+            30000,
+            "the supervisor to report an incomplete rollback",
+          );
+        } catch {
+          /* asserted after the child has been cleaned up */
+        } finally {
+          stopProcessTree(locker.child);
+        }
+        const result = await supervisor;
+
+        expect(lockObserved).toBe(true);
+        expect(result.status).toBe(1);
+        expect(fs.existsSync(path.join(dir, "update-bundle.json"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, ".update-applying"))).toBe(true);
+        expect(fs.existsSync(backupPath)).toBe(true);
+        const log = readSupervisorLog(dir);
+        expect(log).toMatch(/binary restore failed/i);
+        expect(log).toMatch(/rollback incomplete; journal retained/i);
+        expect(log).not.toMatch(/rollback complete/i);
+      },
+      135000,
     );
 
     it(

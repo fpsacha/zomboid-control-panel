@@ -450,18 +450,93 @@ rem ============================================================
     goto :eof
   )
 
-  move "%MARKER%" "%APPLYING%" >nul 2>&1
+  move /y "%MARKER%" "%APPLYING%" >nul 2>&1
+  if errorlevel 1 (
+    call :stamp "Apply: could not move pending marker to applying state [bundle_apply_failed]"
+    call :rollback_update
+    goto :eof
+  )
+  if not exist "%APPLYING%" (
+    call :stamp "Apply: applying marker missing after state transition [bundle_apply_failed]"
+    call :rollback_update
+    goto :eof
+  )
   call :stamp "Apply: bundle activated; waiting for backend startup acknowledgement"
 goto :eof
 
 
 :rollback_update
   call :stamp "Apply: restoring previous frontend and backend"
-  if exist "%BASE_EXE%" del /f /q "%BASE_EXE%" >nul 2>&1
-  if exist "%BIN_BACKUP%" ren "%BIN_BACKUP%" "%BASE_EXE%" >nul 2>&1
-  if exist "%CLIENT_LIVE%" rmdir /s /q "%CLIENT_LIVE%" >nul 2>&1
-  if exist "%CLIENT_BACKUP%" move "%CLIENT_BACKUP%" "%CLIENT_LIVE%" >nul 2>&1
-  del /f /q "%MARKER%" "%APPLYING%" "%JOURNAL%" >nul 2>&1
+  set "ROLLBACK_FAILED=0"
+  set "BINARY_RESTORE_OK=1"
+  if not exist "%BIN_BACKUP%" (
+    call :stamp "Apply: binary restore failed; backup is missing [rollback_failed]"
+    set "BINARY_RESTORE_OK=0"
+  ) else (
+    if exist "%BASE_EXE%" (
+      del /f /q "%BASE_EXE%" >nul 2>&1
+      if exist "%BASE_EXE%" (
+        call :stamp "Apply: binary restore failed; active executable could not be removed [rollback_failed]"
+        set "BINARY_RESTORE_OK=0"
+      )
+    )
+    if "!BINARY_RESTORE_OK!"=="1" (
+      ren "%BIN_BACKUP%" "%BASE_EXE%" >nul 2>&1
+      if errorlevel 1 (
+        call :stamp "Apply: binary restore failed; backup could not be activated [rollback_failed]"
+        set "BINARY_RESTORE_OK=0"
+      )
+    )
+    if not exist "%BASE_EXE%" set "BINARY_RESTORE_OK=0"
+    if exist "%BIN_BACKUP%" set "BINARY_RESTORE_OK=0"
+  )
+  if "!BINARY_RESTORE_OK!"=="0" set "ROLLBACK_FAILED=1"
+
+  set "CLIENT_RESTORE_OK=1"
+  if not exist "%CLIENT_BACKUP%" (
+    call :stamp "Apply: frontend restore failed; backup is missing [rollback_failed]"
+    set "CLIENT_RESTORE_OK=0"
+  ) else (
+    if exist "%CLIENT_LIVE%" (
+      rmdir /s /q "%CLIENT_LIVE%" >nul 2>&1
+      if exist "%CLIENT_LIVE%" (
+        call :stamp "Apply: frontend restore failed; active frontend could not be removed [rollback_failed]"
+        set "CLIENT_RESTORE_OK=0"
+      )
+    )
+    if "!CLIENT_RESTORE_OK!"=="1" (
+      move "%CLIENT_BACKUP%" "%CLIENT_LIVE%" >nul 2>&1
+      if errorlevel 1 (
+        call :stamp "Apply: frontend restore failed; backup could not be activated [rollback_failed]"
+        set "CLIENT_RESTORE_OK=0"
+      )
+    )
+    if not exist "%CLIENT_LIVE%" set "CLIENT_RESTORE_OK=0"
+    if exist "%CLIENT_BACKUP%" set "CLIENT_RESTORE_OK=0"
+  )
+  if "!CLIENT_RESTORE_OK!"=="0" set "ROLLBACK_FAILED=1"
+
+  if "!ROLLBACK_FAILED!"=="1" (
+    call :stamp "Apply: rollback incomplete; journal retained for recovery [rollback_failed]"
+    echo ERROR: update rollback was incomplete. Recovery files were retained.
+    goto :eof
+  )
+
+  del /f /q "%MARKER%" "%APPLYING%" >nul 2>&1
+  if exist "%MARKER%" (
+    call :stamp "Apply: rollback cleanup incomplete; pending marker remains, journal retained [rollback_failed]"
+    goto :eof
+  )
+  if exist "%APPLYING%" (
+    call :stamp "Apply: rollback cleanup incomplete; applying marker remains, journal retained [rollback_failed]"
+    goto :eof
+  )
+
+  del /f /q "%JOURNAL%" >nul 2>&1
+  if exist "%JOURNAL%" (
+    call :stamp "Apply: rollback restored artifacts but could not remove journal [rollback_failed]"
+    goto :eof
+  )
   call :stamp "Apply: rollback complete"
 goto :eof
 
