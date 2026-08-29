@@ -428,6 +428,14 @@ export function candidateIniPaths(serverConfigPath, zomboidDataPath, serverName)
 // If the INI file doesn't exist yet (first run), creates the directory + a minimal INI
 // so PZ will merge its defaults with our RCON settings instead of generating a blank password.
 export async function ensureRconConfigured() {
+  // Declared ahead of the try block, not inside it, so the outer catch
+  // below can still reach them to build EACCES guidance -- which of the two
+  // configured paths serverConfigPath actually derives from decides only
+  // formatWritablePathError()'s label ("install" vs "data"); the write
+  // target and the remediation are identical either way, just the noun
+  // differs.
+  let serverConfigPathKind = "install";
+  let serverConfigPath = null;
   try {
     const activeServer = await getActiveServer();
     if (!activeServer) {
@@ -435,7 +443,8 @@ export async function ensureRconConfigured() {
       return false;
     }
 
-    const serverConfigPath =
+    serverConfigPathKind = activeServer.serverConfigPath ? "install" : "data";
+    serverConfigPath =
       activeServer.serverConfigPath ||
       (activeServer.zomboidDataPath
         ? path.join(activeServer.zomboidDataPath, "Server")
@@ -490,7 +499,20 @@ export async function ensureRconConfigured() {
           log.info(`Pre-created INI with RCON settings (port: ${rconPort})`);
           return true;
         } catch (createError) {
-          log.error(`Failed to pre-create INI file: ${createError.message}`);
+          // Keep the raw errno in the log alongside the friendly guidance --
+          // someone debugging still needs the real error, not just the
+          // translation of it.
+          if (createError.code === "EACCES" && serverConfigPath) {
+            const guidance = formatWritablePathError(
+              serverConfigPathKind,
+              serverConfigPath,
+            );
+            log.error(
+              `Failed to pre-create INI file: ${createError.message} -- ${guidance.message}`,
+            );
+          } else {
+            log.error(`Failed to pre-create INI file: ${createError.message}`);
+          }
           return false;
         }
       }
@@ -533,7 +555,17 @@ export async function ensureRconConfigured() {
       return true;
     });
   } catch (error) {
-    log.error(`ensureRconConfigured error: ${error.message}`);
+    if (error.code === "EACCES" && serverConfigPath) {
+      const guidance = formatWritablePathError(
+        serverConfigPathKind,
+        serverConfigPath,
+      );
+      log.error(
+        `ensureRconConfigured error: ${error.message} -- ${guidance.message}`,
+      );
+    } else {
+      log.error(`ensureRconConfigured error: ${error.message}`);
+    }
     return false;
   }
 }
@@ -643,11 +675,21 @@ export function formatWritablePathError(
     (fs.existsSync("/.dockerenv") || fs.existsSync("/run/.containerenv"));
   const baseMessage = `${label} is not writable: ${directoryPath}.`;
 
+  // Wording sharpened 2026-08-29 (Linux bug hunt, "raw EACCES with no
+  // pointer to the fix" card): both branches used to correctly detect the
+  // problem and then explain it vaguely -- "choose a writable folder" for
+  // bare metal (never says WHY this one isn't, or how to fix it in place)
+  // and "make it owned by the panel container UID/GID" for Docker (never
+  // names the ACTUAL knob, docker-compose.yml's own PUID/PGID env vars,
+  // right above the bind-mount lines it documents). Same defect class as
+  // "run as Administrator" on Linux and "pull the latest code with git" for
+  // a Docker image: the refusal was correct, the instruction was not.
   if (isContainer) {
     return {
       message:
-        `${baseMessage} In Docker, bind-mount a writable host folder at this path ` +
-        `and make it owned by the panel container UID/GID.`,
+        `${baseMessage} Set PUID/PGID in your .env file to match the owner ` +
+        `of this bind-mounted host folder (see docker-compose.yml's Quick ` +
+        `Start), then recreate the container.`,
       code:
         kind === "install"
           ? ErrorCode.WRITABLE_PATH_INSTALL_CONTAINER
@@ -657,7 +699,10 @@ export function formatWritablePathError(
   }
 
   return {
-    message: `${baseMessage} Choose a folder writable by the panel process.`,
+    message:
+      `${baseMessage} The user running the panel does not own this folder ` +
+      `or lacks write permission to it -- fix it with chown/chmod, or ` +
+      `choose a folder the panel can already write to.`,
     code:
       kind === "install"
         ? ErrorCode.WRITABLE_PATH_INSTALL_BAREMETAL
@@ -2540,22 +2585,40 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
         try {
           ensureWritableDirectory(serverConfigPath);
         } catch (dirError) {
+          // Keep the raw errno in the log even though the operator-facing
+          // text below is friendlier -- someone debugging still needs it.
           log.error(
             `Data folder is not writable: ${zomboidPath} (${dirError.message})`,
           );
+          // Reuses formatWritablePathError -- the SAME container-aware
+          // guidance the pre-download check above already gives, instead of
+          // this "re-check after the download" duplicate growing its own,
+          // Linux-only message that never checked isContainer (found
+          // 2026-08-29, "raw EACCES with no pointer to the fix" hunt: it
+          // told a Docker operator to run a command inside the ephemeral
+          // container that can't fix a host-side bind-mount ownership
+          // mismatch at all). The concrete `sudo install -d` example is
+          // still worth keeping for bare metal specifically -- more
+          // actionable than the shared message's generic chown/chmod
+          // pointer -- so it rides along as an extra param rather than
+          // being lost.
+          const writableError = formatWritablePathError("data", zomboidPath);
+          const bareMetalCommand =
+            writableError.code === ErrorCode.WRITABLE_PATH_DATA_BAREMETAL
+              ? `sudo install -d -m 0755 -o "$(whoami)" -g "$(whoami)" "${zomboidPath}"`
+              : null;
           io.emit("install:complete", {
             success: false,
-            message:
-              `Server files installed, but the data folder is not writable: ${zomboidPath} (${dirError.code || dirError.message}). ` +
-              `Create it with the correct owner before starting the server, e.g. on Linux: ` +
-              `sudo install -d -m 0755 -o "$(whoami)" -g "$(whoami)" "${zomboidPath}", then retry.`,
+            message: bareMetalCommand
+              ? `${writableError.message} For example: ${bareMetalCommand}`
+              : writableError.message,
             installPath,
             serverName,
-            progressCode: ProgressCode.INSTALL_DATA_FOLDER_NOT_WRITABLE,
+            progressCode: writableError.code,
             params: {
-              path: zomboidPath,
+              ...writableError.params,
               reason: dirError.code || dirError.message,
-              command: `sudo install -d -m 0755 -o "$(whoami)" -g "$(whoami)" "${zomboidPath}"`,
+              ...(bareMetalCommand ? { command: bareMetalCommand } : {}),
             },
           });
           activeSteamOperations.delete(normalizedPath);
@@ -2634,9 +2697,13 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
           }
         } catch (iniError) {
           log.warn(`Failed to pre-create INI: ${iniError.message}`);
+          const permissionHint =
+            iniError.code === "EACCES"
+              ? ` ${formatWritablePathError("data", serverConfigPath).message}`
+              : "";
           warnings.push({
             progressCode: ProgressCode.INSTALL_RCON_INI_PRECREATE_FAILED,
-            message: `Could not pre-write ${rconPassword ? "the RCON password" : "the UPnP setting"} into the server config (${sanitizeError(iniError.message)}). This is retried automatically the next time you start the server.`,
+            message: `Could not pre-write ${rconPassword ? "the RCON password" : "the UPnP setting"} into the server config (${sanitizeError(iniError.message)}).${permissionHint} This is retried automatically the next time you start the server.`,
             params: { reason: sanitizeError(iniError.message) },
           });
         }
@@ -2977,13 +3044,23 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
     try {
       ensureWritableDirectory(serverConfigPath);
     } catch (dirError) {
+      // Keep the raw errno in the log even though the operator-facing text
+      // below is friendlier -- someone debugging still needs it. See the
+      // /install route's identical fix above for why this reuses
+      // formatWritablePathError instead of the Linux-only, non-container-
+      // aware message this used to hand-roll.
       log.error(
         `Data folder is not writable: ${zomboidPath} (${dirError.message})`,
       );
+      const writableError = formatWritablePathError("data", zomboidPath);
+      const bareMetalCommand =
+        writableError.code === ErrorCode.WRITABLE_PATH_DATA_BAREMETAL
+          ? `sudo install -d -m 0755 -o "$(whoami)" -g "$(whoami)" "${zomboidPath}"`
+          : null;
       throw new Error(
-        `Server files found, but the data folder is not writable: ${zomboidPath} (${dirError.code || dirError.message}). ` +
-          `Create it with the correct owner before starting the server, e.g. on Linux: ` +
-          `sudo install -d -m 0755 -o "$(whoami)" -g "$(whoami)" "${zomboidPath}", then retry.`,
+        bareMetalCommand
+          ? `${writableError.message} For example: ${bareMetalCommand}`
+          : writableError.message,
       );
     }
 
@@ -3010,9 +3087,13 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
         }
       } catch (iniError) {
         log.warn(`Failed to pre-create INI: ${iniError.message}`);
+        const permissionHint =
+          iniError.code === "EACCES"
+            ? ` ${formatWritablePathError("data", serverConfigPath).message}`
+            : "";
         warnings.push({
           progressCode: ProgressCode.INSTALL_RCON_INI_PRECREATE_FAILED,
-          message: `Could not pre-write the RCON password into the server config (${sanitizeError(iniError.message)}). This is retried automatically the next time you start the server.`,
+          message: `Could not pre-write the RCON password into the server config (${sanitizeError(iniError.message)}).${permissionHint} This is retried automatically the next time you start the server.`,
           params: { reason: sanitizeError(iniError.message) },
         });
       }

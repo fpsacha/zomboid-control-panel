@@ -17,6 +17,7 @@ import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
 import { getDataPaths } from "../utils/paths.js";
 import { DockerUpdateProxy } from "./dockerUpdateProxy.js";
+import { isContainerized } from "../utils/dockerDetect.js";
 
 const log = createLogger("PanelUpdater");
 
@@ -27,6 +28,16 @@ const GITHUB_API_TIMEOUT_MS = 15000;
 const DOWNLOAD_TIMEOUT_MS = 60000;
 const MAX_GITHUB_RETRIES = 3;
 const MAX_DOWNLOAD_REDIRECTS = 5;
+
+// "In dev mode, pull the latest code with git" is only true for a real git
+// checkout run with plain `node server/index.js`. Someone running the
+// published Docker image has no checkout to pull — the correct next step is
+// to pull and recreate the image via Compose.
+export function getDevModeUpgradeInstruction(containerized = isContainerized()) {
+  return containerized
+    ? "Pull the newer image and recreate the container: docker compose pull && docker compose up -d."
+    : "In dev mode, pull the latest code with git.";
+}
 
 export function createUpdateDataBackup(dataPaths, version, fsModule = fs) {
   const dbPath = dataPaths?.dbPath;
@@ -425,8 +436,7 @@ export class PanelUpdateChecker {
     if (!isPackaged) {
       return {
         success: false,
-        error:
-          "Self-update is only available for standalone exe/binary builds. In dev mode, pull the latest code with git.",
+        error: `Self-update is only available for standalone exe/binary builds. ${getDevModeUpgradeInstruction()}`,
       };
     }
 
@@ -1361,7 +1371,7 @@ export class PanelUpdateChecker {
 
     if (!isPackaged) {
       blockers.push(
-        "Self-update is only available in packaged builds. In dev mode, pull the latest code with git.",
+        `Self-update is only available in packaged builds. ${getDevModeUpgradeInstruction()}`,
       );
       return { ok: false, blockers, warnings, info };
     }

@@ -247,7 +247,7 @@
     "footerDownloadThenRestart": "Lade das Update herunter und starte dann neu, um es anzuwenden.",
     "footerNoUpdate": "Es ist kein Update zur Installation bereit.",
     "footerDockerHandled": "Docker-Updates werden vom konfigurierten Host-Controller verwaltet.",
-    "footerAutoUpdateDevMode": "Automatische Updates funktionieren nur in gepackten Builds. Im Dev-Modus aktualisiere über Git."
+    "footerAutoUpdateDevMode": "Automatische Updates funktionieren nur in gepackten Builds. Im Dev-Modus aktualisiere über Git. Läuft der Panel in Docker ohne konfigurierten Update-Controller? Aktualisiere mit docker compose pull && docker compose up -d."
   },
   "https": {
     "cardTitle": "HTTPS",

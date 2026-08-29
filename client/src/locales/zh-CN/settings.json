@@ -247,7 +247,7 @@
     "footerDownloadThenRestart": "下载更新，然后重启以应用。",
     "footerNoUpdate": "没有可安装的更新。",
     "footerDockerHandled": "Docker 更新由已配置的宿主控制器处理。",
-    "footerAutoUpdateDevMode": "自动更新仅适用于打包版本。在开发模式下，请通过 git 更新。"
+    "footerAutoUpdateDevMode": "自动更新仅适用于打包版本。在开发模式下，请通过 git 更新。若在未配置更新控制器的 Docker 中运行，请使用 docker compose pull && docker compose up -d 进行更新。"
   },
   "https": {
     "cardTitle": "HTTPS",

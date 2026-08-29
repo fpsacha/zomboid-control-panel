@@ -5,7 +5,6 @@
   "STEAMCMD_INSTALL_COMPLETE": "SteamCMD 安装成功！",
   "DATA_FOLDER_USING_CONFIGURED": "使用已配置的数据文件夹：{{path}}",
   "DATA_FOLDER_USING_ISOLATED": "使用隔离数据文件夹：{{path}}",
-  "INSTALL_DATA_FOLDER_NOT_WRITABLE": "服务器文件已安装，但数据文件夹不可写：{{path}}（{{reason}}）。请在启动服务器前以正确的所有者创建该文件夹，例如在 Linux 上执行：{{command}}，然后重试。",
   "INSTALL_SETTINGS_SAVE_FAILED": "服务器文件已安装，但部分安装设置（{{fields}}）未能保存（{{reason}}）。请在面板恢复后前往「设置」重新检查这些项。",
   "RCON_SETTINGS_SAVED": "RCON 设置已保存（端口：{{port}}）",
   "INI_PRECREATED_WITH_RCON": "已预先创建包含 RCON 凭据的服务器 INI 文件",

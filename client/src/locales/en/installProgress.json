@@ -5,7 +5,6 @@
   "STEAMCMD_INSTALL_COMPLETE": "SteamCMD installed successfully!",
   "DATA_FOLDER_USING_CONFIGURED": "Using configured data folder: {{path}}",
   "DATA_FOLDER_USING_ISOLATED": "Using isolated data folder: {{path}}",
-  "INSTALL_DATA_FOLDER_NOT_WRITABLE": "Server files installed, but the data folder is not writable: {{path}} ({{reason}}). Create it with the correct owner before starting the server, e.g. on Linux: {{command}}, then retry.",
   "INSTALL_SETTINGS_SAVE_FAILED": "Server files installed, but some install settings ({{fields}}) could not be saved ({{reason}}). Re-check them under Settings once the panel is back up.",
   "RCON_SETTINGS_SAVED": "RCON settings saved (port: {{port}})",
   "INI_PRECREATED_WITH_RCON": "Pre-created server INI with RCON credentials",

@@ -5,7 +5,6 @@
   "STEAMCMD_INSTALL_COMPLETE": "SteamCMD installé avec succès !",
   "DATA_FOLDER_USING_CONFIGURED": "Utilisation du dossier de données configuré : {{path}}",
   "DATA_FOLDER_USING_ISOLATED": "Utilisation du dossier de données isolé : {{path}}",
-  "INSTALL_DATA_FOLDER_NOT_WRITABLE": "Fichiers du serveur installés, mais le dossier de données n'est pas accessible en écriture : {{path}} ({{reason}}). Créez-le avec le bon propriétaire avant de démarrer le serveur, par exemple sous Linux : {{command}}, puis réessayez.",
   "INSTALL_SETTINGS_SAVE_FAILED": "Fichiers du serveur installés, mais certains paramètres d'installation ({{fields}}) n'ont pas pu être enregistrés ({{reason}}). Vérifiez-les dans Paramètres une fois le panneau de nouveau disponible.",
   "RCON_SETTINGS_SAVED": "Paramètres RCON enregistrés (port : {{port}})",
   "INI_PRECREATED_WITH_RCON": "Fichier INI du serveur pré-créé avec les identifiants RCON",

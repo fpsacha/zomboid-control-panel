@@ -192,7 +192,7 @@
     "footerDownloadThenRestart": "Telechaje mizajou a, epi redemare pou aplike l.",
     "footerNoUpdate": "Pa gen mizajou ki pare pou enstale.",
     "footerDockerHandled": "Kontwolè lame ki konfigire a jere mizajou Docker yo.",
-    "footerAutoUpdateDevMode": "Mizajou otomatik fonksyone sèlman nan vèsyon anpakte. Nan mòd devlopman, mete ajou soti nan git."
+    "footerAutoUpdateDevMode": "Mizajou otomatik fonksyone sèlman nan vèsyon anpakte. Nan mòd devlopman, mete ajou soti nan git. W ap fonksyone nan Docker san kontwolè mizajou konfigire? Mete ajou ak docker compose pull && docker compose up -d."
   },
 
   "https": {

@@ -62,13 +62,6 @@ export const ProgressCode = Object.freeze({
    * the panel computed an isolated `<installPath>_Data` folder instead. See
    * ..._CONFIGURED above for why this is a separate code. Params: {path}. */
   DATA_FOLDER_USING_ISOLATED: "DATA_FOLDER_USING_ISOLATED",
-  /** POST /api/server/install -- install succeeded but the resolved data
-   * folder failed the post-install writable check. `command` is a fully
-   * server-built shell command (the remediation example), passed through
-   * as a param verbatim -- it is syntax, not prose, and stays identical in
-   * every language by design (same reasoning as WRITABLE_PATH_ERROR in
-   * errorCodes.js). Params: {path, reason, command}. */
-  INSTALL_DATA_FOLDER_NOT_WRITABLE: "INSTALL_DATA_FOLDER_NOT_WRITABLE",
   /** Shared across 2 call sites in POST /api/server/install's success path:
    * persisting the general install settings (serverPath/serverName/
    * memory/port/UPnP/data paths) and persisting the RCON settings. Both

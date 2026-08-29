@@ -192,7 +192,7 @@
     "footerDownloadThenRestart": "Download the update, then restart to apply it.",
     "footerNoUpdate": "No update is ready to install.",
     "footerDockerHandled": "Docker updates are handled by the configured host controller.",
-    "footerAutoUpdateDevMode": "Auto-update works in packaged builds only. In dev mode, update from git."
+    "footerAutoUpdateDevMode": "Auto-update only works in packaged builds. In a dev checkout, update with git. Running in Docker without the update controller configured? Update with docker compose pull && docker compose up -d."
   },
 
   "https": {

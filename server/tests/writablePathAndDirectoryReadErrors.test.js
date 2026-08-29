@@ -63,19 +63,30 @@ describe("formatWritablePathError: variant split (2026-08-22 correction)", () =>
     const result = formatWritablePathError("install", "/srv/pz", false);
     expect(result.code).toBe(ErrorCode.WRITABLE_PATH_INSTALL_BAREMETAL);
     expect(result.params).toEqual({ path: "/srv/pz" });
-    expect(result.message).toBe(
-      "Installation path is not writable: /srv/pz. Choose a folder writable by the panel process.",
-    );
+    // 2026-08-29 wording fix ("raw EACCES with no pointer to the fix"): the
+    // refusal was already correct, but "choose a writable folder" never
+    // said WHY this one isn't or how to fix it in place -- now names the
+    // actual mechanism (chown/chmod) instead of only suggesting a different
+    // folder.
+    expect(result.message).toContain("chown");
+    expect(result.message).toContain("chmod");
   });
 
-  it("install + container (Docker bind-mount guidance)", () => {
+  it("install + container (Docker PUID/PGID guidance)", () => {
     vi.spyOn(fs, "existsSync").mockImplementation(
       (p) => p === "/.dockerenv",
     );
     const result = formatWritablePathError("install", "/srv/pz", false);
     expect(result.code).toBe(ErrorCode.WRITABLE_PATH_INSTALL_CONTAINER);
     expect(result.params).toEqual({ path: "/srv/pz" });
-    expect(result.message).toContain("In Docker, bind-mount");
+    // 2026-08-29 wording fix: names the SPECIFIC docker-compose.yml env vars
+    // (PUID/PGID) instead of the vague "owned by the panel container
+    // UID/GID" -- the exact gap the dispatch named (docker-compose.yml's
+    // own Quick Start comments document PUID/PGID right above the
+    // bind-mount lines, and the old error never mentioned it).
+    expect(result.message).toContain("PUID");
+    expect(result.message).toContain("PGID");
+    expect(result.message).toContain(".env");
   });
 
   it("data + bare-metal", () => {
@@ -83,9 +94,8 @@ describe("formatWritablePathError: variant split (2026-08-22 correction)", () =>
     const result = formatWritablePathError("data", "/srv/pz_Data", false);
     expect(result.code).toBe(ErrorCode.WRITABLE_PATH_DATA_BAREMETAL);
     expect(result.params).toEqual({ path: "/srv/pz_Data" });
-    expect(result.message).toBe(
-      "Zomboid data folder is not writable: /srv/pz_Data. Choose a folder writable by the panel process.",
-    );
+    expect(result.message).toContain("chown");
+    expect(result.message).toContain("chmod");
   });
 
   it("data + container", () => {
@@ -95,7 +105,9 @@ describe("formatWritablePathError: variant split (2026-08-22 correction)", () =>
     const result = formatWritablePathError("data", "/srv/pz_Data", false);
     expect(result.code).toBe(ErrorCode.WRITABLE_PATH_DATA_CONTAINER);
     expect(result.params).toEqual({ path: "/srv/pz_Data" });
-    expect(result.message).toContain("In Docker, bind-mount");
+    expect(result.message).toContain("PUID");
+    expect(result.message).toContain("PGID");
+    expect(result.message).toContain(".env");
   });
 
   it("container detection is skipped entirely on Windows, by design", () => {

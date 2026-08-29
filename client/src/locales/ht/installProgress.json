@@ -5,7 +5,6 @@
   "STEAMCMD_INSTALL_COMPLETE": "SteamCMD enstale avèk siksè!",
   "DATA_FOLDER_USING_CONFIGURED": "N ap itilize dosye done konfigire a: {{path}}",
   "DATA_FOLDER_USING_ISOLATED": "N ap itilize dosye done izole a: {{path}}",
-  "INSTALL_DATA_FOLDER_NOT_WRITABLE": "Dosye sèvè yo enstale, men dosye done a pa modifyab: {{path}} ({{reason}}). Kreye l ak bon pwopriyetè anvan w demare sèvè a, pa egzanp sou Linux: {{command}}, epi eseye ankò.",
   "INSTALL_SETTINGS_SAVE_FAILED": "Fichye sèvè yo enstale, men gen kèk paramèt enstalasyon ({{fields}}) ki pa t kapab sove ({{reason}}). Tcheke yo anba Paramèt yon fwa panel la retounen aksesib.",
   "RCON_SETTINGS_SAVED": "Paramèt RCON sove (pò: {{port}})",
   "INI_PRECREATED_WITH_RCON": "INI sèvè a pre-kreye ak idantifyan RCON",

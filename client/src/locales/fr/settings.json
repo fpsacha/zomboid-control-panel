@@ -247,7 +247,7 @@
     "footerDownloadThenRestart": "Téléchargez la mise à jour, puis redémarrez pour l'appliquer.",
     "footerNoUpdate": "Aucune mise à jour n'est prête à être installée.",
     "footerDockerHandled": "Les mises à jour Docker sont gérées par le contrôleur hôte configuré.",
-    "footerAutoUpdateDevMode": "La mise à jour automatique fonctionne uniquement pour les versions packagées. En mode développement, mettez à jour depuis git."
+    "footerAutoUpdateDevMode": "La mise à jour automatique fonctionne uniquement pour les versions packagées. En mode développement, mettez à jour depuis git. Exécution dans Docker sans contrôleur de mise à jour configuré ? Mettez à jour avec docker compose pull && docker compose up -d."
   },
   "https": {
     "cardTitle": "HTTPS",
