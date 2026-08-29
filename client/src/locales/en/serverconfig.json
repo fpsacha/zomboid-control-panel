@@ -31,6 +31,9 @@
     "fileNotFoundTitle": "{{label}}: file not found",
     "notFoundAria": "Not found"
   },
+  "unresolvedReview": {
+    "title": "Unresolved Mods= IDs"
+  },
   "tabs": {
     "serverSettings": "Server Settings",
     "sandbox": "Sandbox",

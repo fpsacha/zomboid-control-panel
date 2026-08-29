@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.9] - 2026-08-28
+
+### Fixed
+
+- Horde spawning now uses the coordinate-aware Build 42 API and reports zero-result failures honestly.
+- Workshop cookie extraction now ignores expired cookies and pairs fresh credentials from the correct browser profile and domain.
+- Vehicle and player map actions now work on click/tap, guard against stale or offline state, and prevent overlapping commands.
+- Packaged updates preserve matching frontend/backend bundles and retain recovery data when Windows file operations fail.
+- Unsafe client mutations are no longer retried automatically after uncertain transport failures.
+
 ## [1.2.8] - 2026-08-27
 
 Completes the configuration-loss fix that v1.2.7 only half-delivered. If you run scheduled
@@ -341,6 +351,22 @@ restarts, this release matters more than v1.2.7 did.
 
 ### Fixed
 
+- **Horde spawning now creates zombies on Build 42 instead of reporting a false success.** The
+  PanelBridge was calling a different `VirtualZombieManager` overload that does not accept map
+  coordinates, then treating the resulting no-op as a confirmed spawn. It now uses the coordinate
+  API, counts returned zombies, and reports failure when none were created.
+- **Docker panel updates no longer stop after building with a duplicate container-name error.**
+  The updater now gracefully replaces an existing manually created panel container before Compose
+  recreates it, and uses the same safe replacement path during rollback.
+- **Docker-managed servers no longer appear stopped on the Dashboard.** Active status now reads the
+  mapped container from Docker instead of scanning only the panel host, refreshes after lifecycle
+  actions, and reports an unknown state when Docker status cannot be verified.
+- **Manual backups no longer retain hundreds of thousands of ZIP entries in the Node.js heap.**
+  Large saves now stream file data while writing the ZIP central directory to disk, and abandoned
+  backup temporary files are cleaned up before the next run.
+- **Manual upgrades no longer leave a permanent false update-failure banner.** If the panel is
+  already running a newer version and the obsolete staged binary is gone, the old pending marker
+  is cleared automatically; genuine failed applies remain visible and retryable.
 - **New Docker installs no longer start an unreachable Project Zomboid server.** The primary
   Docker setup now uses a one-command all-in-one installer when the panel owns PZ. It validates
   Docker, generates secrets and LAN access settings, pulls exact release images with a local-build
@@ -349,6 +375,15 @@ restarts, this release matters more than v1.2.7 did.
 - **Conflict scans with heavily overlapping mod files no longer exhaust the panel's Node.js heap.**
   The grouped pair output now has its own global budget, preventing a bounded file index from
   expanding into millions of duplicate pair-file rows while building the response.
+- **Mod conflict results now stay truthful after load-order changes.** Critical, Medium, and Low
+  pair totals are mutually exclusive; winner badges refresh after reordering; cached scans detect
+  order changes; incomplete scans cannot report a clean result; and labels distinguish
+  higher-impact conflicts from low-impact file overrides.
+- **Mod and update shortcuts now open the relevant settings directly.** Workshop Collection's
+  Configure action opens the Mods tab, and the sidebar Update badge opens the Updates tab.
+- **Reviewing an unresolved `Mods=` diagnostic now opens the setting that can fix it.** The action
+  opens Server Configuration filtered to `Mods`, carries the exact unresolved IDs into a visible
+  warning, and no longer sends operators to the unrelated missing-dependencies screen.
 - **Lifecycle operations now fail closed when process state is unknown.** Server start/restart,
   backup restore, Docker panel updates, status reporting, and the Windows force-stop path no
   longer treat a failed process scan or unconfirmed kill as a clean stop.

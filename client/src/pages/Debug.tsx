@@ -264,6 +264,7 @@ type TimeFormat = "relative" | "time" | "datetime";
 type DiagnosticsFixAction = {
   label: string;
   automated: boolean;
+  manualRoute?: string;
   /** Present only when the user must confirm before this automated fix runs.
    *  destructive is required (not optional) inside this object on purpose:
    *  requiresConfirm/confirmMessage/destructive used to be three independent
@@ -362,16 +363,17 @@ export function getDiagnosticsFixAction(
       // pending" or "Mods= / WorkshopItems= drift" — not typos. Running
       // the orphanWorkshop fix first usually resolves many of these.
       const count = getDiagMetaStringList(check, "unresolvedMods").length;
+      const reviewParams = new URLSearchParams({ tab: "ini", search: "Mods" });
+      for (const modId of getDiagMetaStringList(check, "unresolvedMods")) {
+        reviewParams.append("unresolved", modId);
+      }
       return {
         label:
           count > 0
             ? t("fixActions.modsResolved.labelWithCount", { count })
             : t("fixActions.modsResolved.labelGeneric"),
         automated: false,
-        openServerConfig: true,
-        links: [
-          { to: "/mods?review=unresolved", label: L("openDependencyReview") },
-        ],
+        manualRoute: `/server-config?${reviewParams.toString()}`,
         note: t("fixActions.modsResolved.note"),
       };
     }

@@ -147,6 +147,27 @@ export function installBridge(server) {
     if (installedContent !== sourceContent || version !== sourceVersion) {
       return { success: false, error: 'PanelBridge verification failed after install.' };
     }
+    // Verifies the file the way the GAME will see it, not just the way the
+    // panel's own (trivially-successful, same-process) read just did.
+    // writeLuaAtomic() now enforces 0644 unconditionally, so this should
+    // never actually fire -- it exists as a visible signal in case some
+    // future change to that guarantee (or an unusual filesystem) silently
+    // breaks it, rather than the mod just never loading with nothing in
+    // the log to explain why (2026-08-29 Linux PanelBridge hunt).
+    if (process.platform !== 'win32') {
+      try {
+        const { mode } = fs.statSync(targetPath);
+        if ((mode & 0o004) === 0) {
+          log.warn(
+            `PanelBridge installed at ${targetPath}, but it is not world-readable ` +
+              `(mode ${(mode & 0o777).toString(8)}). If the PZ server runs as a ` +
+              'different user than the panel, it will not be able to load this mod.',
+          );
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
     log.info(`PanelBridge installed at ${targetPath} (v${version || 'unknown'})`);
     return { success: true, targetPath, version, updated: true };
   } catch (error) {

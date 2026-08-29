@@ -57,10 +57,29 @@ export function getDataPaths() {
   
   // Ensure directories exist
   if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+    fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   }
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
+  }
+
+  // dataDir holds jwt.secret, server-secrets/, db.json and everything else
+  // getDataPaths() callers treat as sensitive -- a 0600 secret file inside a
+  // world-writable (or group/other-writable) directory can still be renamed
+  // away, replaced, or have a symlink dropped in its place by any local
+  // user, so the directory itself needs an explicit mode, not whatever
+  // mkdirSync's mode (itself subject to umask, and never applied at all
+  // when the directory already existed) happened to leave it at.
+  //
+  // Mirrors serverRconSecrets.js's ensureSecretsDir(): mkdirSync's mode is
+  // only honored on the create path, so a chmodSync follow-up runs
+  // unconditionally, on every call -- not just fresh installs. That is what
+  // makes this take effect for an existing install's already-created
+  // dataDir too, not only a brand-new one.
+  try {
+    fs.chmodSync(dataDir, 0o700);
+  } catch {
+    /* best-effort: Windows / network shares don't support POSIX modes */
   }
   
   currentPaths = {

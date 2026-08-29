@@ -3284,7 +3284,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
               diagFail(
                 "mods.resolved",
                 "Mods= entries do not resolve",
-                `${unresolvedMods.length} of ${ini.Mods.length} Mods= entries don't match any installed mod folder: ${list}.`,
+                `${unresolvedMods.length} of ${ini.Mods.length} Mods= entries don't match any installed Workshop or local mod ID: ${list}.`,
                 {
                   category: "server",
                   hint: "Usually a typo, missing WorkshopItems= ID, or the mod hasn't finished downloading. Fix in Server Config.",

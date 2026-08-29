@@ -14,6 +14,7 @@ import {
 } from "../routes/auth.js";
 import {
   compareDefinitionSets,
+  createConflictScanSnapshots,
   filterOwnedClientModIds,
   getModDetailsFromWorkshop,
   groupIntoPairs,
@@ -652,6 +653,15 @@ describe("conflict pair grouping", () => {
     expect(
       pairs.reduce((total, pair) => total + pair.files.length, 0),
     ).toBe(maxFileEntries);
+  });
+});
+
+describe("conflict scan snapshots", () => {
+  it("normalizes Workshop order but preserves Mods= load order", () => {
+    expect(createConflictScanSnapshots(["2", "1"], ["ModB", "ModA"]))
+      .toEqual({ workshop: "1,2", mods: "ModB,ModA" });
+    expect(createConflictScanSnapshots(["1", "2"], ["ModA", "ModB"]).mods)
+      .not.toBe("ModB,ModA");
   });
 });
 

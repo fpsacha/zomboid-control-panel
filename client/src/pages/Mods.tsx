@@ -58,6 +58,7 @@ import {
 } from '@/lib/modsShared'
 import { getAccessToken } from '@/lib/authToken'
 import { isDemoMode } from '@/lib/demo'
+import { createConflictScanSnapshot, recalculateConflictWinners } from '@/lib/conflictSeverity'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -370,10 +371,7 @@ export default function Mods() {
   // Detect stale conflict results when INI config changes
   const conflictsStale = useMemo(() => {
     if (!conflicts || !scanIniSnapshot) return false
-    const currentSnapshot = JSON.stringify({
-      ws: iniConfig?.workshopIds?.slice().sort() || [],
-      mods: iniConfig?.modIds?.slice().sort() || []
-    })
+    const currentSnapshot = createConflictScanSnapshot(iniConfig?.workshopIds, iniConfig?.modIds)
     return currentSnapshot !== scanIniSnapshot
   }, [conflicts, scanIniSnapshot, iniConfig?.workshopIds, iniConfig?.modIds])
 
@@ -907,10 +905,7 @@ export default function Mods() {
           setConflictsError(null) // clear any stale error from a previous session
           setLastScanTime(new Date()) // approximate — exact time isn't stored
           // Set a snapshot so stale detection works when modIds change after cached load
-          setScanIniSnapshot(JSON.stringify({
-            ws: cached._workshopIdsSnapshot || [],
-            mods: cached._modIdsSnapshot || []
-          }))
+          setScanIniSnapshot(createConflictScanSnapshot(cached._workshopIdsSnapshot, cached._modIdsSnapshot))
           if (cached.stale) {
             // Config changed since last scan — the stale banner will show
           }
@@ -1886,6 +1881,8 @@ export default function Mods() {
     try {
       setSavingModOrder(true)
       await modsApi.saveModOrder(orderedModIds)
+      setConflicts(prev => prev ? recalculateConflictWinners(prev, orderedModIds) : prev)
+      setScanIniSnapshot(createConflictScanSnapshot(iniConfig?.workshopIds, orderedModIds))
       toast({
         title: t('toasts.modOrderSavedTitle'),
         description: t('toasts.modOrderSavedDesc'),
@@ -1929,7 +1926,8 @@ export default function Mods() {
       setSavingModOrder(true)
       await modsApi.saveModOrder(next)
       setOrderedModIds(next)
-      setConflicts(prev => prev ? { ...prev, modLoadOrder: next } : prev)
+      setConflicts(prev => prev ? recalculateConflictWinners(prev, next) : prev)
+      setScanIniSnapshot(createConflictScanSnapshot(iniConfig?.workshopIds, next))
       toast({
         title: t('toasts.loadOrderUpdatedTitle'),
         description: t('toasts.loadOrderUpdatedDesc', { winner: winnerName, loser: loserName }),
@@ -2390,10 +2388,7 @@ export default function Mods() {
         scanBatchRef.current.dirty = false
         setConflicts(data)
         setLastScanTime(new Date())
-        setScanIniSnapshot(JSON.stringify({
-          ws: iniConfig?.workshopIds?.slice().sort() || [],
-          mods: iniConfig?.modIds?.slice().sort() || []
-        }))
+        setScanIniSnapshot(createConflictScanSnapshot(iniConfig?.workshopIds, iniConfig?.modIds))
         setScanProgress(100)
       } catch (err) {
         setConflictsError(t('toasts.scanParseFailed'))

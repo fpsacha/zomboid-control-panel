@@ -11,6 +11,7 @@ function fallbackCheck(overrides: Partial<{
   status: 'ok' | 'warn' | 'fail' | 'info' | 'skip'
   category: string
   hint: string
+  meta: { unresolvedMods?: string[] }
 }>) {
   return {
     id: 'some.unregistered.check',
@@ -24,6 +25,23 @@ function fallbackCheck(overrides: Partial<{
 }
 
 describe('getDiagnosticsFixAction fallback branch (uncovered check ids)', () => {
+  it('routes unresolved Mods= entries to the exact editable Server Config field', () => {
+    const action = getDiagnosticsFixAction(
+      fallbackCheck({
+        id: 'mods.resolved',
+        hint: 'Fix in server.ini.',
+        meta: { unresolvedMods: ['ArcadiaQOLSafehouse_B42'] },
+      }),
+      t,
+    )
+    expect(action).toMatchObject({
+      automated: false,
+      manualRoute: '/server-config?tab=ini&search=Mods&unresolved=ArcadiaQOLSafehouse_B42',
+    })
+    expect(action?.openServerConfig).toBeUndefined()
+    expect(action?.links).toBeUndefined()
+  })
+
   it('opens server config when the hint contains the literal server.ini token', () => {
     const action = getDiagnosticsFixAction(
       fallbackCheck({ hint: 'Edit server.ini to fix this.' }),

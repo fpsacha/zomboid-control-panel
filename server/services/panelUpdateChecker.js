@@ -28,6 +28,22 @@ const DOWNLOAD_TIMEOUT_MS = 60000;
 const MAX_GITHUB_RETRIES = 3;
 const MAX_DOWNLOAD_REDIRECTS = 5;
 
+export function createUpdateDataBackup(dataPaths, version, fsModule = fs) {
+  const dbPath = dataPaths?.dbPath;
+  if (!dbPath || !fsModule.existsSync(dbPath)) return null;
+  const safeVersion = String(version || "unknown").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const backupPath = `${dbPath}.pre-update-${safeVersion}-${Date.now()}`;
+  const tempPath = `${backupPath}.tmp`;
+  fsModule.copyFileSync(dbPath, tempPath);
+  try {
+    fsModule.renameSync(tempPath, backupPath);
+  } catch (error) {
+    try { fsModule.unlinkSync(tempPath); } catch { /* best effort */ }
+    throw error;
+  }
+  return backupPath;
+}
+
 export function validateReleaseManifest(
   manifest,
   expectedVersion,
@@ -478,6 +494,13 @@ export class PanelUpdateChecker {
     );
 
     try {
+      const dataBackupPath = createUpdateDataBackup(
+        getDataPaths(),
+        this.latestRelease.version,
+      );
+      if (dataBackupPath) {
+        log.info(`Backed up panel database before update: ${dataBackupPath}`);
+      }
       log.info(
         `Downloading update: ${asset.name} (${(asset.size / 1024 / 1024).toFixed(1)} MB)`,
       );
@@ -1359,6 +1382,26 @@ export class PanelUpdateChecker {
     info.exePath = exePath;
     info.exeDir = exeDir;
 
+    // Keep the update tied to the data directory the running panel actually
+    // uses. A resumed Windows update must not silently become a fresh install.
+    const dataPaths = getDataPaths();
+    info.dataDir = dataPaths.dataDir;
+    info.dbPath = dataPaths.dbPath;
+    if (fs.existsSync(dataPaths.dbPath)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(dataPaths.dbPath, "utf8"));
+        info.databaseUsers = Array.isArray(parsed.users) ? parsed.users.length : 0;
+        info.databaseServers = Array.isArray(parsed.servers) ? parsed.servers.length : 0;
+        info.databaseReadable = true;
+      } catch (err) {
+        info.databaseReadable = false;
+        blockers.push(`Panel database cannot be read before update: ${err.message}.`);
+      }
+    } else {
+      info.databaseReadable = false;
+      warnings.push("No data/db.json was found beside the running panel. This looks like a fresh install; verify the data folder before applying the update.");
+    }
+
     // Resolve the asset so we can size-check.
     const assetName = isWindows
       ? "ZomboidControlPanel.exe"
@@ -1740,6 +1783,21 @@ export class PanelUpdateChecker {
     const helperLog = this.readMostRecentApplyLog();
     const staged = this.getStagedUpdate();
     const stagedStillPresent = Boolean(staged);
+
+    // A manual installation can move the panel past an older pending marker
+    // while also removing the old staged binary. There is then nothing left
+    // to retry, and keeping the marker turns a successful recovery into a
+    // permanent false failure banner on every startup.
+    if (!stagedStillPresent && this.isNewer(this.currentVersion, pending)) {
+      await setSetting("pendingPanelUpdate", null);
+      await setSetting("stagedPanelUpdateVersion", null);
+      this._stagedVersionCache = null;
+      this.lastApplyResult = null;
+      log.info(
+        `Cleared superseded pending panel update: running v${this.currentVersion}, pending v${pending}`,
+      );
+      return;
+    }
 
     // Heuristic: the helper ran, reported "Update applied", and then the exe
     // vanished or the relaunch failed "cannot find the file specified". That

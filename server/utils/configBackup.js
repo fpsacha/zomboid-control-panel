@@ -27,12 +27,50 @@ export async function getBackupPath(configPath) {
   return path.join(configPath, "backups");
 }
 
+// A backup name is `${filename}.<timestamp>.bak`, or
+// `${filename}.<timestamp>-<n>.bak` when createBackup() had to disambiguate
+// a same-millisecond collision (see its own comment). <timestamp> is
+// `new Date().toISOString().replace(/[:.]/g, "-")`, which always ends in
+// literal "Z" -- so splitting off a trailing "-<digits>" only ever strips a
+// real collision suffix, never part of the timestamp itself.
+const COLLISION_SUFFIX_RE = /^(.*Z)-(\d+)$/;
+
+function parseBackupName(filename, name) {
+  const rest = name.slice(filename.length + 1, name.length - ".bak".length);
+  const match = rest.match(COLLISION_SUFFIX_RE);
+  return match
+    ? { timestampKey: match[1], suffix: parseInt(match[2], 10) }
+    : { timestampKey: rest, suffix: 1 };
+}
+
 // Existing backups of `filename` inside `configPath`, newest first --
-// sorted by real fs birthtime, not by parsing the filename's embedded
-// timestamp (see createBackup()'s own comment on why a string sort of the
-// collision-suffixed name gets that backwards). Shared by createBackup()'s
-// own pruning and by createBackupIfChanged()'s "is this actually new
-// content" check below, so both agree on what "most recent" means.
+// ordered by parsing each backup's OWN embedded timestamp + collision
+// suffix out of its filename, not by fs birthtime.
+//
+// This used to sort by real fs birthtime (48de518), fixing a real bug: a
+// plain string sort of the whole filename put "-2.bak" before ".bak"
+// ('-' < '.'), so within a same-millisecond collision group the
+// chronologically-first (oldest) name was always treated as newest. But
+// birthtime doesn't hold up on Linux for the same case it was meant to fix:
+// several backups of the SAME filename created within the same JS tick (the
+// exact scenario the collision suffix exists for) can land on ext4 with
+// IDENTICAL birthtimeMs -- confirmed on real WSL2/ext4, not a theoretical
+// concern -- at which point Array.prototype.sort's stability falls back to
+// original array order, which is readdir()'s order, which has no
+// relationship to creation order at all. The visible failure: the
+// brand-new backup this very call just created gets treated as older than
+// backups that existed before it, and can be the one pruned.
+// See server/tests/configBackup.test.js's "pruning still keeps only the 10
+// newest..." test, which reproduces this on Linux with no artificial delay
+// between writes.
+//
+// The fix parses the timestamp + numeric collision suffix each backup's
+// name already encodes (createBackup() below is the only writer of this
+// format) and orders by that instead -- no filesystem timestamp of any
+// kind, so no platform-dependent resolution to lose. Shared by
+// createBackup()'s own pruning and by createBackupIfChanged()'s "is this
+// actually new content" check below, so both agree on what "most recent"
+// means.
 async function listBackupsFor(backupDir, filename) {
   let files;
   try {
@@ -43,19 +81,14 @@ async function listBackupsFor(backupDir, filename) {
   const candidateNames = files.filter(
     (f) => f.startsWith(filename + ".") && f.endsWith(".bak"),
   );
-  const candidates = await Promise.all(
-    candidateNames.map(async (name) => {
-      try {
-        const stats = await fs.promises.stat(path.join(backupDir, name));
-        return { name, birthtimeMs: stats.birthtimeMs };
-      } catch {
-        return null;
+  return candidateNames
+    .map((name) => ({ name, ...parseBackupName(filename, name) }))
+    .sort((a, b) => {
+      if (a.timestampKey !== b.timestampKey) {
+        return a.timestampKey < b.timestampKey ? 1 : -1; // newest first
       }
-    }),
-  );
-  return candidates
-    .filter((c) => c !== null)
-    .sort((a, b) => b.birthtimeMs - a.birthtimeMs) // newest first
+      return b.suffix - a.suffix; // higher collision suffix = created later
+    })
     .map((c) => c.name);
 }
 

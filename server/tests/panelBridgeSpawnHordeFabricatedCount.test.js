@@ -49,19 +49,33 @@ ZombiePopulationManager = { instance = FakeZPM }
 
 const VZM_STUBS = COMMON_STUBS + `
 FakeVZM = {}
-function FakeVZM:createRealZombieAlways(x, y, z) end
+function FakeVZM:createRealZombieNow(x, y, z) return { x = x, y = y, z = z } end
+VirtualZombieManager = { instance = FakeVZM }
+`;
+
+const NOOP_VZM_STUBS = COMMON_STUBS + `
+FakeVZM = {}
+function FakeVZM:createRealZombieNow(x, y, z) return nil end
 VirtualZombieManager = { instance = FakeVZM }
 `;
 
 describe('PanelBridge.lua handlers.spawnHordeNearPlayer/BehindPlayer -- fallback branches must not fabricate a spawned count', () => {
-  it('spawnHordeNearPlayer reports a real per-zombie count when VirtualZombieManager is available (verified="confirmed")', () => {
+  it('spawnHordeNearPlayer reports a real per-zombie count when VirtualZombieManager returns zombies (verified="confirmed")', () => {
     const bridge = loadPanelBridge(LUA_PATH, VZM_STUBS);
     const result = bridge.callHandler('spawnHordeNearPlayer', { username: 'Test', count: 5 });
 
     expect(result.ok).toBe(true);
     expect(result.data.verified).toBe('confirmed');
     expect(result.data.spawned).toBe(5);
-    expect(result.data.method).toBe('VirtualZombieManager.createRealZombieAlways');
+    expect(result.data.method).toBe('VirtualZombieManager.createRealZombieNow');
+  });
+
+  it('does not report success when the coordinate spawn method creates no zombies', () => {
+    const bridge = loadPanelBridge(LUA_PATH, NOOP_VZM_STUBS);
+    const result = bridge.callHandler('spawnHordeNearPlayer', { username: 'Test', count: 5 });
+
+    expect(result.ok).toBe(false);
+    expect(result.err).toMatch(/no zombies were created/);
   });
 
   it('spawnHordeNearPlayer must NOT claim a spawned count from the createHordeInAreaTo fallback (verified="unverifiable", spawned unset)', () => {
@@ -84,5 +98,13 @@ describe('PanelBridge.lua handlers.spawnHordeNearPlayer/BehindPlayer -- fallback
     expect(result.data.method).toBe('createHordeInAreaTo');
     expect(result.data.verified).toBe('unverifiable');
     expect(result.data.spawned == null).toBe(true);
+  });
+
+  it('spawnHordeBehindPlayer does not report success when the coordinate spawn method creates no zombies', () => {
+    const bridge = loadPanelBridge(LUA_PATH, NOOP_VZM_STUBS);
+    const result = bridge.callHandler('spawnHordeBehindPlayer', { username: 'Test', count: 5 });
+
+    expect(result.ok).toBe(false);
+    expect(result.err).toMatch(/no zombies were created/);
   });
 });

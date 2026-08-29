@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveClientProvider, resolveServerRunning, waitForServerState } from '../serverStatus'
+import { deriveDashboardStatus, resolveClientProvider, resolveServerRunning, waitForServerState } from '../serverStatus'
 
 describe('resolveClientProvider', () => {
   it('returns null for no server', () => {
@@ -122,6 +122,126 @@ describe('resolveServerRunning', () => {
   it('FAIL CLOSED: no active server at all is unknown (null), not a free pass to save', async () => {
     await expect(resolveServerRunning(null, vi.fn(), vi.fn())).resolves.toBeNull()
     await expect(resolveServerRunning(undefined, vi.fn(), vi.fn())).resolves.toBeNull()
+  })
+})
+
+// LIVE BUG (2026-08-29, Discord report, Linux/native provider): Stop/Force
+// Stop/Restart in Dashboard.tsx were all stuck disabled while RCON was
+// genuinely connected. Root cause: server/services/serverManager.js's
+// getServerStatus() (the plain `/status` endpoint) and the composed-status
+// route both derive `running` from the exact SAME getServerProcessDetails()
+// scan -- so a Linux scan that can't see the process makes `status.running`
+// a definite boolean `false`, not null. Dashboard.tsx's OLD `online` formula
+// re-applied `localProcessStatus ??` at its own outer level even though
+// hostRunning (one of the three OR'd terms one level in) already carries
+// that same preference -- `false ?? X` evaluates to `false` in JS, never
+// falling through to the RCON-inclusive OR. That silently defeated the
+// entire RCON/bridge fallback for any native server whose plain scan had
+// ever returned a definite `false`.
+describe('deriveDashboardStatus', () => {
+  const composed = (host: string, server: string, bridge: string) => ({
+    host: { status: host },
+    server: { status: server },
+    bridge: { status: bridge },
+  })
+
+  it('THE LIVE BUG: native provider, plain scan says stopped, RCON is connected -- online must be true, not just hostRunning false', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: false, rcon: { connected: true } },
+      composedStatus: composed('stopped', 'connected', 'offline'),
+    })
+    expect(result.hostRunning).toBe(false) // the host scan genuinely can't see it -- this part is correct
+    expect(result.rconConnected).toBe(true)
+    expect(result.online).toBe(true) // but online must trust RCON as independent evidence the server is up
+  })
+
+  it('native provider, plain scan says stopped, bridge is active -- online is still true via the bridge signal alone', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: false, rcon: { connected: false } },
+      composedStatus: composed('stopped', 'disconnected', 'active'),
+    })
+    expect(result.hostRunning).toBe(false)
+    expect(result.online).toBe(true)
+  })
+
+  it('native provider, everything genuinely stopped -- online is false, matching hostRunning', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: false, rcon: { connected: false } },
+      composedStatus: composed('stopped', 'disconnected', 'offline'),
+    })
+    expect(result.hostRunning).toBe(false)
+    expect(result.online).toBe(false)
+  })
+
+  it('native provider, plain scan says running -- hostRunning and online both true, regardless of composedStatus', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: true, rcon: { connected: false } },
+      composedStatus: composed('stopped', 'disconnected', 'offline'),
+    })
+    expect(result.hostRunning).toBe(true)
+    expect(result.online).toBe(true)
+  })
+
+  it('docker provider (localProcessStatus never applies): host scan cannot see it, but RCON connected still means online -- unchanged behavior, not a regression', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'docker-local',
+      status: { running: false, rcon: { connected: true } },
+      composedStatus: composed('stopped', 'connected', 'offline'),
+    })
+    expect(result.hostRunning).toBe(false)
+    expect(result.online).toBe(true)
+  })
+
+  it('no composedStatus available at all: falls back to the plain status fields exactly as before', () => {
+    const withScan = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: true, rcon: { connected: false } },
+      composedStatus: null,
+    })
+    expect(withScan.hostRunning).toBe(true)
+    expect(withScan.online).toBe(true)
+    expect(withScan.rconConnected).toBe(false)
+
+    const withoutScan = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: false, rcon: { connected: false } },
+      composedStatus: null,
+    })
+    expect(withoutScan.hostRunning).toBe(false)
+    expect(withoutScan.online).toBe(false)
+  })
+
+  it('no active server: everything is false regardless of signals', () => {
+    const result = deriveDashboardStatus({
+      hasServer: false,
+      provider: 'native',
+      status: { running: true, rcon: { connected: true } },
+      composedStatus: composed('running', 'connected', 'active'),
+    })
+    expect(result.hostRunning).toBe(false)
+    expect(result.online).toBe(false)
+  })
+
+  it('hostUnknown reflects an indeterminate host signal (scan failed), independent of online', () => {
+    const result = deriveDashboardStatus({
+      hasServer: true,
+      provider: 'native',
+      status: { running: false, rcon: { connected: false } },
+      composedStatus: composed('unknown', 'disconnected', 'offline'),
+    })
+    expect(result.hostUnknown).toBe(true)
+    expect(result.online).toBe(false)
   })
 })
 

@@ -450,6 +450,18 @@ describe("createBackup archive safety", () => {
     expect(files.some((f) => f.endsWith(".zip"))).toBe(true);
   });
 
+  it("removes orphaned backup temp files before starting", async () => {
+    const service = createService();
+    fs.writeFileSync(path.join(backupsPath, "old.zip.tmp"), "partial");
+    fs.writeFileSync(path.join(backupsPath, ".central-old.tmp"), "partial");
+
+    const result = await service.createBackup({});
+
+    expect(result.success).toBe(true);
+    expect(fs.existsSync(path.join(backupsPath, "old.zip.tmp"))).toBe(false);
+    expect(fs.existsSync(path.join(backupsPath, ".central-old.tmp"))).toBe(false);
+  });
+
   it("uses a distinct name for sequential backups created in the same millisecond", async () => {
     const timestamp = "2026-08-25T12:00:00.000Z";
     const toISOString = vi

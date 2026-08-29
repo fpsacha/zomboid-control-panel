@@ -49,7 +49,7 @@
     "modsResolved": {
       "labelWithCount": "Revize {{count}} ki pa rezoud",
       "labelGeneric": "Revize sa ki pa rezoud",
-      "note": "Korije atik Workshop òfelen yo dabò (anba a), epi egzekite dyagnostik yo ankò. Dezaktive manyèlman sèlman si antre yo reyèlman pa rezoud apre telechajman yo fini."
+      "note": "Tann telechajman Workshop yo fini, epi egzekite dyagnostik yo ankò. Si yon ID toujou pa rezoud, korije li oswa retire li nan Mods=."
     },
     "modsOrphanWorkshop": {
       "labelWithCount": "Otokorije {{count}} ID Workshop",
@@ -880,11 +880,11 @@
         "resolved": {
           "ok": {
             "label": "Tout antre Mods= rezoud",
-            "message": "{{count}} mod nan lis, tout koresponn ak yon dosye mod Workshop oswa lokal enstale."
+            "message": "{{count}} mod nan lis, tout koresponn ak yon ID mod Workshop oswa lokal enstale."
           },
           "fail": {
             "label": "Antre Mods= pa rezoud",
-            "message": "{{count}} sou {{total}} antre Mods= pa koresponn ak okenn dosye mod enstale: {{list}}.",
+            "message": "{{count}} sou {{total}} antre Mods= pa koresponn ak okenn ID mod Workshop oswa lokal enstale: {{list}}.",
             "hint": "Anjeneral yon fòt tape, ID WorkshopItems= manke, oswa mod la poko fin telechaje. Korije nan Konfigirasyon Sèvè."
           }
         },

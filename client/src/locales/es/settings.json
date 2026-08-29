@@ -642,6 +642,7 @@
     "testConnection": "Probar conexión",
     "testConnectionTitleNeedsCookies": "Añade primero las cookies de sesión de Steam",
     "testConnectionTitleReady": "Verifica que la colección se puede leer con estas cookies",
+    "readOnlyTestNote": "Solo lectura; el acceso de escritura se verifica al cambiar un elemento.",
     "checkDrift": "Comprobar desviación",
     "enterCollectionId": "Introduce un ID de colección para empezar.",
     "readingCollection": "Leyendo colección…",

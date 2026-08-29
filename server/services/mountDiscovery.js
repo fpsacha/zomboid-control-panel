@@ -7,6 +7,7 @@
 // startup and on-demand from a settings button, never in a hot path, so a
 // handful of sync stat calls is cheap even on a slow bind mount.
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 const INI_SUFFIX_BLOCKLIST = [
@@ -70,7 +71,12 @@ export function probeInstallPath(installPath) {
 
   const entries = safeReaddir(installPath);
   const hasZomboidBinary = entries.some((f) => f.startsWith("ProjectZomboid64"));
-  const hasStartScript = fs.existsSync(path.join(installPath, "start-server.sh"));
+  // Two real launcher-script names exist across PZ distributions/versions --
+  // zomboidPaths.js's SERVER_INSTALL_ARTIFACTS already lists both for the
+  // same reason. Checking only one silently missed installs using the other.
+  const hasStartScript =
+    fs.existsSync(path.join(installPath, "start-server.sh")) ||
+    fs.existsSync(path.join(installPath, "projectzomboid-dedi-server.sh"));
   const hasMediaLua = safeIsDir(path.join(installPath, "media", "lua"));
   const hasSteamapps = safeIsDir(path.join(installPath, "steamapps"));
 
@@ -137,20 +143,70 @@ function envCandidates() {
   ];
 }
 
+// COMMON_MOUNT_CANDIDATES above are container-internal Docker bind-mount
+// conventions -- they only ever exist inside a container built to that
+// convention. The panel also runs bare-metal on Linux (the packaged
+// build), where a genuine SteamCMD install lives at one of a few
+// well-known real host paths instead. zomboidPaths.js's
+// computeCandidateZomboidPaths() has anticipated exactly these roots on
+// the save-data side for a long time (~/pzserver/Zomboid, /opt/pzserver/
+// Zomboid, /srv/pz/Zomboid) -- discoverMounts() never had the matching
+// install-side candidates, so a bare-metal Linux operator's "Discover"
+// scan came up empty no matter how standard their layout was. Confirmed
+// on real ext4: a SteamCMD install at ~/pzserver with data at PZ's own
+// actual default cachedir (~/Zomboid -- NOT nested under the install,
+// see resolveDataPathCandidate below) was invisible before this fix.
+function bareMetalLinuxCandidates() {
+  if (process.platform === "win32") return [];
+  const home = os.homedir();
+  const roots = [];
+  if (home) roots.push(path.join(home, "pzserver"));
+  roots.push("/opt/pzserver");
+  roots.push("/srv/pz");
+  return roots.map((install) => ({ install, source: "linux-bare-metal" }));
+}
+
+function allCandidates() {
+  return [
+    ...envCandidates(),
+    ...COMMON_MOUNT_CANDIDATES,
+    ...bareMetalLinuxCandidates(),
+  ];
+}
+
+// Resolves in priority order: an explicit candidate.data (Docker
+// conventions where install and data are two separate bind mounts) ->
+// a `Zomboid` folder nested directly under the install (co-located
+// layouts) -> for a bare-metal Linux candidate specifically, the game's
+// own real default cachedir ($HOME/Zomboid, independent of where the
+// server binary lives). That last fallback is scoped to
+// source === "linux-bare-metal" rather than applied to every candidate,
+// so the already-covered Docker candidates' behavior is unchanged.
+function resolveDataPathCandidate(candidate) {
+  if (candidate.data) return candidate.data;
+  const nested = findDataPath(candidate.install);
+  if (nested) return nested;
+  if (candidate.source === "linux-bare-metal") {
+    const home = os.homedir();
+    return home ? path.join(home, "Zomboid") : null;
+  }
+  return null;
+}
+
 // Probe env-configured and common Docker bind-mount locations for PZ server
 // files, returning one entry per valid install found.
 export function discoverMounts() {
   const candidates = [];
   const seen = new Set();
 
-  for (const candidate of [...envCandidates(), ...COMMON_MOUNT_CANDIDATES]) {
+  for (const candidate of allCandidates()) {
     if (!candidate.install || seen.has(candidate.install)) continue;
     seen.add(candidate.install);
 
     const installResult = probeInstallPath(candidate.install);
     if (!installResult.valid) continue;
 
-    const dataPath = candidate.data || findDataPath(candidate.install);
+    const dataPath = resolveDataPathCandidate(candidate);
     const dataResult = probeDataPath(dataPath);
 
     candidates.push({
@@ -180,7 +236,7 @@ export function discoverMountIssues() {
   const issues = [];
   const seen = new Set();
 
-  for (const candidate of [...envCandidates(), ...COMMON_MOUNT_CANDIDATES]) {
+  for (const candidate of allCandidates()) {
     if (!candidate.install || seen.has(candidate.install)) continue;
     seen.add(candidate.install);
 
@@ -195,7 +251,7 @@ export function discoverMountIssues() {
     }
     if (!installResult.valid) continue;
 
-    const dataPath = candidate.data || findDataPath(candidate.install);
+    const dataPath = resolveDataPathCandidate(candidate);
     if (probeDataPath(dataPath).reason === "permission-denied") {
       issues.push({
         path: dataPath,

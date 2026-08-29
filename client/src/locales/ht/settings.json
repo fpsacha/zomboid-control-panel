@@ -581,6 +581,7 @@
     "testConnection": "Teste koneksyon",
     "testConnectionTitleNeedsCookies": "Ajoute cookies sesyon Steam anvan",
     "testConnectionTitleReady": "Verifye koleksyon an lizib ak cookies sa yo",
+    "readOnlyTestNote": "Tès lekti sèlman; aksè ekriti ap verifye lè yon atik chanje.",
     "checkDrift": "Tcheke diferans",
     "enterCollectionId": "Antre yon ID Koleksyon pou kòmanse.",
     "readingCollection": "N ap li koleksyon an…",

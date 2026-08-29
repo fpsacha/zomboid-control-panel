@@ -78,6 +78,11 @@ async function renderPanel(items: any[]) {
 }
 
 describe('WorkshopCollectionPanel', () => {
+  it('takes Configure directly to the Mods settings tab', async () => {
+    await renderPanel([])
+    expect(screen.getByRole('link', { name: /configure/i })).toHaveAttribute('href', '/settings?tab=mods')
+  })
+
   it('renders an accented, non-ASCII mod name verbatim -- not stripped or mangled', async () => {
     await renderPanel([
       { workshopId: '111', name: ACCENTED_NAME, status: 'to-add', inTracked: true, inCollection: false, inServer: false },

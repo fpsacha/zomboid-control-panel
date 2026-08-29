@@ -459,7 +459,7 @@ export function WorkshopCollectionPanel() {
               </p>
             </div>
             <Button asChild size="sm" variant="outline">
-              <Link to="/settings#settings-workshop-collection">
+              <Link to="/settings?tab=mods">
                 <SettingsIcon className="w-3.5 h-3.5 mr-2" />
                 {t('openSettings')}
               </Link>
@@ -551,7 +551,7 @@ export function WorkshopCollectionPanel() {
               {t('refresh')}
             </Button>
             <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs text-muted-foreground">
-              <Link to="/settings#settings-workshop-collection">
+              <Link to="/settings?tab=mods">
                 <SettingsIcon className="w-3.5 h-3.5 mr-1.5" />
                 {t('configure')}
               </Link>

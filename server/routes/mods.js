@@ -2855,6 +2855,22 @@ function getWorkshopPaths(workshopId, serverPath) {
         "108600",
         workshopId,
       ),
+      // Flatpak Steam sandboxes $HOME under ~/.var/app/<appid>, so its
+      // steamapps live at a completely different path from a native install.
+      path.join(
+        home,
+        ".var",
+        "app",
+        "com.valvesoftware.Steam",
+        ".local",
+        "share",
+        "Steam",
+        "steamapps",
+        "workshop",
+        "content",
+        "108600",
+        workshopId,
+      ),
     );
   }
   return paths;
@@ -5635,6 +5651,13 @@ let lastScanResult = null;
 let lastScanWorkshopSnapshot = null;
 let lastScanModSnapshot = null;
 let lastScanServerPath = null;
+
+export function createConflictScanSnapshots(workshopIds, modIds) {
+  return {
+    workshop: workshopIds.slice().sort().join(","),
+    mods: modIds.join(","),
+  };
+}
 let lastScanTimestamp = 0;
 let scanLockToken = 0;
 const SCAN_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -7076,11 +7099,13 @@ router.get("/conflicts/cached", async (req, res) => {
   try {
     const { workshopIds, modIdsFromIni } = await readIniModLists();
     const currentServerPath = await getServerPath();
-    const currentWsSnapshot = workshopIds.slice().sort().join(",");
-    const currentModSnapshot = modIdsFromIni.slice().sort().join(",");
+    const currentSnapshot = createConflictScanSnapshots(
+      workshopIds,
+      modIdsFromIni,
+    );
     const stale =
-      currentWsSnapshot !== lastScanWorkshopSnapshot ||
-      currentModSnapshot !== lastScanModSnapshot ||
+      currentSnapshot.workshop !== lastScanWorkshopSnapshot ||
+      currentSnapshot.mods !== lastScanModSnapshot ||
       currentServerPath !== lastScanServerPath;
     res.json({
       ...lastScanResult,
@@ -7211,8 +7236,9 @@ router.get("/conflicts", async (req, res) => {
       warnings,
       scanDurationMs: Date.now() - scanStart,
     };
-    lastScanWorkshopSnapshot = workshopIds.slice().sort().join(",");
-    lastScanModSnapshot = modIdsFromIni?.slice().sort().join(",") || null;
+    const snapshots = createConflictScanSnapshots(workshopIds, modIdsFromIni);
+    lastScanWorkshopSnapshot = snapshots.workshop;
+    lastScanModSnapshot = snapshots.mods;
     lastScanServerPath = serverPath;
     lastScanResult = result;
     lastScanTimestamp = Date.now();
@@ -7478,8 +7504,9 @@ router.get("/conflicts/stream", async (req, res) => {
     };
     lastScanResult = result;
     lastScanTimestamp = Date.now();
-    lastScanWorkshopSnapshot = workshopIds.slice().sort().join(",");
-    lastScanModSnapshot = modIdsFromIni.slice().sort().join(",");
+    const snapshots = createConflictScanSnapshots(workshopIds, modIdsFromIni);
+    lastScanWorkshopSnapshot = snapshots.workshop;
+    lastScanModSnapshot = snapshots.mods;
     lastScanServerPath = serverPath;
     send("complete", result);
     res.end();

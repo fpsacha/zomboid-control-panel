@@ -642,6 +642,7 @@
     "testConnection": "测试连接",
     "testConnectionTitleNeedsCookies": "请先添加 Steam 会话 Cookie",
     "testConnectionTitleReady": "使用这些 Cookie 校验收藏集是否可读",
+    "readOnlyTestNote": "仅检查读取；修改项目时才会验证写入权限。",
     "checkDrift": "检查差异",
     "enterCollectionId": "输入收藏集 ID 以开始。",
     "readingCollection": "正在读取收藏集…",

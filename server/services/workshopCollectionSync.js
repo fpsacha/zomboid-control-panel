@@ -220,6 +220,15 @@ async function postSharedfilesAction(action, collectionId, childId) {
   if (!isValidWorkshopId(collectionId) || !isValidWorkshopId(childId)) {
     return { ok: false, error: 'Invalid Workshop ID' };
   }
+  if (action === 'addchild') {
+    const childCollection = await getCollectionContents(childId);
+    if (childCollection.ok) {
+      return {
+        ok: false,
+        error: 'Steam rejected this item: the selected Workshop item is a collection, not a mod.',
+      };
+    }
+  }
   const body = new URLSearchParams();
   body.set('id', collectionId);
   body.set('childid', childId);

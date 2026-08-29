@@ -1,6 +1,6 @@
 {
   "name": "pz-server-manager",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Project Zomboid Server Manager - Web-based admin panel",
   "main": "server/index.js",
   "type": "module",

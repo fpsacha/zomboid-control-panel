@@ -49,7 +49,7 @@
     "modsResolved": {
       "labelWithCount": "Review {{count}} unresolved",
       "labelGeneric": "Review unresolved",
-      "note": "Fix orphan Workshop items first (below), then re-run diagnostics. Disable manually only if entries truly don’t resolve after downloads finish."
+      "note": "Let Workshop downloads finish, then re-run diagnostics. If an ID still does not resolve, correct or remove it from Mods=."
     },
     "modsOrphanWorkshop": {
       "labelWithCount": "Auto-fix {{count}} Workshop IDs",
@@ -880,11 +880,11 @@
         "resolved": {
           "ok": {
             "label": "Mods= entries all resolve",
-            "message": "{{count}} mod(s) listed, all match an installed Workshop or local mod folder."
+            "message": "{{count}} mod(s) listed, all match an installed Workshop or local mod ID."
           },
           "fail": {
             "label": "Mods= entries do not resolve",
-            "message": "{{count}} of {{total}} Mods= entries don't match any installed mod folder: {{list}}.",
+            "message": "{{count}} of {{total}} Mods= entries don't match any installed Workshop or local mod ID: {{list}}.",
             "hint": "Usually a typo, missing WorkshopItems= ID, or the mod hasn't finished downloading. Fix in Server Config."
           }
         },

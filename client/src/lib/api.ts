@@ -1566,6 +1566,7 @@ export interface ServerInstance {
   zomboidDataPath: string | null;
   serverConfigPath: string | null;
   dockerContainerName?: string | null;
+  dockerContainerId?: string | null;
   branch?: string;
   rconHost: string;
   rconPort: number;

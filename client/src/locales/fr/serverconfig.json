@@ -31,6 +31,9 @@
     "fileNotFoundTitle": "{{label}} : fichier introuvable",
     "notFoundAria": "Introuvable"
   },
+  "unresolvedReview": {
+    "title": "ID Mods= non résolus"
+  },
   "tabs": {
     "serverSettings": "Paramètres serveur",
     "sandbox": "Sandbox",

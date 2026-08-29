@@ -1109,7 +1109,7 @@ export default function Layout({ children }: LayoutProps) {
                 <span className="flex items-center gap-2">
                   {panelUpdateAvailable && (
                     <NavLink
-                      to="/settings"
+                      to="/settings?tab=updates"
                       onClick={() => setMobileMenuOpen(false)}
                       className="inline-flex items-center gap-1 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0 text-[10px] font-medium uppercase tracking-wider text-warning hover:bg-warning/20 transition-colors"
                       title={panelUpdateAvailable.version

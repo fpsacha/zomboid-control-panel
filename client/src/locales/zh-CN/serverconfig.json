@@ -31,6 +31,9 @@
     "fileNotFoundTitle": "{{label}}：未找到文件",
     "notFoundAria": "未找到"
   },
+  "unresolvedReview": {
+    "title": "未解析的 Mods= ID"
+  },
   "tabs": {
     "serverSettings": "服务器设置",
     "sandbox": "沙盒",

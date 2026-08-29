@@ -31,6 +31,9 @@
     "fileNotFoundTitle": "{{label}}: fichye pa jwenn",
     "notFoundAria": "Pa jwenn"
   },
+  "unresolvedReview": {
+    "title": "ID Mods= ki pa rezoud"
+  },
   "tabs": {
     "serverSettings": "Paramèt Sèvè",
     "sandbox": "Sandbox",

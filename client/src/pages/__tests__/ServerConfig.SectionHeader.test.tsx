@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
-import { SectionHeader } from '../ServerConfig'
+import { resolveServerConfigDeepLink, SectionHeader } from '../ServerConfig'
 
 // conv-hunt-pages-2 phone-width overflow sweep: the ini/sandbox/spawn-points/
 // spawn-regions/mod-settings tab toolbars (Form/Raw toggle, download, Wiki
@@ -43,5 +43,17 @@ describe('ServerConfig -- SectionHeader', () => {
     const actionWrapper = container.querySelector('button')?.parentElement
     expect(actionWrapper).toHaveClass('w-full')
     expect(actionWrapper).toHaveClass('sm:w-auto')
+  })
+})
+
+describe('ServerConfig deep links', () => {
+  it('opens the INI tab with a bounded search term', () => {
+    expect(resolveServerConfigDeepLink(new URLSearchParams('tab=ini&search=%20Mods%20&unresolved=ArcadiaQOLSafehouse_B42')))
+      .toEqual({ tab: 'ini', search: 'Mods', unresolved: ['ArcadiaQOLSafehouse_B42'] })
+  })
+
+  it('falls back to the INI tab for unknown tab values', () => {
+    expect(resolveServerConfigDeepLink(new URLSearchParams('tab=unknown')))
+      .toEqual({ tab: 'ini', search: '', unresolved: [] })
   })
 })

@@ -49,7 +49,7 @@
     "modsResolved": {
       "labelWithCount": "{{count}} Ungelöste überprüfen",
       "labelGeneric": "Ungelöste überprüfen",
-      "note": "Behebe zuerst verwaiste Workshop-Elemente (unten), führe dann die Diagnose erneut aus. Deaktiviere Einträge nur manuell, wenn sie nach Abschluss der Downloads wirklich nicht aufgelöst werden."
+      "note": "Warte, bis die Workshop-Downloads abgeschlossen sind, und führe die Diagnose erneut aus. Wenn eine ID weiterhin nicht aufgelöst wird, korrigiere oder entferne sie aus Mods=."
     },
     "modsOrphanWorkshop": {
       "labelWithCount": "{{count}} Workshop-IDs automatisch beheben",
@@ -880,11 +880,11 @@
         "resolved": {
           "ok": {
             "label": "Alle Mods=-Einträge aufgelöst",
-            "message": "{{count}} Mod(s) aufgeführt, alle stimmen mit einem installierten Workshop- oder lokalen Mod-Ordner überein."
+            "message": "{{count}} Mod(s) aufgeführt, alle stimmen mit einer installierten Workshop- oder lokalen Mod-ID überein."
           },
           "fail": {
             "label": "Mods=-Einträge nicht aufgelöst",
-            "message": "{{count}} von {{total}} Mods=-Einträgen stimmen mit keinem installierten Mod-Ordner überein: {{list}}.",
+            "message": "{{count}} von {{total}} Mods=-Einträgen stimmen mit keiner installierten Workshop- oder lokalen Mod-ID überein: {{list}}.",
             "hint": "Meist ein Tippfehler, eine fehlende WorkshopItems=-ID, oder die Mod ist noch nicht vollständig heruntergeladen. Behebe dies in der Serverkonfiguration."
           }
         },

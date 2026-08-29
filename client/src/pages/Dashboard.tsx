@@ -24,7 +24,7 @@ import {
   panelUpdateApi, modsApi, schedulerApi, ServerInstance, PanelUpdateStatus, ComposedServerStatus,
 } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
-import { resolveClientProvider } from '@/lib/serverStatus'
+import { resolveClientProvider, deriveDashboardStatus } from '@/lib/serverStatus'
 import { useSocket } from '@/contexts/SocketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -759,16 +759,12 @@ export default function Dashboard() {
   // remote-SFTP from everything else; it was never a "this process is local
   // to this container" proxy, which is what this check actually needs.
   const provider = composedStatus?.provider ?? resolveClientProvider(activeServer)
-  const localProcessStatus = provider === 'native' && typeof status?.running === 'boolean'
-    ? status.running
-    : null
-  const hostRunning = hasServer && (localProcessStatus ?? (composedStatus ? composedStatus.host.status === 'running' : !!status?.running))
-  const rconConnected = composedStatus
-    ? composedStatus.server.status === 'connected'
-    : Boolean(status?.rcon?.connected)
-  const bridgeActive = composedStatus?.bridge.status === 'active'
-  const hostUnknown = composedStatus ? ['unknown', 'not-applicable'].includes(composedStatus.host.status) : false
-  const online = hasServer && (localProcessStatus ?? (composedStatus ? hostRunning || rconConnected || bridgeActive : !!status?.running))
+  const { hostRunning, rconConnected, hostUnknown, online } = deriveDashboardStatus({
+    hasServer,
+    provider,
+    status,
+    composedStatus,
+  })
   const modsPending = maintenance.modUpdatesAvailable > 0
   const staleLink = !lastUpdated || Date.now() - lastUpdated.getTime() > 60_000
 
@@ -1103,7 +1099,7 @@ export default function Dashboard() {
                     // inventing a third tier.
                     variant: 'warning',
                   })}
-                  disabled={loading !== null || !hostRunning || !canControlServer}
+                  disabled={loading !== null || !online || !canControlServer}
                   variant="ghost"
                   size="sm"
                   className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -1121,7 +1117,7 @@ export default function Dashboard() {
                     action: serverApi.forceStop,
                     variant: 'destructive',
                   })}
-                  disabled={loading !== null || !hostRunning || activeServer?.isRemote || !canControlServer}
+                  disabled={loading !== null || !online || activeServer?.isRemote || !canControlServer}
                   variant="ghost"
                   size="sm"
                   className="h-8 gap-1.5 rounded-md border border-red-500/30 px-2.5 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -1140,7 +1136,7 @@ export default function Dashboard() {
                     action: () => serverApi.restart(5),
                     variant: 'warning',
                   })}
-                  disabled={loading !== null || !hostRunning || activeServer?.isRemote || !canControlServer}
+                  disabled={loading !== null || !online || activeServer?.isRemote || !canControlServer}
                   variant="ghost"
                   size="sm"
                   className="h-8 gap-1.5 rounded-md border border-amber-500/30 px-2.5 text-xs text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 disabled:border-border/50 disabled:text-muted-foreground"
@@ -1222,7 +1218,7 @@ export default function Dashboard() {
                       variant: 'destructive',
                     })
                   }}
-                  disabled={!hasServer || !hostRunning || loading !== null || activeServer?.isRemote || !canControlServer}
+                  disabled={!hasServer || !online || loading !== null || activeServer?.isRemote || !canControlServer}
                   className="text-destructive focus:text-destructive"
                 >
                   <Zap className="mr-2 h-4 w-4" /> {t('actions.restartNow')}

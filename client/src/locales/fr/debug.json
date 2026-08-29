@@ -49,7 +49,7 @@
     "modsResolved": {
       "labelWithCount": "Examiner {{count}} non résolus",
       "labelGeneric": "Examiner les non résolus",
-      "note": "Corrigez d'abord les éléments Workshop orphelins (ci-dessous), puis relancez les diagnostics. Ne désactivez manuellement que si des entrées ne se résolvent vraiment pas une fois les téléchargements terminés."
+      "note": "Attendez la fin des téléchargements Workshop, puis relancez les diagnostics. Si un ID ne se résout toujours pas, corrigez-le ou retirez-le de Mods=."
     },
     "modsOrphanWorkshop": {
       "labelWithCount": "Corriger automatiquement {{count}} ID Workshop",
@@ -880,11 +880,11 @@
         "resolved": {
           "ok": {
             "label": "Toutes les entrées Mods= se résolvent",
-            "message": "{{count}} mod(s) listé(s), tous correspondent à un dossier de mod Workshop ou local installé."
+            "message": "{{count}} mod(s) listé(s), tous correspondent à un ID de mod Workshop ou local installé."
           },
           "fail": {
             "label": "Les entrées Mods= ne se résolvent pas",
-            "message": "{{count}} des {{total}} entrées Mods= ne correspondent à aucun dossier de mod installé : {{list}}.",
+            "message": "{{count}} des {{total}} entrées Mods= ne correspondent à aucun ID de mod Workshop ou local installé : {{list}}.",
             "hint": "Généralement une faute de frappe, un ID WorkshopItems= manquant, ou le mod n'a pas fini de se télécharger. Corrigez dans la configuration du serveur."
           }
         },

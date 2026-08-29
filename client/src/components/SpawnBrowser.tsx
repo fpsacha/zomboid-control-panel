@@ -582,14 +582,14 @@ export function SpawnBrowser({ mode, open, onOpenChange, playerName, onSpawn }: 
         </div>
 
         {/* ========== FOOTER / ACTION BAR ========== */}
-        <footer className="border-t border-border/70 bg-card/50 shrink-0">
+        <footer className="border-t border-border/70 bg-card/50 shrink-0 min-w-0">
           {/* Recent rail */}
           {recent.length > 0 && (
-            <div className="flex items-center gap-2 border-b border-border/40 px-4 h-10 overflow-x-auto overscroll-contain">
+            <div className="flex min-w-0 items-center gap-2 border-b border-border/40 px-4 h-10 overflow-x-auto overscroll-contain">
               <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/60 shrink-0">
                 {t('recent')}
               </span>
-              <div className="flex items-center gap-1.5 min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0 w-max">
                 {recent.map(r => (
                   <button
                     key={r.id}

@@ -79,6 +79,24 @@ async function countFiles(rootDir) {
   return count;
 }
 
+function cleanupOrphanBackupTemps(backupsPath) {
+  let entries;
+  try {
+    entries = fs.readdirSync(backupsPath);
+  } catch {
+    return;
+  }
+  for (const name of entries) {
+    if (!name.endsWith(".zip.tmp") && !/^\.central-.*\.tmp$/.test(name)) continue;
+    try {
+      fs.unlinkSync(path.join(backupsPath, name));
+      log.info(`Removed orphan backup temporary file: ${name}`);
+    } catch (error) {
+      log.debug(`Could not remove orphan backup temporary file ${name}: ${error.message}`);
+    }
+  }
+}
+
 // 2026-08-26 bug hunt: used to resolve with nothing (undefined) on BOTH a
 // genuine "entry" success and an ENOENT warning (a file that vanished
 // between the initial scan and archiving -- a real race on a live PZ
@@ -410,6 +428,7 @@ export class BackupService {
     // truncated file at the real, listed filename, indistinguishable in the
     // UI from a real backup until someone tried to restore it.
     const tempBackupPath = `${backupPath}.tmp`;
+    cleanupOrphanBackupTemps(backupsPath);
     const serverSnapshot = captureBackupSnapshot(activeServer);
 
     log.info(`Starting backup: ${backupName}`);

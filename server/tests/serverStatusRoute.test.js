@@ -88,6 +88,76 @@ describe("GET /api/servers/active/status", () => {
     );
   });
 
+  it("uses Docker container state instead of the host process scan", async () => {
+    getActiveServer.mockResolvedValue({
+      id: "docker-server",
+      dockerContainerName: "pz-container",
+      isRemote: false,
+    });
+    const processScan = vi.fn(async () => ({ running: false, scanFailed: false }));
+    const inspectManagedContainer = vi.fn(async () => ({
+      State: { Running: true },
+    }));
+    const response = createResponse();
+
+    await getStatusHandler()(
+      {
+        app: fakeApp({
+          serverManager: { getServerProcessDetails: processScan },
+          dockerClient: {
+            enabled: true,
+            available: true,
+            inspectManagedContainer,
+          },
+        }),
+      },
+      response,
+    );
+
+    expect(inspectManagedContainer).toHaveBeenCalledWith("pz-container");
+    expect(processScan).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "docker-local",
+        host: expect.objectContaining({
+          status: "running",
+          label: "Container",
+        }),
+      }),
+    );
+  });
+
+  it("reports an unverifiable Docker state as unknown instead of stopped", async () => {
+    getActiveServer.mockResolvedValue({
+      id: "docker-server",
+      dockerContainerName: "missing-container",
+      isRemote: false,
+    });
+    const processScan = vi.fn(async () => ({ running: false, scanFailed: false }));
+    const response = createResponse();
+
+    await getStatusHandler()(
+      {
+        app: fakeApp({
+          serverManager: { getServerProcessDetails: processScan },
+          dockerClient: {
+            enabled: true,
+            available: true,
+            inspectManagedContainer: vi.fn(async () => null),
+          },
+        }),
+      },
+      response,
+    );
+
+    expect(processScan).not.toHaveBeenCalled();
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: expect.objectContaining({ status: "unknown" }),
+      }),
+    );
+  });
+
   // Regression: this route used to read the cached serverManager.isRunning
   // field directly. That field gets forced to a confident `false` by ANY
   // failed process-detection scan (see serverManager.js), so once detection

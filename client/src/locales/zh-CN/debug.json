@@ -49,7 +49,7 @@
     "modsResolved": {
       "labelWithCount": "查看 {{count}} 个未解析项",
       "labelGeneric": "查看未解析项",
-      "note": "请先修复下方的孤立 Workshop 项，然后重新运行诊断。仅当下载完成后条目仍确实无法解析时，才手动禁用。"
+      "note": "等待 Workshop 下载完成，然后重新运行诊断。如果某个 ID 仍无法解析，请在 Mods= 中更正或移除它。"
     },
     "modsOrphanWorkshop": {
       "labelWithCount": "自动修复 {{count}} 个 Workshop ID",
@@ -880,11 +880,11 @@
         "resolved": {
           "ok": {
             "label": "Mods= 条目全部可解析",
-            "message": "共列出 {{count}} 个模组，均与已安装的 Workshop 或本地模组文件夹匹配。"
+            "message": "共列出 {{count}} 个模组，均与已安装的 Workshop 或本地模组 ID 匹配。"
           },
           "fail": {
             "label": "Mods= 条目无法解析",
-            "message": "{{total}} 个 Mods= 条目中有 {{count}} 个未匹配到任何已安装的模组文件夹：{{list}}。",
+            "message": "{{total}} 个 Mods= 条目中有 {{count}} 个未匹配到任何已安装的 Workshop 或本地模组 ID：{{list}}。",
             "hint": "通常是拼写错误、缺少 WorkshopItems= ID，或模组尚未下载完成。请在服务器配置中修复。"
           }
         },

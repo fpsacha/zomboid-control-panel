@@ -28,6 +28,10 @@ router.get("/active/status", async (req, res) => {
     const rconService = req.app.get("rconService");
     const rconConfig = rconService?.getConfig ? rconService.getConfig() : {};
 
+    const provider = resolveProvider(server);
+    const isContainerProvider =
+      provider === "docker-local" || provider === "docker-managed";
+
     // A fresh check, not serverManager.isRunning -- that cached field is
     // forced to a confident `false` by ANY failed process-detection scan,
     // so reading it directly here made this endpoint (which feeds the
@@ -35,9 +39,39 @@ router.get("/active/status", async (req, res) => {
     // check on the exact same host, at the exact same moment. See
     // server/utils/serverStatusModel.js's buildHostSignal for how scanFailed
     // renders as "unknown" instead of a wrong "stopped".
-    const processDetails = typeof serverManager?.getServerProcessDetails === "function"
-      ? await serverManager.getServerProcessDetails()
-      : { running: !!serverManager?.isRunning, scanFailed: false };
+    let processDetails;
+    let dockerContainer = null;
+    if (isContainerProvider) {
+      const containerRef = server.dockerContainerName || server.dockerContainerId;
+      let container = null;
+      const dockerClient = req.app.get("dockerClient");
+      if (containerRef && dockerClient?.enabled && dockerClient.available &&
+          typeof dockerClient.inspectManagedContainer === "function") {
+        container = await dockerClient.inspectManagedContainer(containerRef);
+        processDetails = container
+          ? { running: container.State?.Running === true, scanFailed: false }
+          : { running: false, scanFailed: true };
+        dockerContainer = container
+          ? { handled: true, running: processDetails.running }
+          : { handled: true, error: "Docker container status unavailable" };
+      } else {
+        const managed = await resolveManagedContainer({
+          serverId: server.id,
+          dockerClient,
+        });
+        if (managed.handled) {
+          processDetails = managed.error
+            ? { running: false, scanFailed: true }
+            : { running: managed.running === true, scanFailed: false };
+          dockerContainer = managed;
+        }
+      }
+      if (!processDetails) processDetails = { running: false, scanFailed: true };
+    } else {
+      processDetails = typeof serverManager?.getServerProcessDetails === "function"
+        ? await serverManager.getServerProcessDetails()
+        : { running: !!serverManager?.isRunning, scanFailed: false };
+    }
 
     // GH#114: PZ in this provider runs as PID 1 of a *different* container,
     // so the local process scan above can never see it -- it's asked for
@@ -46,15 +80,6 @@ router.get("/active/status", async (req, res) => {
     // managed container's own state instead, never the scan. See
     // buildHostSignal in serverStatusModel.js for the fail-closed handling
     // when Docker control is disabled/unavailable or the mapping is broken.
-    const provider = resolveProvider(server);
-    const dockerContainer =
-      provider === "docker-local" || provider === "docker-managed"
-        ? await resolveManagedContainer({
-            serverId: server.id,
-            dockerClient: req.app.get("dockerClient"),
-          })
-        : null;
-
     const status = composeServerStatus({
       server,
       isRunning: !!processDetails.running,

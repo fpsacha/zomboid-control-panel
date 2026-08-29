@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef, useDeferredValue, memo } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { copyText, cn } from '@/lib/utils'
 import {
   Settings,
@@ -734,17 +735,33 @@ export function SectionHeader({
   )
 }
 
+const SERVER_CONFIG_TABS = new Set(['ini', 'sandbox', 'spawnpoints', 'spawnregions', 'modsettings'])
+
+export function resolveServerConfigDeepLink(searchParams: URLSearchParams) {
+  const requestedTab = searchParams.get('tab')
+  return {
+    tab: requestedTab && SERVER_CONFIG_TABS.has(requestedTab) ? requestedTab : 'ini',
+    search: (searchParams.get('search') || '').trim().slice(0, 100),
+    unresolved: searchParams.getAll('unresolved')
+      .map((modId) => modId.trim().slice(0, 120))
+      .filter(Boolean)
+      .slice(0, 20),
+  }
+}
+
 export default function ServerConfig() {
   const { t, i18n } = useTranslation('serverconfig')
+  const [searchParams] = useSearchParams()
+  const initialDeepLink = resolveServerConfigDeepLink(searchParams)
   // List separator is a language property, not something a joined list of
   // translated setting labels can be assumed to want a Latin ", " for --
   // zh-CN enumerates nouns with the ideographic comma instead.
   const listSep = i18n.language === 'zh-CN' ? '、' : ', '
-  const [activeTab, setActiveTab] = useState('ini')
+  const [activeTab, setActiveTab] = useState(initialDeepLink.tab)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [serverRunning, setServerRunning] = useState<boolean | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(initialDeepLink.search)
   // Defer the search value so each keystroke doesn't re-filter the full schema
   // synchronously — keeps the input snappy on slower machines.
   const deferredSearchQuery = useDeferredValue(searchQuery)
@@ -752,6 +769,7 @@ export default function ServerConfig() {
   // Filter mode: 'all' = every schema setting, 'modified' = differs from the PZ default,
   // 'nondefault' = local edits not yet saved.
   const [filterMode, setFilterMode] = useState<FilterMode>(() => {
+    if (initialDeepLink.search) return 'all'
     try {
       const stored = localStorage.getItem('serverconfig-filter-mode')
       // Before this migration, "nondefault" represented settings changed from PZ defaults.
@@ -2171,6 +2189,19 @@ export default function ServerConfig() {
             </TabsTrigger>
           ))}
         </TabsList>
+        {activeTab === 'ini' && initialDeepLink.unresolved.length > 0 && (
+          <Alert className="mt-3 border-warning/40 bg-warning/10">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertTitle className="text-warning">{t('unresolvedReview.title')}</AlertTitle>
+            <AlertDescription className="mt-2 flex flex-wrap gap-1.5">
+              {initialDeepLink.unresolved.map((modId) => (
+                <code key={modId} className="rounded border border-warning/30 bg-background/50 px-1.5 py-0.5 text-xs text-foreground">
+                  {modId}
+                </code>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
         {serverMayBeRunning && ['ini', 'sandbox', 'spawnpoints', 'spawnregions'].includes(activeTab) && (
           <Alert className="mt-3 border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />

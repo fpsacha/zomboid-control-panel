@@ -248,11 +248,28 @@ export function loadOrCreateCerts(customKeyPath, customCertPath) {
   // Generate new self-signed cert
   try {
     if (!fs.existsSync(CERT_DIR)) {
-      fs.mkdirSync(CERT_DIR, { recursive: true });
+      fs.mkdirSync(CERT_DIR, { recursive: true, mode: 0o700 });
+    }
+    try {
+      fs.chmodSync(CERT_DIR, 0o700);
+    } catch {
+      /* best-effort: Windows / network shares */
     }
 
     const { key, cert } = generateSelfSignedCert();
     fs.writeFileSync(KEY_FILE, key, { mode: 0o600 });
+    // mode above only applies when writeFileSync CREATES the file -- if
+    // server.key already existed (e.g. only server.cert was missing, so
+    // this branch regenerates both into a fresh pair) with a looser mode
+    // from some earlier state, the fresh private key just written into it
+    // would otherwise inherit that stale permission. Same explicit
+    // chmodSync-after-write pattern as jwtSecret.js/uiSecretFile.js/
+    // serverRconSecrets.js use for every other secret file.
+    try {
+      fs.chmodSync(KEY_FILE, 0o600);
+    } catch {
+      /* best-effort: Windows / network shares */
+    }
     fs.writeFileSync(CERT_FILE, cert, { mode: 0o644 });
 
     log.info(`Self-signed certificate generated at ${CERT_DIR}`);

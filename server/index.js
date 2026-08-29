@@ -68,6 +68,7 @@ import {
 } from "./utils/embeddedLua.js";
 import { isServerObservedRunning } from "./utils/serverStatus.js";
 import { discoverMounts } from "./services/mountDiscovery.js";
+import { shouldAutoOpenBrowser } from "./utils/browserLaunch.js";
 
 // === Supervisor bootstrap ===
 // If the .exe was double-clicked directly (no PANEL_SUPERVISOR_V env var) and
@@ -3092,7 +3093,7 @@ async function start() {
         }
 
         // Auto-open browser when running as packaged exe
-        if (typeof process.pkg !== "undefined") {
+        if (typeof process.pkg !== "undefined" && shouldAutoOpenBrowser()) {
           const protocol = httpsServer ? "https" : "http";
           const url = `${protocol}://localhost:${httpsServer ? httpsPort : boundPort}`;
 

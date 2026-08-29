@@ -1,10 +1,14 @@
 ---@diagnostic disable: undefined-global, deprecated
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.7.39
+    Version: 1.7.40
 
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
+
+                v1.7.40 Changes:
+                - Fixed horde spawning to use the coordinate-aware
+                    createRealZombieNow API and report zero-result failures.
 
                 v1.7.39 Changes:
                 - getServerInfo now sends isAlive, isInfected and accessLevel
@@ -376,7 +380,7 @@
 local json
 
 local PanelBridge = {
-    VERSION = "1.7.39",
+    VERSION = "1.7.40",
     PROTOCOL_VERSION = "queue-v1",
     CHECK_INTERVAL = 250, -- milliseconds (fast command polling)
     lastCheck = 0,
@@ -5901,18 +5905,18 @@ handlers.spawnHordeNearPlayer = function(args)
         -- one at a time in a radius. More reliable than horde APIs and works
         -- even when createHordeInAreaTo silently no-ops on unloaded chunks.
         local vzm = _G.VirtualZombieManager and _G.VirtualZombieManager.instance
-        if vzm and vzm.createRealZombieAlways then
+        if vzm and vzm.createRealZombieNow then
             for i = 1, count do
                 local dx = ZombRand(half * 2 + 1) - half
                 local dy = ZombRand(half * 2 + 1) - half
                 local tx = cx + dx
                 local ty = cy + dy
-                local okZ, _ = pcall(function()
-                    vzm:createRealZombieAlways(tx, ty, pz)
+                local okZ, zombie = pcall(function()
+                    return vzm:createRealZombieNow(tx, ty, pz)
                 end)
-                if okZ then spawned = spawned + 1 end
+                if okZ and zombie then spawned = spawned + 1 end
             end
-            method = "VirtualZombieManager.createRealZombieAlways"
+            method = "VirtualZombieManager.createRealZombieNow"
             verified = true
         else
             -- Fallback: ZombiePopulationManager horde APIs (may silently fail
@@ -5946,10 +5950,15 @@ handlers.spawnHordeNearPlayer = function(args)
         return false, nil, "Failed to spawn horde: " .. tostring(err)
     end
 
-    PanelBridge.warn("Spawned horde near player", { username = username, count = count, spawned = spawned, verified = verified, cx = cx, cy = cy, method = method })
-
     local verifiedStr = "unverifiable"
     if verified == true then verifiedStr = "confirmed" end
+
+    if verified == true and spawned == 0 then
+        PanelBridge.warn("Horde spawn created no zombies", { username = username, count = count, spawned = spawned, verified = verified, cx = cx, cy = cy, method = method })
+        return false, nil, "Failed to spawn horde: no zombies were created (0/" .. count .. "); the target area may not be loaded or available"
+    end
+
+    PanelBridge.warn("Spawned horde near player", { username = username, count = count, spawned = spawned, verified = verified, cx = cx, cy = cy, method = method })
 
     return true, {
         message = verified
@@ -6013,18 +6022,18 @@ handlers.spawnHordeBehindPlayer = function(args)
 
     local ok, err = pcall(function()
         local vzm = _G.VirtualZombieManager and _G.VirtualZombieManager.instance
-        if vzm and vzm.createRealZombieAlways then
+        if vzm and vzm.createRealZombieNow then
             for i = 1, count do
                 local dx = ZombRand(half * 2 + 1) - half
                 local dy = ZombRand(half * 2 + 1) - half
                 local tx = cx + dx
                 local ty = cy + dy
-                local okZ, _ = pcall(function()
-                    vzm:createRealZombieAlways(tx, ty, pz)
+                local okZ, zombie = pcall(function()
+                    return vzm:createRealZombieNow(tx, ty, pz)
                 end)
-                if okZ then spawned = spawned + 1 end
+                if okZ and zombie then spawned = spawned + 1 end
             end
-            method = "VirtualZombieManager.createRealZombieAlways"
+            method = "VirtualZombieManager.createRealZombieNow"
             verified = true
         else
             -- See spawnHordeNearPlayer: these fallback APIs return no count,
@@ -6056,10 +6065,15 @@ handlers.spawnHordeBehindPlayer = function(args)
         return false, nil, "Failed to spawn horde behind: " .. tostring(err)
     end
 
-    PanelBridge.warn("Spawned horde behind player", { username = username, count = count, spawned = spawned, verified = verified, direction = dirName, cx = cx, cy = cy, method = method })
-
     local verifiedStr = "unverifiable"
     if verified == true then verifiedStr = "confirmed" end
+
+    if verified == true and spawned == 0 then
+        PanelBridge.warn("Horde spawn created no zombies", { username = username, count = count, spawned = spawned, verified = verified, direction = dirName, cx = cx, cy = cy, method = method })
+        return false, nil, "Failed to spawn horde behind: no zombies were created (0/" .. count .. "); the target area may not be loaded or available"
+    end
+
+    PanelBridge.warn("Spawned horde behind player", { username = username, count = count, spawned = spawned, verified = verified, direction = dirName, cx = cx, cy = cy, method = method })
 
     return true, {
         message = verified

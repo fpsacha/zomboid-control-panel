@@ -581,6 +581,7 @@
     "testConnection": "Test connection",
     "testConnectionTitleNeedsCookies": "Add Steam session cookies first",
     "testConnectionTitleReady": "Verify the collection is readable with these cookies",
+    "readOnlyTestNote": "Read check only; write access is verified when an item is changed.",
     "checkDrift": "Check drift",
     "enterCollectionId": "Enter a Collection ID to begin.",
     "readingCollection": "Reading collection…",
