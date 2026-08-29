@@ -1,0 +1,19 @@
+#!/sbin/openrc-run
+# Generated files replace every {{...}} placeholder with a validated value.
+# X-Zomboid-Panel-Server-ID: {{SERVER_ID}}
+name='Project Zomboid server {{SERVER_NAME}}'
+description='Project Zomboid server {{SERVER_NAME}}'
+command="/bin/bash"
+command_args={{LAUNCHER_PATH}}
+directory={{WORKING_DIRECTORY}}
+export ZOMBOID_PANEL_SERVER_ID={{SERVER_ID}}
+supervisor=supervise-daemon
+command_background=false
+pidfile="${XDG_RUNTIME_DIR}/${RC_SVCNAME}.pid"
+respawn_delay=5
+respawn_max=0
+
+depend() {
+  need net
+  after firewall
+}

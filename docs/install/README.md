@@ -12,6 +12,9 @@ don't need to read the others first.
   as a non-root user, installing the bundled systemd service (including the
   `ReadWritePaths` trap), SteamCMD's 32-bit library requirements, and
   opening the firewall with ufw or firewalld.
+- **[managed-game-services.md](managed-game-services.md)** — Optional
+  per-server systemd or OpenRC isolation so panel restarts and updates do not
+  own the game-server process.
 - **[docker.md](docker.md)** — Docker or Unraid, in whichever of four
   configurations matches where Project Zomboid itself already runs: a single
   all-in-one container, a panel bound to an existing PZ install, a

@@ -17,6 +17,10 @@ import { withFileLock, writeFileAtomic } from "../utils/fileWriteQueue.js";
 import { escapeRegExp } from "../utils/regex.js";
 import { getDataPaths } from "../utils/paths.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
+import {
+  createLinuxServiceLifecycle,
+  isManagedLifecycleProvider,
+} from "./linuxServiceLifecycle.js";
 
 const isWindows = process.platform === "win32";
 // How long a live-looked-up public IP is trusted before re-checking.
@@ -289,7 +293,7 @@ export function scoreServerProcessOwnership(commandLine, descriptor = {}) {
 }
 
 export class ServerManager {
-  constructor() {
+  constructor({ lifecycleFactory = createLinuxServiceLifecycle } = {}) {
     this.serverProcess = null;
     this.serverPath = process.env.PZ_SERVER_PATH || "";
     this.serverBat = process.env.PZ_SERVER_BAT || getDefaultStartupScript();
@@ -304,6 +308,9 @@ export class ServerManager {
     // "managed" (the panel owns and regenerates the launch script) or
     // "custom" (the operator's own .bat/.sh/.exe -- see resolveLaunchMode()).
     this.launchMode = "managed";
+    this.lifecycleProvider = "direct";
+    this._serverRecord = null;
+    this._lifecycleFactory = lifecycleFactory;
     // Which server this instance's currently-loaded config belongs to (null
     // = "the active server", the shared-singleton default). Recorded so
     // internal reload points (e.g. startServer()'s "settings may have
@@ -330,6 +337,8 @@ export class ServerManager {
     this.rconHost = null;
     this.rconPort = null;
     this.launchMode = "managed";
+    this.lifecycleProvider = "direct";
+    this._serverRecord = null;
     this.configLoaded = false;
     await this.loadConfig(serverId);
   }
@@ -350,6 +359,8 @@ export class ServerManager {
         ? await getServer(serverId)
         : await getActiveServer();
       if (activeServer) {
+        this._serverRecord = activeServer;
+        this.lifecycleProvider = activeServer.lifecycleProvider || "direct";
         // Use serverPath if available, otherwise extract from installPath
         let serverDir = activeServer.serverPath || activeServer.installPath;
 
@@ -500,6 +511,35 @@ export class ServerManager {
    */
   async getServerProcessDetails() {
     await this.loadConfig(this._serverId);
+
+    if (this.usesManagedServiceLifecycle()) {
+      try {
+        const lifecycle = this._getManagedLifecycle();
+        const status = await lifecycle.status();
+        if (!status.scanFailed) this.isRunning = status.running;
+        return {
+          running: status.running,
+          matched: [],
+          owned: [],
+          scanFailed: Boolean(status.scanFailed),
+          provider: this.lifecycleProvider,
+          serviceName: lifecycle.serviceName,
+          ...(status.error ? { error: status.error } : {}),
+        };
+      } catch (error) {
+        log.warn(
+          `Managed lifecycle status failed for "${this.serverName}": ${error.message}`,
+        );
+        return {
+          running: false,
+          matched: [],
+          owned: [],
+          scanFailed: true,
+          provider: this.lifecycleProvider,
+          error: error.message,
+        };
+      }
+    }
 
     // Fast path: if we recorded the PID we spawned and it's still alive
     // with a command line that still looks like (and is attributable to)
@@ -912,6 +952,20 @@ export class ServerManager {
       this.configLoaded = false;
       await this.loadConfig(this._serverId);
 
+      if (this.usesManagedServiceLifecycle()) {
+        const result = await this._getManagedLifecycle().run("start");
+        if (!result.success) throw new Error(result.error || result.message);
+        this.serverProcess = null;
+        this.isRunning = true;
+        this.startTime = this.startTime || new Date();
+        this._deletePidFile();
+        await logServerEvent(
+          "server_start",
+          `Server started through ${this.lifecycleProvider}`,
+        ).catch((error) => log.warn(`Failed to log event: ${error.message}`));
+        return result;
+      }
+
       if (!this.startCommand && !this.serverPath) {
         throw new Error("Server path not configured");
       }
@@ -1249,6 +1303,19 @@ export class ServerManager {
     // Block overlapping starts while kill/state-clear is pending.
     this._stopping = true;
     try {
+      await this.loadConfig(this._serverId);
+      if (this.usesManagedServiceLifecycle()) {
+        const result = await this._getManagedLifecycle().run("stop");
+        if (result.success && result.confirmed !== false) this._clearRunState();
+        if (result.success) {
+          await logServerEvent(
+            "server_stop",
+            `Server stopped through ${this.lifecycleProvider}`,
+          ).catch((error) => log.warn(`Failed to log event: ${error.message}`));
+        }
+        return result;
+      }
+
       // Only PIDs this server owns: a host can run several dedicated servers
       // and killing every PZ process would take the others down with it.
       const details = await this.getServerProcessDetails();
@@ -1533,6 +1600,29 @@ export class ServerManager {
       }
       await this.sleep(3000);
 
+      await this.loadConfig(this._serverId);
+      if (this.usesManagedServiceLifecycle()) {
+        const restarted = await this._getManagedLifecycle().run("restart");
+        if (!restarted.success || restarted.confirmed === false) {
+          throw new Error(
+            restarted.error ||
+              `${this.lifecycleProvider} did not confirm the restart`,
+          );
+        }
+        this.serverProcess = null;
+        this.isRunning = true;
+        this.startTime = new Date();
+        this._deletePidFile();
+        await logServerEvent(
+          "server_restart",
+          `Server restarted through ${this.lifecycleProvider}`,
+        );
+        return {
+          success: true,
+          message: `Server restarted successfully through ${this.lifecycleProvider}`,
+        };
+      }
+
       // Quit the server (with timeout)
       try {
         let quitTimeoutId;
@@ -1676,6 +1766,23 @@ export class ServerManager {
       localIp: await this.getLocalIp(),
       port: this.gamePort,
     };
+  }
+
+  usesManagedServiceLifecycle() {
+    return (
+      isManagedLifecycleProvider(this.lifecycleProvider) &&
+      Boolean(this._serverRecord)
+    );
+  }
+
+  _getManagedLifecycle() {
+    if (!this.usesManagedServiceLifecycle()) {
+      throw new Error("No managed service lifecycle is configured");
+    }
+    return this._lifecycleFactory(
+      this._serverRecord,
+      this.lifecycleProvider,
+    );
   }
 
   // All non-internal IPv4 addresses currently present on the host, e.g. one

@@ -174,3 +174,37 @@ describe("POST /stop -- managed (Docker) path is unchanged, since it was never b
     );
   });
 });
+
+describe("POST /stop -- managed Linux service", () => {
+  it("saves through RCON, then stops the service instead of sending RCON quit", async () => {
+    const rconService = {
+      connected: true,
+      save: vi.fn().mockResolvedValue({ success: true }),
+      quit: vi.fn(),
+    };
+    const serverManager = {
+      loadConfig: vi.fn().mockResolvedValue(undefined),
+      usesManagedServiceLifecycle: vi.fn().mockReturnValue(true),
+      stopServer: vi.fn().mockResolvedValue({
+        success: true,
+        confirmed: true,
+        message: "Server stop completed through systemd",
+      }),
+      markServerStopped: vi.fn(),
+      lifecycleProvider: "systemd",
+    };
+    const io = { emit: vi.fn() };
+    const app = makeApp({ rconService, serverManager, io });
+    const response = createResponse();
+
+    await getHandler("/stop", "post")({ app, body: {} }, response);
+
+    expect(rconService.save).toHaveBeenCalledOnce();
+    expect(rconService.quit).not.toHaveBeenCalled();
+    expect(serverManager.stopServer).toHaveBeenCalledWith(false);
+    expect(io.emit).toHaveBeenCalledWith("server:status", { running: false });
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, confirmed: true }),
+    );
+  });
+});

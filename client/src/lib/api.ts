@@ -1582,6 +1582,7 @@ export interface ServerInstance {
   remoteConfigConfigured?: boolean;
   isActive: boolean;
   startCommand: string;
+  lifecycleProvider?: "direct" | "systemd" | "openrc";
   adminPassword: string;
   createdAt: string;
 }
@@ -1619,7 +1620,15 @@ export interface ComposedServerStatus {
 
 // Servers API (multi-server management)
 export const serversApi = {
-  getAll: () => apiGet("/servers") as Promise<{ servers: ServerInstance[] }>,
+  getAll: () => apiGet("/servers") as Promise<{
+    servers: ServerInstance[];
+    lifecycleCapabilities?: {
+      supported: boolean;
+      platform: string;
+      containerized: boolean;
+      providers: Array<"direct" | "systemd" | "openrc">;
+    };
+  }>,
   getActive: () =>
     apiGet("/servers/active") as Promise<{ server: ServerInstance }>,
   getComposedStatus: () =>
@@ -1669,6 +1678,32 @@ export const serversApi = {
       server: ServerInstance;
       message: string;
       warnings?: string[];
+    }>,
+  getLifecycleTemplate: (
+    id: string | number,
+    provider: "systemd" | "openrc",
+  ) =>
+    apiGet(
+      `/servers/${id}/lifecycle-template?provider=${encodeURIComponent(provider)}`,
+    ) as Promise<{
+      provider: "systemd" | "openrc";
+      serviceName: string;
+      filename: string;
+      installPath: string;
+      content: string;
+      commands: string[];
+      warning: string;
+    }>,
+  activateLifecycleProvider: (
+    id: string | number,
+    provider: "direct" | "systemd" | "openrc",
+  ) =>
+    apiPost(`/servers/${id}/lifecycle-provider`, {
+      provider,
+      confirm: true,
+    }) as Promise<{
+      server: ServerInstance;
+      message: string;
     }>,
   delete: (id: string | number) =>
     apiDelete(`/servers/${id}`) as Promise<{

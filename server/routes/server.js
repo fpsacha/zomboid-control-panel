@@ -1541,9 +1541,17 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
       });
     }
 
+    if (!managed.handled && serverManager.loadConfig) {
+      await serverManager.loadConfig();
+    }
+    const serviceManaged = Boolean(
+      !managed.handled && serverManager.usesManagedServiceLifecycle?.(),
+    );
     const result = managed.handled
       ? { success: true, message: managed.message || "Container stopping" }
-      : await rconService.quit();
+      : serviceManaged
+        ? await serverManager.stopServer(false)
+        : await rconService.quit();
 
     if (!result?.success || result.confirmed === false) {
       return res.status(502).json({
@@ -1553,7 +1561,7 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
       });
     }
 
-    if (managed.handled) {
+    if (managed.handled || serviceManaged) {
       // Docker's own stop API blocks until the container actually stops (or
       // it force-kills after its timeout) before ever returning success --
       // unlike RCON quit() below, "success" here already means confirmed,
@@ -1562,7 +1570,12 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
       serverManager?.markServerStopped?.();
       const io = req.app.get("io");
       if (io) io.emit("server:status", { running: false });
-      await logServerEventBestEffort("server_stop", "Server stopped via web UI");
+      await logServerEventBestEffort(
+        "server_stop",
+        serviceManaged
+          ? `Server stopped through ${serverManager.lifecycleProvider}`
+          : "Server stopped via web UI",
+      );
       req.app
         .get("discordBot")
         ?.sendEventNotification("serverStop", {})

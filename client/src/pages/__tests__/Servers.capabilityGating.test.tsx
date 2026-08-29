@@ -225,6 +225,41 @@ afterEach(() => {
 })
 
 describe('Servers.tsx: capability gating', () => {
+  it('shows managed lifecycle controls only when the backend supports them', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    getAll.mockResolvedValue({
+      servers: [SERVER_A, SERVER_B],
+      lifecycleCapabilities: {
+        supported: true,
+        platform: 'linux',
+        containerized: false,
+        providers: ['direct', 'systemd', 'openrc'],
+      },
+    } as never)
+    renderServers()
+    await screen.findByText('server-a')
+
+    const menu = await openCardMenu('server-a')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: en.card.edit }))
+    await screen.findByRole('heading', { name: en.editDialog.title })
+
+    expect(screen.getByText(en.editDialog.lifecycleProviderLabel)).toBeInTheDocument()
+  })
+
+  it('hides managed lifecycle controls on unsupported hosts', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderServers()
+    await screen.findByText('server-a')
+
+    const menu = await openCardMenu('server-a')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: en.card.edit }))
+    await screen.findByRole('heading', { name: en.editDialog.title })
+
+    expect(screen.queryByText(en.editDialog.lifecycleProviderLabel)).not.toBeInTheDocument()
+  })
+
   it('disables every gated trigger, and clicking any of them never calls the API, when the role holds none of the six capabilities', async () => {
     mockCan = () => false
     await setUpFixtures()

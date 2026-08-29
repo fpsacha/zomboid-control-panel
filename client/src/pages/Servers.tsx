@@ -283,8 +283,10 @@ export default function Servers() {
   // signal on any non-active card, docker or otherwise.
   const [activeStatus, setActiveStatus] = useState<ComposedServerStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [managedLifecycleSupported, setManagedLifecycleSupported] = useState(false)
   const [editingServer, setEditingServer] = useState<ServerInstance | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
+  const [lifecyclePending, setLifecyclePending] = useState(false)
   const [deleteServer, setDeleteServer] = useState<ServerInstance | null>(null)
   const [deleteFiles, setDeleteFiles] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -389,6 +391,7 @@ export default function Servers() {
     try {
       const data = await serversApi.getAll()
       setServers(data.servers || [])
+      setManagedLifecycleSupported(data.lifecycleCapabilities?.supported === true)
     } catch (error) {
       reportClientError('Failed to fetch servers.', error)
       toast({ title: t('toasts.error'), description: getUserErrorMessage(error, t('toasts.loadServersFailed')), variant: 'destructive' })
@@ -1098,6 +1101,16 @@ export default function Servers() {
   const handleSaveEdit = async () => {
     if (!editingServer || savingEdit) return
     if (!canServersManage) return
+    const storedLifecycleProvider =
+      servers.find((server) => server.id === editingServer.id)?.lifecycleProvider || 'direct'
+    if ((editingServer.lifecycleProvider || 'direct') !== storedLifecycleProvider) {
+      toast({
+        title: t('toasts.warningTitle'),
+        description: t('editDialog.lifecycleCompleteFirst'),
+        variant: 'destructive',
+      })
+      return
+    }
 
     // Validate port range
     if (!isValidPort(editingServer.rconPort)) {
@@ -1143,6 +1156,74 @@ export default function Servers() {
       })
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  const handleDownloadLifecycleTemplate = async (server: ServerInstance) => {
+    const provider = server.lifecycleProvider || 'direct'
+    if (provider === 'direct' || lifecyclePending) return
+    setLifecyclePending(true)
+    try {
+      const template = await serversApi.getLifecycleTemplate(server.id, provider)
+      const blob = new Blob([template.content], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = template.filename
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+      toast({
+        title: t('editDialog.lifecycleTemplateReadyTitle'),
+        description: t('editDialog.lifecycleTemplateReadyDesc', { path: template.installPath }),
+      })
+    } catch (error) {
+      toast({
+        title: t('toasts.error'),
+        description: getUserErrorMessage(error, t('editDialog.lifecycleTemplateFailed')),
+        variant: 'destructive',
+      })
+    } finally {
+      setLifecyclePending(false)
+    }
+  }
+
+  const handleActivateLifecycleProvider = async (server: ServerInstance) => {
+    const provider = server.lifecycleProvider || 'direct'
+    const stored = servers.find((candidate) => candidate.id === server.id)
+    const currentProvider = stored?.lifecycleProvider || 'direct'
+    if (provider === currentProvider || lifecyclePending) return
+
+    const accepted = await confirm({
+      title: t('editDialog.lifecycleConfirmTitle'),
+      description: t('editDialog.lifecycleConfirmDesc', {
+        current: currentProvider,
+        next: provider,
+      }),
+      confirmLabel: t('editDialog.lifecycleActivate'),
+      destructive: false,
+      variant: 'warning',
+    })
+    if (!accepted) return
+
+    setLifecyclePending(true)
+    try {
+      const result = await serversApi.activateLifecycleProvider(server.id, provider)
+      setEditingServer(result.server)
+      await fetchServers()
+      toast({
+        title: t('editDialog.lifecycleActivatedTitle'),
+        description: result.message,
+      })
+    } catch (error) {
+      toast({
+        title: t('toasts.error'),
+        description: getUserErrorMessage(error, t('editDialog.lifecycleActivationFailed')),
+        variant: 'destructive',
+      })
+    } finally {
+      setLifecyclePending(false)
     }
   }
 
@@ -2473,6 +2554,70 @@ export default function Servers() {
                   placeholder={t('editDialog.dataPathPlaceholder')}
                 />
               </div>
+
+              {managedLifecycleSupported && !editingServer.dockerContainerName && !editingServer.dockerContainerId && (
+                <div className="space-y-3 rounded-md border border-border/60 p-3">
+                  <div className="space-y-1">
+                    <Label>{t('editDialog.lifecycleProviderLabel')}</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t('editDialog.lifecycleProviderHint')}
+                    </p>
+                  </div>
+                  <Select
+                    value={editingServer.lifecycleProvider || 'direct'}
+                    onValueChange={(value: 'direct' | 'systemd' | 'openrc') =>
+                      setEditingServer({ ...editingServer, lifecycleProvider: value })
+                    }
+                    disabled={lifecyclePending || !canServersManage}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="direct">{t('editDialog.lifecycleDirect')}</SelectItem>
+                      <SelectItem value="systemd">systemd</SelectItem>
+                      <SelectItem value="openrc">OpenRC</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Alert className="border-warning/40 bg-warning/10">
+                    <AlertCircle className="h-4 w-4 text-warning" />
+                    <AlertDescription>
+                      {t('editDialog.lifecycleMigrationWarning')}
+                    </AlertDescription>
+                  </Alert>
+                  <div className="flex flex-wrap gap-2">
+                    {(editingServer.lifecycleProvider || 'direct') !== 'direct' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={lifecyclePending || !canServersManage}
+                        onClick={() => handleDownloadLifecycleTemplate(editingServer)}
+                      >
+                        {lifecyclePending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+                        {t('editDialog.lifecycleDownloadTemplate')}
+                      </Button>
+                    )}
+                    {(editingServer.lifecycleProvider || 'direct') !==
+                      (servers.find((server) => server.id === editingServer.id)?.lifecycleProvider || 'direct') && (
+                      <Button
+                        type="button"
+                        variant="warning"
+                        size="sm"
+                        disabled={lifecyclePending || !canServersManage}
+                        onClick={() => handleActivateLifecycleProvider(editingServer)}
+                      >
+                        {lifecyclePending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {t('editDialog.lifecycleActivate')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">

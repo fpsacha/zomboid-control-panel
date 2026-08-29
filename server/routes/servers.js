@@ -35,7 +35,17 @@ import {
 } from "../utils/queryNumbers.js";
 import { normalizeMemoryGb } from "../utils/memory.js";
 import { GAME_PORT_MAX, applyUpnpToIni } from "./server.js";
-import { resolveLaunchMode } from "../services/serverManager.js";
+import {
+  resolveLaunchMode,
+  ServerManager,
+} from "../services/serverManager.js";
+import {
+  buildLifecycleTemplate,
+  createLinuxServiceLifecycle,
+  getLinuxLifecycleCapabilities,
+  isManagedLifecycleProvider,
+  LIFECYCLE_PROVIDERS,
+} from "../services/linuxServiceLifecycle.js";
 
 const router = express.Router();
 const RCON_HOST_REGEX = /^[a-zA-Z0-9.-]{1,255}$/;
@@ -594,7 +604,10 @@ router.get("/", async (req, res) => {
       ...server,
       remoteConfigConfigured: computeRemoteConfigConfigured(server, settings),
     }));
-    res.json({ servers: sanitizeServerResponseList(withRemoteConfig) });
+    res.json({
+      servers: sanitizeServerResponseList(withRemoteConfig),
+      lifecycleCapabilities: getLinuxLifecycleCapabilities(),
+    });
   } catch (error) {
     log.error(`Failed to get servers: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -634,7 +647,35 @@ router.get("/status", async (req, res) => {
         .replace(/\\/g, "/")
         .trim();
 
-    const statuses = servers.map((server) => {
+    const statuses = await Promise.all(servers.map(async (server) => {
+      if (isManagedLifecycleProvider(server.lifecycleProvider)) {
+        try {
+          const status = await createLinuxServiceLifecycle(
+            server,
+            server.lifecycleProvider,
+          ).status();
+          return {
+            id: server.id,
+            name: server.name,
+            running: status.running,
+            pid: null,
+            isActive: server.id === activeId,
+            provider: server.lifecycleProvider,
+            stateUnknown: Boolean(status.scanFailed),
+          };
+        } catch (error) {
+          return {
+            id: server.id,
+            name: server.name,
+            running: false,
+            pid: null,
+            isActive: server.id === activeId,
+            provider: server.lifecycleProvider,
+            stateUnknown: true,
+            error: sanitizeError(error.message),
+          };
+        }
+      }
       const installPathNorm = norm(server.installPath);
       let running = false;
       let pid;
@@ -660,8 +701,9 @@ router.get("/status", async (req, res) => {
         running,
         pid: pid || null,
         isActive: server.id === activeId,
+        provider: "direct",
       };
-    });
+    }));
 
     res.json({
       servers: statuses,
@@ -755,6 +797,160 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ error: sanitizeError(error.message) });
   }
 });
+
+// Generate a provider-specific user-service file for the panel account to
+// install.
+// The panel deliberately returns the file as data and never writes to /etc or
+// invokes sudo itself.
+router.get(
+  "/:id/lifecycle-template",
+  requirePermission("servers.manage"),
+  async (req, res) => {
+    try {
+      const serverId = parseServerId(req.params.id);
+      if (serverId === null) {
+        return res.status(400).json({ error: "Invalid server ID" });
+      }
+      const provider = String(req.query?.provider || "").trim();
+      if (!isManagedLifecycleProvider(provider)) {
+        return res.status(400).json({
+          error: "provider must be systemd or openrc",
+        });
+      }
+      const server = await getServer(serverId);
+      if (!server) {
+        return res.status(404).json({ error: "Server not found" });
+      }
+      if (server.isRemote || server.dockerContainerName || server.dockerContainerId) {
+        return res.status(409).json({
+          error:
+            "Managed Linux services are available only for local, non-container server profiles",
+        });
+      }
+      const capabilities = getLinuxLifecycleCapabilities();
+      if (!capabilities.supported) {
+        return res.status(409).json({
+          error: capabilities.containerized
+            ? "Container installations must keep their existing lifecycle model"
+            : "Managed service lifecycles are supported only on Linux",
+        });
+      }
+      const template = buildLifecycleTemplate(server, provider, {
+        serviceUser: req.query?.serviceUser,
+      });
+      res.json({
+        ...template,
+        warning:
+          "Review and install this file for the panel service account. The panel will not modify the filesystem or run sudo.",
+      });
+    } catch (error) {
+      log.error(`Failed to generate lifecycle template: ${error.message}`);
+      res.status(400).json({ error: sanitizeError(error.message) });
+    }
+  },
+);
+
+// Switching lifecycle ownership is intentionally a separate, confirmed
+// operation instead of a generic profile update. This makes migration opt-in
+// and gives the backend a chance to reject running or conflicting services.
+router.post(
+  "/:id/lifecycle-provider",
+  requirePermission("servers.manage"),
+  async (req, res) => {
+    try {
+      const serverId = parseServerId(req.params.id);
+      if (serverId === null) {
+        return res.status(400).json({ error: "Invalid server ID" });
+      }
+      const provider = String(req.body?.provider || "").trim();
+      if (!LIFECYCLE_PROVIDERS.includes(provider)) {
+        return res.status(400).json({
+          error: "provider must be direct, systemd, or openrc",
+        });
+      }
+      if (req.body?.confirm !== true) {
+        return res.status(400).json({
+          error: "Explicit lifecycle migration confirmation is required",
+        });
+      }
+
+      const server = await getServer(serverId);
+      if (!server) {
+        return res.status(404).json({ error: "Server not found" });
+      }
+      const currentProvider = server.lifecycleProvider || "direct";
+      if (provider === currentProvider) {
+        return res.json({
+          server: sanitizeServerResponse(server),
+          message: `${provider} lifecycle is already active`,
+        });
+      }
+      if (server.isRemote || server.dockerContainerName || server.dockerContainerId) {
+        return res.status(409).json({
+          error:
+            "Remote and container-managed profiles must keep their existing lifecycle model",
+        });
+      }
+
+      if (isManagedLifecycleProvider(provider)) {
+        const lifecycle = createLinuxServiceLifecycle(server, provider);
+        const preflight = await lifecycle.preflightActivation();
+        if (!preflight.ready) {
+          return res.status(409).json({
+            error: sanitizeError(preflight.error),
+            conflict: Boolean(preflight.conflict),
+            running: Boolean(preflight.running),
+          });
+        }
+
+        // While the database still says direct, use the native scanner to
+        // prove there is no process to adopt silently.
+        const directManager = new ServerManager();
+        await directManager.reloadConfig(serverId);
+        const directStatus = await directManager.getServerProcessDetails();
+        if (directStatus.scanFailed) {
+          return res.status(503).json({
+            error:
+              "Could not confirm that the directly managed server is stopped",
+          });
+        }
+        if (directStatus.running) {
+          return res.status(409).json({
+            error:
+              "Stop the directly managed server before activating a service provider. Running processes are never adopted automatically.",
+            running: true,
+          });
+        }
+      } else {
+        const lifecycle = createLinuxServiceLifecycle(server, currentProvider);
+        const currentStatus = await lifecycle.status();
+        if (currentStatus.scanFailed || currentStatus.running) {
+          return res.status(currentStatus.running ? 409 : 503).json({
+            error: currentStatus.running
+              ? "Stop the managed service before switching back to direct lifecycle"
+              : "Could not confirm that the managed service is stopped",
+            running: Boolean(currentStatus.running),
+          });
+        }
+      }
+
+      const updated = await updateServer(serverId, {
+        lifecycleProvider: provider,
+      });
+      const sharedManager = req.app.get("serverManager");
+      if (updated?.isActive && sharedManager?.reloadConfig) {
+        await sharedManager.reloadConfig();
+      }
+      res.json({
+        server: sanitizeServerResponse(updated),
+        message: `Lifecycle provider changed to ${provider}`,
+      });
+    } catch (error) {
+      log.error(`Failed to change lifecycle provider: ${error.message}`);
+      res.status(400).json({ error: sanitizeError(error.message) });
+    }
+  },
+);
 
 // Create a new server
 router.post("/", requirePermission("servers.manage"), async (req, res) => {

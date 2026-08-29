@@ -1,0 +1,19 @@
+# Generated files replace every {{...}} placeholder with a validated value.
+# X-Zomboid-Panel-Server-ID: {{SERVER_ID}}
+[Unit]
+Description=Project Zomboid server {{SERVER_NAME}}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory={{WORKING_DIRECTORY}}
+Environment="ZOMBOID_PANEL_SERVER_ID={{SERVER_ID}}"
+ExecStart=/bin/bash {{LAUNCHER_PATH}}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=180
+KillMode=control-group
+
+[Install]
+WantedBy=default.target
