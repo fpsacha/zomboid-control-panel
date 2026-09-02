@@ -76,13 +76,13 @@ jobs:
       # that a bare local CLI invocation doesn't). CONFIRMED WORKING IN THE
       # REAL PIPELINE as of the 2026-08-31 SARIF check described above.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        uses: github/codeql-action/init@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           languages: javascript-typescript
           queries: security-extended
           packs: codeql/javascript-queries:AlertSuppression.ql
 
       - name: Analyze
-        uses: github/codeql-action/analyze@42947a340483f03ba47bb1a039b2c519aab3df85 # v3
+        uses: github/codeql-action/analyze@6f5948dfacef28e207b48d0905cf90c03365536d # v3
         with:
           category: /language:javascript-typescript
