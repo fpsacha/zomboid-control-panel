@@ -38,7 +38,7 @@
     "discord.js": "^14.26.4",
     "dotenv": "^16.4.7",
     "express": "^5.2.1",
-    "express-rate-limit": "^8.6.2",
+    "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lowdb": "^7.0.1",
