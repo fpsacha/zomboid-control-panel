@@ -2623,10 +2623,10 @@ export default function ServerConfig() {
                     </ScrollArea>
                   ) : (
                     // Rail mode: vertical category nav (grouped) + single active category content
-                    <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)] rtl:md:grid-cols-[minmax(0,1fr)_252px]">
+                    <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)]">
                       <nav
                         aria-label={t('categoriesNav.iniAria')}
-                        className="-mx-2 flex flex-col gap-0.5 px-2 pb-2 md:mx-0 md:order-1 md:border-e md:border-border/50 md:pb-0 md:pe-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px] md:overflow-y-auto rtl:md:order-2"
+                        className="-mx-2 flex flex-col gap-0.5 px-2 pb-2 md:mx-0 md:order-1 md:border-e md:border-border/50 md:pb-0 md:pe-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px] md:overflow-y-auto"
                       >
                         <div className="hidden md:flex items-center justify-between px-3 pb-1">
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
@@ -2734,7 +2734,7 @@ export default function ServerConfig() {
                           )
                         })()}
                       </nav>
-                      <ScrollArea className="h-[calc(100vh-420px)] min-h-[360px] md:ps-5 pe-4 md:order-2 rtl:md:order-1">
+                      <ScrollArea className="h-[calc(100vh-420px)] min-h-[360px] md:ps-5 pe-4 md:order-2">
                         {(() => {
                           if (activeIniCategory === 'uncategorized') {
                             if (uncategorizedIniKeys.length === 0) {
@@ -3029,10 +3029,10 @@ export default function ServerConfig() {
                     </ScrollArea>
                   ) : (
                     // Rail mode: vertical category nav (grouped) + single active category content
-                    <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)] rtl:md:grid-cols-[minmax(0,1fr)_252px]">
+                    <div className="grid gap-0 md:grid-cols-[252px_minmax(0,1fr)]">
                       <nav
                         aria-label={t('categoriesNav.sandboxAria')}
-                        className="-mx-2 flex flex-col gap-0.5 px-2 pb-2 md:mx-0 md:order-1 md:border-e md:border-border/50 md:pb-0 md:pe-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px] md:overflow-y-auto rtl:md:order-2"
+                        className="-mx-2 flex flex-col gap-0.5 px-2 pb-2 md:mx-0 md:order-1 md:border-e md:border-border/50 md:pb-0 md:pe-3 md:pt-1 md:max-h-[calc(100vh-420px)] md:min-h-[360px] md:overflow-y-auto"
                       >
                         <div className="hidden md:flex items-center justify-between px-3 pb-1">
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
@@ -3139,7 +3139,7 @@ export default function ServerConfig() {
                           )
                         })()}
                       </nav>
-                      <ScrollArea className="h-[calc(100vh-420px)] min-h-[360px] md:ps-5 pe-4 md:order-2 rtl:md:order-1">
+                      <ScrollArea className="h-[calc(100vh-420px)] min-h-[360px] md:ps-5 pe-4 md:order-2">
                         {(() => {
                           if (activeSandboxCategory === 'uncategorized') {
                             if (uncategorizedSandboxKeys.length === 0) {

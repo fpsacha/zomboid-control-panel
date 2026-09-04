@@ -2373,12 +2373,12 @@ export default function Settings() {
       <Tabs
         value={activeSection}
         onValueChange={handleTabChange}
-        className="mt-6 lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] rtl:lg:grid-cols-[minmax(0,1fr)_14.5rem] lg:items-start lg:gap-7"
+        className="mt-6 lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:items-start lg:gap-7"
       >
         <div className="relative lg:contents">
           <TabsList
             aria-label={t("ariaLabel")}
-            className="mb-4 flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/30 p-1 lg:sticky lg:top-4 lg:order-1 lg:mb-0 lg:flex-col lg:items-stretch lg:gap-px lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 rtl:lg:order-2"
+            className="mb-4 flex h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-md border border-border/50 bg-muted/30 p-1 lg:sticky lg:top-4 lg:order-1 lg:mb-0 lg:flex-col lg:items-stretch lg:gap-px lg:overflow-visible lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0"
           >
             {settingsGroups.map((group) => (
               <React.Fragment key={group.name}>
@@ -2423,7 +2423,7 @@ export default function Settings() {
         </div>
 
         {/* Tab Content */}
-        <div className="space-y-5 lg:order-2 rtl:lg:order-1">
+        <div className="space-y-5 lg:order-2">
           <TabsContent value="general" className="mt-0">
             {/* Panel Settings */}
             <Card id="settings-general">
@@ -6413,9 +6413,9 @@ function WorkshopCollectionSyncCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-7">
-        <div className="grid gap-6 border-b border-border/40 pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.8fr)] rtl:lg:grid-cols-[minmax(18rem,.8fr)_minmax(0,1fr)]">
+        <div className="grid gap-6 border-b border-border/40 pb-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,.8fr)]">
         {/* Collection ID */}
-        <div className="space-y-2 lg:order-1 rtl:lg:order-2">
+        <div className="space-y-2 lg:order-1">
           <Label htmlFor="ws-collection-id" className="text-base">
             {t("workshopSync.collectionIdLabel")}
           </Label>
@@ -6436,7 +6436,7 @@ function WorkshopCollectionSyncCard({
 
         {/* Auto-sync toggle */}
         <div
-          className={`flex items-start justify-between gap-4 lg:order-2 lg:border-s lg:border-border/40 lg:ps-6 rtl:lg:order-1 ${
+          className={`flex items-start justify-between gap-4 lg:order-2 lg:border-s lg:border-border/40 lg:ps-6 ${
             autoSyncOn && !credsConfigured
               ? "text-warning"
               : ""
