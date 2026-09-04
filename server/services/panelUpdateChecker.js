@@ -1795,12 +1795,29 @@ export class PanelUpdateChecker {
     }
 
     // Free disk space check — need ~2x asset size (staged + rename buffer).
+    // 2026-09-04, Dwight's finding: `free !== null && free < needed` reads as
+    // careful, but the other half of that condition is silent -- a null free
+    // (statfs unsupported, or getFreeDiskSpace's own try/catch swallowing a
+    // real error) or a thrown error here both fell through with NO warning
+    // at all, same as no check had ever run. That is the exact shape the
+    // Docker preflight path was deliberately built NOT to have
+    // (checksPerformed:false, an honest "we did not check" rather than a
+    // bare ok:true) -- this check just never got the same treatment. Now an
+    // unknown free-space result surfaces as a warning instead of silence.
     if (asset?.size) {
       try {
         const free = await this.getFreeDiskSpace(exeDir);
         info.freeBytes = free;
         const needed = asset.size * 2;
-        if (free !== null && free < needed) {
+        if (free === null) {
+          addPreflightMessage(
+            warnings,
+            warningDetails,
+            "updates.preflight.diskSpaceUnknown",
+            {},
+            "Could not determine free disk space before update. Proceeding without this check — verify you have enough free space manually if the apply fails partway through.",
+          );
+        } else if (free < needed) {
           const neededMb = (needed / 1024 / 1024).toFixed(0);
           const freeMb = (free / 1024 / 1024).toFixed(0);
           addPreflightMessage(
@@ -1812,6 +1829,14 @@ export class PanelUpdateChecker {
           );
         }
       } catch (err) {
+        info.freeBytes = null;
+        addPreflightMessage(
+          warnings,
+          warningDetails,
+          "updates.preflight.diskSpaceUnknown",
+          {},
+          "Could not determine free disk space before update. Proceeding without this check — verify you have enough free space manually if the apply fails partway through.",
+        );
         log.debug(`Free-space check failed: ${err.message}`);
       }
     }
