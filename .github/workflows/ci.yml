@@ -63,6 +63,7 @@ jobs:
       # still fails the job immediately with no retry, since "Failed
       # Tests" would be present and this condition is false.
       - name: Tests
+        shell: bash
         run: |
           if npm run test:server 2>&1 | tee /tmp/server-test-output.log; then
             exit 0
