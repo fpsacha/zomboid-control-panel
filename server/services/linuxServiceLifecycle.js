@@ -236,12 +236,22 @@ export function buildLifecycleTemplate(server, provider, options = {}) {
         `${serviceName}.service`,
       ),
       content,
+      // loginctl enable-linger MUST run first. A freshly `useradd`'d service
+      // account -- exactly what the install docs have the operator create --
+      // has never had a systemd user-manager instance started for it, so
+      // /run/user/<uid> does not exist yet. Every `systemctl --user` command
+      // below, including the two that used to precede this one, fails
+      // outright with "Failed to connect to bus: Permission denied" until
+      // linger creates that runtime dir -- reproduced live: a `useradd -r -m`
+      // account, exactly as documented, cannot run `systemctl --user status`
+      // even with XDG_RUNTIME_DIR forced (this file's own defaultExecFile()
+      // fallback) until enable-linger has run at least once.
       commands: [
+        `sudo loginctl enable-linger ${serviceUser}`,
         "install -d -m 0755 ~/.config/systemd/user",
         `install -m 0644 <downloaded-file> ~/.config/systemd/user/${serviceName}.service`,
         "systemctl --user daemon-reload",
         `systemctl --user enable ${serviceName}.service`,
-        `sudo loginctl enable-linger ${serviceUser}`,
       ],
     };
   }
@@ -466,10 +476,19 @@ export class LinuxServiceLifecycle {
   async preflightActivation() {
     const status = await this.inspect();
     if (!status.registered) {
+      // status.error carries the REAL cause when inspect() got far enough to
+      // capture one (e.g. "Failed to connect to bus: Permission denied" --
+      // the systemd provider's service account has no linger-enabled user
+      // session, which reads as "not installed" no matter how correctly the
+      // unit was actually installed). Losing that behind a generic
+      // not-installed message sends the operator to reinstall a unit that
+      // was never the problem.
       return {
         ready: false,
         ...status,
-        error: `Install ${this.serviceName} before activating this provider`,
+        error: status.error
+          ? `${this.serviceName} is not registered or its status could not be checked: ${status.error}`
+          : `Install ${this.serviceName} before activating this provider`,
       };
     }
     if (!status.markerMatches) {
@@ -495,10 +514,18 @@ export class LinuxServiceLifecycle {
   async status() {
     const status = await this.inspect();
     if (!status.registered) {
+      // See preflightActivation()'s identical comment -- an unregistered
+      // result here can mean the unit genuinely isn't installed, OR that
+      // inspect()'s systemctl/rc-service call never got far enough to say
+      // either way (most commonly: a systemd service account with no
+      // linger-enabled user session). Surface status.error when there is
+      // one instead of asserting "not installed" as if the scan succeeded.
       return {
         running: false,
         scanFailed: true,
-        error: `Managed service ${this.serviceName} is not installed`,
+        error: status.error
+          ? `Managed service ${this.serviceName} is not installed or its status could not be checked: ${status.error}`
+          : `Managed service ${this.serviceName} is not installed`,
       };
     }
     if (!status.markerMatches) {
