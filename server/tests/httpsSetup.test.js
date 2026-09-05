@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import net from "net";
 import { setupHttpsServer, isHttpsServerActive } from "../index.js";
 
@@ -127,6 +130,44 @@ describe("setupHttpsServer -- boot must never crash the process", () => {
     // about HTTPS availability after a failed bind) would pass this test
     // unnoticed.
     expect(isHttpsServerActive()).toBe(false);
+  });
+
+  it("a custom cert path that is a real, readable file but not a valid certificate does NOT crash -- fails closed instead of throwing out of https.createServer()", () => {
+    // loadOrCreateCerts() only checks existsSync/statSync().isFile() and
+    // that the bytes are readable -- it never validates the CONTENT is a
+    // parseable PEM/DER cert. A file that satisfies both of those (regular
+    // file, readable) but holds garbage bytes -- corrupted on disk,
+    // truncated by a partial write, or just a wrong file the operator
+    // pointed the setting at -- reaches https.createServer() unchanged,
+    // which throws SYNCHRONOUSLY on invalid content. That throw used to
+    // propagate straight out of setupHttpsServer() with no guard around
+    // it, past start()'s outer try/catch, into `log.error("Failed to
+    // start server")` + `process.exit(1)` -- taking the WHOLE panel down,
+    // including the plain HTTP listener that hadn't even started
+    // listening yet at that point in boot. Same failure class as the
+    // EISDIR case above; this is the "valid file, invalid content" sibling
+    // that check never covered.
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-badcert-"));
+    const keyPath = path.join(tmpDir, "not-a-key.pem");
+    const certPath = path.join(tmpDir, "not-a-cert.pem");
+    fs.writeFileSync(keyPath, "this is not a PEM key\n");
+    fs.writeFileSync(certPath, "this is not a PEM cert\n");
+
+    let server;
+    try {
+      expect(() => {
+        server = setupHttpsServer({
+          httpsEnabled: true,
+          httpsPort: 3443,
+          customKeyPath: keyPath,
+          customCertPath: certPath,
+        });
+      }).not.toThrow();
+      expect(server === null || server.listening === false).toBe(true);
+      if (server && server.listening) serversToClose.push(server);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it("an out-of-range httpsPort does NOT crash -- fails closed synchronously", () => {

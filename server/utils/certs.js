@@ -141,8 +141,24 @@ function derSet(items) {
 }
 
 function derInteger(buf) {
-  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
-  // Ensure positive (add leading zero if high bit set)
+  let b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  // Minimal-length DER INTEGER encoding. Two passes are both required:
+  // first strip any REDUNDANT leading 0x00 byte(s) -- crypto.randomBytes()
+  // starting with 0x00 (the serial number here, ~1/256 of the time)
+  // produced a non-minimal encoding that OpenSSL's strict ASN.1 decoder
+  // rejects with "illegal padding" (error:068000DD) whenever the next byte
+  // ALSO didn't need the padding (high bit clear) -- reproduced directly:
+  // Buffer.from([0x00,1,2,3,4,5,6,7]) as a cert's serial makes
+  // https.createServer({key,cert}) throw that exact error, at exactly the
+  // observed ~0.2% rate over 20000 trials. Then re-add exactly one 0x00
+  // iff the remaining leading byte's high bit is set (needed to keep the
+  // value positive) -- this is the ORIGINAL rule, still required for
+  // e.g. Buffer.from([0x80,...]).
+  let i = 0;
+  while (i < b.length - 1 && b[i] === 0x00 && !(b[i + 1] & 0x80)) {
+    i++;
+  }
+  b = b.slice(i);
   const needsPad = b[0] & 0x80;
   const content = needsPad ? Buffer.concat([Buffer.from([0x00]), b]) : b;
   return derTag(0x02, content);

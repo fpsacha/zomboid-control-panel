@@ -635,7 +635,23 @@ export function setupHttpsServer({
     return null;
   }
 
-  httpsServer = createHttpsServer(certs, app);
+  // loadOrCreateCerts() only confirms the custom paths are real, readable
+  // FILES -- it never parses their content, so a file that satisfies both
+  // checks but holds garbage/corrupted bytes (truncated on disk, or just
+  // the wrong file) reaches here unchanged. createServer() parses the
+  // PEM/DER synchronously and throws immediately on invalid content (e.g.
+  // "PEM routines::no start line") -- same crash-the-whole-panel class as
+  // the cert-path/EADDRINUSE cases above, just one call later, so it gets
+  // the identical guard.
+  try {
+    httpsServer = createHttpsServer(certs, app);
+  } catch (error) {
+    log.error(
+      `HTTPS certificate/key content is invalid: ${error.message} — running HTTP only`,
+    );
+    httpsServer = null;
+    return null;
+  }
   // Add HTTPS origin to allowed list dynamically
   addAllowedOrigin(`https://localhost:${httpsPort}`);
   // Attach the SAME Socket.IO instance to the HTTPS server too, instead of
