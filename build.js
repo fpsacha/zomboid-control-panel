@@ -656,9 +656,18 @@ rem ============================================================
   rem Json above never had this problem. Still wrapped in try/catch: a
   rem locked/unreadable file is a real possibility this doesn't remove, and
   rem now reports UNVERIFIABLE with the actual exception text instead of
-  rem being misread as MISMATCH.
+  rem being misread as MISMATCH. The exception message has its own parens
+  rem defensively stripped to brackets, same as the client check's own
+  rem diagnostic text below -- a literal ")" inside a delayed-expansion
+  rem value used within an "if (...) ( ... )" block PREMATURELY CLOSES that
+  rem block at runtime, taking the rest of the line as a new command.
+  rem cmd.exe's block parser does not know or care that the paren only
+  rem exists inside what will become a quoted string argument -- confirmed
+  rem the hard way while building the client check's own diagnostic below
+  rem (a "(...)"-wrapped file list broke it with "is not recognized as an
+  rem internal or external command").
   set "STAGED_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($env:STAGED_NAME))).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message } }"\`) do set "STAGED_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($env:STAGED_NAME))).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_HASH_STATUS=%%F"
 
   if not "!STAGED_HASH_STATUS!"=="OK" (
     if "!STAGED_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
@@ -695,7 +704,7 @@ rem ============================================================
   rem uses the .NET SHA256 type directly rather than Get-FileHash, for the
   rem same reason the binary check above does now -- see its comment.
   set "STAGED_CLIENT_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + '|' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split('|',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
 
   if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
     if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
