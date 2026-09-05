@@ -112,7 +112,8 @@
   },
   "restoreDialog": {
     "title": "Backup wiederherstellen",
-    "description": "Stelle <1>{{name}}</1> wieder her. Dies <2>ersetzt</2> die aktuellen Weltdaten.",
+    "description": "Restore <1>{{name}}</1> onto <3>{{serverName}}</3>. This will <2>replace</2> the current world data.",
+    "unknownServerFallback": "the currently active server",
     "bulletStopServer": "Stoppe zuerst den Server.",
     "bulletSafetyBackup": "Das Panel erstellt vor der Wiederherstellung ein Sicherheits-Backup.",
     "bulletUndoRequiresRestore": "Um das rückgängig zu machen, musst du dieses Sicherheits-Backup später selbst wiederherstellen — das geschieht nicht automatisch.",
@@ -139,6 +140,8 @@
     "confirm": "Ältere Backups löschen"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server just changed. Refreshing -- try again once the list updates, so this action targets the right server.",
     "backupCreatedTitle": "Safehouse-Snapshot erstellt",
     "backupCreatedDesc": "{{name}} in {{seconds}}s gespeichert",
     "backupFailedTitle": "Backup fehlgeschlagen",

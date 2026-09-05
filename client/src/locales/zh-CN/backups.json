@@ -112,7 +112,8 @@
   },
   "restoreDialog": {
     "title": "恢复备份",
-    "description": "恢复 <1>{{name}}</1>。此操作将<2>替换</2>当前的世界数据。",
+    "description": "Restore <1>{{name}}</1> onto <3>{{serverName}}</3>. This will <2>replace</2> the current world data.",
+    "unknownServerFallback": "the currently active server",
     "bulletStopServer": "请先停止服务器。",
     "bulletSafetyBackup": "面板会在恢复前创建一份安全备份。",
     "bulletUndoRequiresRestore": "之后要撤销此操作，需要您自己手动恢复该安全备份——这不会自动完成。",
@@ -139,6 +140,8 @@
     "confirm": "删除较旧备份"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server just changed. Refreshing -- try again once the list updates, so this action targets the right server.",
     "backupCreatedTitle": "安全屋快照已创建",
     "backupCreatedDesc": "已在 {{seconds}} 秒内存储 {{name}}",
     "backupFailedTitle": "备份失败",

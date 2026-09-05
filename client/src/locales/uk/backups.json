@@ -116,7 +116,8 @@
   },
   "restoreDialog": {
     "title": "Відновлення з копії",
-    "description": "Відновити <1>{{name}}</1>. Це <2>замінить</2> поточні дані світу.",
+    "description": "Restore <1>{{name}}</1> onto <3>{{serverName}}</3>. This will <2>replace</2> the current world data.",
+    "unknownServerFallback": "the currently active server",
     "bulletStopServer": "Спершу зупиніть сервер.",
     "bulletSafetyBackup": "Перед відновленням панель створить страхувальну копію.",
     "bulletUndoRequiresRestore": "Щоб потім скасувати цю дію, вам доведеться самостійно відновити ту страхувальну копію — автоматично це не станеться.",
@@ -143,6 +144,8 @@
     "confirm": "Видалити старіші копії"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server just changed. Refreshing -- try again once the list updates, so this action targets the right server.",
     "backupCreatedTitle": "Знімок сховку створено",
     "backupCreatedDesc": "{{name}} збережено за {{seconds}} с",
     "backupFailedTitle": "Не вдалося створити копію",

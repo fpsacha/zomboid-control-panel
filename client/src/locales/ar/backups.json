@@ -116,7 +116,8 @@
   },
   "restoreDialog": {
     "title": "استعادة نسخة احتياطية",
-    "description": "استعادة <1>{{name}}</1>. سيؤدي هذا إلى <2>استبدال</2> بيانات العالم الحالية.",
+    "description": "Restore <1>{{name}}</1> onto <3>{{serverName}}</3>. This will <2>replace</2> the current world data.",
+    "unknownServerFallback": "the currently active server",
     "bulletStopServer": "أوقف الخادم أولًا.",
     "bulletSafetyBackup": "ستنشئ اللوحة نسخة احتياطية احترازية قبل الاستعادة.",
     "bulletUndoRequiresRestore": "التراجع عن هذا لاحقًا يعني أن تستعيد تلك النسخة الاحترازية بنفسك — فذلك لن يحدث تلقائيًا.",
@@ -143,6 +144,8 @@
     "confirm": "حذف النسخ الاحتياطية الأقدم"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server just changed. Refreshing -- try again once the list updates, so this action targets the right server.",
     "backupCreatedTitle": "تم إنشاء لقطة الملاذ الآمن",
     "backupCreatedDesc": "تم تخزين {{name}} خلال {{seconds}} ثانية",
     "backupFailedTitle": "فشل النسخ الاحتياطي",

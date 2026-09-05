@@ -112,7 +112,8 @@
   },
   "restoreDialog": {
     "title": "Restaurer la sauvegarde",
-    "description": "Restaurer <1>{{name}}</1>. Cela va <2>remplacer</2> les données actuelles du monde.",
+    "description": "Restore <1>{{name}}</1> onto <3>{{serverName}}</3>. This will <2>replace</2> the current world data.",
+    "unknownServerFallback": "the currently active server",
     "bulletStopServer": "Arrêtez d'abord le serveur.",
     "bulletSafetyBackup": "Le panneau créera une sauvegarde de sécurité avant de restaurer.",
     "bulletUndoRequiresRestore": "Pour annuler cela plus tard, il faudra restaurer cette sauvegarde de sécurité vous-même — cela ne se fait pas automatiquement.",
@@ -139,6 +140,8 @@
     "confirm": "Supprimer les anciennes sauvegardes"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server just changed. Refreshing -- try again once the list updates, so this action targets the right server.",
     "backupCreatedTitle": "Instantané du refuge créé",
     "backupCreatedDesc": "{{name}} enregistré en {{seconds}} s",
     "backupFailedTitle": "Échec de la sauvegarde",
