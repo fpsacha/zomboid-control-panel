@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+# This image expects to start as root: it chowns the bind-mounted volumes to
+# the steam account below, then drops to steam for both the SteamCMD install
+# and the panel process itself -- the panel never runs as root. An enforced
+# non-root runtime (Kubernetes securityContext.runAsNonRoot, `docker run
+# --user`) is not supported yet: without this check it fails partway through
+# chown or su with whatever error each one happens to produce, not a named
+# cause. Fail early instead.
+if [ "$(id -u)" -ne 0 ]; then
+  echo "[entrypoint] ERROR: this image must start as root (it chowns volumes to steam, then drops privilege). Running as a non-root user (runAsNonRoot, docker run --user) is not supported." >&2
+  exit 1
+fi
+
 STEAM_UID=1000
 STEAM_GID=1000
 STEAM_HOME=/home/steam

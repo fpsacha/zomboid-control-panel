@@ -135,10 +135,18 @@ source and image automatically — you don't need to intervene.
   volumes** (`panel-data`, `panel-logs`, `pz-server`, `zomboid-data`), not
   bind mounts. You never need to set `PUID`/`PGID` for this path — see
   [the PUID/PGID section](#puidpgid-on-bind-mounted-pz-folders) for why.
-- The update controller (`zomboid-panel-updater`) has Docker socket access
-  so it can rebuild and recreate the panel container, but it is not exposed
-  on any host port — the panel reaches it only over the internal Compose
-  network, authenticated with the token in `.env`.
+- The update controller (`zomboid-panel-updater`) mounts the host's Docker
+  socket so it can rebuild and recreate the panel container — that mount is
+  **host-root-equivalent access**, not just container-level access: anyone
+  who can reach that container's HTTP endpoint can run arbitrary containers
+  on the Docker host itself, not only affect the panel. It is protected by
+  two things, both load-bearing: the token in `.env` (`PANEL_DOCKER_UPDATER_TOKEN`,
+  compared with a constant-time check — there is no default, `docker compose`
+  refuses to start without one), and the fact that its port is **never**
+  published to the host — it is reachable only over the internal Compose
+  network, by container name. Do not add a `ports:` mapping for
+  `zomboid-panel-updater` to this stack; doing so would expose that
+  host-root-equivalent endpoint to the network the port is bound on.
 - The PZ game ports (`16261/udp`, `16262/udp`) are published automatically
   by the stack — there's nothing to add to Compose by hand for this path.
 - Config lives at `<state dir>/build/ctx/.env` (`~/.local/state/zomboid-panel/build/ctx/.env`
