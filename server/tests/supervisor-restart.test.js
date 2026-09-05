@@ -62,6 +62,40 @@ const skipReason = !isWindows
     ? "legacy .NET Framework csc.exe not found -- cannot build the stub exe"
     : null;
 
+// main-is-red, 2026-09-05: `for %I in ("<path>") do @echo %~sI` is cmd's
+// own 8.3-short-name accessor -- no PowerShell/Get-Item involved, so this
+// can't accidentally exercise (or be masked by) the very code path it's
+// used to test.
+function getShortPathName(longPath) {
+  const batPath = path.join(os.tmpdir(), `pz-shortname-probe-${process.pid}-${Date.now()}.bat`);
+  fs.writeFileSync(batPath, `@echo off\r\nfor %%I in ("${longPath}") do echo %%~sI\r\n`);
+  try {
+    return execFileSync("cmd.exe", ["/c", batPath], { encoding: "utf8" }).trim();
+  } finally {
+    fs.rmSync(batPath, { force: true });
+  }
+}
+
+// Whether THIS box's temp volume actually generates 8.3 short names at
+// all -- some volumes have them disabled outright (`fsutil 8dot3name`),
+// in which case no path here will ever come back shortened and the
+// dedicated test below must skip rather than false-pass. Probed once at
+// collection time (matching hasCsc's own pattern above) against a
+// deliberately-long, dot-free directory name guaranteed to need
+// shortening if the feature is on at all.
+let shortNamesGeneratedOnTempVolume = false;
+if (!skipReason) {
+  const probeParent = fs.mkdtempSync(path.join(os.tmpdir(), "pz-shortname-probe-"));
+  try {
+    const probeLeaf = path.join(probeParent, "eightpointthreetestdirectory");
+    fs.mkdirSync(probeLeaf);
+    shortNamesGeneratedOnTempVolume =
+      getShortPathName(probeLeaf).toLowerCase() !== probeLeaf.toLowerCase();
+  } finally {
+    fs.rmSync(probeParent, { recursive: true, force: true });
+  }
+}
+
 const STUB_SOURCE = `
 using System;
 using System.IO;
@@ -876,6 +910,65 @@ describe.skipIf(!!skipReason)(
         expect(log).not.toMatch(/hash_unverifiable/i);
         expect(log).not.toMatch(/MISMATCH/i);
         expect(log).toMatch(/Apply: backing up/i);
+      },
+      75000,
+    );
+
+    // main-is-red, 2026-09-05: the THIRD real bug on the same clean
+    // runner, found only once both sides' (path, hash) pairs were visible
+    // side by side. journal.paths.stagedClient there resolved through
+    // Resolve-Path to an 8.3 SHORT NAME (C:\Users\RUNNER~1\... for the
+    // "runneradmin" account -- 11 letters, over the 8.3 limit);
+    // Get-ChildItem's own FullName for each child came back LONG-form.
+    // $root ends up SHORTER than the true prefix, so Substring($root
+    // .Length + 1) cuts too FEW characters and a fragment of the real
+    // directory name survives as a bogus leading path segment ("st/
+    // index.html" instead of "index.html" -- the tail of "dist.new-test"
+    // leaking through). This never fires on a dev machine whose own
+    // username is short -- which is exactly why it is a REAL USER BUG,
+    // not a CI quirk: any install whose temp or install path has a
+    // long-enough component (a username over 8 characters, one with a
+    // space, a redirected TEMP under PROGRA~1) gets every update refused
+    // as [av_quarantine] forever, forever misreporting environment as
+    // corruption. Forces the exact mechanism for real -- not a synthetic
+    // string mutation -- by asking Windows itself for the 8.3 form of a
+    // real staged directory and feeding THAT into the journal, the same
+    // shape a short-%TEMP%-having machine's real stageUpdateBundle() call
+    // would naturally produce. Skips (not false-passes) on a volume where
+    // 8.3 generation is disabled outright, per shortNamesGeneratedOnTempVolume
+    // above.
+    it.skipIf(!shortNamesGeneratedOnTempVolume)(
+      "verifies the staged client bundle correctly when its journal path is given in 8.3 short form while enumeration returns long-form paths",
+      async () => {
+        const dir = freshScenarioDir("shortname-mismatch");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir);
+
+        const journalPath = path.join(dir, "update-bundle.json");
+        const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+        const longStagedClient = journal.paths.stagedClient;
+        const shortStagedClient = getShortPathName(longStagedClient);
+        // Sanity check on THIS specific path, not just the module-level
+        // probe path: if dist.new-test itself doesn't actually get a
+        // distinct short form for some reason, the rest of this test
+        // would silently prove nothing.
+        expect(shortStagedClient.toLowerCase()).not.toBe(longStagedClient.toLowerCase());
+
+        journal.paths.stagedClient = shortStagedClient;
+        fs.writeFileSync(journalPath, JSON.stringify(journal));
+
+        const result = await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          60000,
+        );
+
+        expect(result.status).toBe(0);
+        const log = readSupervisorLogWithJournalDiagnostic(dir);
+        expect(log).not.toMatch(/hash_unverifiable/i);
+        expect(log).not.toMatch(/MISMATCH/i);
+        expect(log).toMatch(/Apply: bundle activated/i);
       },
       75000,
     );

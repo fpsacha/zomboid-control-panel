@@ -714,8 +714,33 @@ rem ============================================================
   rem has no such redundant separator) cut one character too many.
   rem TrimEnd() on both possible separator characters closes this
   rem regardless of which form (or none) the journal path arrives in.
+  rem main-is-red, 2026-09-05: a THIRD, still-genuine mismatch, once the
+  rem trailing-separator fix above was already on the runner --
+  rem journal.paths.stagedClient there resolved through Resolve-Path to an
+  rem 8.3 SHORT NAME (C:\Users\RUNNER~1\... for the "runneradmin" account),
+  rem while Get-ChildItem's own FullName for each child came back LONG-form
+  rem -- $root ends up SHORTER than the prefix it's meant to strip, so
+  rem Substring($root.Length + 1) cuts too FEW characters this time, and a
+  rem fragment of the real directory name survives as a bogus leading path
+  rem segment (observed: "st/index.html" instead of "index.html", the
+  rem tail of "dist.new-test" leaking through). Never fires locally --
+  rem dev machine temp paths have no short-name component to begin with,
+  rem which is exactly why this is a REAL USER BUG and not a CI quirk: any
+  rem install whose temp or install path has one (a username over 8
+  rem characters, one with a space, a redirected TEMP under PROGRA~1) gets
+  rem every update refused as [av_quarantine] forever, forever misreporting
+  rem environment as corruption. Get-Item -LiteralPath, not Resolve-Path,
+  rem for $root: it comes from the SAME FileSystemInfo family Get-ChildItem
+  rem uses for its children, so both resolve to the same long/short form
+  rem consistently instead of two different cmdlets independently choosing
+  rem how to spell the same path. Defended further with a runtime check:
+  rem if a child's FullName ever does not actually start with $root (this
+  rem exact class of bug, or a future one nobody has found yet), that's an
+  rem UNVERIFIABLE with both strings in the log, not a silently wrong
+  rem relative path -- the assertion that would have turned every one of
+  rem tonight's confusing timeouts into one readable line the first time.
   set "STAGED_CLIENT_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path.TrimEnd([char]92,[char]47); $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Get-Item -LiteralPath $env:STAGED_CLIENT).FullName.TrimEnd([char]92,[char]47); $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { if (-not $_.FullName.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'root prefix mismatch: root=' + $root + ' fullname=' + $_.FullName }; $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
 
   if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
     if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
