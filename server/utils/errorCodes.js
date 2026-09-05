@@ -495,6 +495,12 @@ export const ErrorCode = Object.freeze({
   /** server/routes/backup.js -- POST /api/backup/upload, a backup with the
    * resolved target filename already exists on disk. */
   BACKUP_UPLOAD_NAME_CONFLICT: "BACKUP_UPLOAD_NAME_CONFLICT",
+  /** server/routes/backup.js -- POST /api/backup/upload, streamed body
+   * exceeded MAX_UPLOAD_BYTES. Added 2026-09-05 alongside the switch from
+   * express.raw() (fully buffered) to streamUploadToFile() (streamed) --
+   * the limit itself is unchanged, just enforced while streaming instead
+   * of after the whole body was already buffered in memory. */
+  BACKUP_UPLOAD_TOO_LARGE: "BACKUP_UPLOAD_TOO_LARGE",
   /** server/routes/backup.js -- POST /api/backup/upload, getBackupsPath()
    * returned nothing. Distinct code/status(500) from BACKUPS_FOLDER_NOT_
    * FOUND (download path, status 404) -- different route, different wording. */

@@ -16,6 +16,11 @@ import {
   isSupportedFiveFieldCron,
 } from "../utils/cronValidation.js";
 import { parseClampedInteger } from "../utils/queryNumbers.js";
+import {
+  streamUploadToFile,
+  UPLOAD_TOO_LARGE_CODE,
+  UPLOAD_BAD_SIGNATURE_CODE,
+} from "../utils/uploadStream.js";
 const log = createLogger("API:Backup");
 
 const router = express.Router();
@@ -447,8 +452,18 @@ const MAX_UPLOAD_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB ceiling
 router.post(
   "/upload",
   requirePermission("backups.manage"),
-  express.raw({ type: "application/zip", limit: MAX_UPLOAD_BYTES }),
   async (req, res) => {
+    // bug hunt 2026-09-05 (backup-restore-round-trip sweep, item #5): this
+    // used to be express.raw({ limit: MAX_UPLOAD_BYTES }), which buffers
+    // the ENTIRE request body into one in-process Buffer before this
+    // handler ever runs -- an ordinary multi-GB world backup upload could
+    // hold that many bytes resident at once on a host sized for a game
+    // server, not for buffering its own backups. streamUploadToFile()
+    // writes straight to the .tmp file as bytes arrive and enforces the
+    // same signature/size checks while streaming instead of after fully
+    // receiving the body -- see its own comment for why the signature
+    // check can't just look at the first `data` event.
+    let tmpPath = null;
     try {
       const activeServer = await getActiveServer();
       if (activeServer?.isRemote) {
@@ -460,7 +475,8 @@ router.post(
           });
       }
 
-      if (!req.body || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+      const contentType = String(req.headers["content-type"] || "");
+      if (!contentType.includes("application/zip")) {
         return res
           .status(400)
           .json({
@@ -468,15 +484,6 @@ router.post(
               "No file uploaded. Send the zip body with Content-Type: application/zip.",
             code: ErrorCode.BACKUP_UPLOAD_NO_FILE,
           });
-      }
-
-      // Quick sanity check: zip files start with the local-file-header
-      // signature 0x504B0304 ("PK\x03\x04"). Catches accidental uploads
-      // of completely different file types early.
-      if (req.body.length < 4 || req.body[0] !== 0x50 || req.body[1] !== 0x4b) {
-        return res
-          .status(400)
-          .json({ error: "File does not look like a valid .zip archive.", code: ErrorCode.BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE });
       }
 
       const rawName = String(
@@ -525,20 +532,55 @@ router.post(
           });
       }
 
-      // Atomic write: write to .tmp first, then rename. A crash during
+      // Atomic write: stream to .tmp first, then rename. A crash during
       // upload won't leave a half-written .zip in the listing.
-      const tmpPath = `${targetPath}.tmp`;
-      fs.writeFileSync(tmpPath, req.body);
-      fs.renameSync(tmpPath, targetPath);
+      tmpPath = `${targetPath}.tmp`;
+      const totalBytes = await streamUploadToFile(req, tmpPath, MAX_UPLOAD_BYTES);
 
-      log.info(`POST /upload — stored ${finalName} (${req.body.length} bytes)`);
+      if (totalBytes === 0) {
+        // An empty body isn't a signature or size violation to
+        // streamUploadToFile() (nothing arrived to check), so it leaves
+        // the empty tmp file in place -- this is the one success-shaped
+        // outcome that still needs its own cleanup here.
+        fs.unlink(tmpPath, () => {});
+        tmpPath = null;
+        return res
+          .status(400)
+          .json({
+            error:
+              "No file uploaded. Send the zip body with Content-Type: application/zip.",
+            code: ErrorCode.BACKUP_UPLOAD_NO_FILE,
+          });
+      }
+
+      fs.renameSync(tmpPath, targetPath);
+      tmpPath = null;
+
+      log.info(`POST /upload — stored ${finalName} (${totalBytes} bytes)`);
       res.json({
         success: true,
         name: finalName,
-        size: req.body.length,
+        size: totalBytes,
         message: `Uploaded backup saved as ${finalName}. Use Restore to apply it.`,
       });
     } catch (error) {
+      if (tmpPath) fs.unlink(tmpPath, () => {});
+      if (error.code === UPLOAD_BAD_SIGNATURE_CODE) {
+        return res
+          .status(400)
+          .json({
+            error: "File does not look like a valid .zip archive.",
+            code: ErrorCode.BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE,
+          });
+      }
+      if (error.code === UPLOAD_TOO_LARGE_CODE) {
+        return res
+          .status(413)
+          .json({
+            error: `Upload exceeds the ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024 * 1024))} GB limit.`,
+            code: ErrorCode.BACKUP_UPLOAD_TOO_LARGE,
+          });
+      }
       log.error(`Failed to upload backup: ${error.message}`);
       res.status(500).json({ error: sanitizeError(error.message) });
     }

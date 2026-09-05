@@ -927,6 +927,28 @@ function compactData(data) {
   return data;
 }
 
+// Shared by both getDb() recovery triggers below (a corrupt-read AND a
+// missing-file-beside-an-intact-ring) so the newest-first candidate walk
+// exists in exactly one place. Assumes `db` is already constructed and
+// mutates `db.data` in place via db.read() on success, same as its two
+// former inline copies did.
+async function attemptRecoveryFromBackups(backups) {
+  for (const backup of backups) {
+    log.warn(`Attempting recovery from ${path.basename(backup)}...`);
+    try {
+      fs.copyFileSync(backup, dbPath);
+      await db.read();
+      log.info(`Database recovery successful from ${path.basename(backup)}!`);
+      return true;
+    } catch (recoverErr) {
+      log.error(
+        `Recovery from ${path.basename(backup)} failed: ${recoverErr.message}`,
+      );
+    }
+  }
+  return false;
+}
+
 export async function getDb() {
   if (!db) {
     // Sweep secret-bearing tmp files orphaned by a prior crash before doing
@@ -959,6 +981,13 @@ export async function getDb() {
     const adapter = new JSONFile(dbPath);
     db = new Low(adapter, defaultData);
 
+    // Checked BEFORE db.read() -- a missing file and a genuinely-corrupt
+    // one both need the recovery path below, but db.read() only THROWS for
+    // the latter (lowdb's JSONFile adapter returns null for a missing file
+    // and Low.read() quietly substitutes defaultData, no exception). See
+    // the dbPathExistedBeforeRead check after the try/catch.
+    const dbPathExistedBeforeRead = fs.existsSync(dbPath);
+
     let loadedCleanly = false;
     try {
       await db.read();
@@ -989,6 +1018,30 @@ export async function getDb() {
         // fallback for that case.
       }
 
+      // Preserve the corrupt file for forensics ONCE, before trying any
+      // candidate or giving up entirely -- OUTSIDE the rotation ring so
+      // pruneBackups never touches it. Runs regardless of whether a backup
+      // ring exists to recover from -- it used to run only inside the
+      // `backups.length > 0` branch below, so a corrupt db.json next to an
+      // EMPTY ring hit the "no backup found" branch and had its only copy
+      // silently overwritten by the fresh empty database a few lines down,
+      // with zero forensic trace left anywhere (bug hunt 2026-09-05, sweep
+      // item #4).
+      try {
+        const corruptPath = path.join(
+          backupDir,
+          `corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+        );
+        fs.copyFileSync(dbPath, corruptPath);
+        try {
+          fs.chmodSync(corruptPath, 0o600);
+        } catch (_) {
+          /* best-effort */
+        }
+      } catch (_) {
+        /* best-effort */
+      }
+
       // Attempt recovery from backup, newest first, falling through to the
       // next-older candidate if one is also unreadable. A single corrupted
       // "latest" backup must not mean the whole ring is abandoned in favour
@@ -998,48 +1051,9 @@ export async function getDb() {
       // version fell straight to defaultData -- discarding every setting,
       // server and user -- the moment that one backup also failed to read,
       // even when an older good one was sitting right next to it).
-      //
-      // Do NOT snapshot the corrupt file first — that would poison the
-      // backup ring (pruneBackups keeps newest 5 and could evict the last
-      // known-good backup) AND make listBackupsNewestFirst() return the
-      // corrupt copy as a candidate.
       const backups = listBackupsNewestFirst();
       if (backups.length > 0) {
-        // Preserve the corrupt file for forensics ONCE, before trying any
-        // candidate, OUTSIDE the rotation ring so pruneBackups never touches
-        // it.
-        try {
-          const corruptPath = path.join(
-            backupDir,
-            `corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
-          );
-          fs.copyFileSync(dbPath, corruptPath);
-          try {
-            fs.chmodSync(corruptPath, 0o600);
-          } catch (_) {
-            /* best-effort */
-          }
-        } catch (_) {
-          /* best-effort */
-        }
-
-        let recovered = false;
-        for (const backup of backups) {
-          log.warn(`Attempting recovery from ${path.basename(backup)}...`);
-          try {
-            fs.copyFileSync(backup, dbPath);
-            await db.read();
-            log.info(
-              `Database recovery successful from ${path.basename(backup)}!`,
-            );
-            recovered = true;
-            break;
-          } catch (recoverErr) {
-            log.error(
-              `Recovery from ${path.basename(backup)} failed: ${recoverErr.message}`,
-            );
-          }
-        }
+        const recovered = await attemptRecoveryFromBackups(backups);
         if (!recovered) {
           log.error("All backups failed to recover — starting fresh");
           db.data = { ...defaultData };
@@ -1047,6 +1061,31 @@ export async function getDb() {
       } else {
         log.warn("No backup found, starting with fresh database.");
         db.data = { ...defaultData };
+      }
+    }
+
+    // A missing db.json is NOT a fresh install if an intact backup ring
+    // exists right next to it. db.read() above does not throw for a
+    // missing file (see dbPathExistedBeforeRead's comment), so this used to
+    // look identical to a genuine first boot and silently keep empty
+    // defaultData -- the "startup" snapshot a few lines below then
+    // persisted that empty state into the SAME backup ring, and
+    // pruneBackups() eventually rotated the real, recoverable backups out
+    // in favour of it. bug hunt 2026-09-05 (sweep item #3): the recovery
+    // path destroyed what it should have recovered from. Reaches the exact
+    // same newest-first candidate walk the corrupt-read branch above uses,
+    // just triggered by a different signal (file absent, not unreadable).
+    if (loadedCleanly && !dbPathExistedBeforeRead) {
+      const backups = listBackupsNewestFirst();
+      if (backups.length > 0) {
+        log.warn(
+          "db.json is missing but an existing backup ring was found — recovering from backup instead of starting fresh.",
+        );
+        const recovered = await attemptRecoveryFromBackups(backups);
+        if (!recovered) {
+          log.error("All backups failed to recover — starting fresh");
+          db.data = { ...defaultData };
+        }
       }
     }
 
