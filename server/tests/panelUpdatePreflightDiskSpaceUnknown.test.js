@@ -25,9 +25,23 @@ describe("preflight() surfaces an unknown free-disk-space result instead of stay
 
   function makeChecker() {
     const checker = new PanelUpdateChecker();
+    // preflight() resolves the release asset by an exact, platform-specific
+    // name (ZomboidControlPanel.exe on Windows, ZomboidControlPanel on
+    // Linux) before ever reaching the disk-space check that's under test
+    // here. A hardcoded ".exe" name only matches on Windows -- on Linux the
+    // lookup fails, asset stays undefined, and the disk-space block (gated
+    // on `asset?.size`) never runs at all, regardless of what
+    // getFreeDiskSpace is mocked to do. That produced the exact "expected
+    // undefined to be defined" failure this comment is here to prevent from
+    // recurring: match the real resolution logic instead of one platform's
+    // shape of it.
+    const assetName =
+      process.platform === "win32"
+        ? "ZomboidControlPanel.exe"
+        : "ZomboidControlPanel";
     checker.latestRelease = {
       version: "9.9.9",
-      assets: [{ name: "ZomboidControlPanel.exe", size: 1024 }],
+      assets: [{ name: assetName, size: 1024 }],
     };
     checker.updateAvailable = true;
     return checker;
