@@ -5607,6 +5607,27 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
   }
   wipeInProgress = true;
 
+  // 2026-09-05 host-suspend-resume sweep: the "server must be stopped"
+  // check below and the multi-minute pre-wipe backup that follows it were
+  // not covered by any lock a concurrent /start could also see -- only
+  // `wipeInProgress` (this-route-only) stood in the way, so a Start fired
+  // during the backup passed straight through and this handler went on to
+  // rmSync the save tree of a now-running server. restoreBackup() has the
+  // exact same shape (checked-then-long-op-then-destructive) and is fixed
+  // the same way in backupService.js: acquire the SAME process-wide
+  // lifecycle lock /start, /stop, /restart already take, before the
+  // stopped-check, held through the destructive step, released once in the
+  // outer finally below alongside wipeInProgress.
+  const activeServerForLock = await getActiveServer();
+  const lifecycleLock = acquireLifecycleLock(
+    "wipe",
+    activeServerForLock?.name || activeServerForLock?.serverName || null,
+  );
+  if (!lifecycleLock) {
+    wipeInProgress = false;
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
+
   // Declared here, not with `const`/`let` inside the try below, so the
   // catch block can still see whatever these held at the moment of a
   // mid-wipe throw -- a try-scoped `const results = {}` is invisible to
@@ -5927,6 +5948,7 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
     });
   } finally {
     wipeInProgress = false;
+    lifecycleLock.release();
   }
 });
 
