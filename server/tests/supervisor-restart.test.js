@@ -660,7 +660,12 @@ describe.skipIf(!!skipReason)(
         expect(countLaunches(result.stdout)).toBe(1);
         expect(result.status).toBe(0);
         const log = readSupervisorLog(dir);
-        expect(log).toMatch(/staged binary hash check \[MISMATCH\].*av_quarantine/i);
+        // main-is-red follow-up: the status now carries actual/expected
+        // hashes (or an exception message) instead of a bare MISMATCH, so
+        // a real CI failure names what actually happened instead of
+        // requiring another round trip -- match the prefix, not the exact
+        // bracket contents.
+        expect(log).toMatch(/staged binary hash check \[MISMATCH[^\]]*\].*av_quarantine/i);
         expect(log).not.toMatch(/bundle activated/i);
         // Nothing was renamed: old client stays live, no binary backup was
         // ever created (the hash check runs before any backup/rename step).

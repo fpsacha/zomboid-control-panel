@@ -638,8 +638,16 @@ rem ============================================================
   rem (applyUpdateBundle()) already verifies against it before touching
   rem anything. This mirrors that check on Windows, with the same
   rem [av_quarantine] failure code Linux uses for a hash mismatch.
+  rem main-is-red, 2026-09-05: this check reports [MISMATCH] on a genuinely
+  rem uncorrupted staged binary on a clean, unprivileged GitHub windows-2022
+  rem runner -- reproduced 5/5 times across every test that reaches this
+  rem line, never once locally. The status string below now carries the
+  rem actual/expected hashes (or the exception message, if Get-FileHash
+  rem itself throws) into the log line instead of a bare MISMATCH, so the
+  rem next run says WHICH of those it actually is instead of requiring
+  rem another round trip to find out.
   set "STAGED_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { $actual = (Get-FileHash -LiteralPath $env:STAGED_NAME -Algorithm SHA256).Hash; if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH' } }"\`) do set "STAGED_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = (Get-FileHash -LiteralPath $env:STAGED_NAME -Algorithm SHA256).Hash; if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'ERROR ' + $_.Exception.Message } }"\`) do set "STAGED_HASH_STATUS=%%F"
 
   if not "!STAGED_HASH_STATUS!"=="OK" (
     call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [av_quarantine]"
