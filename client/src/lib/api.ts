@@ -1988,6 +1988,7 @@ export const serverFilesApi = {
       created: boolean;
       message: string;
       path: string;
+      unpersistedKeys?: string[];
       restartRequired?: boolean;
     }>,
   validateSandbox: () =>

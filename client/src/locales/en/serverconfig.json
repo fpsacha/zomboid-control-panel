@@ -367,6 +367,8 @@
     "worldSaveFailedDesc": "{{option}} was applied, but the server's world save failed ({{reason}}), so it may not survive the next restart.",
     "notPersistedDesc": "{{option}} is not in SandboxVars.lua, so it will reset when the server restarts.",
     "willResetFallback": "{{option}} will reset when the server restarts.",
+    "someSandboxKeysNotSavedTitle": "Some settings not saved",
+    "someSandboxKeysNotSavedDesc": "The rest was saved, but these could not be written and will reset when the server restarts: {{keys}}",
     "failedToUpdateTitle": "Failed to Update",
     "unknownError": "Unknown error",
     "setOptionFailed": "Failed to set option",

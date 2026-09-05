@@ -217,6 +217,21 @@ export function isWorldSaveFailure(data: { persisted?: unknown } | null | undefi
   return data?.persisted === false
 }
 
+// server/routes/serverFiles.js's PUT /sandbox reads the SandboxVars.lua file
+// back after writing it specifically because a key with no matching line to
+// update was silently dropped while the route still reported success --
+// attached as `unpersistedKeys` when that happens. The route still returns
+// success:true (most of the save DID land), so this is a warning to surface
+// alongside the normal saved toast, not a replacement for it. Exported as a
+// pure predicate so the decision to warn is unit-testable without mounting
+// the whole page.
+export function getUnpersistedSandboxKeys(
+  data: { unpersistedKeys?: unknown } | null | undefined,
+): string[] | null {
+  const keys = data?.unpersistedKeys
+  return Array.isArray(keys) && keys.length > 0 ? (keys as string[]) : null
+}
+
 // server/routes/serverFiles.js's POST /templates/:id/apply tracks each write
 // as it actually lands, and attaches that as `partiallyApplied` on the 500
 // body when INI succeeded before Sandbox threw (the two settings groups are
@@ -1582,10 +1597,27 @@ export default function ServerConfig() {
           }
         })
 
-        await serverFilesApi.saveSandbox(cleanData)
+        const sandboxSaveResult = await serverFilesApi.saveSandbox(cleanData)
         // Update local state to match sanitized data
         setSandboxData(cleanData)
         setOriginalSandboxData(cleanData)
+
+        // The server verifies this write by reading the file back (see its
+        // own comment on this route) specifically because a key with no
+        // matching line to update is silently dropped otherwise -- that
+        // read-back is inert unless something on this end actually surfaces
+        // it, so without this the operator still saw a plain "Saved" toast
+        // for a save that partially failed.
+        const unpersistedKeys = getUnpersistedSandboxKeys(sandboxSaveResult)
+        if (unpersistedKeys) {
+          toast({
+            title: t('toasts.someSandboxKeysNotSavedTitle'),
+            description: t('toasts.someSandboxKeysNotSavedDesc', {
+              keys: unpersistedKeys.join(', '),
+            }),
+            variant: 'destructive',
+          })
+        }
       }
 
       toast({ title: t('toasts.savedTitle'), description: t('toasts.savedRestartToApply') })
