@@ -658,6 +658,26 @@ rem ============================================================
     goto :eof
   )
 
+  rem Mirrors the staged-binary hash check above, for the frontend bundle.
+  rem Content integrity here was never checked on either platform (only the
+  rem binary was ever hashed) -- confirmed while researching this: the
+  rem journal.hashes.clientFiles map that looked like a ready-made answer is
+  rem a *different* artifact (release-manifest.json, for GitHub releases,
+  rem read by release.ps1), never written into this runtime journal.
+  rem journal.hashes.clientSha256 is a single combined hash over every staged
+  rem client file (relative path + per-file sha256, ordinal-sorted, then
+  rem hashed together) computed by stageUpdateBundle() (updateBundle.js) and
+  rem verified there before every apply on Linux; this reproduces the exact
+  rem same value on Windows, same [av_quarantine] failure code as the binary.
+  set "STAGED_CLIENT_HASH_STATUS="
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); $rel + '|' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split('|',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH' } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
+
+  if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
+    call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [av_quarantine]"
+    del /f /q "%MARKER%" >nul 2>&1
+    goto :eof
+  )
+
   if exist "%BIN_BACKUP%" del /f /q "%BIN_BACKUP%" >nul 2>&1
   if exist "%CLIENT_BACKUP%" rmdir /s /q "%CLIENT_BACKUP%" >nul 2>&1
 
