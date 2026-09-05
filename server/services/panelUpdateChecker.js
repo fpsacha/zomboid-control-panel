@@ -378,6 +378,21 @@ export class PanelUpdateChecker {
       };
 
       const req = https.get(options, (res) => {
+        // Both branches below only ever resolve/reject from res's own
+        // "data"/"end" events -- if the connection dies mid-body-read (the
+        // response already exists, only its body is incomplete) in a way
+        // Node surfaces on `res` rather than re-propagating to `req`'s own
+        // "error" listener below, neither branch's "end" fires and this
+        // promise never settles. checkForUpdate()'s try/finally only resets
+        // isChecking once its `await` on this actually settles, so an
+        // unsettled promise here latches isChecking true forever and no
+        // later scheduled check ever runs. Settling is idempotent (a
+        // Promise only honors its first resolve/reject), so this is safe to
+        // wire unconditionally alongside the two branches' own resolve/reject
+        // calls without an extra guard flag.
+        res.on("error", reject);
+        res.on("aborted", () => reject(new Error("GitHub response aborted")));
+
         const statusCode = res.statusCode || 0;
 
         if (statusCode === 404) {
@@ -1416,11 +1431,32 @@ export class PanelUpdateChecker {
   downloadFile(url, destPath, expectedSize, expectedKind = "binary") {
     return new Promise((resolve, reject) => {
       let settled = false;
+      // Assigned once the response arrives and the write stream is opened;
+      // referenced here (outer scope) so fail() -- reachable from a
+      // timeout/abort that fires mid-download, before or after that point --
+      // can actually close it.
+      let file = null;
 
       const fail = (error) => {
         if (settled) return;
         settled = true;
-        fs.unlink(destPath, () => {});
+        // On a timeout/abort partway through, the piped write stream was
+        // never told the source died -- pipe() only auto-ends a destination
+        // on a normal source end, never on a source error -- so it stayed
+        // open, holding the file descriptor. Deleting the file first and
+        // leaving the stream running left destPath potentially still
+        // writable by an orphaned handle, and on Windows an unlink against
+        // a still-open handle can silently fail (the callback below
+        // swallows the error), leaving the corrupt partial download on disk
+        // for a later attempt to trip over. Destroy the stream and wait for
+        // its own close before unlinking, so the delete has an actual
+        // chance to succeed.
+        if (file && !file.destroyed) {
+          file.once("close", () => fs.unlink(destPath, () => {}));
+          file.destroy();
+        } else {
+          fs.unlink(destPath, () => {});
+        }
         reject(error);
       };
 
@@ -1497,7 +1533,7 @@ export class PanelUpdateChecker {
               10,
             );
             let receivedBytes = 0;
-            const file = fs.createWriteStream(destPath);
+            file = fs.createWriteStream(destPath);
 
             let lastEmittedProgress = -1;
             res.on("data", (chunk) => {
