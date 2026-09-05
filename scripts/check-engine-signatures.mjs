@@ -118,6 +118,26 @@ for (const s of unresolved) {
   skipReasonCounts.set(s.skipReason, (skipReasonCounts.get(s.skipReason) || 0) + 1);
 }
 
+// Fail loudly rather than silently narrow (checker script audit, 2026-09-05,
+// ci-pipefail-and-dead-tests hunt): this gate's whole contract is "no NEW
+// absent engine call" -- an empty/near-empty callSites list makes that
+// vacuously true, which reads identically to a real pass. Mutation-verified:
+// pointing --lua at a file with no real engine call sites reproduces
+// `call sites found: 0` / `receivers resolved: 0` and still printed
+// "PASS: no NEW definitively absent engine method calls" before this guard
+// existed. Baseline on the real PanelBridge.lua: 367 call sites found, 201
+// resolved -- same ~55% floor as the MIN_* guards in this script's sibling
+// checkers (audit-bridge-actions.mjs, audit-bridge-routes.mjs).
+const MIN_CALL_SITES = 200;
+if (callSites.length < MIN_CALL_SITES) {
+  console.error(
+    `ERROR: found only ${callSites.length} engine call site(s) in ${path.relative(ROOT, LUA_PATH)} ` +
+    `(expected at least ${MIN_CALL_SITES}). resolveAllCallSites()'s extraction is almost certainly broken ` +
+    `or was pointed at the wrong/an empty file -- fix it before trusting this script's output.`,
+  );
+  process.exit(1);
+}
+
 console.log('=== engine signature check (scripts/check-engine-signatures.mjs) ===');
 console.log(`manifest:              ${path.relative(ROOT, MANIFEST_PATH)} (generated ${manifest.generatedAt}, ${manifest.jarBasename})`);
 console.log(`source:                ${path.relative(ROOT, LUA_PATH)}`);

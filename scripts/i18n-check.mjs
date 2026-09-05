@@ -172,6 +172,26 @@ function reportSuspicious(suspicious) {
 
 function checkAllNamespaces() {
   const files = fs.readdirSync(enDir).filter((f) => f.endsWith(".json"));
+
+  // Fail loudly rather than silently narrow (checker script audit,
+  // 2026-09-05, ci-pipefail-and-dead-tests hunt): --all's whole contract is
+  // "no NEW suspicious duplicate across every namespace" -- zero namespaces
+  // scanned makes that vacuously true, which prints an identical-looking
+  // PASS. Mutation-verified: pointing enDir at an empty directory reproduced
+  // "Namespaces scanned: 0" and still printed "PASS: no NEW suspicious
+  // French duplicates" before this guard existed. Baseline on the real
+  // locales tree: 57 namespaces. Same ~55% floor as this repo's other
+  // checker MIN_* guards (audit-bridge-actions.mjs, check-engine-signatures.mjs).
+  const MIN_NAMESPACES = 30;
+  if (files.length < MIN_NAMESPACES) {
+    console.error(
+      `ERROR: found only ${files.length} namespace(s) under ${path.relative(root, enDir)} ` +
+      `(expected at least ${MIN_NAMESPACES}). enDir is almost certainly wrong, empty, or the locales ` +
+      `tree moved -- fix it before trusting this script's output.`,
+    );
+    process.exit(1);
+  }
+
   let totalIdenticalEn = 0;
   let totalCaseOnlyEn = 0;
   const allBaselined = [];

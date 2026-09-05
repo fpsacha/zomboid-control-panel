@@ -134,15 +134,48 @@ if (capabilityActions.length < MIN_CAPABILITY_KEYS) {
   process.exit(1);
 }
 
+// Kept in its OWN array, not pushed into `verified` -- a checker script
+// audit (2026-09-05, ci-pipefail-and-dead-tests hunt) found that mixing
+// capability-derived hits into the same bucket as route-segment-derived
+// hits let the route extraction above (the `segments`/`marks` loop) collapse
+// to zero real matches -- e.g. a refactor from `router.get("path", ...)` to
+// `router.route("path").get(...)`, mutation-verified locally -- while this
+// script kept reporting a plausible-looking non-zero "route->action pairs
+// checked" number and exiting 0, because that number was silently ALL
+// BRIDGE_ACTION_CAPABILITY hits and zero real route hits. Same failure
+// class as the two MIN_* guards below; this one had none.
+const capabilityVerified = [];
 const capabilityMissingHandler = [];
 for (const action of capabilityActions) {
-  if (luaHandlers.has(action)) verified.push(`BRIDGE_ACTION_CAPABILITY -> ${action}`);
+  if (luaHandlers.has(action)) capabilityVerified.push(`BRIDGE_ACTION_CAPABILITY -> ${action}`);
   else capabilityMissingHandler.push(action);
 }
 
+// Same "fail loudly rather than silently narrow" rule as MIN_CAPABILITY_KEYS
+// below, for the OTHER denominator this script has (the route-segment
+// extraction can go stale independently of the capability-map extraction --
+// they read different anchors in the same file). Baseline on a real
+// checkout: 34 (this was previously invisible -- the pre-fix print conflated
+// it with BRIDGE_ACTION_CAPABILITY's 17 into a combined "51", see above).
+// Same ~59% floor as MIN_CAPABILITY_KEYS/MIN_TEMPLATE_KEYS elsewhere in this
+// file's family. Mutation-verified (2026-09-05): renaming every
+// `router.<verb>("path"` to `router.route("path").<verb>(` collapses this
+// to 0 with no other symptom -- MISMATCHES still printed 0 and the script
+// still exited 0 before this guard existed.
+const MIN_ROUTE_ACTION_PAIRS = 20;
+const routeActionPairs = verified.length + problems.length;
+if (routeActionPairs < MIN_ROUTE_ACTION_PAIRS) {
+  console.error(
+    `ERROR: found only ${routeActionPairs} route->action pair(s) via the router.<verb>("path" anchor ` +
+    `(expected at least ${MIN_ROUTE_ACTION_PAIRS}). The route-splitting regex is almost certainly stale -- ` +
+    `server/routes/panelBridge.js's route declarations changed shape. Fix it before trusting this script's output.`,
+  );
+  process.exit(1);
+}
+
 console.log(`lua handlers implemented:              ${luaHandlers.size}`);
-console.log(`route->action pairs checked (literal):  ${verified.length + problems.length}`);
-console.log(`BRIDGE_ACTION_CAPABILITY keys checked:   ${capabilityActions.length}`);
+console.log(`route->action pairs checked (literal):  ${routeActionPairs}`);
+console.log(`BRIDGE_ACTION_CAPABILITY keys checked:   ${capabilityActions.length} (${capabilityVerified.length} verified against a lua handler)`);
 console.log(`UNVERIFIABLE call sites (non-literal action, cannot be checked): ${unverifiable.length}`);
 for (const u of unverifiable) console.log(`  ${u}`);
 console.log(`MISMATCHES:                              ${problems.length + capabilityMissingHandler.length}`);
