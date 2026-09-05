@@ -655,7 +655,18 @@ export default function Dashboard() {
   // Real-time perf subscription via Socket.IO — appends each new snapshot
   useEffect(() => {
     if (!socket || !showPerformanceCharts) return
-    socket.emit('subscribe:perf')
+    // bug-hunt-2026-09-04: 'subscribe:perf' was only ever emitted once, when
+    // this effect first ran -- but room membership is server-side
+    // per-connection state, lost whenever the underlying socket.io
+    // connection drops and re-establishes, even though the client reuses
+    // the same Socket object (see Console.tsx's identical subscribeRcon
+    // fix/comment for 'subscribe:rcon', same root cause). After any
+    // reconnect the server no longer had this client in the perf room, so
+    // perf:snapshot stopped arriving and the chart just went quiet with no
+    // error -- re-subscribing on every 'connect', not just on mount, fixes it.
+    const subscribePerf = () => socket.emit('subscribe:perf')
+    if (socket.connected) subscribePerf()
+    socket.on('connect', subscribePerf)
     const onSnapshot = (snap: Record<string, unknown>) => {
       const point: PerformancePoint = {
         time: new Date().toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
@@ -681,6 +692,7 @@ export default function Dashboard() {
     socket.on('perf:snapshot', onSnapshot)
     return () => {
       socket.off('perf:snapshot', onSnapshot)
+      socket.off('connect', subscribePerf)
       socket.emit('unsubscribe:perf')
     }
   }, [socket, showPerformanceCharts, i18n.language])

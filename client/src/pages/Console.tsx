@@ -339,10 +339,25 @@ export default function Console() {
 
     loadConsoleTarget()
 
+    // bug-hunt-2026-09-04: this page never re-read the active server after
+    // mount, unlike Settings.tsx/Dashboard.tsx/Servers.tsx/WorldMap.tsx/
+    // Layout.tsx, which all listen for activeServerChanged. Switching
+    // servers elsewhere left Console showing the PREVIOUS server's name and
+    // "log source available"/RCON-configured gating, while RCON commands
+    // (routed against whichever server the backend resolves as active right
+    // now, same per-request-resolution pattern as ServerConfig's ini/sandbox
+    // routes) would actually reach the NEW server -- the UI and the real
+    // target silently diverging. No unsaved-edit risk here (liveLog/history
+    // are just a display of past activity, not something a reload discards
+    // meaningfully), so this can reload unconditionally like the other five
+    // pages do, no ServerConfig-style block-and-warn needed.
+    if (socket) socket.on('activeServerChanged', loadConsoleTarget)
+
     return () => {
       cancelled = true
+      if (socket) socket.off('activeServerChanged', loadConsoleTarget)
     }
-  }, [])
+  }, [socket])
 
   // Patterns to filter out (uninteresting/repetitive messages) - memoized to prevent recreation
   const noisePatterns = useMemo(() => [
