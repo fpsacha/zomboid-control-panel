@@ -5892,6 +5892,23 @@ router.post("/clear-stale-locks", requirePermission("diagnostics.manage"), async
 });
 
 // Get crash logs (hs_err files from Java crashes)
+// Shared shape check for both crash-log routes below: what actually counts
+// as a "crash log", not just "no .. or / or \". Used to gate GET
+// /crash-logs/:filename's arbitrary-read (a name-shaped blacklist alone
+// can't be made correct -- searchDirs below includes the PZ install ROOT,
+// so any non-crash-log file sitting there, e.g. a generated
+// StartServer_<name>.bat with -adminpassword in plaintext, was readable by
+// name) and kept identical to the enumeration below so the two routes never
+// disagree on what a crash log is.
+function isCrashLogFilename(file) {
+  return (
+    typeof file === "string" &&
+    (file.startsWith("hs_err_pid") ||
+      (file.includes("crash") && file.endsWith(".log")) ||
+      (file.includes("error") && file.endsWith(".log")))
+  );
+}
+
 router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, res) => {
   try {
     const serverManager = req.app.get("serverManager");
@@ -5933,11 +5950,7 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
             if (seenFiles.has(file)) return;
 
             // Match Java crash dumps and common crash log patterns
-            if (
-              file.startsWith("hs_err_pid") ||
-              (file.includes("crash") && file.endsWith(".log")) ||
-              (file.includes("error") && file.endsWith(".log"))
-            ) {
+            if (isCrashLogFilename(file)) {
               try {
                 const filePath = path.join(dir, file);
                 const stats = await fs.promises.stat(filePath);
@@ -5991,6 +6004,18 @@ router.get("/crash-logs/:filename", requirePermission("diagnostics.manage"), asy
       filename.includes("/") ||
       filename.includes("\\")
     ) {
+      return res.status(400).json({ error: "Invalid filename" });
+    }
+
+    // SECURITY (2026-09-05, crash-logs-arbitrary-read): the traversal check
+    // above only rejects a SHAPE of attack, not an untrusted TARGET -- it
+    // says nothing about which files under searchDirs are actually crash
+    // logs. searchDirs' first entry is the PZ install ROOT, so without this
+    // an authenticated caller holding only diagnostics.manage (not admin)
+    // could read any file there by name, e.g.
+    // GET /crash-logs/StartServer_<name>.bat, which embeds -adminpassword
+    // in plaintext -- confirmed live over HTTP before this fix.
+    if (!isCrashLogFilename(filename)) {
       return res.status(400).json({ error: "Invalid filename" });
     }
 
