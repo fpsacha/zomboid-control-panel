@@ -115,6 +115,42 @@ describe("versioned panel update bundles", () => {
     );
   });
 
+  it("rejects a missing staged client bundle before changing either live artifact", () => {
+    const { binaryPath, liveClientPath, journalPath } = prepareBundle();
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    fs.rmSync(journal.paths.stagedClient, { recursive: true, force: true });
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "av_quarantine" }),
+    );
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "old-client",
+    );
+  });
+
+  // 2026-09-05, client-bundle-integrity: the staged BINARY has always been
+  // hash-verified before every apply -- the staged CLIENT bundle never was,
+  // on either platform. A file corrupted in the same window Dwight measured
+  // for the binary (staged, present under the right name, but no longer
+  // matching what was staged) passed straight through and got activated.
+  it("rejects a staged client bundle whose content no longer matches what was staged, before changing either live artifact", () => {
+    const { binaryPath, liveClientPath, journalPath } = prepareBundle();
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    fs.writeFileSync(
+      path.join(journal.paths.stagedClient, "index.html"),
+      "tampered-client",
+    );
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "av_quarantine" }),
+    );
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "old-client",
+    );
+  });
+
   it("rolls back the frontend when binary activation fails", () => {
     const { binaryPath, liveClientPath, journalPath } = prepareBundle();
     const originalRename = fs.renameSync.bind(fs);

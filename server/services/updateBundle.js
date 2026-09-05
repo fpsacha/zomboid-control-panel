@@ -36,6 +36,40 @@ function sha256File(filePath) {
   return hash.digest("hex");
 }
 
+// Single combined hash over an entire directory tree, used to verify the
+// staged client bundle the same way sha256File() verifies the staged binary.
+// Files are visited in ORDINAL order (plain string comparison, not
+// localeCompare) specifically because this value is written once here (in
+// Node) and re-verified independently in two other places -- applyUpdateBundle()
+// below (Node, Linux) and the PowerShell embedded in build.js's generated
+// Start.bat (Windows, no Node available at apply time). Ordinal is the one
+// ordering both runtimes can reproduce byte-for-byte without agreeing on a
+// locale.
+function sha256Directory(dirPath) {
+  const parts = [];
+  const walk = (dir, rel) => {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      const absolutePath = path.join(dir, entry.name);
+      const relativePath = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(absolutePath, relativePath);
+      } else if (entry.isFile()) {
+        parts.push(`${relativePath}\0${sha256File(absolutePath)}\n`);
+      } else {
+        throw updateError(
+          "invalid_bundle",
+          `Unsupported client bundle entry: ${relativePath}`,
+        );
+      }
+    }
+  };
+  walk(dirPath, "");
+  return crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+}
+
 function readJson(filePath, errorCode = "invalid_bundle") {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -132,6 +166,8 @@ function validateJournal(journal, journalPath) {
     !hasValidMetadata(journal.metadata) ||
     typeof journal.hashes?.binarySha256 !== "string" ||
     journal.hashes.binarySha256 === "" ||
+    typeof journal.hashes?.clientSha256 !== "string" ||
+    journal.hashes.clientSha256 === "" ||
     !journal.paths
   ) {
     throw updateError("invalid_bundle", "Update bundle journal is invalid");
@@ -208,6 +244,7 @@ function sameAcknowledgementState(previous, current) {
     previous.transactionId === current.transactionId &&
     previous.phase === current.phase &&
     previous.hashes.binarySha256 === current.hashes.binarySha256 &&
+    previous.hashes.clientSha256 === current.hashes.clientSha256 &&
     validateBuildCompatibility(previous.metadata, current.metadata).compatible &&
     REQUIRED_JOURNAL_PATHS.every(
       (label) => previous.paths[label] === current.paths[label],
@@ -315,6 +352,7 @@ export function stageUpdateBundle({
   fs.rmSync(stagedClientPath, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(stagedClientPath), { recursive: true });
   fs.cpSync(incomingClientPath, stagedClientPath, { recursive: true });
+  const clientSha256 = sha256Directory(stagedClientPath);
 
   const journal = {
     schemaVersion: 1,
@@ -324,7 +362,7 @@ export function stageUpdateBundle({
     stagedAt: new Date().toISOString(),
     installDir: resolvedInstallDir,
     metadata: expectedMetadata,
-    hashes: { binarySha256 },
+    hashes: { binarySha256, clientSha256 },
     paths: {
       binary: path.resolve(binaryPath),
       stagedBinary: path.resolve(stagedBinaryPath),
@@ -382,6 +420,18 @@ export function applyUpdateBundle(journalPath) {
   }
   if (stagedBinaryHash !== journal.hashes.binarySha256) {
     throw updateError("av_quarantine", "Staged update binary hash changed");
+  }
+  let stagedClientHash;
+  try {
+    stagedClientHash = sha256Directory(paths.stagedClient);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw updateError("av_quarantine", "Staged client bundle is missing", error);
+    }
+    throw error;
+  }
+  if (stagedClientHash !== journal.hashes.clientSha256) {
+    throw updateError("av_quarantine", "Staged client bundle hash changed");
   }
   const clientCompatibility = validateBuildCompatibility(
     readJson(path.join(paths.stagedClient, "build-info.json")),

@@ -86,6 +86,36 @@ function setupStub(dir, exitCodes, sleepMsList) {
   );
 }
 
+// Mirrors sha256Directory() in updateBundle.js exactly -- ordinal sort, same
+// "<relPath>\0<sha256hex>\n" canonical form -- so a fixture built here
+// produces the identical hash Start.bat's embedded PowerShell recomputes.
+// Duplicated rather than imported to keep this file's fixtures independent
+// of updateBundle.js internals, matching how binarySha256 below already
+// replicates sha256File()'s algorithm inline instead of importing it.
+function sha256DirectoryForFixture(dirPath) {
+  const parts = [];
+  const walk = (dir, rel) => {
+    const entries = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const entry of entries) {
+      const absolutePath = path.join(dir, entry.name);
+      const relativePath = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(absolutePath, relativePath);
+      } else {
+        const fileHash = crypto
+          .createHash("sha256")
+          .update(fs.readFileSync(absolutePath))
+          .digest("hex");
+        parts.push(`${relativePath}\0${fileHash}\n`);
+      }
+    }
+  };
+  walk(dirPath, "");
+  return crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+}
+
 function setupPendingUpdate(dir) {
   const stagedBinaryPath = path.join(dir, "ZomboidControlPanel.exe.new");
   fs.copyFileSync(stubExePath, stagedBinaryPath);
@@ -102,15 +132,17 @@ function setupPendingUpdate(dir) {
   // now verifies against this before every apply, so a fixture missing it
   // would make every pending-update scenario in this file trip the new
   // [av_quarantine] refusal instead of exercising what each test actually
-  // means to test.
+  // means to test. hashes.clientSha256 is the same idea, one level up, for
+  // the staged frontend directory as a whole.
   const binarySha256 = crypto
     .createHash("sha256")
     .update(fs.readFileSync(stagedBinaryPath))
     .digest("hex");
+  const clientSha256 = sha256DirectoryForFixture(stagedClientPath);
   fs.writeFileSync(
     path.join(dir, "update-bundle.json"),
     JSON.stringify({
-      hashes: { binarySha256 },
+      hashes: { binarySha256, clientSha256 },
       paths: { stagedClient: stagedClientPath },
     }),
   );
@@ -635,6 +667,60 @@ describe.skipIf(!!skipReason)(
         // The refused marker is consumed (not left to retry forever against
         // an unrepairable corrupted file) -- matches the existing
         // "staged binary missing or quarantined" branch's own posture.
+        expect(fs.existsSync(path.join(dir, ".update-pending"))).toBe(false);
+      },
+      75000,
+    );
+
+    it(
+      "refuses to apply a staged client bundle whose hash no longer matches the journal, instead of installing it over a working install",
+      async () => {
+        // 2026-09-05, client-bundle-integrity: the staged binary has always
+        // been hash-verified (see the test above); the staged CLIENT bundle
+        // never was, on either platform -- same corruption window Dwight
+        // measured for the binary applies here too, and a corrupt client
+        // bundle is arguably worse (a panel that starts and serves a broken
+        // UI, instead of failing loudly).
+        const dir = freshScenarioDir("staged-client-hash-mismatch");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir);
+
+        // Corrupt the staged client file AFTER setupPendingUpdate() already
+        // hashed and journaled the good copy -- exactly the same window as
+        // the binary test: a file that still exists under the right name
+        // (passes the frontend_swap_failed presence check) but no longer
+        // matches what was staged.
+        const stagedClientIndexPath = path.join(
+          dir,
+          "client",
+          "dist.new-test",
+          "index.html",
+        );
+        fs.writeFileSync(stagedClientIndexPath, "tampered-client");
+
+        const result = await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          60000,
+        );
+
+        // The pre-existing exe and client (set up by setupStub /
+        // setupPendingUpdate, untouched) are what actually launch -- the
+        // tampered staged client is never installed.
+        expect(countLaunches(result.stdout)).toBe(1);
+        expect(result.status).toBe(0);
+        const log = readSupervisorLog(dir);
+        expect(log).toMatch(/staged frontend hash check \[MISMATCH\].*av_quarantine/i);
+        expect(log).not.toMatch(/bundle activated/i);
+        expect(
+          fs.readFileSync(path.join(dir, "client", "dist", "index.html"), "utf8"),
+        ).toBe("old-client");
+        expect(
+          fs.existsSync(
+            path.join(dir, "ZomboidControlPanel.exe.bundle-previous"),
+          ),
+        ).toBe(false);
         expect(fs.existsSync(path.join(dir, ".update-pending"))).toBe(false);
       },
       75000,
