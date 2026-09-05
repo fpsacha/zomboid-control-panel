@@ -6,6 +6,10 @@ import { sanitizeError, sanitizeErrorParams } from "../utils/sanitize.js";
 import { getActiveServer } from "../database/init.js";
 import { requirePermission } from "../services/permissions.js";
 import { listBackupRecords } from "../services/backupRecords.js";
+import {
+  acquireLifecycleLock,
+  lifecycleInProgressResponse,
+} from "../services/lifecycleCoordinator.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import {
   isCronTooFrequent,
@@ -288,8 +292,29 @@ router.get("/download/:name", requirePermission("backups.download"), async (req,
 // standing in it -- a decision about other people's time, not routine server
 // operation, and invisible to the admin until someone complains.
 router.post("/restore/:name", requirePermission("backups.restore"), async (req, res) => {
+  // Fetched before acquiring the lock (a pure DB read, no lock needed for
+  // it) purely so a refusal from a concurrent operation can name which
+  // server it's for -- see lifecycleCoordinator.js's comment.
+  const activeServerForLock = await getActiveServer();
+  // bug hunt 2026-09-05 (backup-restore-round-trip sweep, item #2): this
+  // route's own stopped-check above, and restoreBackup()'s own internal
+  // one, only ever prove the server was NOT running at the instant they
+  // ran. Nothing stood between that instant and the destructive rename
+  // swap deep inside restoreBackup() -- a Start (manual, Discord, or a
+  // scheduler tick) landing in that window raced the live JVM against the
+  // extraction/swap. Same process-wide lock /start, /stop, /force-stop and
+  // /restart already take for the identical reason (see their own comment
+  // in routes/server.js) -- not a new mechanism, held for the whole
+  // restore, not just the check.
+  const lifecycleLock = acquireLifecycleLock(
+    "restore",
+    activeServerForLock?.name || activeServerForLock?.serverName || null,
+  );
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
-    const activeServer = await getActiveServer();
+    const activeServer = activeServerForLock;
     if (activeServer?.isRemote) {
       return res
         .status(400)
@@ -372,6 +397,8 @@ router.post("/restore/:name", requirePermission("backups.restore"), async (req, 
   } catch (error) {
     log.error(`Failed to restore backup: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 
