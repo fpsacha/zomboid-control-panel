@@ -579,6 +579,9 @@ function sanitizeForBatch(str) {
   if (!str) return "";
   // Remove or escape dangerous characters for batch files
   return String(str)
+    .replace(/[\x00-\x1F\x7F]/g, "") // Remove control chars (CR/LF included --
+    // a newline here closes out the current script line early and starts a
+    // new one that the supervisor then executes as its own command)
     .replace(/[&|<>^%"`;$(){}[\]!]/g, "") // Remove shell metacharacters
     .replace(/\.\./g, "") // Remove path traversal
     .trim();
