@@ -133,3 +133,80 @@ export function isCronTooFrequent(expression) {
 
   return false;
 }
+
+// 2026-09-05, scheduler-time-audit: node-cron's own README states its DST
+// model verbatim -- "Across a daylight-saving fall-back the repeated hour
+// runs once, so a sub-hourly schedule (for example */15) can pause for up
+// to the length of the DST shift during that hour." A schedule whose MINUTE
+// field fires more than once per hour (independent of which hour(s) it's
+// combined with) is exactly that shape; a schedule with a single fixed
+// minute value fires once per listed hour and is unaffected (the repeated
+// hour "runs once" is a correct fire, not a skip, for that case) --
+// confirmed empirically tonight against real node-cron 4.6.0 output, not
+// just read from the doc. Reuses expandCronField rather than a second
+// parser, so this can never drift out of sync with isCronTooFrequent's own
+// understanding of what a cron minute field means.
+//
+// Returns the approximate interval in minutes (60 / fire-count-per-hour)
+// when the schedule is sub-hourly, or null when it isn't (or the field
+// can't be parsed). This is an average for an unevenly-spaced custom list
+// (e.g. "0,10,45") -- a reasonable warning-message number, not a scheduling
+// guarantee.
+export function subHourlyIntervalMinutes(expression) {
+  if (hasUnsupportedCronFieldCount(expression)) return null;
+  const [minute] = expression.trim().split(/\s+/);
+  const minutes = expandCronField(minute, 59);
+  if (!minutes || minutes.size < 2) return null;
+  return Math.round(60 / minutes.size);
+}
+
+// Whether `zone` observes DST at all -- compares the UTC offset for the
+// same IANA zone in January and July of a fixed reference year. A zone with
+// no DST (UTC, most of Asia, Arizona, ...) reports the identical offset
+// both times; a DST-observing zone does not. Deliberately not based on
+// "does the zone name contain a region known to have DST" (fragile,
+// incomplete) -- this asks Intl the same way node-cron itself resolves
+// offsets, so there is no gap between what this predicts and what node-cron
+// will actually do.
+export function timezoneObservesDst(zone) {
+  try {
+    const offsetOf = (date) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        timeZoneName: "shortOffset",
+      })
+        .formatToParts(date)
+        .find((part) => part.type === "timeZoneName")?.value;
+    const january = offsetOf(new Date(Date.UTC(2026, 0, 1)));
+    const july = offsetOf(new Date(Date.UTC(2026, 6, 1)));
+    return Boolean(january && july && january !== july);
+  } catch {
+    return false;
+  }
+}
+
+// Composes the two checks above into the one-line warning scheduleTask()
+// (and the auto-restart / backup-schedule setup functions) log and, for
+// scheduleTask(), return to the caller so an API response can carry it.
+// Returns null when the schedule isn't at risk (not sub-hourly, or the
+// configured zone doesn't observe DST at all -- e.g. UTC, which is why this
+// is worth checking per-install rather than warning unconditionally on
+// every sub-hourly schedule).
+// Scoped to the 15-60 minute band per the card's own framing: isCronTooFrequent
+// already floors every schedule at 5 minutes, so a 5-14 minute schedule fires
+// several times an hour -- losing one occurrence among many is far less
+// noticeable than losing one of only 1-4. Left the narrower window rather
+// than substituting a broader "any sub-hourly" gate on my own judgment;
+// flagged in the commit message in case the 5-14 band is wanted too.
+export function dstFallBackWarning(expression, timezone, label) {
+  const interval = subHourlyIntervalMinutes(expression);
+  if (interval === null || interval < 15 || interval > 60) return null;
+  if (!timezoneObservesDst(timezone)) return null;
+  const name = label ? `"${label}" ` : "";
+  return (
+    `Schedule ${name}fires roughly every ${interval} minute(s); during ` +
+    `${timezone}'s daylight-saving fall-back each year, one occurrence in ` +
+    "the repeated hour will be silently skipped -- this is a limitation of " +
+    "the underlying scheduler (node-cron), not a bug in the panel."
+  );
+}

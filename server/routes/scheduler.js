@@ -315,8 +315,10 @@ router.post('/tasks', async (req, res) => {
     };
 
     // Schedule the task — rollback DB entry if scheduling fails
+    let scheduleResult;
     try {
-      if (scheduler.scheduleTask(task) === false) {
+      scheduleResult = scheduler.scheduleTask(task);
+      if (scheduleResult === false) {
         throw new Error("Scheduler rejected the task");
       }
     } catch (schedErr) {
@@ -329,7 +331,12 @@ router.post('/tasks', async (req, res) => {
       });
     }
 
-    res.json({ success: true, task });
+    // dstWarning (2026-09-05, scheduler-time-audit): non-null only for a
+    // sub-hourly (15-60 min) schedule in a DST-observing timezone -- already
+    // logged server-side by scheduleTask() itself. Surfaced here too so a
+    // future UI can show it without another server change (Scheduler.tsx
+    // reading this field is carded separately, not part of this fix).
+    res.json({ success: true, task, dstWarning: scheduleResult?.dstWarning || null });
   } catch (error) {
     log.error(`Failed to create scheduled task: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -422,6 +429,7 @@ router.put('/tasks/:id', async (req, res) => {
     // Reschedule from the merged record, not the request body: a partial update
     // (e.g. the enable/disable toggle) would otherwise re-arm the job without
     // its pinned server and run it against whichever server is active.
+    let dstWarning = null;
     if (updated.enabled) {
       try {
         const scheduled = scheduler.scheduleTask({
@@ -435,6 +443,9 @@ router.put('/tasks/:id', async (req, res) => {
         if (scheduled === false) {
           throw new Error("Scheduler rejected the updated task");
         }
+        // 2026-09-05, scheduler-time-audit: same field POST /tasks returns,
+        // see that route's own comment.
+        dstWarning = scheduled?.dstWarning || null;
       } catch (schedErr) {
         log.error(`Failed to reschedule task ${taskId}, reverting DB: ${schedErr.message}`);
         if (previousTask) {
@@ -470,7 +481,7 @@ router.put('/tasks/:id', async (req, res) => {
       scheduler.cancelTask(taskId);
     }
 
-    res.json({ success: true, message: 'Task updated' });
+    res.json({ success: true, message: 'Task updated', dstWarning });
   } catch (error) {
     log.error(`Failed to update scheduled task: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });

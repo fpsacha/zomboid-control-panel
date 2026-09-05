@@ -31,6 +31,7 @@ import {
   isSupportedFiveFieldCron,
   isValidIanaTimezone,
   isRawOffsetTimezone,
+  dstFallBackWarning,
 } from "../utils/cronValidation.js";
 import {
   defaultRestartWarningSettings,
@@ -409,7 +410,19 @@ export class Scheduler {
     this.jobs.set(task.id, job);
     this.jobLabels.set(task.id, task.name || task.command || "task");
     log.info(`Scheduled task: ${task.name} (${task.cron_expression})`);
-    return true;
+
+    // 2026-09-05, scheduler-time-audit: nothing silent -- log it server-side
+    // now, and hand it back so the create/update route can surface it in
+    // the API response (Scheduler.tsx reading that field is carded
+    // separately). Non-null return is still truthy/`!== false`, so this
+    // does not change either existing caller's success/failure check.
+    const dstWarning = dstFallBackWarning(
+      task.cron_expression,
+      this.effectiveTimezone,
+      task.name,
+    );
+    if (dstWarning) log.warn(dstWarning);
+    return { scheduled: true, dstWarning };
   }
 
   // Runs a task through the same dispatch as its cron trigger (restart/save/
@@ -970,6 +983,16 @@ export class Scheduler {
       }, { timezone: this.effectiveTimezone });
 
       log.info(`Backup schedule configured: ${settings.schedule} (timezone: ${this.effectiveTimezone})`);
+
+      // The backup settings save route (routes/backup.js, not this fence)
+      // isn't touched here -- log only, same reasoning as setupAutoRestart's
+      // own warning above.
+      const dstWarning = dstFallBackWarning(
+        settings.schedule,
+        this.effectiveTimezone,
+        "backup",
+      );
+      if (dstWarning) log.warn(dstWarning);
     } catch (error) {
       log.error(`Failed to setup backup schedule: ${error.message}`);
     }
@@ -1026,6 +1049,15 @@ export class Scheduler {
     }, { timezone: this.effectiveTimezone });
 
     log.info(`Auto-restart scheduled: ${cronExpression} (timezone: ${this.effectiveTimezone})`);
+
+    // Boot-time / env-driven, not a create/update API call -- log only,
+    // same as the reasoning on scheduleTask()'s own warning above.
+    const dstWarning = dstFallBackWarning(
+      cronExpression,
+      this.effectiveTimezone,
+      "auto restart",
+    );
+    if (dstWarning) log.warn(dstWarning);
   }
 
   /**
