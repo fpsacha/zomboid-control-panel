@@ -191,7 +191,17 @@ export function backupFile(filePath) {
   const dir = path.join(path.dirname(filePath), "backups");
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupPath = path.join(dir, `${path.basename(filePath)}.${stamp}.bak`);
+  // toISOString() is millisecond-resolution; two backups of the same file
+  // close together (e.g. two template applies queued back to back through
+  // the same withFileLock) can land in the same millisecond, which would
+  // make the second silently overwrite the first with no error. Disambiguate
+  // with a counter suffix, same pattern as configBackup.js/database/init.js.
+  let backupPath = path.join(dir, `${path.basename(filePath)}.${stamp}.bak`);
+  if (fs.existsSync(backupPath)) {
+    let suffix = 2;
+    while (fs.existsSync(`${backupPath}-${suffix}`)) suffix++;
+    backupPath = `${backupPath}-${suffix}`;
+  }
   fs.copyFileSync(filePath, backupPath);
   return backupPath;
 }

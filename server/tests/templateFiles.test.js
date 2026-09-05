@@ -179,6 +179,32 @@ describe("backupFile / writeFile", () => {
     expect(path.dirname(backupPath)).toBe(path.join(dir, "backups"));
   });
 
+  it("disambiguates two backups of the same file landing in the same millisecond", () => {
+    const filePath = path.join(dir, "server.ini");
+    fs.writeFileSync(filePath, "PVP=true\n");
+
+    // toISOString() is millisecond-resolution; freeze the clock to force
+    // the collision deterministically rather than racing real timing.
+    const fixedNow = new Date("2026-09-05T12:00:00.000Z");
+    const realToISOString = Date.prototype.toISOString;
+    vi.spyOn(Date.prototype, "toISOString").mockImplementation(function () {
+      return realToISOString.call(fixedNow);
+    });
+    try {
+      const firstPath = backupFile(filePath);
+      fs.writeFileSync(filePath, "PVP=false\n");
+      const secondPath = backupFile(filePath);
+
+      expect(secondPath).not.toBe(firstPath);
+      expect(fs.existsSync(firstPath)).toBe(true);
+      expect(fs.existsSync(secondPath)).toBe(true);
+      expect(fs.readFileSync(firstPath, "utf-8")).toBe("PVP=true\n");
+      expect(fs.readFileSync(secondPath, "utf-8")).toBe("PVP=false\n");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("writeFile writes content atomically and readably", () => {
     const filePath = path.join(dir, "out.ini");
     writeFile(filePath, "PVP=true\n");
