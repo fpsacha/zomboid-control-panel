@@ -4,6 +4,39 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { generateStartBat as generateStartBatForStaticChecks } from "../../build.js";
+
+// main-is-red, 2026-09-05: both staged-bundle hash checks used to call
+// Get-FileHash -- and on a clean, unprivileged GitHub windows-2022 runner,
+// Get-FileHash is not recognized at all (Windows PowerShell 5.1's module
+// autoload for it silently fails there, confirmed via a two-round CI
+// diagnostic), which every scenario below that reaches either check read
+// as a hash MISMATCH and refused a perfectly good update. Fixed by
+// computing SHA256 via .NET types directly, which don't depend on module
+// autoload. Runs everywhere (not gated behind win32/csc.exe like the
+// scenarios below) since it's a static check, not a behavioral one --
+// deliberately so, unlike this file's usual philosophy (see the header
+// comment on the describe block below): a *dynamic* repro of "Get-FileHash
+// is unavailable but everything else still works" turned out to be
+// unreliable to force on a machine where module autoload genuinely works,
+// because ConvertFrom-Json (called earlier in the same script) triggers
+// loading the whole Microsoft.PowerShell.Utility module as a side effect,
+// which then satisfies Get-FileHash too regardless of any PSModulePath
+// shim aimed only at that one cmdlet -- confirmed empirically while
+// building this test. A plain textual guard is what actually catches a
+// regression here, including god's specific warning that a fully-qualified
+// `Microsoft.PowerShell.Utility\Get-FileHash` would NOT be enough -- that
+// still contains the name, so it still fails this.
+describe("Start.bat never depends on the Get-FileHash cmdlet for staged-bundle integrity", () => {
+  it("does not invoke Get-FileHash anywhere in the generated script", () => {
+    // Matches an actual invocation (`Get-FileHash -LiteralPath ...` or a
+    // module-qualified `Microsoft.PowerShell.Utility\Get-FileHash ...`),
+    // not the several `rem` comments in build.js that mention the cmdlet
+    // by name to explain why it was removed -- those are prose, never
+    // followed by a parameter.
+    expect(generateStartBatForStaticChecks()).not.toMatch(/Get-FileHash\s+-/);
+  });
+});
 
 // Behavioral test for build.js's generated Start.bat crash-loop supervisor
 // (build.js's generateStartBat()). This does NOT grep the template text --
