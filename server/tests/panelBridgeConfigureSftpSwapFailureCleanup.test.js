@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 // 2026-09-04, overnight bug hunt (Angela's fence: panelBridge*):
 // configureSftp() connects a brand-new PanelBridgeSftpTransport FIRST (its
@@ -43,6 +46,25 @@ beforeEach(() => {
 });
 
 describe("PanelBridge.configureSftp cleans up the new transport when the post-connect swap fails", () => {
+  // this.configure(cachePath, true) sets this.bridgePath = cachePath, and
+  // the control case below reaches this.start() -> ensureQueueProtocol(),
+  // which really does `fs.mkdirSync(path.join(bridgePath, "inbox"))` on
+  // disk. The literal "/cache" this used to pass is a real filesystem root
+  // path -- root-only to create on a non-root runner (GitHub's ubuntu-latest
+  // "runner" user), which is exactly why this passed on a WSL gate running
+  // as root and failed as EACCES on CI at the same clean SHA. A real,
+  // writable temp dir is what every other test that reaches real fs calls
+  // in this suite already uses.
+  let cacheDir;
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), "panelbridge-sftp-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(cacheDir, { recursive: true, force: true });
+  });
+
   it("stops the newly-connected transport and clears sftpTransport when this.configure() throws mid-swap", async () => {
     const bridge = new PanelBridge();
     vi.spyOn(bridge, "configure").mockImplementation(() => {
@@ -50,7 +72,7 @@ describe("PanelBridge.configureSftp cleans up the new transport when the post-co
     });
 
     await expect(
-      bridge.configureSftp({ host: "h", username: "u", password: "p", bridgePath: "/b" }, "/cache"),
+      bridge.configureSftp({ host: "h", username: "u", password: "p", bridgePath: "/b" }, cacheDir),
     ).rejects.toThrow("swap failed");
 
     // The transport DID connect successfully -- it must not be left running,
@@ -64,7 +86,7 @@ describe("PanelBridge.configureSftp cleans up the new transport when the post-co
 
     const result = await bridge.configureSftp(
       { host: "h", username: "u", password: "p", bridgePath: "/b" },
-      "/cache",
+      cacheDir,
     );
 
     expect(result).toBe(bridge.bridgePath);
@@ -82,7 +104,7 @@ describe("PanelBridge.configureSftp cleans up the new transport when the post-co
     });
 
     await expect(
-      bridge.configureSftp({ host: "h", username: "u", password: "p", bridgePath: "/b" }, "/cache"),
+      bridge.configureSftp({ host: "h", username: "u", password: "p", bridgePath: "/b" }, cacheDir),
     ).rejects.toThrow("connect failed");
 
     expect(bridge.sftpTransport).toBeNull();
