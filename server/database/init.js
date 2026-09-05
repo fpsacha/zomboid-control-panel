@@ -658,7 +658,16 @@ function listBackupsNewestFirst() {
 
 function startBackupSchedule() {
   if (_backupTimer) clearInterval(_backupTimer);
-  _backupTimer = setInterval(() => {
+  _backupTimer = setInterval(async () => {
+    // Flush any pending debounced write first -- createBackup() copies
+    // whatever is CURRENTLY ON DISK via fs.copyFileSync, which does not see
+    // an in-memory change until scheduleWrite()'s up-to-500ms (or longer,
+    // under write-retry backoff) debounce actually lands. Without this, an
+    // auto-backup landing inside that window silently omits the change that
+    // triggered it -- see createDatabaseBackup()'s identical fix below and
+    // its comment for the full reasoning (2026-09-05, backup-restore-round-trip
+    // hunt: proven with vi.setSystemTime(), not just read).
+    await flushWrites();
     createBackup("auto");
   }, BACKUP_INTERVAL_MS);
   if (_backupTimer.unref) _backupTimer.unref();
@@ -1085,6 +1094,17 @@ export async function getDatabaseStats() {
 }
 
 export async function createDatabaseBackup() {
+  // createBackup() copies whatever is CURRENTLY ON DISK (fs.copyFileSync) --
+  // it has no visibility into db.data or the pending debounced write
+  // scheduleWrite() may have queued (WRITE_DEBOUNCE_MS=500, longer under
+  // retry backoff). Proven live (2026-09-05, backup-restore-round-trip
+  // hunt): setSetting() then an immediate createDatabaseBackup() call, with
+  // no flush between them, snapshotted db.json with settings STILL EMPTY --
+  // reported success:true, with no warning that the change just made wasn't
+  // in it. flushForShutdown()'s shutdown handler already gets this right
+  // (flushes before its own createBackup("shutdown") call, see
+  // registerShutdownHandlers above); this path never did.
+  await flushWrites();
   const file = createBackup("manual");
   return file
     ? { success: true, file: path.basename(file) }

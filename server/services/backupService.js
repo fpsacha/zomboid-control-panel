@@ -13,6 +13,7 @@ import {
   setSetting,
   logServerEvent,
   getLatestScheduleExecutionByCommand,
+  flushWrites,
 } from "../database/init.js";
 import { sanitizeError } from "../utils/sanitize.js";
 import { captureBackupSnapshot } from "../utils/backupSnapshot.js";
@@ -558,6 +559,13 @@ export class BackupService {
     // Get database path if needed (before entering Promise callback)
     let dbPathToInclude = null;
     if (options.includeDb) {
+      // Same defect class as database/init.js's createDatabaseBackup() (fixed
+      // alongside this, 2026-09-05 backup-restore-round-trip hunt): db.json
+      // writes are debounced (up to WRITE_DEBOUNCE_MS=500ms, longer under
+      // retry backoff) and this archives whatever is CURRENTLY ON DISK --
+      // without flushing first, a world backup taken right after a settings/
+      // server/role change can silently ship a db.json missing that change.
+      await flushWrites();
       const { getDataPaths } = await import("../utils/paths.js");
       const dbPath = getDataPaths().dbPath;
       if (fs.existsSync(dbPath)) {

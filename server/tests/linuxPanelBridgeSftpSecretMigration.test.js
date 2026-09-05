@@ -99,13 +99,21 @@ describe("ASK 1 -- the backup win, measured (not deduced)", () => {
   });
 
   it("BREAK-VERIFY CONTROL: a real backup taken with the redact step disabled DOES contain the plaintext -- proves the win is real, not vacuous", async () => {
-    await getDb();
-    await setSetting("panelBridgeSftpPassword", FAKE_PASSWORD);
+    const db = await getDb();
 
     // Simulate "before the fix": flushWrites() without the new redact step.
     // Reaches into the same write path flushWrites() itself uses so this is
     // a faithful stand-in for the pre-fix code, not a hand-rolled write.
-    const db = await getDb();
+    //
+    // Mutates db.data directly (NOT setSetting(), which calls scheduleWrite()
+    // and would leave _dirty=true) -- createDatabaseBackup() itself now
+    // flushes pending writes before snapshotting (2026-09-05,
+    // backup-restore-round-trip hunt: a real flush always redacts, so a
+    // _dirty=true backup call would silently overwrite this test's
+    // deliberately-unredacted file with a properly-redacted one before the
+    // copy, defeating the control). Leaving _dirty=false here means that
+    // flush is a no-op and the raw file below is what actually gets backed up.
+    db.data.settings.panelBridgeSftpPassword = FAKE_PASSWORD;
     const raw = JSON.stringify(db.data, null, 2); // no redaction at all
     fs.writeFileSync(dbPath, raw, { encoding: "utf-8", mode: 0o600 });
 
@@ -115,6 +123,7 @@ describe("ASK 1 -- the backup win, measured (not deduced)", () => {
     expect(backupContent).toContain(FAKE_PASSWORD);
 
     // Restore real state for subsequent tests in this file.
+    await setSetting("panelBridgeSftpPassword", FAKE_PASSWORD);
     await commitNow();
   });
 });
