@@ -107,6 +107,7 @@ import { getUserErrorMessage } from '@/lib/errorMessage'
 import { formatModSettingDescription, formatModSettingLabel } from '@/lib/modSettingsLabels'
 import { EmptyState } from '@/components/EmptyState'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSocket } from '@/contexts/SocketContext'
 import { DisabledReason } from '@/components/DisabledReason'
 import {
   INI_SCHEMA,
@@ -1051,6 +1052,16 @@ export default function ServerConfig() {
   // isRemote-flag-fetched-independently pattern as Backups.tsx.
   const [activeServerRemote, setActiveServerRemote] = useState(false)
   const [activeServerName, setActiveServerName] = useState<string | null>(null)
+  // Set when activeServerChanged fires while this page has unsaved edits --
+  // GET/PUT /server-files/ini and /sandbox both resolve "the active server"
+  // fresh on the server per-request rather than taking a server id, so
+  // Save always writes to whichever server is active NOW, not whichever
+  // server's data is actually sitting in iniSettings/sandboxData. Loading
+  // fresh data on every activeServerChanged (like Settings.tsx does) would
+  // silently discard those edits instead; this blocks Save until the user
+  // explicitly reloads, so the choice to lose the edit is theirs, not a
+  // race between two browser tabs.
+  const [serverChangedSinceLoad, setServerChangedSinceLoad] = useState(false)
 
   // File browser state (for image path fields)
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false)
@@ -1065,6 +1076,7 @@ export default function ServerConfig() {
 
   const { toast } = useToast()
   const confirm = useConfirm()
+  const socket = useSocket()
   const { can } = useAuth()
   // Whole-router gate on the server: server/routes/serverFiles.js applies
   // requirePermission("serverfiles.manage") to every route in the file, GET
@@ -1091,6 +1103,7 @@ export default function ServerConfig() {
 
   const loadData = async () => {
     setLoading(true)
+    setServerChangedSinceLoad(false)
     const active = await serversApi.getResolvedActive().catch(() => ({ server: null }))
     const isRemote = !!active.server?.isRemote
     setActiveServerRemote(isRemote)
@@ -1231,6 +1244,30 @@ export default function ServerConfig() {
     }
     return JSON.stringify(sandboxData) !== JSON.stringify(originalSandboxData)
   }, [editorMode, activeTab, rawContent, originalRawContent, sandboxData, originalSandboxData])
+
+  // GET/PUT /server-files/ini and /sandbox both resolve "the active server"
+  // fresh per-request rather than taking a server id (see loadData() and
+  // handleSaveIni/handleSaveSandbox), so if the active server changes while
+  // this page is open, Save would silently write the loaded server's data
+  // onto whichever server is active now. With no unsaved edits it's safe to
+  // just reload, matching every other page's activeServerChanged handler
+  // (Settings.tsx, Dashboard.tsx, Servers.tsx, WorldMap.tsx, Layout.tsx);
+  // with unsaved edits, reloading would silently discard them instead, so
+  // this blocks Save and surfaces a banner instead of choosing for the user.
+  useEffect(() => {
+    if (!socket) return
+    const handleActiveServerChanged = () => {
+      if (hasIniChanges || hasSandboxChanges) {
+        setServerChangedSinceLoad(true)
+      } else {
+        loadData()
+      }
+    }
+    socket.on('activeServerChanged', handleActiveServerChanged)
+    return () => {
+      socket.off('activeServerChanged', handleActiveServerChanged)
+    }
+  }, [socket, hasIniChanges, hasSandboxChanges]) // eslint-disable-line react-hooks/exhaustive-deps -- loadData is mount-stable, not a dep
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -1526,6 +1563,14 @@ export default function ServerConfig() {
   }, [fileBrowserSelected, fileBrowserKey])
 
   const handleSaveIni = async () => {
+    if (serverChangedSinceLoad) {
+      toast({
+        title: t('toasts.error'),
+        description: 'The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.',
+        variant: 'destructive',
+      })
+      return
+    }
     setSaving(true)
     try {
       if (invalidIniSettings.length > 0) {
@@ -1576,6 +1621,14 @@ export default function ServerConfig() {
   }
 
   const handleSaveSandbox = async () => {
+    if (serverChangedSinceLoad) {
+      toast({
+        title: t('toasts.error'),
+        description: 'The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.',
+        variant: 'destructive',
+      })
+      return
+    }
     setSaving(true)
     try {
       if (editorMode === 'structured' && invalidSandboxSettings.length > 0) {
@@ -2250,6 +2303,21 @@ export default function ServerConfig() {
         </div>
       )}
 
+      {serverChangedSinceLoad && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Active server changed</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="min-w-0 break-words">
+              The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config.
+            </span>
+            <Button variant="outline" size="sm" onClick={loadData} className="self-start">
+              <RefreshCw className="me-2 h-4 w-4" /> {t('retry')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <PageHeader
         title={t('pageHeader.title')}
         description={t('pageHeader.description')}
@@ -2531,7 +2599,7 @@ export default function ServerConfig() {
                   >
                     <ExternalLink className="h-3 w-3" /> {t('editorToolbar.wiki')}
                   </a>
-                  <Button onClick={handleSaveIni} disabled={saving || !hasIniChanges || invalidIniSettings.length > 0} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
+                  <Button onClick={handleSaveIni} disabled={saving || !hasIniChanges || invalidIniSettings.length > 0 || serverChangedSinceLoad} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
                     {saving ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
@@ -2952,7 +3020,7 @@ export default function ServerConfig() {
                   >
                     <ExternalLink className="h-3 w-3" /> {t('editorToolbar.wiki')}
                   </a>
-                  <Button onClick={handleSaveSandbox} disabled={saving || !hasSandboxChanges || invalidSandboxSettings.length > 0} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
+                  <Button onClick={handleSaveSandbox} disabled={saving || !hasSandboxChanges || invalidSandboxSettings.length > 0 || serverChangedSinceLoad} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
                     {saving ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
@@ -4059,7 +4127,7 @@ export default function ServerConfig() {
               variant="command"
               size="sm"
               onClick={activeTab === 'ini' ? handleSaveIni : handleSaveSandbox}
-              disabled={saving || (activeTab === 'ini' ? invalidIniSettings.length > 0 : invalidSandboxSettings.length > 0)}
+              disabled={saving || serverChangedSinceLoad || (activeTab === 'ini' ? invalidIniSettings.length > 0 : invalidSandboxSettings.length > 0)}
               className="h-8 gap-1.5 text-xs font-medium"
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
