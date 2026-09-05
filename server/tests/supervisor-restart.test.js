@@ -724,7 +724,11 @@ describe.skipIf(!!skipReason)(
         expect(countLaunches(result.stdout)).toBe(1);
         expect(result.status).toBe(0);
         const log = readSupervisorLog(dir);
-        expect(log).toMatch(/staged frontend hash check \[MISMATCH\].*av_quarantine/i);
+        // main-is-red follow-up: the status now carries actual/expected
+        // hashes (or an UNVERIFIABLE exception message) instead of a bare
+        // MISMATCH -- match the prefix, not the exact bracket contents,
+        // same as the binary check's own test above.
+        expect(log).toMatch(/staged frontend hash check \[MISMATCH[^\]]*\].*av_quarantine/i);
         expect(log).not.toMatch(/bundle activated/i);
         expect(
           fs.readFileSync(path.join(dir, "client", "dist", "index.html"), "utf8"),

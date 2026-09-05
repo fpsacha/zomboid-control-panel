@@ -638,19 +638,34 @@ rem ============================================================
   rem (applyUpdateBundle()) already verifies against it before touching
   rem anything. This mirrors that check on Windows, with the same
   rem [av_quarantine] failure code Linux uses for a hash mismatch.
-  rem main-is-red, 2026-09-05: this check reports [MISMATCH] on a genuinely
-  rem uncorrupted staged binary on a clean, unprivileged GitHub windows-2022
-  rem runner -- reproduced 5/5 times across every test that reaches this
-  rem line, never once locally. The status string below now carries the
-  rem actual/expected hashes (or the exception message, if Get-FileHash
-  rem itself throws) into the log line instead of a bare MISMATCH, so the
-  rem next run says WHICH of those it actually is instead of requiring
-  rem another round trip to find out.
+  rem main-is-red, 2026-09-05: on a clean, unprivileged GitHub windows-2022
+  rem runner, Get-FileHash is not recognized at all -- Windows PowerShell
+  rem 5.1's module autoload for it silently fails there (confirmed via a
+  rem two-round diagnostic: round 1 logged [MISMATCH] with no detail; round
+  rem 2 carried the actual/expected hashes or the exception text, and it
+  rem came back "The term 'Get-FileHash' is not recognized...", 5/5 times,
+  rem never once locally). That silent MISMATCH conflated "I computed a
+  rem hash and it differs" with "I could not compute a hash at all" and
+  rem stamped both [av_quarantine] -- a real user whose PowerShell can't
+  rem load that module, or whose AV holds the staged file, would have every
+  rem update refused forever with a label that blames corruption instead of
+  rem environment. Fixed at the root by computing SHA256 via the .NET types
+  rem directly ([System.Security.Cryptography.SHA256], File.ReadAllBytes)
+  rem instead of the Get-FileHash cmdlet -- these are always available
+  rem regardless of PSModulePath/autoload state, the same way ConvertFrom-
+  rem Json above never had this problem. Still wrapped in try/catch: a
+  rem locked/unreadable file is a real possibility this doesn't remove, and
+  rem now reports UNVERIFIABLE with the actual exception text instead of
+  rem being misread as MISMATCH.
   set "STAGED_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = (Get-FileHash -LiteralPath $env:STAGED_NAME -Algorithm SHA256).Hash; if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'ERROR ' + $_.Exception.Message } }"\`) do set "STAGED_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($env:STAGED_NAME))).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message } }"\`) do set "STAGED_HASH_STATUS=%%F"
 
   if not "!STAGED_HASH_STATUS!"=="OK" (
-    call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [av_quarantine]"
+    if "!STAGED_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
+      call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [hash_unverifiable]"
+    ) else (
+      call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [av_quarantine]"
+    )
     del /f /q "%MARKER%" >nul 2>&1
     goto :eof
   )
@@ -676,12 +691,18 @@ rem ============================================================
   rem client file (relative path + per-file sha256, ordinal-sorted, then
   rem hashed together) computed by stageUpdateBundle() (updateBundle.js) and
   rem verified there before every apply on Linux; this reproduces the exact
-  rem same value on Windows, same [av_quarantine] failure code as the binary.
+  rem same value on Windows, same posture as the binary. Per-file hashing
+  rem uses the .NET SHA256 type directly rather than Get-FileHash, for the
+  rem same reason the binary check above does now -- see its comment.
   set "STAGED_CLIENT_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(); $rel + '|' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split('|',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH' } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + '|' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split('|',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
 
   if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
-    call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [av_quarantine]"
+    if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
+      call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [hash_unverifiable]"
+    ) else (
+      call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [av_quarantine]"
+    )
     del /f /q "%MARKER%" >nul 2>&1
     goto :eof
   )
