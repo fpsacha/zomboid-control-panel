@@ -164,6 +164,28 @@ describe("POST /save-path", () => {
       expect(res.getBody().rejection).toMatchObject({ reason: "not-a-directory" });
     });
 
+    // SECURITY (2026-09-05, env-var-expansion-oracle): resolveCustomOrDefaultDataPath
+    // runs the submitted path through normalizeUserPath(), which expands
+    // %VAR%/${VAR}/$VAR from process.env. Before the fix, the "not-found"
+    // rejection's message AND rejection.tried echoed that EXPANDED value --
+    // a chunks.manage-only caller (no admin, no diagnostics.manage) could
+    // read any process-environment secret (JWT_SECRET, RCON_PASSWORD, ...)
+    // one request at a time via path="%SOME_SECRET%". The fix must echo the
+    // caller's raw literal instead, in both the message and rejection.tried.
+    it("an env-var-shaped path never echoes the EXPANDED secret back -- only the caller's literal input", async () => {
+      process.env.ZCP_TEST_LEAK_SECRET = "super-secret-value-should-not-leak";
+      try {
+        const res = await postSavePath({ path: "%ZCP_TEST_LEAK_SECRET%" });
+        expect(res.getStatusCode()).toBe(400);
+        expect(res.getBody().rejection).toMatchObject({ reason: "not-found" });
+        expect(res.getBody().rejection.tried).toBe("%ZCP_TEST_LEAK_SECRET%");
+        expect(res.getBody().rejection.tried).not.toContain("super-secret-value-should-not-leak");
+        expect(res.getBody().error).not.toContain("super-secret-value-should-not-leak");
+      } finally {
+        delete process.env.ZCP_TEST_LEAK_SECRET;
+      }
+    });
+
     it("a real directory with no Zomboid markers at all -> 403 (not 400 -- distinct from the filesystem-shape rejections above), rejection.reason 'no-zomboid-markers'", async () => {
       // A plain temp dir with no "Zomboid" in its name and no save artifacts
       // inside it -- inspectZomboidPath() has nothing to accept it on.

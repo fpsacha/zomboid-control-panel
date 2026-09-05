@@ -280,31 +280,39 @@ function resolveCustomOrDefaultDataPath(customPath) {
   const cleaned = normalizeUserPath(customPath);
   if (!cleaned) return null;
   const normalized = path.resolve(cleaned);
+  // SECURITY (2026-09-05, env-var-expansion-oracle): normalizeUserPath()
+  // expands %VAR%/${VAR}/$VAR from the raw input. If the EXPANDED value
+  // (`normalized`) is echoed back here, a caller who only holds the
+  // delegable chunks.manage capability can read any process-environment
+  // secret (JWT_SECRET, RCON_PASSWORD, ...) one request at a time via
+  // customPath=%SECRET_NAME% — the failure message hands the expansion
+  // straight back. Every error below must echo the caller's raw literal
+  // (`customPath`), never `normalized`.
   if (!fs.existsSync(normalized)) {
     const error = new Error(
-      `Custom path does not exist: ${normalized}. ` +
+      `Custom path does not exist: ${customPath}. ` +
         `Check for typos and verify the panel has read access to this folder.`,
     );
     error.statusCode = 400;
-    error.details = { reason: "not-found", tried: normalized };
+    error.details = { reason: "not-found", tried: String(customPath) };
     throw error;
   }
   try {
     if (!fs.statSync(normalized).isDirectory()) {
-      const error = new Error(`Custom path is not a directory: ${normalized}`);
+      const error = new Error(`Custom path is not a directory: ${customPath}`);
       error.statusCode = 400;
-      error.details = { reason: "not-a-directory", tried: normalized };
+      error.details = { reason: "not-a-directory", tried: String(customPath) };
       throw error;
     }
   } catch (e) {
     if (e.statusCode) throw e;
     const error = new Error(
-      `Could not read custom path (${e.code || "error"}): ${normalized}`,
+      `Could not read custom path (${e.code || "error"}): ${customPath}`,
     );
     error.statusCode = 400;
     error.details = {
       reason: "stat-failed",
-      tried: normalized,
+      tried: String(customPath),
       errorCode: e.code,
     };
     throw error;

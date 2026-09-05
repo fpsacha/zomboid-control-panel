@@ -537,6 +537,32 @@ describe("PUT /api/servers/:id", () => {
       expect(updateServer).not.toHaveBeenCalled();
     });
 
+    // SECURITY (2026-09-05, env-var-expansion-oracle): zomboidDataPath goes
+    // through normalizeUserPath(), which expands %VAR%/${VAR}/$VAR from
+    // process.env. Before the fix, the 400's error string embedded that
+    // EXPANDED value -- any caller who can PUT a server (no admin needed)
+    // could read a process-environment secret one request at a time via
+    // zomboidDataPath="%SOME_SECRET%". The error must echo the caller's raw
+    // literal instead.
+    it("an env-var-shaped zomboidDataPath never echoes the EXPANDED secret back in the error", async () => {
+      process.env.ZCP_TEST_LEAK_SECRET = "super-secret-value-should-not-leak";
+      try {
+        const response = createResponse();
+        await getUpdateHandler()(
+          { params: { id: "1" }, body: { zomboidDataPath: "%ZCP_TEST_LEAK_SECRET%" } },
+          response,
+        );
+
+        expect(response.status).toHaveBeenCalledWith(400);
+        expect(updateServer).not.toHaveBeenCalled();
+        const [[body]] = response.json.mock.calls;
+        expect(body.error).toContain("%ZCP_TEST_LEAK_SECRET%");
+        expect(body.error).not.toContain("super-secret-value-should-not-leak");
+      } finally {
+        delete process.env.ZCP_TEST_LEAK_SECRET;
+      }
+    });
+
     it("rejects a real directory that does not look like a Zomboid data folder (the exact 'structurally valid but wrong' case the card describes)", async () => {
       const response = createResponse();
 

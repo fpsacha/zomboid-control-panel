@@ -1326,11 +1326,17 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
           ? updates.isRemote
           : Boolean((await getServer(serverId))?.isRemote);
       if (!effectiveIsRemote) {
+        // SECURITY (2026-09-05, env-var-expansion-oracle): normalizeUserPath()
+        // expands %VAR%/${VAR}/$VAR from request input. `resolved` is that
+        // EXPANDED value -- it must never appear in a response, or a caller
+        // who can PUT a server reads process-environment secrets one request
+        // at a time via zomboidDataPath="%JWT_SECRET%". Errors below always
+        // echo the caller's raw literal (updates.zomboidDataPath) instead.
         const normalized = normalizeUserPath(updates.zomboidDataPath);
         const resolved = normalized ? path.resolve(normalized) : null;
         if (!resolved || !fs.existsSync(resolved)) {
           return res.status(400).json({
-            error: `Zomboid data path does not exist: ${resolved || updates.zomboidDataPath}. Check for typos and verify the panel has read access to this folder.`,
+            error: `Zomboid data path does not exist: ${updates.zomboidDataPath}. Check for typos and verify the panel has read access to this folder.`,
           });
         }
         let isDir = false;
@@ -1341,7 +1347,7 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
         }
         if (!isDir) {
           return res.status(400).json({
-            error: `Zomboid data path is not a directory: ${resolved}`,
+            error: `Zomboid data path is not a directory: ${updates.zomboidDataPath}`,
           });
         }
         const verdict = inspectZomboidPath(resolved);
