@@ -758,20 +758,6 @@ export default function Settings() {
       .catch(() => setNetworkInterfaces([]));
   }, []);
 
-  // Reload settings when active server changes
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleActiveServerChanged = () => {
-      fetchSettings();
-    };
-
-    socket.on("activeServerChanged", handleActiveServerChanged);
-    return () => {
-      socket.off("activeServerChanged", handleActiveServerChanged);
-    };
-  }, [socket, fetchSettings]);
-
   const fetchPanelUpdateStatus = useCallback(async () => {
     try {
       const status = await panelUpdateApi.getStatus();
@@ -1391,6 +1377,31 @@ export default function Settings() {
       setServersLoadError(true);
     }
   }, [selectedInstallServerId]);
+
+  // bug-hunt-2026-09-04: this listener used to reload the wrong state and
+  // never reload the right one. configApi.getAppSettings()/PUT app-settings
+  // (server/routes/config.js) is a flat GLOBAL key/value store with no
+  // server-id resolution anywhere -- switching servers can never make it
+  // stale, so refetching it unconditionally only risked discarding a user's
+  // in-progress typing (isDirty, tracked above) for no reason. What DOES go
+  // stale on a switch -- activeServer's rconHost/rconPort/name, shown in the
+  // PanelBridge card below -- was never refreshed at all; fetchServers() has
+  // no dirty-tracking of its own (read-only display), so it's safe to
+  // reload unconditionally, same as the other four pages' own
+  // activeServerChanged handlers.
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleActiveServerChanged = () => {
+      fetchServers();
+      if (!isDirty) fetchSettings();
+    };
+
+    socket.on("activeServerChanged", handleActiveServerChanged);
+    return () => {
+      socket.off("activeServerChanged", handleActiveServerChanged);
+    };
+  }, [socket, fetchSettings, fetchServers, isDirty]);
 
   // Install PanelBridge mod to selected server
   const handleInstallMod = async () => {
