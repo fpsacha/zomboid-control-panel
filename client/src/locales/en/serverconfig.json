@@ -384,6 +384,8 @@
     "applyTemplateFailed": "Failed to apply saved config.",
     "applyTemplatePartialTitle": "Partially applied",
     "applyTemplatePartialDesc": "{{applied}} settings were written to disk before this failed: {{error}} The rest of the saved config was not applied.",
+    "applyTemplateBackupWarningTitle": "Applied, but not backed up",
+    "applyTemplateBackupWarningDesc": "{{warnings}}",
     "saveTemplateFailed": "Failed to save config.",
     "deletedTitle": "Deleted",
     "templateDeletedDesc": "Saved config \"{{name}}\" deleted",

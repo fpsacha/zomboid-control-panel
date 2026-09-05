@@ -2082,6 +2082,7 @@ export const serverFilesApi = {
       success: boolean;
       applied: string[];
       message: string;
+      backupWarnings?: string[];
     }>,
   updateTemplate: (id: string, data: { name?: string; description?: string }) =>
     apiPut(`/server-files/templates/${id}`, data),

@@ -241,6 +241,24 @@ export function getUnpersistedSandboxKeys(
 // of the template is now live on disk. Exported as a pure predicate so the
 // decision (partial-apply toast vs. generic failure toast) is unit-testable
 // without mounting the whole page.
+// server/routes/serverFiles.js's POST /templates/:id/apply can write BOTH
+// the INI and the Sandbox file in one call, and attaches a `backupWarnings`
+// ARRAY when either write's own backup failed -- one entry per file, so
+// both can fail independently and still both be reported. The globally-
+// handled `backupWarning` field (singular, a string; see api.ts's shared
+// response handler) is a DIFFERENT shape used by ~30 other config-writing
+// routes that only ever touch one file per call; that handler does not
+// know to look for this route's plural array, so without reading it here
+// explicitly, applying a template could overwrite both config files with
+// no safety copy and no warning at all. Exported as a pure predicate so
+// the decision to warn is unit-testable without mounting the whole page.
+export function getApplyTemplateBackupWarnings(
+  data: { backupWarnings?: unknown } | null | undefined,
+): string[] | null {
+  const warnings = data?.backupWarnings
+  return Array.isArray(warnings) && warnings.length > 0 ? (warnings as string[]) : null
+}
+
 export function getPartiallyAppliedFromApplyTemplateError(error: unknown): string[] | null {
   if (
     error instanceof ApiError &&
@@ -1924,6 +1942,16 @@ export default function ServerConfig() {
         title: t('toasts.appliedTitle'),
         description: result.message
       })
+      const backupWarnings = getApplyTemplateBackupWarnings(result)
+      if (backupWarnings) {
+        toast({
+          title: t('toasts.applyTemplateBackupWarningTitle'),
+          description: t('toasts.applyTemplateBackupWarningDesc', {
+            warnings: backupWarnings.join(' '),
+          }),
+          variant: 'destructive',
+        })
+      }
       setShowTemplates(false)
       loadData() // Reload the config data
     } catch (error) {
