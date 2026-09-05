@@ -133,6 +133,78 @@ describe("db.json backup -> restore round trip: real code paths, not hand-crafte
     expect(backedUpContent.servers[0].rconPassword).toBeUndefined();
   });
 
+  it("schema evolution: restoring a genuinely v1-shaped backup migrates it correctly, with no silent data loss on the custom role/user it already had", async () => {
+    // A realistic snapshot from BEFORE the v2 (role seeding) and v3
+    // (backups.download split) migrations existed -- not runMigrations()
+    // exercised in isolation against a plain object (that's
+    // rolesMigration.test.js's job), a real backup file restored through the
+    // real getDb() corruption-recovery path, the same way an operator's
+    // actual old backup would be.
+    const v1Snapshot = {
+      _schemaVersion: 1,
+      settings: { customOldSetting: "still-here-after-migration" },
+      servers: [{ id: "srv-old", serverName: "pre-v2-server" }],
+      users: [{ username: "old-admin", role: "custom-pre-split-role" }],
+      roles: [
+        {
+          id: "role-custom-pre-split",
+          name: "custom-pre-split-role",
+          // Pre-v3: had backups.manage, never had a chance to also get
+          // backups.download since that capability didn't exist yet.
+          capabilities: ["backups.manage", "server.control"],
+          isSeeded: false,
+        },
+      ],
+    };
+    fs.mkdirSync(backupDir, { recursive: true });
+    // Clear any backups an earlier test in this file left behind -- recovery
+    // tries the ring newest-first by filename, and this snapshot's filename
+    // deliberately carries an OLD-looking timestamp (matching its content's
+    // age), which would otherwise lose to a same-run backup dated today and
+    // never actually get exercised.
+    for (const f of fs.readdirSync(backupDir)) {
+      fs.unlinkSync(path.join(backupDir, f));
+    }
+    fs.writeFileSync(
+      path.join(backupDir, "db-2020-01-01T00-00-00-000Z-manual.json"),
+      JSON.stringify(v1Snapshot),
+    );
+    fs.writeFileSync(dbPath, "{ corrupt, forcing recovery from the v1 backup");
+
+    vi.resetModules();
+    const freshMod = await import("../database/init.js");
+    const db = await freshMod.getDb();
+
+    expect(db.data._schemaVersion).toBe(3);
+
+    // Nothing the v1 snapshot already had was silently dropped.
+    expect(db.data.settings.customOldSetting).toBe(
+      "still-here-after-migration",
+    );
+    expect(db.data.servers).toEqual([
+      { id: "srv-old", serverName: "pre-v2-server" },
+    ]);
+
+    // Migration 3: a role that already held backups.manage backfills
+    // backups.download (same trust level it always had).
+    const customRole = db.data.roles.find(
+      (r) => r.id === "role-custom-pre-split",
+    );
+    expect(customRole.capabilities).toEqual(
+      expect.arrayContaining(["backups.manage", "backups.download", "server.control"]),
+    );
+
+    // Migration 2: the v2 default-role seed runs alongside an existing
+    // install's own custom role, not instead of it.
+    expect(db.data.roles.some((r) => r.id === "role-admin")).toBe(true);
+
+    // Migration 2's dual-write: the user's roleId backfilled from its role
+    // name, without touching the existing `role` string field.
+    const user = db.data.users.find((u) => u.username === "old-admin");
+    expect(user.role).toBe("custom-pre-split-role");
+    expect(user.roleId).toBe("role-custom-pre-split");
+  });
+
   it("rotation boundary: pruning after MAX_BACKUPS+3 real backups keeps exactly the newest 5, by content -- not just by count", async () => {
     const { getDb, createDatabaseBackup, setSetting } = await import(
       "../database/init.js"
