@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SystemHealthBanner } from '../SystemHealthBanner'
 import { systemApi, type StorageHealth } from '@/lib/api'
@@ -138,12 +138,18 @@ describe('SystemHealthBanner', () => {
         <SystemHealthBanner />
       </MemoryRouter>
     )
-    await vi.advanceTimersByTimeAsync(0)
+    // The initial fetch's .then() resolves on a microtask, then triggers a
+    // state update and a follow-on effect (the dismissed-reset effect) --
+    // advancing fake timers by 0 doesn't reliably drain that whole chain
+    // before the next line runs, so the first assertion needs the same
+    // explicit act()-wrapped flush the second one needs by construction
+    // (real elapsed time via advanceTimersByTimeAsync(30_000)).
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByText(en.saveVolumeCriticalTitle)).toBeInTheDocument()
 
     // Advance past the 30s poll interval to trigger the second, unverifiable reading.
-    await vi.advanceTimersByTimeAsync(30_000)
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
     expect(getStorageHealth).toHaveBeenCalledTimes(2)
     expect(screen.getByRole('alert')).toBeInTheDocument()
     expect(screen.getByText(en.saveVolumeCriticalTitle)).toBeInTheDocument()
