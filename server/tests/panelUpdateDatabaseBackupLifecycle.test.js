@@ -174,11 +174,12 @@ describe("pre-update database backup lifecycle around a real bundle transaction"
     createUpdateDataBackup(dataPaths, "2.0.0");
 
     // Force the mid-apply failure the existing panelUpdateBundle.test.js
-    // suite already covers (missing staged binary -> av_quarantine),
-    // before any binary/client swap happens.
+    // suite already covers (missing staged binary -> hash_unverifiable,
+    // main-is-red 2026-09-05: distinct from av_quarantine's genuine
+    // computed mismatch), before any binary/client swap happens.
     fs.unlinkSync(stagedBinaryPath);
     expect(() => applyUpdateBundle(journalPath)).toThrowError(
-      expect.objectContaining({ code: "av_quarantine" }),
+      expect.objectContaining({ code: "hash_unverifiable" }),
     );
     expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
     // The database was never touched -- still exactly the pre-update

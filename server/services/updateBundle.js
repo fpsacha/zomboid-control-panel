@@ -429,14 +429,22 @@ export function applyUpdateBundle(journalPath) {
   const journal = readUpdateBundleJournalIfPresent(journalPath);
   if (!journal) throw updateError("invalid_bundle", "Update bundle journal is missing");
   const { paths } = journal;
+  // main-is-red, 2026-09-05: mirrors the same fix just shipped on the
+  // Windows side (build.js) -- "I could not even hash this" (ENOENT, or
+  // any other read failure: permission denied, a mid-read I/O error) and
+  // "I hashed it and it differs" were both stamped av_quarantine here,
+  // exactly the conflation an operator whose AV holds the staged file for
+  // a moment, or whose install hit a transient permission issue, would hit
+  // and have it misreported as corruption instead of environment. Distinct
+  // hash_unverifiable code for the former, with the real underlying error
+  // preserved as .cause; av_quarantine now means only a genuine, computed
+  // mismatch. Both still fail closed -- distinguishing the label does not
+  // make either check lenient.
   let stagedBinaryHash;
   try {
     stagedBinaryHash = sha256File(paths.stagedBinary);
   } catch (error) {
-    if (error?.code === "ENOENT") {
-      throw updateError("av_quarantine", "Staged update binary is missing", error);
-    }
-    throw error;
+    throw updateError("hash_unverifiable", "Could not verify staged update binary", error);
   }
   if (stagedBinaryHash !== journal.hashes.binarySha256) {
     throw updateError("av_quarantine", "Staged update binary hash changed");
@@ -445,10 +453,7 @@ export function applyUpdateBundle(journalPath) {
   try {
     ({ hash: stagedClientHash } = sha256Directory(paths.stagedClient));
   } catch (error) {
-    if (error?.code === "ENOENT") {
-      throw updateError("av_quarantine", "Staged client bundle is missing", error);
-    }
-    throw error;
+    throw updateError("hash_unverifiable", "Could not verify staged client bundle", error);
   }
   if (stagedClientHash !== journal.hashes.clientSha256) {
     throw updateError("av_quarantine", "Staged client bundle hash changed");

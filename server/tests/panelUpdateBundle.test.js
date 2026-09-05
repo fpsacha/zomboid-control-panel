@@ -117,12 +117,17 @@ describe("versioned panel update bundles", () => {
     expect(fs.readFileSync(sentinelPath, "utf8")).toBe("operator-state");
   });
 
+  // main-is-red, 2026-09-05: a missing staged file means the check could
+  // not run at all -- distinct from a genuine, computed hash mismatch
+  // (the "tampered" test below), which is why this expects
+  // hash_unverifiable now, not av_quarantine. Same distinction the Windows
+  // side (build.js) already makes between UNVERIFIABLE and MISMATCH.
   it("rejects a missing staged binary before changing either live artifact", () => {
     const { stagedBinaryPath, binaryPath, liveClientPath, journalPath } = prepareBundle();
     fs.unlinkSync(stagedBinaryPath);
 
     expect(() => applyUpdateBundle(journalPath)).toThrowError(
-      expect.objectContaining({ code: "av_quarantine" }),
+      expect.objectContaining({ code: "hash_unverifiable" }),
     );
     expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
     expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
@@ -136,11 +141,33 @@ describe("versioned panel update bundles", () => {
     fs.rmSync(journal.paths.stagedClient, { recursive: true, force: true });
 
     expect(() => applyUpdateBundle(journalPath)).toThrowError(
-      expect.objectContaining({ code: "av_quarantine" }),
+      expect.objectContaining({ code: "hash_unverifiable" }),
     );
     expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
     expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
       "old-client",
+    );
+  });
+
+  // main-is-red, 2026-09-05: the pre-fix code only special-cased ENOENT --
+  // any OTHER read failure (permission denied, a mid-read I/O error) fell
+  // through `throw error` completely unwrapped, with no .code an upstream
+  // caller could recognize at all. This proves the fix covers that class
+  // too, not just a rename of the ENOENT branch.
+  it("wraps a non-ENOENT read failure (e.g. permission denied) as hash_unverifiable too, not a raw unstructured error", () => {
+    const { stagedBinaryPath, journalPath } = prepareBundle();
+    const originalReadFileSync = fs.readFileSync.bind(fs);
+    vi.spyOn(fs, "readFileSync").mockImplementation((filePath, ...args) => {
+      if (filePath === stagedBinaryPath) {
+        const err = new Error("EACCES: permission denied");
+        err.code = "EACCES";
+        throw err;
+      }
+      return originalReadFileSync(filePath, ...args);
+    });
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "hash_unverifiable" }),
     );
   });
 
