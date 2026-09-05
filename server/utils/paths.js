@@ -54,13 +54,42 @@ export function getDataPaths() {
   
   const dataDir = config.dataDir || defaultDataDir;
   const logsDir = config.logsDir || defaultLogsDir;
-  
-  // Ensure directories exist
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-  }
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+
+  // Ensure directories exist. This is the Windows analogue of Linux's
+  // root-first-run trap (server/utils/firstRunOwnershipCheck.js): the
+  // default location is a subfolder of wherever the exe lives, and nothing
+  // upstream of this call has confirmed the current account can actually
+  // write there. 2026-09-05, reproduced live (non-admin shell, no elevation):
+  // pointing process.execPath at a path under "C:\Program Files\..." -- a
+  // completely ordinary place for a Windows user to extract a "program" to,
+  // and one this project's own docs steer away from by example but never
+  // warn against -- throws a raw, uncaught EPERM out of this function with
+  // no indication of WHY, at module-load time (database/init.js calls
+  // getDataPaths() at its own top level), before index.js's body has even
+  // started. There is no Windows equivalent of the Linux ownership check
+  // that would turn that into one clear diagnostic instead of a bare node
+  // stack trace. Fix: catch EPERM/EACCES specifically, name the two most
+  // likely paths forward, and exit -- do NOT swallow any other error (disk
+  // full, path too long, etc. should still surface as-is).
+  for (const dir of [dataDir, logsDir]) {
+    if (fs.existsSync(dir)) continue;
+    try {
+      fs.mkdirSync(dir, { recursive: true, ...(dir === dataDir ? { mode: 0o700 } : {}) });
+    } catch (err) {
+      if (process.platform === 'win32' && (err.code === 'EPERM' || err.code === 'EACCES')) {
+        console.error(
+          `\nRefusing to start: could not create "${dir}".\n\n` +
+          `This almost always means the panel is installed somewhere your Windows account ` +
+          `cannot write to -- most commonly "Program Files" without running as Administrator.\n\n` +
+          `Fix one of these, then restart:\n` +
+          `  - Move the panel folder somewhere your account can write to (for example C:\\ZomboidPanel), or\n` +
+          `  - Right-click Start.bat and choose "Run as administrator".\n\n` +
+          `Underlying error: ${err.message}\n`
+        );
+        process.exit(77); // same code Linux's ownership check uses -- same class of problem
+      }
+      throw err;
+    }
   }
 
   // dataDir holds jwt.secret, server-secrets/, db.json and everything else
