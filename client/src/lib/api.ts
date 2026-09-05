@@ -3460,6 +3460,12 @@ export interface DiskSpaceStatus {
   usedPercent: number;
   warning: boolean;
   critical: boolean;
+  // false means the server couldn't verify this reading right now
+  // (unreachable mount, permission error, no path configured) -- warning
+  // and critical are both forced false on that path (see diskMonitor.js's
+  // computeDiskStatus()), NOT a verified "everything is fine". Callers
+  // must not treat that as a real all-clear.
+  ok: boolean;
 }
 
 export interface DiskSpaceReport {

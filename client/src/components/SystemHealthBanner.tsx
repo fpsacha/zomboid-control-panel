@@ -60,7 +60,26 @@ export function SystemHealthBanner() {
   const navigate = useNavigate()
 
   const refresh = useCallback(() => {
-    systemApi.getStorageHealth().then(setHealth).catch(() => { /* keep last-known state */ })
+    systemApi.getStorageHealth().then((next) => {
+      // ok:false means the server couldn't verify this reading (unreachable
+      // mount, permission error) and forces warning/critical to false on
+      // that path -- diskMonitor.js's own socket-emit path already guards
+      // against treating that as a real all-clear (it holds the last known
+      // level rather than firing "disk:normal"), but this REST poll doesn't
+      // go through that guard. Apply the same "unknown, not cleared" rule
+      // here too: keep whichever reading we last trusted instead of
+      // silently dropping a live banner because one check briefly failed.
+      setHealth((prev) => {
+        if (!prev) return next
+        const saveVolume = next.diskSpace.saveVolume?.ok === false
+          ? prev.diskSpace.saveVolume
+          : next.diskSpace.saveVolume
+        const panelData = next.diskSpace.panelData.ok === false
+          ? prev.diskSpace.panelData
+          : next.diskSpace.panelData
+        return { ...next, diskSpace: { saveVolume, panelData } }
+      })
+    }).catch(() => { /* keep last-known state */ })
   }, [])
 
   useEffect(() => {

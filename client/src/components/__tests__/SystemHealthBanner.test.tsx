@@ -104,6 +104,51 @@ describe('SystemHealthBanner', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('bug-hunt-2026-09-04: keeps a live critical banner up through an unverifiable reading instead of clearing it', async () => {
+    // diskMonitor.js's computeDiskStatus() forces warning/critical to false
+    // whenever it can't verify the disk (ok: false) -- an unreachable mount,
+    // a permission error, a momentary network-drive hiccup. Its own
+    // socket-emit path already guards against treating that as an all-clear
+    // (it holds the last known level rather than firing disk:normal), but
+    // this component's 30s REST poll bypassed that guard entirely: it just
+    // read save?.critical off the fresh (meaningless, forced-false) reading
+    // and silently cleared a real critical banner the moment the mount
+    // blipped, with no socket event involved at all.
+    vi.useFakeTimers()
+    getStorageHealth
+      .mockResolvedValueOnce(
+        healthWith({
+          diskSpace: {
+            saveVolume: { path: '/saves', totalBytes: 100, freeBytes: 1, usedPercent: 99, warning: false, critical: true, ok: true },
+            panelData: { path: '/data', totalBytes: 100, freeBytes: 50, usedPercent: 50, warning: false, critical: false, ok: true },
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        healthWith({
+          diskSpace: {
+            saveVolume: { path: '/saves', totalBytes: 0, freeBytes: 0, usedPercent: 0, warning: false, critical: false, ok: false },
+            panelData: { path: '/data', totalBytes: 100, freeBytes: 50, usedPercent: 50, warning: false, critical: false, ok: true },
+          },
+        })
+      )
+
+    render(
+      <MemoryRouter>
+        <SystemHealthBanner />
+      </MemoryRouter>
+    )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText(en.saveVolumeCriticalTitle)).toBeInTheDocument()
+
+    // Advance past the 30s poll interval to trigger the second, unverifiable reading.
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(getStorageHealth).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText(en.saveVolumeCriticalTitle)).toBeInTheDocument()
+  })
+
   it('ignores an incomplete health response without crashing the layout', async () => {
     getStorageHealth.mockResolvedValue({ success: true, demo: true } as unknown as StorageHealth)
     const { container } = render(
