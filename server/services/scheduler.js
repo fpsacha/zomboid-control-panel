@@ -159,6 +159,53 @@ export function requiredCapabilityForScheduledCommand(command) {
   return "rcon.execute"; // kind === "raw"
 }
 
+// 2026-09-05, host-suspend-resume audit: node-cron 4.6.0 (node_modules/
+// node-cron/dist/_shared.js, Runner.planBeat/beat) already detects a missed
+// tick by comparing the expected fire time against the real clock at the
+// next heartbeat -- exactly the case a host suspend/resume, or any long
+// blocking I/O/CPU stall, produces (one or more scheduled slots pass while
+// nothing was running to notice). It even names the cause in its own
+// message: "missed execution... Possible blocking IO or high CPU". The gap
+// is visibility, not detection: InlineScheduledTask's DEFAULT reaction is a
+// bare `console.warn` through node-cron's OWN internal logger (verified by
+// reading _shared.js's defaultLogger -- it is not routed through this
+// app's winston logger at all), which on a packaged, console-less install
+// (a Windows service, `pm2`, any process manager without an attached
+// terminal) is very likely never seen by anyone. A missed scheduled
+// restart or backup was, before this, indistinguishable from one that
+// simply never got configured -- both produce total silence.
+//
+// Attaching our OWN 'execution:missed' listener on the returned task
+// SUPPRESSES node-cron's own default warning (see InlineScheduledTask's
+// own onMissedExecution: it checks `emitter.listenerCount('execution:
+// missed') > 0` before logging) -- so this handler takes over that
+// responsibility completely rather than adding a second, differently-
+// worded message alongside it.
+//
+// `taskId` is null for the two "system" schedules (auto-restart, backup)
+// exactly like their own real-run logScheduleExecution() calls already do
+// elsewhere in this file -- Schedule History conflates them by command
+// string, not taskId, for those two (see getLatestScheduleExecutionByCommand's
+// own comment in database/init.js).
+function onScheduleMissed(taskId, label, command, context) {
+  const missedAt =
+    context?.dateLocalIso ||
+    (context?.date instanceof Date ? context.date.toISOString() : String(context?.date ?? "an unknown time"));
+  log.warn(
+    `Scheduled ${label ? `"${label}"` : "task"} (${command}) missed its run at ${missedAt} -- the panel likely was not running or was blocked at that moment (host suspend/resume, a restart, or sustained CPU/IO load).`,
+  );
+  logScheduleExecution(
+    taskId,
+    label,
+    command,
+    false,
+    `Missed scheduled run at ${missedAt} -- the panel was not running or was blocked at that moment`,
+    0,
+  ).catch((err) =>
+    log.debug(`Could not record missed-execution history: ${err.message}`),
+  );
+}
+
 export class Scheduler {
   constructor(rconService, serverManager) {
     this.rconService = rconService;
@@ -406,6 +453,7 @@ export class Scheduler {
     const job = cron.schedule(task.cron_expression, () => this.runTaskNow(task), {
       timezone: this.effectiveTimezone,
     });
+    job.on("execution:missed", (context) => onScheduleMissed(task.id, task.name, task.command, context));
 
     this.jobs.set(task.id, job);
     this.jobLabels.set(task.id, task.name || task.command || "task");
@@ -981,6 +1029,9 @@ export class Scheduler {
           log.error(`Scheduled backup error: ${error.message}`);
         }
       }, { timezone: this.effectiveTimezone });
+      this.backupJob.on("execution:missed", (context) =>
+        onScheduleMissed(null, "Scheduled Backup", "backup", context),
+      );
 
       log.info(`Backup schedule configured: ${settings.schedule} (timezone: ${this.effectiveTimezone})`);
 
@@ -1047,6 +1098,9 @@ export class Scheduler {
         log.error(`Auto-restart cron tick failed: ${err.message}`);
       }
     }, { timezone: this.effectiveTimezone });
+    this.autoRestartJob.on("execution:missed", (context) =>
+      onScheduleMissed(null, "Auto Restart", "restart", context),
+    );
 
     log.info(`Auto-restart scheduled: ${cronExpression} (timezone: ${this.effectiveTimezone})`);
 
