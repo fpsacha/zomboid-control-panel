@@ -11,6 +11,10 @@
     "title_other": "У цьому файлі конфігурації повторюються налаштування ({{count}}): {{keys}}",
     "desc": "Цей редактор читає останню копію, а сторінка «Моди» — першу, тож вони можуть показувати різні значення того самого налаштування."
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "pageHeader": {
     "title": "Конфігурація сервера",
     "description": "Редагуйте чинні налаштування INI, пісочниці, спавну та модів для цього сервера.",
@@ -338,6 +342,7 @@
   "toasts": {
     "error": "Помилка",
     "loadConfigFailed": "Не вдалося завантажити конфігурацію сервера.",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "Некоректні налаштування сервера",
     "invalidSandboxTitle": "Некоректні значення пісочниці",
     "fixSettings": "Виправте: {{settings}}",

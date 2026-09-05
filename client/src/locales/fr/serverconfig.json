@@ -8,6 +8,10 @@
     "title_other": "{{count}} paramètres apparaissent plus d'une fois dans ce fichier de configuration : {{keys}}",
     "desc": "Cet éditeur lit la dernière copie et la page Mods lit la première — les deux peuvent donc afficher des valeurs différentes pour le même paramètre."
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "loading": "chargement de la configuration…",
   "loadErrorTitle": "Les données de configuration n'ont pas pu être entièrement chargées",
   "retry": "Réessayer",
@@ -333,6 +337,7 @@
   "toasts": {
     "error": "Erreur",
     "loadConfigFailed": "Échec du chargement de la configuration du serveur.",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "Paramètres serveur invalides",
     "invalidSandboxTitle": "Valeurs Sandbox invalides",
     "fixSettings": "À corriger : {{settings}}",

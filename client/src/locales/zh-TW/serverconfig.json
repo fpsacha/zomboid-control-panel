@@ -11,6 +11,10 @@
     "title_other": "此設定檔中有 {{count}} 項設定出現了不止一次：{{keys}}",
     "desc": "此編輯器讀取的是最後一份副本，而模組頁面讀取的是第一份，因此兩者對同一設定顯示的值可能不一致。"
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "pageHeader": {
     "title": "伺服器設定",
     "description": "編輯此伺服器當前生效的 INI、沙盒、出生點及模組設定。",
@@ -338,6 +342,7 @@
   "toasts": {
     "error": "錯誤",
     "loadConfigFailed": "載入伺服器設定失敗。",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "伺服器設定無效",
     "invalidSandboxTitle": "沙盒數值無效",
     "fixSettings": "修正：{{settings}}",

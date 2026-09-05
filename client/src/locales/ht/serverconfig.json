@@ -8,6 +8,10 @@
     "title_other": "{{count}} paramèt parèt plis pase yon fwa nan fichye konfigirasyon sa a: {{keys}}",
     "desc": "Editè sa a li dènye kopi a, epi paj Mods li premye a — konsa toude ka montre valè diferan pou menm paramèt la."
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "loading": "ap chaje konfigirasyon…",
   "loadErrorTitle": "Done konfigirasyon pa t kapab chaje nèt",
   "retry": "Eseye ankò",
@@ -338,6 +342,7 @@
   "toasts": {
     "error": "Erè",
     "loadConfigFailed": "Pa t kapab chaje konfigirasyon sèvè a.",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "Paramèt sèvè envalid",
     "invalidSandboxTitle": "Valè Sandbox envalid",
     "fixSettings": "Korije: {{settings}}",

@@ -1566,7 +1566,7 @@ export default function ServerConfig() {
     if (serverChangedSinceLoad) {
       toast({
         title: t('toasts.error'),
-        description: 'The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.',
+        description: t('toasts.serverChangedSinceLoad'),
         variant: 'destructive',
       })
       return
@@ -1624,7 +1624,7 @@ export default function ServerConfig() {
     if (serverChangedSinceLoad) {
       toast({
         title: t('toasts.error'),
-        description: 'The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.',
+        description: t('toasts.serverChangedSinceLoad'),
         variant: 'destructive',
       })
       return
@@ -2306,10 +2306,10 @@ export default function ServerConfig() {
       {serverChangedSinceLoad && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Active server changed</AlertTitle>
+          <AlertTitle>{t('serverChangedBanner.title')}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="min-w-0 break-words">
-              The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config.
+              {t('serverChangedBanner.desc')}
             </span>
             <Button variant="outline" size="sm" onClick={loadData} className="self-start">
               <RefreshCw className="me-2 h-4 w-4" /> {t('retry')}

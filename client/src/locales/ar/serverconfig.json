@@ -11,6 +11,10 @@
     "title_other": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}",
     "desc": "يقرأ هذا المحرر النسخة الأخيرة بينما تقرأ صفحة المودات النسخة الأولى، لذا قد يعرض الاثنان قيمتين مختلفتين للإعداد نفسه."
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "pageHeader": {
     "title": "تهيئة الخادم",
     "description": "عدّل الإعدادات الفعّالة لهذا الخادم: INI، Sandbox، نقاط الظهور، والمودات.",
@@ -338,6 +342,7 @@
   "toasts": {
     "error": "خطأ",
     "loadConfigFailed": "فشل تحميل تهيئة الخادم.",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "إعدادات خادم غير صالحة",
     "invalidSandboxTitle": "قيم Sandbox غير صالحة",
     "fixSettings": "صحّح: {{settings}}",

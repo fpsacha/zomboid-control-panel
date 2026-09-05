@@ -11,6 +11,10 @@
     "title_other": "{{count}} settings appear more than once in this configuration file: {{keys}}",
     "desc": "This editor reads the last copy and the Mods page reads the first, so the two can show different values for the same setting."
   },
+  "serverChangedBanner": {
+    "title": "Active server changed",
+    "desc": "The active server changed while this page was open. The settings below are still from the previous server -- reload before saving, or the save would overwrite the new active server's config."
+  },
   "pageHeader": {
     "title": "Server Configuration",
     "description": "Edit the live INI, sandbox, spawn, and mod settings for this server.",
@@ -338,6 +342,7 @@
   "toasts": {
     "error": "Error",
     "loadConfigFailed": "Failed to load server config.",
+    "serverChangedSinceLoad": "The active server changed since this page loaded. Reload before saving to avoid overwriting the wrong server.",
     "invalidIniTitle": "Invalid server settings",
     "invalidSandboxTitle": "Invalid Sandbox values",
     "fixSettings": "Fix: {{settings}}",
