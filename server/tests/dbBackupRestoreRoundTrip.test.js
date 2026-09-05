@@ -214,17 +214,27 @@ describe("db.json backup -> restore round trip: real code paths, not hand-crafte
     const totalBackups = 8; // MAX_BACKUPS (5) + 3
     for (let i = 0; i < totalBackups; i++) {
       // Distinguishable content per call -- proves WHICH backups survived
-      // pruning, not merely how many files remain (a filename-timestamp
-      // collision between two calls would silently reduce the real count
-      // below `totalBackups` while still passing a count-only check).
+      // pruning, not merely how many files remain. This loop runs fast
+      // enough (no real delay between calls) that two iterations landing in
+      // the same millisecond is a real, reproduced-on-Linux occurrence, not
+      // a hypothetical -- createBackup() now disambiguates with a
+      // "-<n>" collision suffix (2026-09-05 fix) instead of one silently
+      // overwriting the other, which is exactly why the filter below has to
+      // recognize both the unsuffixed and suffixed shapes.
       await setSetting("rotationMarker", `backup-number-${i}`);
       const result = await createDatabaseBackup();
       expect(result.success).toBe(true);
     }
 
+    // Matches "...-manual.json" AND "...-manual-2.json"/"-manual-3.json"
+    // etc. -- a bare .endsWith("-manual.json") misses every
+    // collision-suffixed survivor and undercounts real backups as pruned
+    // when they were not (caught this exact mistake in this test itself
+    // while investigating a gate failure: real production behavior was
+    // correct, this filter just couldn't see half of it).
     const manualBackups = fs
       .readdirSync(backupDir)
-      .filter((f) => f.endsWith("-manual.json"))
+      .filter((f) => /-manual(-\d+)?\.json$/.test(f))
       .sort();
     expect(manualBackups).toHaveLength(5);
 

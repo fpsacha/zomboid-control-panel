@@ -605,7 +605,32 @@ function createBackup(label = "") {
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const suffix = label ? `-${label}` : "";
-    const backupFile = path.join(backupDir, `db-${timestamp}${suffix}.json`);
+    // Same collision-suffix convention as utils/configBackup.js's
+    // createBackup() (2026-08-27/29 fix, "backups: the pruner still deletes
+    // the newest backup on Linux") -- toISOString() is millisecond-
+    // resolution, and several backups created in a tight loop (an
+    // automation script, or simply no real disk latency between calls) can
+    // land in the exact same millisecond. Without this, that collision
+    // produces the IDENTICAL filename and fs.copyFileSync silently
+    // OVERWRITES the earlier backup -- reported success:true on both calls,
+    // no error, no warning, earlier backup unrecoverably gone. This exact
+    // ring never got the fix configBackup.js's already did: reproduced live
+    // (2026-09-05, backup-restore-round-trip hunt), a plain sequential
+    // 8-call loop with no concurrency at all collided repeatedly on real
+    // Linux (WSL/ext4), losing several of the 8 backups before pruning ever
+    // ran. -2, -3, ... on an actual collision; the first backup at a given
+    // (timestamp, label) keeps the old, unsuffixed name. pruneBackups()/
+    // listBackupsNewestFirst() below are updated to parse and sort by this
+    // suffix too -- a raw string sort would put "-2.json" before ".json"
+    // ('-' < '.'), the same misordering configBackup.js's pruner had before
+    // its own fix.
+    let backupFile = path.join(backupDir, `db-${timestamp}${suffix}.json`);
+    for (let collision = 2; fs.existsSync(backupFile); collision++) {
+      backupFile = path.join(
+        backupDir,
+        `db-${timestamp}${suffix}-${collision}.json`,
+      );
+    }
 
     fs.copyFileSync(dbPath, backupFile);
     // Backups contain the same secrets as db.json — tighten perms.
@@ -622,13 +647,40 @@ function createBackup(label = "") {
   }
 }
 
+// Same (timestampKey, collisionSuffix)-parsing convention as
+// utils/configBackup.js's listBackupsFor()/parseBackupName() -- see
+// createBackup()'s own comment above for why a raw filename string sort
+// isn't safe here: "-2.json" sorts BEFORE ".json" ('-' < '.'), which would
+// treat a collision's later duplicate as older than the original it
+// collided with. Collision suffixes are always digits and neither the
+// timestamp (always ends in literal "Z") nor any real label
+// (auto/manual/startup/shutdown, always alphabetic) can produce a trailing
+// all-digit segment, so a plain trailing "-<digits>" is unambiguous.
+const BACKUP_COLLISION_SUFFIX_RE = /^(.*)-(\d+)$/;
+
+function sortBackupFilenamesNewestFirst(filenames) {
+  return filenames
+    .map((name) => {
+      const withoutExt = name.slice(0, -".json".length);
+      const match = withoutExt.match(BACKUP_COLLISION_SUFFIX_RE);
+      return match
+        ? { name, key: match[1], suffix: parseInt(match[2], 10) }
+        : { name, key: withoutExt, suffix: 1 };
+    })
+    .sort((a, b) => {
+      if (a.key !== b.key) return a.key < b.key ? 1 : -1; // newest first
+      return b.suffix - a.suffix; // higher collision suffix = created later
+    })
+    .map((c) => c.name);
+}
+
 function pruneBackups() {
   try {
-    const files = fs
-      .readdirSync(backupDir)
-      .filter((f) => f.startsWith("db-") && f.endsWith(".json"))
-      .sort()
-      .reverse();
+    const files = sortBackupFilenamesNewestFirst(
+      fs
+        .readdirSync(backupDir)
+        .filter((f) => f.startsWith("db-") && f.endsWith(".json")),
+    );
 
     for (const file of files.slice(MAX_BACKUPS)) {
       fs.unlinkSync(path.join(backupDir, file));
@@ -644,12 +696,12 @@ function pruneBackups() {
 // mean the whole ring is abandoned.
 function listBackupsNewestFirst() {
   try {
-    return fs
+    const files = fs
       .readdirSync(backupDir)
-      .filter((f) => f.startsWith("db-") && f.endsWith(".json"))
-      .sort()
-      .reverse()
-      .map((f) => path.join(backupDir, f));
+      .filter((f) => f.startsWith("db-") && f.endsWith(".json"));
+    return sortBackupFilenamesNewestFirst(files).map((f) =>
+      path.join(backupDir, f),
+    );
   } catch {
     log.debug(`No backups found to list`);
     return [];
