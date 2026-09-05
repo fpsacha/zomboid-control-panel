@@ -703,8 +703,19 @@ rem ============================================================
   rem same value on Windows, same posture as the binary. Per-file hashing
   rem uses the .NET SHA256 type directly rather than Get-FileHash, for the
   rem same reason the binary check above does now -- see its comment.
+  rem main-is-red, 2026-09-05: the SECOND, genuine (not Get-FileHash-
+  rem related) mismatch this raised on the same clean runner -- reproduced
+  rem locally once the diagnostic showed a relative path missing its
+  rem leading character ("ndex.html" instead of "index.html"). Cause:
+  rem journal.paths.stagedClient can carry a trailing separator (confirmed
+  rem by deliberately feeding one in a test), and Resolve-Path's .Path does
+  rem NOT strip it -- so $root.Length was one character too long, and
+  rem Substring($root.Length + 1) on Get-ChildItem's own FullName (which
+  rem has no such redundant separator) cut one character too many.
+  rem TrimEnd() on both possible separator characters closes this
+  rem regardless of which form (or none) the journal path arrives in.
   set "STAGED_CLIENT_HASH_STATUS="
-  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path; $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
+  for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Resolve-Path -LiteralPath $env:STAGED_CLIENT).Path.TrimEnd([char]92,[char]47); $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
 
   if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
     if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -81,6 +82,20 @@ describe("versioned panel update bundles", () => {
     expect(journal.phase).toBe("staged");
     expect(journal.metadata).toEqual(metadata());
     expect(fs.existsSync(path.join(journal.paths.stagedClient, "index.html"))).toBe(true);
+  });
+
+  // main-is-red, 2026-09-05: clientFiles exists purely so a genuine
+  // clientSha256 disagreement on Windows can be compared, file by file,
+  // against what Node actually hashed -- pins its shape and content so it
+  // can't silently drift from what sha256Directory() really produces.
+  it("records the per-file (path, hash) pairs it hashed alongside clientSha256", () => {
+    const { journalPath } = prepareBundle();
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+
+    expect(journal.hashes.clientFiles).toEqual([
+      `build-info.json:${crypto.createHash("sha256").update(JSON.stringify(metadata())).digest("hex")}`,
+      `index.html:${crypto.createHash("sha256").update("new-client").digest("hex")}`,
+    ]);
   });
 
   it("retains both backups until the new backend acknowledges startup", () => {

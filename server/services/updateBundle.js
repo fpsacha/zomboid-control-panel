@@ -45,8 +45,17 @@ function sha256File(filePath) {
 // Start.bat (Windows, no Node available at apply time). Ordinal is the one
 // ordering both runtimes can reproduce byte-for-byte without agreeing on a
 // locale.
+// main-is-red, 2026-09-05: returns { hash, pairs } instead of just the
+// combined hash. `pairs` (one "relativePath:fileHash" string per file,
+// same ordinal order and format the PowerShell mirror in build.js's
+// Start.bat now logs on a mismatch) exists purely for side-by-side
+// diagnosis -- stageUpdateBundle() below persists it into the journal
+// specifically so a real mismatch on Windows can be compared against what
+// Node actually hashed, without needing to re-derive it after the fact
+// from a staged directory that may no longer exist by the time anyone
+// looks.
 function sha256Directory(dirPath) {
-  const parts = [];
+  const pairs = [];
   const walk = (dir, rel) => {
     const entries = fs
       .readdirSync(dir, { withFileTypes: true })
@@ -57,7 +66,7 @@ function sha256Directory(dirPath) {
       if (entry.isDirectory()) {
         walk(absolutePath, relativePath);
       } else if (entry.isFile()) {
-        parts.push(`${relativePath}\0${sha256File(absolutePath)}\n`);
+        pairs.push(`${relativePath}:${sha256File(absolutePath)}`);
       } else {
         throw updateError(
           "invalid_bundle",
@@ -67,7 +76,14 @@ function sha256Directory(dirPath) {
     }
   };
   walk(dirPath, "");
-  return crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+  const parts = pairs.map((pair) => {
+    const separatorIndex = pair.indexOf(":");
+    const relativePath = pair.slice(0, separatorIndex);
+    const fileHash = pair.slice(separatorIndex + 1);
+    return `${relativePath}\0${fileHash}\n`;
+  });
+  const hash = crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+  return { hash, pairs };
 }
 
 function readJson(filePath, errorCode = "invalid_bundle") {
@@ -352,7 +368,7 @@ export function stageUpdateBundle({
   fs.rmSync(stagedClientPath, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(stagedClientPath), { recursive: true });
   fs.cpSync(incomingClientPath, stagedClientPath, { recursive: true });
-  const clientSha256 = sha256Directory(stagedClientPath);
+  const { hash: clientSha256, pairs: clientFiles } = sha256Directory(stagedClientPath);
 
   const journal = {
     schemaVersion: 1,
@@ -362,7 +378,11 @@ export function stageUpdateBundle({
     stagedAt: new Date().toISOString(),
     installDir: resolvedInstallDir,
     metadata: expectedMetadata,
-    hashes: { binarySha256, clientSha256 },
+    // clientFiles is diagnostic only (main-is-red, 2026-09-05) -- never
+    // read back for verification, only for comparing against the
+    // PowerShell mirror's own pairs list when clientSha256 disagrees on
+    // Windows despite both sides computing the identical algorithm.
+    hashes: { binarySha256, clientSha256, clientFiles },
     paths: {
       binary: path.resolve(binaryPath),
       stagedBinary: path.resolve(stagedBinaryPath),
@@ -423,7 +443,7 @@ export function applyUpdateBundle(journalPath) {
   }
   let stagedClientHash;
   try {
-    stagedClientHash = sha256Directory(paths.stagedClient);
+    ({ hash: stagedClientHash } = sha256Directory(paths.stagedClient));
   } catch (error) {
     if (error?.code === "ENOENT") {
       throw updateError("av_quarantine", "Staged client bundle is missing", error);

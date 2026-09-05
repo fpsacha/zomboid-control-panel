@@ -125,8 +125,13 @@ function setupStub(dir, exitCodes, sleepMsList) {
 // Duplicated rather than imported to keep this file's fixtures independent
 // of updateBundle.js internals, matching how binarySha256 below already
 // replicates sha256File()'s algorithm inline instead of importing it.
+// Returns { hash, pairs } -- pairs (one "relPath:fileHash" string per file)
+// mirrors updateBundle.js's own sha256Directory() return shape (main-is-red,
+// 2026-09-05), so this fixture's journal can carry the same clientFiles
+// diagnostic the real stageUpdateBundle() now writes, for comparison
+// against the PowerShell mirror's own pairs on a genuine mismatch.
 function sha256DirectoryForFixture(dirPath) {
-  const parts = [];
+  const pairs = [];
   const walk = (dir, rel) => {
     const entries = fs
       .readdirSync(dir, { withFileTypes: true })
@@ -141,12 +146,19 @@ function sha256DirectoryForFixture(dirPath) {
           .createHash("sha256")
           .update(fs.readFileSync(absolutePath))
           .digest("hex");
-        parts.push(`${relativePath}\0${fileHash}\n`);
+        pairs.push(`${relativePath}:${fileHash}`);
       }
     }
   };
   walk(dirPath, "");
-  return crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+  const parts = pairs.map((pair) => {
+    const separatorIndex = pair.indexOf(":");
+    const relativePath = pair.slice(0, separatorIndex);
+    const fileHash = pair.slice(separatorIndex + 1);
+    return `${relativePath}\0${fileHash}\n`;
+  });
+  const hash = crypto.createHash("sha256").update(parts.join(""), "utf8").digest("hex");
+  return { hash, pairs };
 }
 
 function setupPendingUpdate(dir) {
@@ -171,11 +183,11 @@ function setupPendingUpdate(dir) {
     .createHash("sha256")
     .update(fs.readFileSync(stagedBinaryPath))
     .digest("hex");
-  const clientSha256 = sha256DirectoryForFixture(stagedClientPath);
+  const { hash: clientSha256, pairs: clientFiles } = sha256DirectoryForFixture(stagedClientPath);
   fs.writeFileSync(
     path.join(dir, "update-bundle.json"),
     JSON.stringify({
-      hashes: { binarySha256, clientSha256 },
+      hashes: { binarySha256, clientSha256, clientFiles },
       paths: { stagedClient: stagedClientPath },
     }),
   );
@@ -306,6 +318,29 @@ function countLaunches(stdout) {
 function readSupervisorLog(dir) {
   const p = path.join(dir, "logs", "supervisor.log");
   return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
+}
+
+// main-is-red, 2026-09-05: the supervisor log alone was not enough to
+// diagnose a genuine (non-Get-FileHash) client-hash mismatch on the CI
+// runner -- Start.bat's PowerShell mirror now logs the pairs it computed
+// on a mismatch, but Node's own pairs (what setupPendingUpdate() actually
+// hashed into the journal) were nowhere to be seen for comparison. This
+// combines both into one diagnostic string for waitForCondition() to
+// attach to a timeout, so a real failure shows the two (path, hash) lists
+// side by side instead of requiring the journal to be fetched separately.
+function readSupervisorLogWithJournalDiagnostic(dir) {
+  const log = readSupervisorLog(dir);
+  const journalPath = path.join(dir, "update-bundle.json");
+  let journalFiles = "(update-bundle.json not present)";
+  if (fs.existsSync(journalPath)) {
+    try {
+      const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+      journalFiles = JSON.stringify(journal.hashes?.clientFiles ?? null);
+    } catch (error) {
+      journalFiles = `(could not parse update-bundle.json: ${error.message})`;
+    }
+  }
+  return `${log}\n--- journal hashes.clientFiles (what Node hashed) ---\n${journalFiles}`;
 }
 
 // Real elapsed seconds between the FIRST log line matching `pattern` and
@@ -776,6 +811,75 @@ describe.skipIf(!!skipReason)(
       75000,
     );
 
+    // main-is-red, 2026-09-05: a genuine (not Get-FileHash-related) client
+    // hash mismatch reproduced on a clean GitHub windows-2022 runner and
+    // never once locally -- god's candidate theories were Resolve-Path
+    // canonicalizing a runner temp path (case, 8.3 short name, trailing
+    // separator) into something that no longer lines up with
+    // Get-ChildItem's own FullName values, corrupting the
+    // Substring($root.Length + 1) cut used to build each relative path.
+    // Reproduced locally: a trailing separator on journal.paths.stagedClient
+    // is NOT stripped by Resolve-Path's .Path, so $root.Length ends up one
+    // character too long and the cut drops the relative path's leading
+    // character ("ndex.html" instead of "index.html"). Case was checked
+    // too and confirmed NOT a factor on its own -- Get-ChildItem's FullName
+    // values are built by appending each child name to $root's own string,
+    // so they always share $root's exact casing by construction; per-file
+    // content hashes came back correct even with $root entirely
+    // upper-cased in an earlier version of this test, only the relative
+    // path was ever corrupted, and only by the trailing separator. Forward
+    // slashes were also tried combined with the above and found to break a
+    // DIFFERENT, later step (the actual frontend "move") rather than this
+    // check -- not exercised here since Node's path module never emits
+    // forward slashes on Windows for this field in the first place, making
+    // it a much less realistic input than a trailing separator.
+    it(
+      "verifies the staged client bundle correctly even when its journal path has a trailing separator Resolve-Path does not strip",
+      async () => {
+        const dir = freshScenarioDir("client-noncanonical-path");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir);
+
+        // Trailing separator only, backslash direction and case otherwise
+        // untouched -- the actual "move" step later in :apply_update uses
+        // this same journal value directly on its source path, and a more
+        // aggressively mangled one (forward slashes, upper-cased) breaks
+        // THAT step too, which is a real but separate concern from the
+        // hash check this test targets. A bare trailing separator is
+        // exactly what Resolve-Path was observed not to strip, and is
+        // otherwise a value "move" tolerates fine.
+        const journalPath = path.join(dir, "update-bundle.json");
+        const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+        const canonicalStagedClient = journal.paths.stagedClient;
+        journal.paths.stagedClient = `${canonicalStagedClient}\\`;
+        fs.writeFileSync(journalPath, JSON.stringify(journal));
+
+        const result = await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          60000,
+        );
+
+        expect(result.status).toBe(0);
+        const log = readSupervisorLogWithJournalDiagnostic(dir);
+        // Scoped to the hash check itself, not the whole apply pipeline: a
+        // trailing separator on this same journal value ALSO breaks the
+        // later "move" step (cmd.exe's move does not tolerate one on a
+        // directory source either) -- a real, separate, and much less
+        // consequential finding (the actual stageUpdateBundle() never
+        // produces a trailing separator here, unlike Resolve-Path's own
+        // failure to strip one, which is the thing this test exists to
+        // guard). Not fixed here to stay scoped to the hash check; "backing
+        // up" appearing at all is proof the hash check itself passed,
+        // since build.js only logs a hash check line on FAILURE.
+        expect(log).not.toMatch(/hash_unverifiable/i);
+        expect(log).not.toMatch(/MISMATCH/i);
+        expect(log).toMatch(/Apply: backing up/i);
+      },
+      75000,
+    );
+
     it(
       "rolls back instead of launching when the pending marker cannot become the applying marker",
       async () => {
@@ -801,7 +905,7 @@ describe.skipIf(!!skipReason)(
               /could not move pending marker/i.test(readSupervisorLog(dir)),
             30000,
             "the supervisor to report the marker transition failure",
-            () => readSupervisorLog(dir),
+            () => readSupervisorLogWithJournalDiagnostic(dir),
           );
         } finally {
           allowDelete(markerPath);
@@ -846,7 +950,7 @@ describe.skipIf(!!skipReason)(
             () => fs.existsSync(backupPath),
             30000,
             "the binary backup to be created",
-            () => readSupervisorLog(dir),
+            () => readSupervisorLogWithJournalDiagnostic(dir),
           );
           denyDelete(backupPath);
           permissionApplied = true;
@@ -909,7 +1013,7 @@ describe.skipIf(!!skipReason)(
               /could not back up live frontend/i.test(readSupervisorLog(dir)),
             30000,
             "the supervisor to report the client backup failure",
-            () => readSupervisorLog(dir),
+            () => readSupervisorLogWithJournalDiagnostic(dir),
           );
         } finally {
           holder.kill();
@@ -988,7 +1092,7 @@ describe.skipIf(!!skipReason)(
             () => fs.existsSync(backupPath),
             30000,
             "the binary backup to be created",
-            () => readSupervisorLog(dir),
+            () => readSupervisorLogWithJournalDiagnostic(dir),
           );
           fs.rmSync(backupPath, { force: true });
         } finally {
