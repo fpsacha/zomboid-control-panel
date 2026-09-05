@@ -224,8 +224,27 @@ jobs:
       # have shipped fully green. A platform-gated test not wired into any
       # job that actually runs on that platform reads as coverage in the
       # tree but provides none.
+      #
+      # serverManagerEmptyScanWindows.test.js (all 8 cases) and
+      # serverManager-stopTimeout.test.js:163 (the win32 half of its
+      # platform-contract describe block) have the same defect, added here
+      # 2026-09-05: win32-gated, and this was still the only
+      # windows-runs-on job before this line, but neither file was listed.
+      # serverManagerEmptyScanWindows's subject is a real Discord-reported
+      # field regression (an empty ConvertTo-Csv on a genuinely-stopped
+      # server misread as a failed scan, so every fail-closed guard,
+      # /wipe included, refused forever on Windows) -- its regression test
+      # was never actually executed by CI.
+      #
+      # setDataPaths.test.js, same session: its one win32-gated case (the
+      # sole test of BLOCKED_PREFIXES) ran on no CI job either -- CI's only
+      # non-Windows-latest job for this file is ubuntu. Listed here so the
+      # BLOCKED_PREFIXES contract that four codeql[js/path-injection]
+      # suppressions cite as their justification is actually exercised, not
+      # assumed. The rest of the file's tests are platform-independent and
+      # unaffected by running here too.
       - name: Exercise bundle transaction and generated supervisor
-        run: npx vitest run server/tests/panelUpdateBundle.test.js server/tests/supervisor-restart.test.js server/tests/serverManagerSpacedPathCmdQuoting.test.js server/tests/serverManagerWindowsSpawnFixes.test.js server/tests/serverManagerCustomStartCommandQuoting.test.js server/tests/serverManagerCommandLineRoundTrip.test.js
+        run: npx vitest run server/tests/panelUpdateBundle.test.js server/tests/supervisor-restart.test.js server/tests/serverManagerSpacedPathCmdQuoting.test.js server/tests/serverManagerWindowsSpawnFixes.test.js server/tests/serverManagerCustomStartCommandQuoting.test.js server/tests/serverManagerCommandLineRoundTrip.test.js server/tests/serverManagerEmptyScanWindows.test.js server/tests/serverManager-stopTimeout.test.js server/tests/setDataPaths.test.js
 
       - name: Build packaged Windows executable
         run: node build.js --windows

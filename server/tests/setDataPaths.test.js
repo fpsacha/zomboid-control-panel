@@ -39,8 +39,16 @@ describe("setDataPaths: path validation", () => {
     expect(result.error).toMatch(/absolute/i);
   });
 
-  it("still rejects a path under a blocked system directory (unchanged behavior)", async () => {
-    if (process.platform !== "win32") return; // BLOCKED_PREFIXES is platform-specific
+  it("still rejects a path under a blocked system directory (unchanged behavior)", async (ctx) => {
+    // Reports an actual SKIP, not a bare `return`: a bare return here still
+    // counts as a PASS with zero assertions run, which is exactly what every
+    // ubuntu-only CI run of this file produced -- CI never runs it on
+    // win32, so this, the sole test of BLOCKED_PREFIXES, silently passed
+    // without checking anything (emptying BLOCKED_PREFIXES entirely still
+    // gave a green tick), while four codeql[js/path-injection] suppressions
+    // elsewhere cite this test as their justification. See the
+    // windows-packaged-updater CI job, which now runs this file for real.
+    if (process.platform !== "win32") return ctx.skip(); // BLOCKED_PREFIXES is platform-specific
     const result = await setDataPaths({ dataDir: "C:\\Windows\\zcp-test" }, false);
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/protected system directory/i);

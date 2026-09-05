@@ -40,15 +40,22 @@ describe("computeInlineScriptCspHash — present and matching", () => {
     expect(result).toBe(`'sha256-${expectedHash}'`);
   });
 
-  it("matches the real client/dist/index.html shipped with this repo, if it has been built", () => {
+  it("matches the real client/dist/index.html shipped with this repo, if it has been built", (ctx) => {
     // Not mocked — reads the real built file to prove this isn't just
     // correct against a hand-crafted fixture. Skips itself if the client
     // hasn't been built in this environment, rather than failing for an
     // unrelated reason.
+    //
+    // Reports an actual SKIP (ctx.skip()), not a bare `return`: a bare
+    // return here still counts as a PASS with zero assertions run, which is
+    // exactly what every ubuntu CI checkout produced (client/dist is
+    // gitignored and the server job never builds the client) -- a garbage
+    // hash would have given the same green tick. A real skip shows up as
+    // skipped in the run summary instead of silently inflating the pass count.
     const here = path.dirname(fileURLToPath(import.meta.url));
     const realDistPath = path.join(here, "..", "..", "client", "dist");
     const realIndexPath = path.join(realDistPath, "index.html");
-    if (!fs.existsSync(realIndexPath)) return; // client not built in this environment
+    if (!fs.existsSync(realIndexPath)) return ctx.skip(); // client not built in this environment
 
     const html = fs.readFileSync(realIndexPath, "utf8");
     const match = /<script>([\s\S]*?)<\/script>/.exec(html);
