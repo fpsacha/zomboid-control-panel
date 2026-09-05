@@ -180,13 +180,21 @@ function holdFileOpenWithoutDelete(filePath, durationSeconds) {
   });
 }
 
-async function waitForCondition(check, timeoutMs, description) {
+// main-is-red, 2026-09-05: four tests in this file were timing out here on
+// a clean GitHub windows-2022 runner with nothing but "Timed out waiting
+// for X" to go on -- no visibility into what the supervisor actually did
+// (or didn't do) before giving up. getDiagnostic is optional so existing
+// call sites are unaffected; passing it in lets a future timeout name the
+// actual state (typically readSupervisorLog(dir)) instead of leaving that
+// to be re-diagnosed by hand from a bare timeout every time.
+async function waitForCondition(check, timeoutMs, description, getDiagnostic) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (check()) return true;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`Timed out waiting for ${description}`);
+  const diagnostic = getDiagnostic ? `\n--- supervisor.log at timeout ---\n${getDiagnostic()}` : "";
+  throw new Error(`Timed out waiting for ${description}${diagnostic}`);
 }
 
 // Async, not spawnSync -- spawnSync's own timeout only SIGTERMs the direct
@@ -751,6 +759,7 @@ describe.skipIf(!!skipReason)(
               /could not move pending marker/i.test(readSupervisorLog(dir)),
             30000,
             "the supervisor to report the marker transition failure",
+            () => readSupervisorLog(dir),
           );
         } finally {
           allowDelete(markerPath);
@@ -795,6 +804,7 @@ describe.skipIf(!!skipReason)(
             () => fs.existsSync(backupPath),
             30000,
             "the binary backup to be created",
+            () => readSupervisorLog(dir),
           );
           denyDelete(backupPath);
           permissionApplied = true;
@@ -857,6 +867,7 @@ describe.skipIf(!!skipReason)(
               /could not back up live frontend/i.test(readSupervisorLog(dir)),
             30000,
             "the supervisor to report the client backup failure",
+            () => readSupervisorLog(dir),
           );
         } finally {
           holder.kill();
@@ -935,6 +946,7 @@ describe.skipIf(!!skipReason)(
             () => fs.existsSync(backupPath),
             30000,
             "the binary backup to be created",
+            () => readSupervisorLog(dir),
           );
           fs.rmSync(backupPath, { force: true });
         } finally {
