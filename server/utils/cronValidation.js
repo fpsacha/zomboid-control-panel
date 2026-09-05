@@ -12,14 +12,42 @@ import cron from "node-cron";
 // what the constructor accepts (it omits some valid legacy/alias names
 // Intl still resolves correctly), so using it here would reject values a
 // real install could have been using safely for years.
+//
+// 2026-09-05, scheduler-time-audit follow-up: that reasoning is sound for
+// legacy alias NAMES that still track a real region's actual DST calendar
+// (e.g. a renamed zone Intl still resolves) -- it was never meant to cover a
+// BARE NUMERIC OFFSET, which isn't an alias for a place and tracks no DST
+// calendar at all. The constructor above happens to accept those too
+// (confirmed: `new Intl.DateTimeFormat("en-US", { timeZone: "-05:00" })`
+// does not throw), so before this fix a value like "-05:00" would pass this
+// check and get handed to cron.schedule() as a fixed, DST-blind offset --
+// not the "fires twice/never" shape a real DST-observing zone risks, but a
+// quieter one: every schedule on that install would silently and
+// permanently drift by an hour from the operator's actual local time across
+// every DST transition, forever, with nothing to notice it by. Rejecting
+// only the bare-offset syntax below closes that gap without touching the
+// alias leniency fd346578 deliberately chose -- every legacy NAME that
+// commit was protecting still passes.
+const RAW_OFFSET_TIMEZONE_RE = /^(?:UTC|GMT)?[+-]\d{1,2}(?::?\d{2})?$/i;
+
 export function isValidIanaTimezone(tz) {
   if (typeof tz !== "string" || !tz.trim()) return false;
+  const trimmed = tz.trim();
+  if (RAW_OFFSET_TIMEZONE_RE.test(trimmed)) return false;
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: tz });
     return true;
   } catch {
     return false;
   }
+}
+
+// True only for a value that isValidIanaTimezone() rejects specifically
+// because it's a bare numeric offset -- lets a caller give a more specific,
+// actionable log/error message than the generic "not a valid IANA zone" one
+// for this one particular, previously-silently-accepted shape.
+export function isRawOffsetTimezone(tz) {
+  return typeof tz === "string" && RAW_OFFSET_TIMEZONE_RE.test(tz.trim());
 }
 
 export function hasUnsupportedCronFieldCount(expression) {

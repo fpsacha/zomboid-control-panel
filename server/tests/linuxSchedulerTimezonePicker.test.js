@@ -230,6 +230,35 @@ describe("Scheduler timezone fallback: a stored zone that stops being valid fail
     expect(scheduled).not.toBe(false);
     scheduler.jobs.get(7).stop();
   });
+
+  // 2026-09-05, scheduler-time-audit: a bare offset ("-05:00") used to pass
+  // isValidIanaTimezone() and get kept forever -- it never becomes invalid
+  // on its own (no tzdata entry to remove), so an install that already had
+  // one saved would silently drift by an hour every DST transition with no
+  // warning at all. Now that the validator rejects it, this hits the SAME
+  // fallback path as the corrupted-name case above, but must say something
+  // specific to a raw offset -- "tzdata removed a deprecated name" would be
+  // actively misleading here, since nothing was ever a real name to begin
+  // with.
+  it("names the specific raw-offset problem, not the generic 'invalid zone' message, when an install already saved one", async () => {
+    settingsStore.set("schedulerTimezone", "-05:00");
+    const scheduler = makeScheduler();
+    const processDefault = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    const resolved = await scheduler.resolveTimezone();
+
+    expect(resolved).toBe(processDefault);
+    expect(scheduler.timezoneFallback).toEqual({
+      configured: "-05:00",
+      effective: processDefault,
+    });
+    expect(logError).toHaveBeenCalledWith(
+      expect.stringMatching(/fixed UTC offset, not a real timezone/i),
+    );
+    expect(logError).not.toHaveBeenCalledWith(
+      expect.stringMatching(/deprecated name|restored from a different machine/i),
+    );
+  });
 });
 
 describe("Scheduler timezone: ALL THREE schedule kinds resolve to the SAME zone", () => {

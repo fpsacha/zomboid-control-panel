@@ -30,6 +30,7 @@ import {
   isCronTooFrequent,
   isSupportedFiveFieldCron,
   isValidIanaTimezone,
+  isRawOffsetTimezone,
 } from "../utils/cronValidation.js";
 import {
   defaultRestartWarningSettings,
@@ -272,8 +273,18 @@ export class Scheduler {
     this.configuredTimezone = stored;
 
     if (!isValidIanaTimezone(stored)) {
+      // 2026-09-05, scheduler-time-audit: a bare offset like "-05:00" used
+      // to pass isValidIanaTimezone() and get silently kept forever (it
+      // never becomes invalid on its own -- there's no tzdata entry to
+      // remove). Now that the validator rejects it, an install that already
+      // had one saved needs a message that says so specifically, not the
+      // generic "deprecated name / restored database" one, which would be
+      // actively misleading here: nothing was removed or restored, this
+      // value was never a real zone to begin with.
       log.error(
-        `Configured scheduler timezone "${stored}" is not a valid IANA zone (tzdata may have removed a deprecated name, or this database was restored from a different machine) -- falling back to ${processDefault} so schedules keep firing. Fix this in Scheduler settings.`,
+        isRawOffsetTimezone(stored)
+          ? `Configured scheduler timezone "${stored}" is a fixed UTC offset, not a real timezone -- it never observes daylight saving, so every schedule on this install has been silently drifting by an hour from the operator's actual local time across each DST transition. Falling back to ${processDefault} so schedules keep firing. Pick a real zone (e.g. "America/New_York") in Scheduler settings.`
+          : `Configured scheduler timezone "${stored}" is not a valid IANA zone (tzdata may have removed a deprecated name, or this database was restored from a different machine) -- falling back to ${processDefault} so schedules keep firing. Fix this in Scheduler settings.`,
       );
       this.timezoneFallback = { configured: stored, effective: processDefault };
       this.effectiveTimezone = processDefault;
