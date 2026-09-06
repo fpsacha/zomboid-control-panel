@@ -527,6 +527,8 @@
     "remove_other": "移除 {{count}} 个模组"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server changed while you had an unsaved mod order. Discard or keep editing -- saving now would write it to the wrong server.",
     "noActiveServerTitle": "没有活动服务器",
     "noActiveServerDesc": "请先选择本地服务器，再选择创意工坊文件夹。",
     "remoteServerTitle": "远程服务器",

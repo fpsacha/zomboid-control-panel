@@ -82,15 +82,42 @@
     "groupMods": "Mods",
     "groupAdd": "Ajoute",
     "groupMaintenance": "Antretyen",
-    "installed": { "label": "Enstale", "hint": "Atik Workshop panèl sa a swiv pou mizajou" },
-    "active": { "label": "Aktif sou sèvè a", "hint": "Sa konfig sèvè a chaje vrèman" },
-    "deactivated": { "label": "Dezaktive", "hint": "Atik swiv ki koupe kounye a" },
-    "add": { "label": "Ajoute mods", "hint": "Ajoute pa Workshop ID oswa URL" },
-    "collection": { "label": "Enpòte koleksyon", "hint": "Pran tout atik nan yon koleksyon Steam" },
-    "order": { "label": "Òd chajman", "hint": "Òd mods chaje ladan l" },
-    "conflicts": { "label": "Konfli", "hint": "Konfli ak depandans ki manke" },
-    "presets": { "label": "Preset", "hint": "Sove ak retabli seri mods" },
-    "tools": { "label": "Zouti", "hint": "Repare, retire doublon, ak netwaye" }
+    "installed": {
+      "label": "Enstale",
+      "hint": "Atik Workshop panèl sa a swiv pou mizajou"
+    },
+    "active": {
+      "label": "Aktif sou sèvè a",
+      "hint": "Sa konfig sèvè a chaje vrèman"
+    },
+    "deactivated": {
+      "label": "Dezaktive",
+      "hint": "Atik swiv ki koupe kounye a"
+    },
+    "add": {
+      "label": "Ajoute mods",
+      "hint": "Ajoute pa Workshop ID oswa URL"
+    },
+    "collection": {
+      "label": "Enpòte koleksyon",
+      "hint": "Pran tout atik nan yon koleksyon Steam"
+    },
+    "order": {
+      "label": "Òd chajman",
+      "hint": "Òd mods chaje ladan l"
+    },
+    "conflicts": {
+      "label": "Konfli",
+      "hint": "Konfli ak depandans ki manke"
+    },
+    "presets": {
+      "label": "Preset",
+      "hint": "Sove ak retabli seri mods"
+    },
+    "tools": {
+      "label": "Zouti",
+      "hint": "Repare, retire doublon, ak netwaye"
+    }
   },
   "collectionDialog": {
     "title": "Enpòte Koleksyon Steam Workshop",
@@ -500,6 +527,8 @@
     "remove_other": "Retire {{count}} mods"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server changed while you had an unsaved mod order. Discard or keep editing -- saving now would write it to the wrong server.",
     "noActiveServerTitle": "Pa gen sèvè aktif",
     "noActiveServerDesc": "Chwazi yon sèvè lokal anvan w chwazi yon dosye workshop.",
     "remoteServerTitle": "Sèvè aleka",

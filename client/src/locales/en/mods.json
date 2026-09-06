@@ -500,6 +500,8 @@
     "remove_other": "Remove {{count}} mods"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server changed while you had an unsaved mod order. Discard or keep editing -- saving now would write it to the wrong server.",
     "noActiveServerTitle": "No active server",
     "noActiveServerDesc": "Select a local server before choosing a workshop folder.",
     "remoteServerTitle": "Remote server",

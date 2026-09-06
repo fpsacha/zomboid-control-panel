@@ -298,6 +298,18 @@ export default function Mods() {
   const [orderedModIds, setOrderedModIds] = useState<string[]>([])
   const [selectedActiveWsId, setSelectedActiveWsId] = useState<string | null>(null)
   const [savingModOrder, setSavingModOrder] = useState(false)
+  // bug-hunt-2026-09-04/05: modsApi.saveModOrder(orderedModIds) takes no
+  // server id -- it resolves the active server fresh server-side per
+  // request, same pattern as ServerConfig's ini/sandbox routes. This page
+  // never listened for activeServerChanged at all (mount-only, see
+  // initializeData below), so the concrete scenario the overnight sweep
+  // confirmed was real: reorder mods on server A, switch to server B
+  // elsewhere, hit "Save Order" -- server A's list gets written into
+  // server B's real INI. Scoped to the confirmed Save Load Order path for
+  // now; the page's other write actions (writeToIni, batchRemove,
+  // deleteDiskMod, toggleModId, etc.) share the same no-server-id shape and
+  // are a flagged follow-up, not covered by this flag yet.
+  const [serverChangedSinceLoad, setServerChangedSinceLoad] = useState(false)
   const [autoSortPreview, setAutoSortPreview] = useState<AutoSortResult | null>(null)
   const [draggedModIndex, setDraggedModIndex] = useState<number | null>(null)
   // Expand/collapse states
@@ -1907,6 +1919,14 @@ export default function Mods() {
 
   const handleSaveModOrder = async () => {
     if (busyRef.current || !canManageMods) return
+    if (serverChangedSinceLoad) {
+      toast({
+        title: t('toasts.serverChangedSinceLoadTitle'),
+        description: t('toasts.serverChangedSinceLoadDesc'),
+        variant: 'destructive',
+      })
+      return
+    }
     busyRef.current = true
     try {
       setSavingModOrder(true)
@@ -1980,6 +2000,45 @@ export default function Mods() {
     if (orderedModIds.length !== iniConfig.modIds.length) return true // Different count = changed
     return orderedModIds.some((id, i) => id !== iniConfig.modIds[i])
   }, [orderedModIds, iniConfig?.modIds])
+
+  // See serverChangedSinceLoad's own comment above. Unlike the other
+  // mods:* socket events above (which always just refetch), fetchData()
+  // unconditionally overwrites orderedModIds from the server's real list --
+  // safe when there's no pending reorder, but a silent discard of the
+  // user's unsaved work if hasModOrderChanged is true. Mirrors Settings.tsx's
+  // dirty-guard shape for the reload itself, ServerConfig's block-and-warn
+  // shape for the save action above.
+  useEffect(() => {
+    if (!socket) return
+    const handleActiveServerChanged = () => {
+      if (hasModOrderChanged) {
+        setServerChangedSinceLoad(true)
+        toast({
+          title: t('toasts.serverChangedSinceLoadTitle'),
+          description: t('toasts.serverChangedSinceLoadDesc'),
+          variant: 'destructive',
+        })
+        return
+      }
+      fetchData()
+    }
+    socket.on('activeServerChanged', handleActiveServerChanged)
+    return () => {
+      socket.off('activeServerChanged', handleActiveServerChanged)
+    }
+  }, [socket, fetchData, hasModOrderChanged, toast, t])
+
+  // Once the user discards the stale reorder (the "Reset" button sets
+  // orderedModIds back to iniConfig.modIds, making hasModOrderChanged
+  // false again), the block above no longer applies -- clear it and pick
+  // up the new server's real data, same as the safe branch above would
+  // have done immediately if there'd been nothing to protect.
+  useEffect(() => {
+    if (serverChangedSinceLoad && !hasModOrderChanged) {
+      setServerChangedSinceLoad(false)
+      fetchData()
+    }
+  }, [serverChangedSinceLoad, hasModOrderChanged, fetchData])
 
   const removeFromInstallList = (workshopId: string) => {
     setModsToInstall(prev => prev.filter(m => m.workshopId !== workshopId))
@@ -5214,7 +5273,7 @@ export default function Mods() {
                           <span className="text-[11px] text-warning">{t('loadOrder.unsavedChanges')}</span>
                           <div className="flex gap-2">
                             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setAutoSortPreview(null); setOrderedModIds(iniConfig.modIds) }}>{t('loadOrder.reset')}</Button>
-                            <Button size="sm" className="h-8 text-xs" onClick={handleSaveModOrder} disabled={savingModOrder || !canManageMods}>
+                            <Button size="sm" className="h-8 text-xs" onClick={handleSaveModOrder} disabled={savingModOrder || !canManageMods || serverChangedSinceLoad}>
                               {savingModOrder ? <Loader2 className="w-3 h-3 me-1 animate-spin" /> : <Save className="w-3 h-3 me-1" />}
                               {t('loadOrder.saveOrder')}
                             </Button>

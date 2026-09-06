@@ -527,6 +527,8 @@
     "remove_other": "إزالة {{count}} من المودات"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server changed while you had an unsaved mod order. Discard or keep editing -- saving now would write it to the wrong server.",
     "noActiveServerTitle": "لا يوجد خادم نشط",
     "noActiveServerDesc": "اختر خادمًا محليًا قبل اختيار مجلد الورشة.",
     "remoteServerTitle": "خادم بعيد",

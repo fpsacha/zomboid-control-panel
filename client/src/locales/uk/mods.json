@@ -527,6 +527,8 @@
     "remove_other": "Вилучити {{count}} модів"
   },
   "toasts": {
+    "serverChangedSinceLoadTitle": "Active server changed",
+    "serverChangedSinceLoadDesc": "The active server changed while you had an unsaved mod order. Discard or keep editing -- saving now would write it to the wrong server.",
     "noActiveServerTitle": "Немає активного сервера",
     "noActiveServerDesc": "Вибери локальний сервер, перш ніж обирати папку Workshop.",
     "remoteServerTitle": "Віддалений сервер",
