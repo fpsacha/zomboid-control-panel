@@ -534,7 +534,18 @@ router.post(
 
       // Atomic write: stream to .tmp first, then rename. A crash during
       // upload won't leave a half-written .zip in the listing.
-      tmpPath = `${targetPath}.tmp`;
+      //
+      // The .tmp path itself is given a pid+random suffix (same convention
+      // as utils/fileWriteQueue.js), not just `${targetPath}.tmp` -- two
+      // uploads racing the SAME x-backup-filename both pass the
+      // existsSync(targetPath) check above (neither has finished yet), and
+      // a plain `${targetPath}.tmp` would then be one shared path both
+      // streamUploadToFile() calls write into concurrently, corrupting
+      // whichever "wins". The upload can run for minutes on a multi-GB
+      // world backup, which is a much larger collision window than the
+      // millisecond one this codebase already knows to guard timestamped
+      // filenames against.
+      tmpPath = `${targetPath}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
       const totalBytes = await streamUploadToFile(req, tmpPath, MAX_UPLOAD_BYTES);
 
       if (totalBytes === 0) {
@@ -553,7 +564,39 @@ router.post(
           });
       }
 
-      fs.renameSync(tmpPath, targetPath);
+      // Land the file with fs.linkSync + unlink instead of a plain rename.
+      // A rename would silently overwrite targetPath if the OTHER half of
+      // a same-name race finished and landed its own file there while this
+      // one was still streaming (the earlier existsSync check only ruled
+      // that out at request start, not at this point). linkSync() fails
+      // atomically with EEXIST if targetPath already exists -- no
+      // check-then-act window at all, unlike a fresh existsSync check
+      // immediately before the rename would still leave.
+      // Land the file with fs.linkSync + unlink instead of a plain rename.
+      // A rename would silently overwrite targetPath if the OTHER half of
+      // a same-name race finished and landed its own file there while this
+      // one was still streaming (the earlier existsSync check only ruled
+      // that out at request start, not at this point). linkSync() fails
+      // atomically with EEXIST if targetPath already exists -- no
+      // check-then-act window at all, unlike a fresh existsSync check
+      // immediately before the rename would still leave.
+      try {
+        fs.linkSync(tmpPath, targetPath);
+      } catch (linkErr) {
+        if (linkErr.code === "EEXIST") {
+          fs.unlink(tmpPath, () => {});
+          tmpPath = null;
+          return res
+            .status(409)
+            .json({
+              error: `A backup named "${finalName}" already exists. Delete it first or rename the upload.`,
+              code: ErrorCode.BACKUP_UPLOAD_NAME_CONFLICT,
+              params: sanitizeErrorParams({ name: finalName }),
+            });
+        }
+        throw linkErr;
+      }
+      fs.unlinkSync(tmpPath);
       tmpPath = null;
 
       log.info(`POST /upload — stored ${finalName} (${totalBytes} bytes)`);

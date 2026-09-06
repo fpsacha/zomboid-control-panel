@@ -154,6 +154,51 @@ describe("POST /upload streams the body to disk", () => {
     );
   });
 
+  it("refuses 409 if a same-name upload lands DURING the stream, not just before it started", async () => {
+    // 2026-09-06 (kevin, concatenated-identifier sweep): the earlier
+    // existsSync(targetPath) check above only rules out a conflict at
+    // request START -- it says nothing about a second upload for the same
+    // x-backup-filename that finishes and lands its own file WHILE this
+    // one is still streaming (a multi-GB upload can take minutes, a much
+    // bigger window than the millisecond one this codebase already knows
+    // to guard timestamped filenames against). Simulates that by writing
+    // the "concurrent winner"'s file to targetPath from inside the mocked
+    // streamUploadToFile() call, i.e. after this request's own existsSync
+    // check already passed.
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "upload-route-"));
+    backupsPath = path.join(root, "backups");
+    fs.mkdirSync(backupsPath, { recursive: true });
+    getActiveServer.mockResolvedValue({ isRemote: false });
+
+    const body = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3]);
+    streamUploadToFileMock.mockImplementationOnce(async (req, tmpPath) => {
+      fs.writeFileSync(
+        path.join(backupsPath, "uploaded-world.zip"),
+        "concurrent winner",
+      );
+      fs.writeFileSync(tmpPath, body);
+      return body.length;
+    });
+
+    const req = fakeRequest([body], {
+      "content-type": "application/zip",
+      "x-backup-filename": "world.zip",
+    });
+    req.app = makeApp({ getBackupsPath: async () => backupsPath });
+    const response = createResponse();
+
+    await getUploadHandler()(req, response);
+
+    expect(response.status).toHaveBeenCalledWith(409);
+    // The concurrent winner's file must survive untouched -- this
+    // request's own (now-orphaned) upload must not clobber it.
+    expect(
+      fs.readFileSync(path.join(backupsPath, "uploaded-world.zip"), "utf8"),
+    ).toBe("concurrent winner");
+    // No leftover tmp file after the refusal.
+    expect(fs.readdirSync(backupsPath)).toEqual(["uploaded-world.zip"]);
+  });
+
   it("maps a size-limit rejection from streamUploadToFile() to 413", async () => {
     // The route's own MAX_UPLOAD_BYTES is 4 GB and not overridable from a
     // test -- exercising the real 413 path end-to-end would mean actually
