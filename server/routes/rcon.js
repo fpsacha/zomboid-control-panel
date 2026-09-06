@@ -21,6 +21,20 @@ import { ErrorCode } from '../utils/errorCodes.js';
 
 const router = express.Router();
 
+// Same shape as scheduler.js's own private requireCapabilityInline (not
+// shared — each is small enough that a shared module would be more
+// indirection than the six lines it saves): the /test route below chains a
+// second, STATIC requirePermission() because it always needs both
+// capabilities, but /connect's second requirement is conditional on parsed
+// body content (see its own comment), which a static chain can't express.
+async function requireCapabilityInline(capability, req, res) {
+  let passed = false;
+  await requirePermission(capability)(req, res, () => {
+    passed = true;
+  });
+  return passed;
+}
+
 // Mixed, not file-wide: /execute runs an ARBITRARY raw RCON command with no
 // structural validation beyond a length cap — meaningfully more powerful
 // than the specific, validated actions in players.js (kick/ban/etc.), and
@@ -127,7 +141,37 @@ router.post('/connect', requirePermission('rcon.execute'), async (req, res) => {
     const rconService = req.app.get('rconService');
     const { host, port, password } = req.body;
     log.info(`POST /connect (host=${host || 'default'}, port=${port || 'default'}, password=${password ? '***' : 'none'})`);
-    
+
+    // Overriding host/port/password here does exactly what /test's own
+    // servers.manage gate exists to prevent -- makes the panel open a raw
+    // TCP connection (and RCON auth handshake) against ANY host the caller
+    // names -- except worse: updateConfig() below PERSISTS the override on
+    // the shared RconService singleton (redirecting every other operator's
+    // subsequent rcon.execute traffic too, not just this request), and a
+    // caller who omits `password` gets the EXISTING real password sent to
+    // their chosen host for free (updateConfig() only overwrites fields
+    // that were actually provided). Not reachable via either seeded role
+    // that holds rcon.execute (admin, technician both also hold
+    // servers.manage in DEFAULT_ROLE_CAPABILITIES) -- but a custom role
+    // built with rcon.execute and not servers.manage, which the
+    // roles.manage-gated custom-role feature lets an operator create as
+    // documented, could silently exfiltrate the real RCON password and
+    // hijack the live connection through it. Same class as the
+    // auth.js:507/544 escalation card (2026-09-06). Same fix as /test
+    // (2026-08-27 CodeQL triage, js/request-forgery #26/#333): requires
+    // servers.manage too, via the inline helper above rather than a static
+    // chained requirePermission() like /test uses, because this second
+    // requirement is conditional on whether the request actually names an
+    // override -- a plain reconnect to the already-configured,
+    // already-trusted target (no host/port/password in the body) stays
+    // reachable on rcon.execute alone, the same routine action it always
+    // was.
+    const overridesConnectionTarget =
+      host !== undefined || port !== undefined || password !== undefined;
+    if (overridesConnectionTarget && !(await requireCapabilityInline('servers.manage', req, res))) {
+      return;
+    }
+
     // Validate host format if provided (only alphanumeric, dots, hyphens)
     if (host !== undefined) {
       if (typeof host !== 'string' || host.length > 255 || !/^[a-zA-Z0-9.-]+$/.test(host)) {
@@ -151,7 +195,7 @@ router.post('/connect', requirePermission('rcon.execute'), async (req, res) => {
       }
     }
     
-    if (host !== undefined || port !== undefined || password !== undefined) {
+    if (overridesConnectionTarget) {
       rconService.updateConfig(host, normalizedPort, password);
     }
 
