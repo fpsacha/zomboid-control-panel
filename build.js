@@ -685,6 +685,18 @@ rem ============================================================
     call :stamp "Apply: staged frontend path missing from journal [version_mismatch]"
     goto :eof
   )
+  rem main-is-red, 2026-09-05, stagedclient-trailing-separator-breaks-move:
+  rem confirmed separately from the hash check's own TrimEnd (Get-Item
+  rem tolerates a trailing separator fine) that cmd.exe's move does NOT --
+  rem reproduced locally with move "C:\\...\\dist.new\\" "C:\\...\\dist"
+  rem failing "The system cannot find the file specified" even though the
+  rem directory genuinely exists, purely because of the trailing "\\" on
+  rem the quoted source. STAGED_CLIENT is used raw as that move's source
+  rem below, so trim it here, once, immediately after reading it from the
+  rem journal -- every downstream use (this existence probe, the hash
+  rem check's env var, and the move) then agrees on the same exact path.
+  if "!STAGED_CLIENT:~-1!"=="\\" set "STAGED_CLIENT=!STAGED_CLIENT:~0,-1!"
+  if "!STAGED_CLIENT:~-1!"=="/" set "STAGED_CLIENT=!STAGED_CLIENT:~0,-1!"
   if not exist "!STAGED_CLIENT!\\index.html" (
     call :stamp "Apply: staged frontend missing index.html [frontend_swap_failed]"
     goto :eof
@@ -776,7 +788,7 @@ rem ============================================================
     )
     set "CLIENT_BACKUP_MADE=1"
   )
-  move "!STAGED_CLIENT!" "%CLIENT_LIVE%" >nul 2>&1
+  move "!STAGED_CLIENT!" "%CLIENT_LIVE%" >>"%LOG_FILE%" 2>&1
   if errorlevel 1 (
     call :stamp "Apply: could not activate staged frontend [frontend_swap_failed]"
     call :rollback_update

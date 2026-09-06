@@ -861,12 +861,17 @@ describe.skipIf(!!skipReason)(
     // so they always share $root's exact casing by construction; per-file
     // content hashes came back correct even with $root entirely
     // upper-cased in an earlier version of this test, only the relative
-    // path was ever corrupted, and only by the trailing separator. Forward
-    // slashes were also tried combined with the above and found to break a
-    // DIFFERENT, later step (the actual frontend "move") rather than this
-    // check -- not exercised here since Node's path module never emits
-    // forward slashes on Windows for this field in the first place, making
-    // it a much less realistic input than a trailing separator.
+    // path was ever corrupted, and only by the trailing separator.
+    //
+    // stagedclient-trailing-separator-breaks-move, same day: the SAME
+    // untrimmed journal value is also used raw as the source of the later
+    // frontend `move` in :apply_update, and cmd.exe's `move` does not
+    // tolerate a trailing separator on a directory source either --
+    // reproduced locally as "The system cannot find the file specified"
+    // even though the directory genuinely exists. Fixed by trimming
+    // STAGED_CLIENT once, immediately after reading it from the journal, so
+    // this test now exercises the full apply pipeline end to end instead of
+    // stopping at "backing up".
     it(
       "verifies the staged client bundle correctly even when its journal path has a trailing separator Resolve-Path does not strip",
       async () => {
@@ -876,13 +881,7 @@ describe.skipIf(!!skipReason)(
         setupPendingUpdate(dir);
 
         // Trailing separator only, backslash direction and case otherwise
-        // untouched -- the actual "move" step later in :apply_update uses
-        // this same journal value directly on its source path, and a more
-        // aggressively mangled one (forward slashes, upper-cased) breaks
-        // THAT step too, which is a real but separate concern from the
-        // hash check this test targets. A bare trailing separator is
-        // exactly what Resolve-Path was observed not to strip, and is
-        // otherwise a value "move" tolerates fine.
+        // untouched -- exactly what Resolve-Path was observed not to strip.
         const journalPath = path.join(dir, "update-bundle.json");
         const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
         const canonicalStagedClient = journal.paths.stagedClient;
@@ -897,19 +896,9 @@ describe.skipIf(!!skipReason)(
 
         expect(result.status).toBe(0);
         const log = readSupervisorLogWithJournalDiagnostic(dir);
-        // Scoped to the hash check itself, not the whole apply pipeline: a
-        // trailing separator on this same journal value ALSO breaks the
-        // later "move" step (cmd.exe's move does not tolerate one on a
-        // directory source either) -- a real, separate, and much less
-        // consequential finding (the actual stageUpdateBundle() never
-        // produces a trailing separator here, unlike Resolve-Path's own
-        // failure to strip one, which is the thing this test exists to
-        // guard). Not fixed here to stay scoped to the hash check; "backing
-        // up" appearing at all is proof the hash check itself passed,
-        // since build.js only logs a hash check line on FAILURE.
         expect(log).not.toMatch(/hash_unverifiable/i);
         expect(log).not.toMatch(/MISMATCH/i);
-        expect(log).toMatch(/Apply: backing up/i);
+        expect(log).toMatch(/Apply: bundle activated/i);
       },
       75000,
     );
