@@ -3749,11 +3749,24 @@ router.post("/character/import", requirePermission("players.gm_tools"), async (r
     const exportDir = path.join(dataDir, "exports", safeUsername);
     // codeql[js/path-injection] username is stripped to [a-zA-Z0-9_-] via safeUsername = username.replace(...) immediately above before being joined into this path.
     fs.mkdirSync(exportDir, { recursive: true });
+    // toISOString() is millisecond-resolution -- two imports for the same
+    // player landing in the same millisecond (a double-submit before the
+    // button disables, or a retried request) would otherwise make the
+    // second import's "recovery copy" silently overwrite the first, which
+    // is worse than the failure this snapshot exists to guard against: the
+    // route would still report success and the earlier pre-import state
+    // would just be gone. Same collision-suffix convention as
+    // autoExportPlayer() (server/index.js), which writes into this same
+    // exports/<username>/ directory.
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    snapshotPath = path.join(
-      exportDir,
-      `${safeUsername}_pre-import_${timestamp}.json`,
-    );
+    const snapshotBaseName = `${safeUsername}_pre-import_${timestamp}`;
+    snapshotPath = path.join(exportDir, `${snapshotBaseName}.json`);
+    for (let collision = 2; fs.existsSync(snapshotPath); collision++) {
+      snapshotPath = path.join(
+        exportDir,
+        `${snapshotBaseName}-${collision}.json`,
+      );
+    }
     fs.writeFileSync(
       // codeql[js/path-injection] username is stripped to [a-zA-Z0-9_-] via safeUsername = username.replace(...) immediately above before being joined into this path.
       snapshotPath,
