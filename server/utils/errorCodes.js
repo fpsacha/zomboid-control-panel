@@ -835,6 +835,16 @@ export const ErrorCode = Object.freeze({
    * /delete-region, GET /stats/:saveName) -- the resolved save directory
    * doesn't exist. Identical wording/meaning all three, shared code. */
   CHUNKS_SAVE_NOT_FOUND: "CHUNKS_SAVE_NOT_FOUND",
+  /** server/routes/chunks.js (2 sites: POST /delete-chunks, POST
+   * /delete-region) -- the request's `expectedServerId` (stamped by GET
+   * /chunks/:saveName's own `resolvedServerId` when the scan was made)
+   * doesn't match the CURRENT active server, or was never sent at all.
+   * Means the active server changed since the operator scanned -- without
+   * this check the delete silently targets whatever server is active NOW,
+   * not the one shown on screen (bug-hunt-2026-09-06). Skipped when the
+   * delete itself uses customPath (not server-scoped). Identical
+   * wording/meaning both sites, shared code. */
+  CHUNKS_STALE_SERVER_SCAN: "CHUNKS_STALE_SERVER_SCAN",
   /** server/routes/chunks.js -- POST /delete-region, `saveName` missing or
    * one of minX/maxX/minY/maxY missing. */
   DELETE_REGION_FIELDS_REQUIRED: "DELETE_REGION_FIELDS_REQUIRED",

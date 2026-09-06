@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "Ungültige Chunk-X-Koordinate — muss eine Ganzzahl sein",
   "DELETE_CHUNKS_INVALID_Y": "Ungültige Chunk-Y-Koordinate — muss eine Ganzzahl sein",
   "CHUNKS_SAVE_NOT_FOUND": "Spielstand nicht gefunden",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "Spielstandname und Regionsgrenzen erforderlich",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "Regionsgrenzen müssen endliche Zahlen sein",
   "DELETE_REGION_BOUNDS_INVERTED": "Regionsgrenzen invertiert (minX > maxX oder minY > maxY)",

@@ -1417,6 +1417,10 @@ export const chunksApi = {
       `/chunks/stats/${encodeURIComponent(saveName)}${customPath ? `?customPath=${encodeURIComponent(customPath)}` : ""}`,
       { timeout: 60000 },
     ),
+  // expectedServerId: the resolvedServerId GET /chunks/:saveName returned
+  // when this scan was made (null if the scan used customPath). Lets the
+  // server refuse the delete if the active server moved out from under the
+  // scan in between -- see chunks.js's CHUNKS_STALE_SERVER_SCAN.
   deleteChunks: (
     saveName: string,
     chunks: Array<{
@@ -1431,6 +1435,7 @@ export const chunksApi = {
     customPath?: string,
     deleteVehicles: boolean = false,
     force: boolean = false,
+    expectedServerId: string | null = null,
   ) =>
     apiPost("/chunks/delete-chunks", {
       saveName,
@@ -1439,6 +1444,7 @@ export const chunksApi = {
       customPath,
       deleteVehicles,
       force,
+      expectedServerId,
     }),
   deleteRegion: (
     saveName: string,
@@ -1451,6 +1457,7 @@ export const chunksApi = {
     customPath?: string,
     deleteVehicles: boolean = false,
     force: boolean = false,
+    expectedServerId: string | null = null,
   ) =>
     apiPost("/chunks/delete-region", {
       saveName,
@@ -1463,6 +1470,7 @@ export const chunksApi = {
       customPath,
       deleteVehicles,
       force,
+      expectedServerId,
     }),
   browse: (browsePath?: string) =>
     apiGet(

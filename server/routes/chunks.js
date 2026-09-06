@@ -250,6 +250,20 @@ async function getZomboidDataPath() {
   return normalizeUserPath(legacyPath) || null;
 }
 
+// bug-hunt-2026-09-06: identity companion to getZomboidDataPath() above --
+// stamps a scan (GET /chunks/:saveName) with which server it was resolved
+// against, and lets a later delete (POST /delete-chunks|delete-region)
+// re-check that identity hasn't moved by request time. Called independently
+// rather than threaded out of getZomboidDataPath() itself to avoid touching
+// that function's 6 existing call sites for a value only 3 of them need.
+// Legacy-settings-only setups (no server rows at all) resolve to null both
+// at scan and delete time -- there's only ever one path in play there, so
+// there's nothing for this check to protect against.
+async function getActiveServerId() {
+  const activeServer = await getActiveServer();
+  return activeServer?.id ?? null;
+}
+
 function resolveSavesPath(zomboidDataPath) {
   let savesPath = path.join(zomboidDataPath, "Saves", "Multiplayer");
 
@@ -927,6 +941,12 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
       });
     }
 
+    // Stamps this scan with the server it was actually resolved against
+    // (null for a customPath scan, which isn't server-scoped at all) so the
+    // client can round-trip it back on delete -- see getActiveServerId()'s
+    // own comment and CHUNKS_STALE_SERVER_SCAN below.
+    const resolvedServerId = customPath ? null : await getActiveServerId();
+
     // Resolve the saves path the same way as /saves
     let savesPath = resolveSavesPath(zomboidDataPath);
 
@@ -939,7 +959,7 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
 
     if (!fs.existsSync(savePath)) {
       log.warn(`[ChunkCleaner] Save directory not found: ${savePath}`);
-      return res.json({ chunks: [], bounds: null });
+      return res.json({ chunks: [], bounds: null, resolvedServerId });
     }
 
     const chunks = [];
@@ -1211,6 +1231,7 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
       limitReached: false,
       maxChunks: null,
       isB42,
+      resolvedServerId,
     });
   } catch (error) {
     // resolveCustomOrDefaultDataPath throws 400/403 for bad custom paths —
@@ -1236,10 +1257,32 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
       customPath = null,
       deleteVehicles = false,
       force = false,
+      expectedServerId = undefined,
     } = req.body;
     log.info(
       `POST /delete-chunks: saveName=${saveName}, chunkCount=${chunks?.length || 0}, createBackup=${createBackup}, deleteVehicles=${!!deleteVehicles}, force=${!!force}`,
     );
+
+    // bug-hunt-2026-09-06: defense in depth behind the client's own
+    // activeServerChanged handling (ChunkCleaner.tsx) -- deleteChunks takes
+    // no server id, so without this a switch-servers-mid-scan-then-delete
+    // deletes real chunk files off whatever server is active NOW, not the
+    // one the operator scanned. Checked BEFORE the force/running-check
+    // below and NOT bypassed by force:true -- force only overrides "is the
+    // target server running", a wholly different question from "is this
+    // even the right target server". Skipped when customPath is set: a
+    // customPath delete isn't server-scoped at all, so no server identity
+    // applies (matches getZomboidDataPath()'s own customPath bypass).
+    if (!customPath) {
+      const currentServerId = await getActiveServerId();
+      if (expectedServerId === undefined || expectedServerId !== currentServerId) {
+        return res.status(409).json({
+          error:
+            "The active server changed since these chunks were scanned. Refresh the save list and re-select chunks before deleting.",
+          code: ErrorCode.CHUNKS_STALE_SERVER_SCAN,
+        });
+      }
+    }
 
     // Refuse to mutate save files while the server is running — it will write
     // them back on shutdown and corrupt the save, or hold vehicles.db open
@@ -1675,7 +1718,22 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
       customPath = null,
       deleteVehicles = false,
       force = false,
+      expectedServerId = undefined,
     } = req.body;
+
+    // See the matching comment in delete-chunks above for the full
+    // rationale -- identical check, same reasons (not bypassed by
+    // force:true, skipped for a customPath delete).
+    if (!customPath) {
+      const currentServerId = await getActiveServerId();
+      if (expectedServerId === undefined || expectedServerId !== currentServerId) {
+        return res.status(409).json({
+          error:
+            "The active server changed since these chunks were scanned. Refresh the save list and re-select chunks before deleting.",
+          code: ErrorCode.CHUNKS_STALE_SERVER_SCAN,
+        });
+      }
+    }
 
     // Refuse to mutate save files while the server is running. See the
     // delete-chunks handler above for the full rationale and `force` escape

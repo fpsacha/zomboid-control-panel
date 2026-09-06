@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "Coordenada x de chunk no válida — debe ser un número entero",
   "DELETE_CHUNKS_INVALID_Y": "Coordenada y de chunk no válida — debe ser un número entero",
   "CHUNKS_SAVE_NOT_FOUND": "No se encontró la partida guardada",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "Se requieren el nombre de la partida guardada y los límites de la región",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "Los límites de la región deben ser números finitos",
   "DELETE_REGION_BOUNDS_INVERTED": "Límites de la región invertidos (minX > maxX o minY > maxY)",

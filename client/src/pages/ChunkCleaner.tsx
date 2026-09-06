@@ -345,6 +345,19 @@ export default function ChunkCleaner() {
   const [chunks, setChunks] = useState<ChunkInfo[]>([]);
   const [bounds, setBounds] = useState<ChunkBounds | null>(null);
   const [stats, setStats] = useState<SaveStats | null>(null);
+  // bug-hunt-2026-09-06: /delete-chunks and /delete-region take no server id
+  // -- same implicit-active-server-resolution shape as Mods.tsx's
+  // saveModOrder, except this action is IRREVERSIBLE (real chunk files, not
+  // an overwritable INI field). Captured from GET /chunks/:saveName's own
+  // resolvedServerId (null when this scan used a customPath, since a
+  // customPath scan is pinned to a folder, not the active server, and an
+  // activeServerChanged event elsewhere is irrelevant to it) the moment a
+  // scan completes, and threaded back through POST /delete-chunks|region as
+  // expectedServerId so the server can refuse a delete whose target moved
+  // out from under it -- see the activeServerChanged handler below for the
+  // client-side half and chunks.js's CHUNKS_STALE_SERVER_SCAN for the
+  // server-side one.
+  const [scanServerId, setScanServerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Live scan progress streamed over the socket while the map is loading.
   // total === 0 means indeterminate (B41 flat saves don't report per-dir progress).
@@ -738,6 +751,7 @@ export default function ChunkCleaner() {
     setSelectedChunks(new Set());
     setChunkVehicles([]);
     setChunkSafehouses([]);
+    setScanServerId(null);
 
     // Unique id so concurrent/stale scans don't update each other's progress.
     const scanId = `${thisLoadId}-${Date.now().toString(36)}`;
@@ -786,6 +800,7 @@ export default function ChunkCleaner() {
       setChunks(rawChunks);
       setBounds(chunksResult.bounds ?? null);
       setStats(statsResult);
+      setScanServerId(chunksResult.resolvedServerId ?? null);
     } catch (error) {
       if (thisLoadId !== loadIdRef.current) return;
       toast({
@@ -801,6 +816,55 @@ export default function ChunkCleaner() {
       }
     }
   }, [selectedSave, customPath, toast, socket, t]);
+
+  // bug-hunt-2026-09-06: on activeServerChanged, invalidate the in-progress
+  // scan rather than silently refetching it. Reload-unconditionally
+  // (Mods.tsx/Console.tsx's safe branch elsewhere in this same sweep) is
+  // wrong here even on the read side -- refreshing the saves list mid-scan
+  // would swap the file listing out from under an in-progress chunk
+  // selection, a second quiet-corruption bug stacked on top of the one
+  // this is fixing. A customPath scan is pinned to an explicit folder, not
+  // the active server, so this is a deliberate no-op while one is set --
+  // nothing about it can go stale from a server switch elsewhere.
+  // Shared by the socket handler below AND handleDelete's catch block: a
+  // CHUNKS_STALE_SERVER_SCAN response means the socket event either never
+  // arrived or raced the click, so the delete was refused server-side --
+  // recover the UI the same way the event itself would have.
+  const invalidateStaleScan = useCallback(() => {
+    setChunks([]);
+    setBounds(null);
+    setStats(null);
+    setSelectedChunks(new Set());
+    setChunkVehicles([]);
+    setChunkSafehouses([]);
+    setScanServerId(null);
+    setSelectedSave("");
+    // Clearing saves (not just selectedSave) matters here: the "safety
+    // net" effect above re-picks saves[0] the instant selectedSave stops
+    // matching anything in `saves` -- leaving the stale list in place
+    // would let it silently re-select a save off the OLD server one
+    // render before fetchSaves() below replaces it.
+    setSaves([]);
+    setDeleteDialogOpen(false);
+    toast({
+      title: t("toasts.activeServerChangedTitle"),
+      description: t("toasts.activeServerChangedDesc"),
+      variant: "destructive",
+    });
+    void fetchSaves();
+  }, [toast, t, fetchSaves]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleActiveServerChanged = () => {
+      if (customPath) return;
+      invalidateStaleScan();
+    };
+    socket.on("activeServerChanged", handleActiveServerChanged);
+    return () => {
+      socket.off("activeServerChanged", handleActiveServerChanged);
+    };
+  }, [socket, customPath, invalidateStaleScan]);
 
   // Fetch vehicles + safehouses from PanelBridge, convert to chunk coords
   const fetchOverlayData = useCallback(async () => {
@@ -2143,6 +2207,7 @@ export default function ChunkCleaner() {
           customPath || undefined,
           deleteVehicles,
           force,
+          scanServerId,
         );
 
       let result: Awaited<ReturnType<typeof tryDelete>>;
@@ -2207,11 +2272,20 @@ export default function ChunkCleaner() {
       await loadChunks();
       await fetchOverlayData();
     } catch (error) {
-      toast({
-        title: t("toasts.errorTitle"),
-        description: getUserErrorMessage(error, t("toasts.deleteChunksFailedFallback")),
-        variant: "destructive",
-      });
+      // Server-side defense in depth (chunks.js's CHUNKS_STALE_SERVER_SCAN):
+      // the active-server socket event above either never arrived or raced
+      // this click, so the delete was refused before touching any file.
+      // Recover the UI the same way the event itself would have, instead of
+      // just showing an error and leaving a now-untrustworthy scan on screen.
+      if (error instanceof ApiError && error.code === "CHUNKS_STALE_SERVER_SCAN") {
+        invalidateStaleScan();
+      } else {
+        toast({
+          title: t("toasts.errorTitle"),
+          description: getUserErrorMessage(error, t("toasts.deleteChunksFailedFallback")),
+          variant: "destructive",
+        });
+      }
     } finally {
       setDeleting(false);
     }

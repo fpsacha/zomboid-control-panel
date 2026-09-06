@@ -172,7 +172,9 @@
     "chunksDeletedPartialTitle": "Kèk Chunk Pa Kapab Efase",
     "chunksDeletedPartialDesc_one": "{{deleted}} chunk retire, men {{count}} echwe. Verifye fichye a pa bloke pa yon lòt pwosesis epi eseye ankò.",
     "chunksDeletedPartialDesc_other": "{{deleted}} chunk retire, men {{count}} echwe. Verifye fichye yo pa bloke pa yon lòt pwosesis epi eseye ankò.",
-    "deleteChunksFailedFallback": "Pa t kapab efase chunk yo"
+    "deleteChunksFailedFallback": "Pa t kapab efase chunk yo",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Selil {{gx}}, {{gy}}",

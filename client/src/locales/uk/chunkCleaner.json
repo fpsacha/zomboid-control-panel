@@ -172,7 +172,9 @@
     "chunksDeletedPartialTitle": "Деякі чанки не вдалося видалити",
     "chunksDeletedPartialDesc_one": "Видалено {{deleted}} чанк, але {{count}} не вдалося. Перевірте, що файл не заблоковано іншим процесом, і спробуйте ще раз.",
     "chunksDeletedPartialDesc_other": "Видалено {{deleted}} чанків, але {{count}} не вдалося. Перевірте, що файли не заблоковано іншим процесом, і спробуйте ще раз.",
-    "deleteChunksFailedFallback": "Не вдалося видалити чанки"
+    "deleteChunksFailedFallback": "Не вдалося видалити чанки",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "Чанк {{cx}}, {{cy}}  |  Комірка {{gx}}, {{gy}}",

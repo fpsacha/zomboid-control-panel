@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "Некоректна координата x чанка — має бути цілим числом",
   "DELETE_CHUNKS_INVALID_Y": "Некоректна координата y чанка — має бути цілим числом",
   "CHUNKS_SAVE_NOT_FOUND": "Збереження не знайдено",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "Потрібні назва збереження та межі регіону",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "Межі регіону мають бути скінченними числами",
   "DELETE_REGION_BOUNDS_INVERTED": "Межі регіону перевернуті (minX > maxX або minY > maxY)",

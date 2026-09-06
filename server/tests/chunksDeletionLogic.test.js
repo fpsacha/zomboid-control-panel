@@ -137,10 +137,22 @@ async function runRoute(routePath, method, req) {
   return res;
 }
 
+// expectedServerId defaults to "server-1" -- matches beforeEach's own
+// getActiveServer mock below. bug-hunt-2026-09-06: delete-chunks/
+// delete-region now refuse (CHUNKS_STALE_SERVER_SCAN) unless this matches
+// the CURRENT active server, so every test here that relies on the active
+// server (i.e. doesn't pass its own customPath) needs it to agree with the
+// mock or it never reaches the deletion logic these tests actually target.
 function postAs(routePath, body) {
   return runRoute(routePath, "post", {
     user: { role: "technician" },
-    body: { force: true, createBackup: false, deleteVehicles: false, ...body },
+    body: {
+      force: true,
+      createBackup: false,
+      deleteVehicles: false,
+      expectedServerId: "server-1",
+      ...body,
+    },
   });
 }
 
@@ -495,7 +507,13 @@ function postAsWithServerManager(routePath, body, serverManager) {
   return runRoute(routePath, "post", {
     user: { role: "technician" },
     app: { get: (key) => (key === "serverManager" ? serverManager : null) },
-    body: { force: false, createBackup: false, deleteVehicles: false, ...body },
+    body: {
+      force: false,
+      createBackup: false,
+      deleteVehicles: false,
+      expectedServerId: "server-1",
+      ...body,
+    },
   });
 }
 
@@ -899,5 +917,148 @@ describe("delete-region: chunkdata deletion prunes vehicles across the WHOLE cel
     const remaining = await readVehicleIds(dbPath);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]).toEqual(expect.objectContaining({ x: 500, y: 500 }));
+  });
+});
+
+// bug-hunt-2026-09-06: ChunkCleaner.tsx has no server id of its own on any
+// of its 5 routes -- delete-chunks/delete-region resolve whatever server is
+// active AT REQUEST TIME. Scan server A, switch the active server to B
+// elsewhere in the panel, hit Delete: without this check, the route deletes
+// server B's REAL chunk file, not A's -- worse than an overwritable INI
+// field (Mods.tsx's saveModOrder, same underlying shape), because there is
+// no undo. `expectedServerId` is the resolvedServerId GET /chunks/:saveName
+// stamped the scan with; the two servers below are both real temp dirs with
+// their own real chunk file at the same coordinate, so "the file survives"
+// here means an actual fs.existsSync check on disk, not a mock call count.
+describe("delete-chunks/delete-region: CHUNKS_STALE_SERVER_SCAN refuses a delete whose scan was made against a server that is no longer active", () => {
+  let dataRootB;
+  let savePathB;
+
+  beforeEach(() => {
+    dataRootB = fs.mkdtempSync(path.join(os.tmpdir(), "chunks-deletion-serverB-"));
+    savePathB = path.join(dataRootB, "Saves", "Multiplayer", SAVE_NAME);
+    fs.mkdirSync(savePathB, { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(dataRootB, { recursive: true, force: true });
+  });
+
+  it("delete-chunks: refuses with 409 and leaves server B's real chunk on disk when expectedServerId still names server A", async () => {
+    const chunkOnA = path.join(savePath, "map", "0", "0.bin");
+    writeFileDeep(chunkOnA, "a");
+    const chunkOnB = path.join(savePathB, "map", "0", "0.bin");
+    writeFileDeep(chunkOnB, "b");
+
+    // The operator's scan happened against server-1 (A) -- postAs' own
+    // default. The active server has since switched to server-2 (B),
+    // elsewhere in the panel, without this request knowing.
+    getActiveServer.mockReset().mockResolvedValue({
+      id: "server-2",
+      zomboidDataPath: dataRootB,
+      isRemote: false,
+    });
+
+    const res = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+      expectedServerId: "server-1",
+    });
+
+    expect(res.getStatusCode()).toBe(409);
+    expect(res.getBody()?.code).toBe("CHUNKS_STALE_SERVER_SCAN");
+    // This is the file the route would actually have deleted (it resolves
+    // whatever server is active NOW) -- it must survive untouched.
+    expect(fs.existsSync(chunkOnB)).toBe(true);
+    expect(fs.existsSync(chunkOnA)).toBe(true);
+  });
+
+  it("delete-region: same refusal, same file-survival proof", async () => {
+    const chunkOnB = path.join(savePathB, "map", "0", "0.bin");
+    writeFileDeep(chunkOnB, "b");
+
+    getActiveServer.mockReset().mockResolvedValue({
+      id: "server-2",
+      zomboidDataPath: dataRootB,
+      isRemote: false,
+    });
+
+    const res = await postAs("/delete-region", {
+      saveName: SAVE_NAME,
+      minX: 0,
+      maxX: 5,
+      minY: 0,
+      maxY: 5,
+      expectedServerId: "server-1",
+    });
+
+    expect(res.getStatusCode()).toBe(409);
+    expect(res.getBody()?.code).toBe("CHUNKS_STALE_SERVER_SCAN");
+    expect(fs.existsSync(chunkOnB)).toBe(true);
+  });
+
+  it("is NOT bypassed by force:true -- force only overrides the running-server check, not server identity", async () => {
+    const chunkOnB = path.join(savePathB, "map", "0", "0.bin");
+    writeFileDeep(chunkOnB, "b");
+
+    getActiveServer.mockReset().mockResolvedValue({
+      id: "server-2",
+      zomboidDataPath: dataRootB,
+      isRemote: false,
+    });
+
+    const res = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+      expectedServerId: "server-1",
+      force: true,
+    });
+
+    expect(res.getStatusCode()).toBe(409);
+    expect(fs.existsSync(chunkOnB)).toBe(true);
+  });
+
+  it("succeeds normally when expectedServerId matches the current active server -- no false positive on the ordinary path", async () => {
+    const chunk = path.join(savePath, "map", "0", "0.bin");
+    writeFileDeep(chunk, "a");
+
+    // No switch happened -- postAs' default expectedServerId ("server-1")
+    // still matches beforeEach's own getActiveServer mock.
+    const res = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+    });
+
+    expect(res.getStatusCode()).toBe(200);
+    expect(fs.existsSync(chunk)).toBe(false);
+  });
+
+  it("is skipped entirely for a customPath delete -- not server-scoped, so a mismatched expectedServerId doesn't matter", async () => {
+    const chunk = path.join(savePath, "map", "0", "0.bin");
+    writeFileDeep(chunk, "a");
+
+    // Active server switched to B, AND expectedServerId still names A --
+    // both would fail the check above, but customPath bypasses it entirely
+    // (matches getZomboidDataPath()'s own customPath bypass). getServers
+    // must list dataRoot as a known root or assertKnownSaveRoot rejects the
+    // customPath itself before this check is ever reached (see the
+    // "customPath must resolve to a location the panel already recognizes"
+    // suite above).
+    getActiveServer.mockReset().mockResolvedValue({
+      id: "server-2",
+      zomboidDataPath: dataRootB,
+      isRemote: false,
+    });
+    getServers.mockResolvedValue([{ id: "server-1", zomboidDataPath: dataRoot }]);
+
+    const res = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+      customPath: dataRoot,
+      expectedServerId: "server-1",
+    });
+
+    expect(res.getStatusCode()).toBe(200);
+    expect(fs.existsSync(chunk)).toBe(false);
   });
 });

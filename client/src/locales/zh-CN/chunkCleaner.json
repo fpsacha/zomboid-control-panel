@@ -172,7 +172,9 @@
     "deleteChunksFailedFallback": "删除区块失败",
     "chunksDeletedPartialTitle": "部分 Chunk 无法删除",
     "chunksDeletedPartialDesc_one": "已删除 {{deleted}} 个 Chunk，但 {{count}} 个失败。请确认文件未被其他进程占用后重试。",
-    "chunksDeletedPartialDesc_other": "已删除 {{deleted}} 个 Chunk，但 {{count}} 个失败。请确认文件未被其他进程占用后重试。"
+    "chunksDeletedPartialDesc_other": "已删除 {{deleted}} 个 Chunk，但 {{count}} 个失败。请确认文件未被其他进程占用后重试。",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "区块 {{cx}}, {{cy}}  |  单元 {{gx}}, {{gy}}",

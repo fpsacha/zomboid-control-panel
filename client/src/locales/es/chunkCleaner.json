@@ -172,7 +172,9 @@
     "deleteChunksFailedFallback": "No se pudieron eliminar los chunks",
     "chunksDeletedPartialTitle": "No se pudieron eliminar algunos chunks",
     "chunksDeletedPartialDesc_one": "Se eliminó {{deleted}} chunk, pero {{count}} falló. Comprueba que el archivo no esté bloqueado por otro proceso e inténtalo de nuevo.",
-    "chunksDeletedPartialDesc_other": "Se eliminaron {{deleted}} chunks, pero {{count}} fallaron. Comprueba que los archivos no estén bloqueados por otro proceso e inténtalo de nuevo."
+    "chunksDeletedPartialDesc_other": "Se eliminaron {{deleted}} chunks, pero {{count}} fallaron. Comprueba que los archivos no estén bloqueados por otro proceso e inténtalo de nuevo.",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Celda {{gx}}, {{gy}}",

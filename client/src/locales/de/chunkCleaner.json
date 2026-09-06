@@ -172,7 +172,9 @@
     "deleteChunksFailedFallback": "Löschen der Chunks fehlgeschlagen",
     "chunksDeletedPartialTitle": "Einige Chunks konnten nicht gelöscht werden",
     "chunksDeletedPartialDesc_one": "{{deleted}} Chunk entfernt, aber {{count}} ist fehlgeschlagen. Prüfe, ob die Datei von einem anderen Prozess gesperrt ist, und versuche es erneut.",
-    "chunksDeletedPartialDesc_other": "{{deleted}} Chunks entfernt, aber {{count}} sind fehlgeschlagen. Prüfe, ob die Dateien von einem anderen Prozess gesperrt sind, und versuche es erneut."
+    "chunksDeletedPartialDesc_other": "{{deleted}} Chunks entfernt, aber {{count}} sind fehlgeschlagen. Prüfe, ob die Dateien von einem anderen Prozess gesperrt sind, und versuche es erneut.",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Zelle {{gx}}, {{gy}}",

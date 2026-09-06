@@ -84,10 +84,19 @@ async function runRoute(routePath, method, req) {
   return res;
 }
 
+// expectedServerId defaults to "server-1" to match beforeEach's own
+// getActiveServer mock -- bug-hunt-2026-09-06: delete-chunks/delete-region
+// now refuse (CHUNKS_STALE_SERVER_SCAN) without it.
 function postAs(routePath, body) {
   return runRoute(routePath, "post", {
     user: { role: "technician" },
-    body: { force: true, createBackup: false, deleteVehicles: false, ...body },
+    body: {
+      force: true,
+      createBackup: false,
+      deleteVehicles: false,
+      expectedServerId: "server-1",
+      ...body,
+    },
   });
 }
 

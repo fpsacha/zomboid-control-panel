@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "Coordonnée x du chunk invalide — doit être un entier",
   "DELETE_CHUNKS_INVALID_Y": "Coordonnée y du chunk invalide — doit être un entier",
   "CHUNKS_SAVE_NOT_FOUND": "Sauvegarde introuvable",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "Le nom de sauvegarde et les limites de la région sont requis",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "Les limites de la région doivent être des nombres finis",
   "DELETE_REGION_BOUNDS_INVERTED": "Limites de région inversées (minX > maxX ou minY > maxY)",

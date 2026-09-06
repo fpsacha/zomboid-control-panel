@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "إحداثي x للـ chunk غير صالح — يجب أن يكون عددًا صحيحًا",
   "DELETE_CHUNKS_INVALID_Y": "إحداثي y للـ chunk غير صالح — يجب أن يكون عددًا صحيحًا",
   "CHUNKS_SAVE_NOT_FOUND": "لم يُعثر على الحفظ",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "اسم الحفظ وحدود المنطقة مطلوبان",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "يجب أن تكون حدود المنطقة أعدادًا منتهية",
   "DELETE_REGION_BOUNDS_INVERTED": "حدود المنطقة معكوسة (minX > maxX أو minY > maxY)",

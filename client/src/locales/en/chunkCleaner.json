@@ -172,7 +172,9 @@
     "chunksDeletedPartialTitle": "Some Chunks Could Not Be Deleted",
     "chunksDeletedPartialDesc_one": "Removed {{deleted}} chunk, but {{count}} failed. Check the file isn't locked by another process and try again.",
     "chunksDeletedPartialDesc_other": "Removed {{deleted}} chunks, but {{count}} failed. Check the files aren't locked by another process and try again.",
-    "deleteChunksFailedFallback": "Failed to delete chunks"
+    "deleteChunksFailedFallback": "Failed to delete chunks",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Cell {{gx}}, {{gy}}",

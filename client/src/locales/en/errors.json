@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "Invalid chunk x coordinate — must be an integer",
   "DELETE_CHUNKS_INVALID_Y": "Invalid chunk y coordinate — must be an integer",
   "CHUNKS_SAVE_NOT_FOUND": "Save not found",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "Save name and region bounds required",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "Region bounds must be finite numbers",
   "DELETE_REGION_BOUNDS_INVERTED": "Region bounds inverted (minX > maxX or minY > maxY)",

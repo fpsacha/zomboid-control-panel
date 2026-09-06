@@ -172,7 +172,9 @@
     "chunksDeletedPartialTitle": "تعذّر حذف بعض القطع",
     "chunksDeletedPartialDesc_one": "تمت إزالة {{deleted}} قطعة، لكن فشلت {{count}} منها. تأكد من أن الملف غير مقفل من قِبل عملية أخرى وحاول مجددًا.",
     "chunksDeletedPartialDesc_other": "تمت إزالة {{deleted}} من القطع، لكن فشل حذف {{count}} منها. تأكد من أن الملفات غير مقفلة من قِبل عملية أخرى وحاول مجددًا.",
-    "deleteChunksFailedFallback": "فشل حذف القطع"
+    "deleteChunksFailedFallback": "فشل حذف القطع",
+    "activeServerChangedTitle": "Active server changed",
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
   },
   "canvasLabels": {
     "chunkCell": "قطعة {{cx}}, {{cy}}  |  خلية {{gx}}, {{gy}}",

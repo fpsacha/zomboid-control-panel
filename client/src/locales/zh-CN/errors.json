@@ -204,6 +204,7 @@
   "DELETE_CHUNKS_INVALID_X": "区块 x 坐标无效——必须为整数",
   "DELETE_CHUNKS_INVALID_Y": "区块 y 坐标无效——必须为整数",
   "CHUNKS_SAVE_NOT_FOUND": "未找到存档",
+  "CHUNKS_STALE_SERVER_SCAN": "The active server changed since these chunks were scanned. Refresh the save list and re-select before deleting.",
   "DELETE_REGION_FIELDS_REQUIRED": "存档名称和区域边界均为必填项",
   "DELETE_REGION_BOUNDS_NOT_FINITE": "区域边界必须为有限数字",
   "DELETE_REGION_BOUNDS_INVERTED": "区域边界颠倒（minX > maxX 或 minY > maxY）",

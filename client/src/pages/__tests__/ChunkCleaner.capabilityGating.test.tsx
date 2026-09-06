@@ -166,6 +166,9 @@ describe('ChunkCleaner.tsx: chunks.manage gates the Delete flow', () => {
         undefined,
         true,
         false,
+        // bug-hunt-2026-09-06: expectedServerId, threaded from the scan's
+        // own resolvedServerId (getChunks' mock here returns none, so null).
+        null,
       ),
     )
   })
