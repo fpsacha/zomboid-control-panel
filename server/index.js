@@ -16,7 +16,7 @@ import { permissionsPolicy } from "./middleware/permissionsPolicy.js";
 import { logSetupTokenIfNeeded } from "./utils/setupToken.js";
 import { computeInlineScriptCspHash } from "./utils/cspScriptHash.js";
 import { parseTrustProxySetting } from "./utils/trustProxy.js";
-import { isUncompressedBinaryProxyPath } from "./utils/compressionFilter.js";
+import { isUncompressedBinaryProxyPath, isEventStreamResponse } from "./utils/compressionFilter.js";
 import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
 import { Server } from "socket.io";
@@ -839,12 +839,13 @@ app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 // Compress all HTTP responses (gzip/deflate) EXCEPT the <img>-tag-loaded
-// binary proxy routes -- see compressionFilter.js for why.
+// binary proxy routes and SSE streams -- see compressionFilter.js for why.
 app.use(
   compression({
     threshold: 1024,
     filter: (req, res) => {
       if (isUncompressedBinaryProxyPath(req)) return false;
+      if (isEventStreamResponse(res)) return false;
       return compression.filter(req, res);
     },
   }),
