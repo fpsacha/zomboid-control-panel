@@ -1623,8 +1623,9 @@ router.delete("/:id", requirePermission("servers.manage"), async (req, res) => {
   }
 });
 
-// Reload the live in-memory services (serverManager, RCON, PanelBridge) to
-// match `server` becoming the active one. Shared by POST /:id/activate and
+// Reload the live in-memory services (serverManager, RCON, PanelBridge,
+// LogTailer) to match `server` becoming the active one. Shared by
+// POST /:id/activate and
 // DELETE /:id below -- deleteServer() silently promotes another server to
 // active in the database when the deleted one was active, and without this
 // call the live services stayed pointed at the just-deleted server's stale
@@ -1640,6 +1641,20 @@ async function reloadServicesForNewActiveServer(req, server) {
   }
 
   await refreshWorkshopCheckerIfAvailable(req);
+
+  // discordBot is the only handle routes have on the shared LogTailer
+  // instance (it is never registered on the app directly). Without this,
+  // deaths/chat kept flowing from the server that was active before the
+  // switch -- see this function's own header comment.
+  const discordBot = req.app.get("discordBot");
+  if (discordBot && discordBot.logTailer && discordBot.logTailer.reloadConfig) {
+    try {
+      await discordBot.logTailer.reloadConfig();
+      log.info(`LogTailer repointed for server: ${server.name}`);
+    } catch (logTailerErr) {
+      log.warn(`Failed to repoint LogTailer for new server: ${logTailerErr.message}`);
+    }
+  }
 
   if (rconService && rconService.isConnected()) {
     await rconService.disconnect();

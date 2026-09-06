@@ -96,6 +96,34 @@ export class LogTailer extends EventEmitter {
     this.startWatching();
   }
 
+  // Repoint at the (new) active server's log paths. Without this, switching
+  // the active server left every path (basePath, logPath, chatLogPath,
+  // userLogPath) pinned to whichever server was active when they were first
+  // resolved: reresolvePaths() and findLatestChatLog/findLatestUserLog only
+  // rescan for a *newer* file inside the current logsDir, so they keep
+  // faithfully following the OLD server's own log rotations forever,
+  // showing every sign of working while the operator has switched to a
+  // different server. Nulling the discovery state before re-running
+  // findLogPath() forces it to re-read the (now updated) active server's
+  // zomboidDataPath and rediscover everything under it, and reusing
+  // findLogPath's own firstDiscovery/startOffsetFor logic means we pick up
+  // the new server's current log tail rather than replaying its history.
+  async reloadConfig() {
+    this.basePath = null;
+    this.logsDir = null;
+    this.logPath = null;
+    this.chatLogPath = null;
+    this.chatLogSize = 0;
+    this.currentSize = 0;
+    this.userLogPath = null;
+    this.userLogSize = 0;
+    this.consoleRemainder = '';
+    this.chatRemainder = '';
+    this.userRemainder = '';
+    await this.findLogPath();
+    log.info(`LogTailer repointed (console: ${this.logPath || 'none'}, chatLog: ${this.chatLogPath || 'none'}, userLog: ${this.userLogPath || 'none'})`);
+  }
+
   async findLogPath() {
     try {
         const activeServer = await getActiveServer();

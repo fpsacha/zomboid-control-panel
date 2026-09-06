@@ -1448,6 +1448,62 @@ describe("Discord chat relay escaping", () => {
   });
 });
 
+// sweep-round2: switching the active server never repointed the LogTailer.
+// reresolvePaths() -- the only re-resolution the 2s poll loop ever calls --
+// only fills in a field when it is still null, so basePath/logPath/
+// chatLogPath/userLogPath stayed pinned to whichever server was active when
+// they were first resolved, and the tailer kept faithfully following that
+// OLD server's own log rotations forever. It never errored and never
+// stopped updating, so it looked healthy while every death/chat event
+// reaching player-action history and Discord actually belonged to the
+// server the operator had switched away from. reloadConfig() (called by
+// routes/servers.js's reloadServicesForNewActiveServer via
+// discordBot.logTailer) is the fix: it nulls the discovery state so the
+// next findLogPath() re-reads the current active server instead of only
+// scanning for a newer file inside the stale basePath.
+describe("LogTailer.reloadConfig", () => {
+  it("repoints basePath/logPath at the new active server; confirms reresolvePaths() alone cannot (regression guard)", async () => {
+    const { LogTailer } = await import("../services/logTailer.js");
+    const dbModule = await import("../database/init.js");
+
+    const dirA = fs.mkdtempSync(path.join(os.tmpdir(), "pz-logtail-a-"));
+    const dirB = fs.mkdtempSync(path.join(os.tmpdir(), "pz-logtail-b-"));
+    fs.writeFileSync(path.join(dirA, "server-console.txt"), "a-line\n");
+    fs.writeFileSync(path.join(dirB, "server-console.txt"), "b-line\n");
+
+    const getActiveServerSpy = vi
+      .spyOn(dbModule, "getActiveServer")
+      .mockResolvedValue({ zomboidDataPath: dirA });
+
+    try {
+      const tailer = new LogTailer();
+      await tailer.findLogPath();
+
+      expect(tailer.basePath).toBe(dirA);
+      expect(tailer.logPath).toBe(path.join(dirA, "server-console.txt"));
+
+      // Operator switches the active server.
+      getActiveServerSpy.mockResolvedValue({ zomboidDataPath: dirB });
+
+      // Pre-fix behaviour: the poll loop's own re-resolution leaves the
+      // tailer pinned to A forever, because it only fills in a path when
+      // that field is still null -- it never re-reads the active server.
+      tailer.reresolvePaths();
+      expect(tailer.basePath).toBe(dirA);
+      expect(tailer.logPath).toBe(path.join(dirA, "server-console.txt"));
+
+      await tailer.reloadConfig();
+
+      expect(tailer.basePath).toBe(dirB);
+      expect(tailer.logPath).toBe(path.join(dirB, "server-console.txt"));
+    } finally {
+      getActiveServerSpy.mockRestore();
+      fs.rmSync(dirA, { recursive: true, force: true });
+      fs.rmSync(dirB, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("LogTailer chat parsing", () => {
   const parse = async (line) => {
     const { LogTailer } = await import("../services/logTailer.js");

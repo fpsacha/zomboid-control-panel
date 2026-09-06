@@ -1044,3 +1044,68 @@ describe("POST /api/servers/:id/activate: a live-service reload failure must not
     expect(payload.warnings).toBeUndefined();
   });
 });
+
+// reloadServicesForNewActiveServer reloaded serverManager/workshop/RCON/
+// PanelBridge on a server switch but never touched the LogTailer, which
+// resolves its watched paths once and only rescans for a NEWER file inside
+// the basePath it already has -- so it kept faithfully tailing the OLD
+// server's log rotations forever, showing every sign of health (still
+// updating, still finding "new" chat/user logs) while every death and chat
+// line reaching Discord/history actually belonged to the server the
+// operator switched away from. The routes never held a LogTailer reference
+// directly -- discordBot.logTailer is the only handle available to them.
+describe("POST /api/servers/:id/activate: switching the active server must repoint the LogTailer", () => {
+  let io;
+  let discordBot;
+
+  function buildReq(id) {
+    return {
+      params: { id },
+      user: { role: "admin" },
+      app: {
+        get: (key) => ({ io, modChecker: null, discordBot })[key],
+      },
+    };
+  }
+
+  beforeEach(() => {
+    setActiveServer.mockReset();
+    io = { emit: vi.fn() };
+  });
+
+  it("calls logTailer.reloadConfig() via discordBot when activating a different server", async () => {
+    setActiveServer.mockResolvedValue({ id: "2", name: "Server B" });
+    const reloadConfig = vi.fn(async () => {});
+    discordBot = { logTailer: { reloadConfig } };
+
+    const response = createResponse();
+    await runRoute("/:id/activate", "post", buildReq("2"), response);
+
+    expect(reloadConfig).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalledWith(500);
+  });
+
+  it("does not crash activation when discordBot or its logTailer is unavailable", async () => {
+    setActiveServer.mockResolvedValue({ id: "2", name: "Server B" });
+    discordBot = null;
+
+    const response = createResponse();
+    await runRoute("/:id/activate", "post", buildReq("2"), response);
+
+    expect(response.status).not.toHaveBeenCalledWith(500);
+  });
+
+  it("still reports success when logTailer.reloadConfig() throws (best-effort, same posture as the other reloads)", async () => {
+    setActiveServer.mockResolvedValue({ id: "2", name: "Server B" });
+    const reloadConfig = vi.fn(async () => {
+      throw new Error("disk unavailable");
+    });
+    discordBot = { logTailer: { reloadConfig } };
+
+    const response = createResponse();
+    await runRoute("/:id/activate", "post", buildReq("2"), response);
+
+    expect(reloadConfig).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalledWith(500);
+  });
+});
