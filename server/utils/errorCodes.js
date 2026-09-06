@@ -23,8 +23,8 @@
  *   - The 10 codes added most recently (auth.js, serverFiles.js,
  *     configMutationGuard.js) use the constant name as the wire value
  *     unchanged: ErrorCode.AUTH_REQUIRED === "AUTH_REQUIRED".
- *   - The 8 older codes (chunks.js, index.js, dockerUpdateProxy.js,
- *     panelUpdateChecker.js) ship a lower_snake_case wire value that
+ *   - The 15 older codes (chunks.js, index.js, dockerUpdateProxy.js,
+ *     panelUpdateChecker.js, updateBundle.js) ship a lower_snake_case wire value that
  *     client code already compares against with `===` today
  *     (client/src/pages/ChunkCleaner.tsx checks `err.code ===
  *     "server_running"`; client/src/pages/Settings.tsx checks
@@ -1194,6 +1194,48 @@ export const ErrorCode = Object.freeze({
   SAVE_FAILED_LEGACY: "save_failed",
   /** server/index.js -- Docker-update apply path, server wouldn't shut down. */
   STOP_FAILED_LEGACY: "stop_failed",
+  /** server/services/updateBundle.js (many sites: staging/apply path
+   * validation -- bad journal paths, corrupt/missing journal, journal not
+   * matching its install directory, transaction/metadata/state changed
+   * before startup acknowledgement) -- wire value "invalid_bundle", the
+   * update's staged bundle or journal failed a structural check. Reachable
+   * on the wire via panelUpdateChecker.js's downloadUpdate() catch, same
+   * forwarding errorCodeReachability.test.js already covers for sibling
+   * codes here. Registered without touching any of updateBundle.js's 22
+   * throw sites or updateBundle.js itself -- see
+   * errorCodeThrownVsRegistered.test.js. */
+  INVALID_BUNDLE_LEGACY: "invalid_bundle",
+  /** server/services/updateBundle.js -- validateBuildCompatibility() found
+   * the frontend and backend build metadata (version/build SHA/API contract
+   * version) don't match, checked both at stage time and again right before
+   * apply/acknowledge. */
+  VERSION_MISMATCH_LEGACY: "version_mismatch",
+  /** server/services/updateBundle.js -- a staged update file is missing
+   * (stageUpdateBundle(), immediately after being placed) or its hash no
+   * longer matches what was recorded at staging time (applyUpdateBundle()).
+   * Distinct from HASH_UNVERIFIABLE_LEGACY below: this means the file WAS
+   * read and a genuine mismatch was computed, not that reading/hashing it
+   * failed outright -- see that code's own entry for why the two are kept
+   * apart. */
+  AV_QUARANTINE_LEGACY: "av_quarantine",
+  /** server/services/updateBundle.js -- applyUpdateBundle() could not hash
+   * the staged binary or staged client bundle at all (permission denied, a
+   * mid-read I/O error, etc.) -- split out from AV_QUARANTINE_LEGACY
+   * (2026-09-05) so "I could not even check this file" no longer gets
+   * misreported to the operator as "antivirus corrupted this file" when the
+   * real cause is a transient environment issue. */
+  HASH_UNVERIFIABLE_LEGACY: "hash_unverifiable",
+  /** server/services/updateBundle.js -- applyUpdateBundle(), renaming the
+   * staged frontend into place over the live client folder failed. */
+  FRONTEND_SWAP_FAILED_LEGACY: "frontend_swap_failed",
+  /** server/services/updateBundle.js -- applyUpdateBundle(), renaming the
+   * staged binary into place over the live binary failed. */
+  BINARY_SWAP_FAILED_LEGACY: "binary_swap_failed",
+  /** server/services/updateBundle.js -- rollback() could not fully restore
+   * the pre-update binary/client from their backups after a failed apply or
+   * a failed startup handshake; the panel may be left in a partially-updated
+   * state needing manual recovery. */
+  ROLLBACK_FAILED_LEGACY: "rollback_failed",
 
   // --- server/routes/panelBridge.js ---
 
