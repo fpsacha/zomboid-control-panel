@@ -2268,6 +2268,33 @@ export default function Debug() {
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only init
 
+  // bug-hunt-2026-09-04/06 (activeServerChanged sweep): this page never
+  // re-read the active server after mount, same gap as Console.tsx/
+  // Dashboard.tsx before their own fixes. Logs/crash logs/diagnostics are
+  // read-only displays of the PREVIOUS server's data with no unsaved-edit
+  // risk, so this reloads unconditionally, matching the Console-shape
+  // precedent and re-running exactly the mount effect's own always-loaded
+  // set above (not the tab-conditional worldmap/activity/bridge fetches,
+  // which already re-poll on their own 15-30s intervals whenever their tab
+  // is active -- same bounded-staleness reasoning as Events.tsx's poll
+  // loops). fetchSystemInfo/fetchHealthStatus are host-level rather than
+  // server-scoped, but refetching them here is harmless, not incorrect.
+  useEffect(() => {
+    if (!socket) return;
+    const handleActiveServerChanged = () => {
+      fetchSystemInfo();
+      fetchHealthStatus();
+      fetchLogFiles();
+      fetchLogs();
+      fetchCrashLogs();
+      fetchDiagnostics();
+    };
+    socket.on("activeServerChanged", handleActiveServerChanged);
+    return () => {
+      socket.off("activeServerChanged", handleActiveServerChanged);
+    };
+  }, [socket]); // eslint-disable-line react-hooks/exhaustive-deps -- same intentional omission as the mount effect above; these fetch functions aren't memoized but don't capture anything that goes meaningfully stale between renders
+
   // Activity tab polling
   useEffect(() => {
     if (activeTab !== "activity") return;

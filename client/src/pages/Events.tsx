@@ -70,6 +70,7 @@ import { HelpTip } from '@/components/HelpTip'
 import { cn } from '@/lib/utils'
 import { getUserErrorMessage } from '@/lib/errorMessage'
 import { useConfirm } from '@/contexts/ConfirmContext'
+import { useSocket } from '@/contexts/SocketContext'
 
 interface Player {
   name: string
@@ -1261,6 +1262,7 @@ export default function Events() {
 
   const { toast } = useToast()
   const confirm = useConfirm()
+  const socket = useSocket()
 
   const [activeSection, setActiveSection] = useState<EventSectionKey>('rain')
   const [sectionQuery, setSectionQuery] = useState('')
@@ -1463,6 +1465,28 @@ export default function Events() {
       clearInterval(bridgeInterval)
     }
   }, [fetchPlayers, checkBridgeStatus])
+
+  // bug-hunt-2026-09-04/06 (activeServerChanged sweep): this page never
+  // re-read the active server after mount -- same gap as Console.tsx/
+  // Dashboard.tsx before their own fixes. Player roster and bridge
+  // connectivity are read-only displays with no unsaved-edit risk (already
+  // polled every 30s/10s above, so this is only about closing that window
+  // immediately rather than introducing a new fetch), so this reloads
+  // unconditionally, matching the Console-shape precedent. The bridge
+  // options effect (safehouses/factions/vehicles) already depends on
+  // `bridgeConnected`, so it re-runs on its own once checkBridgeStatus()
+  // picks up the new server's connectivity -- no separate handling needed.
+  useEffect(() => {
+    if (!socket) return
+    const handleActiveServerChanged = () => {
+      fetchPlayers()
+      checkBridgeStatus()
+    }
+    socket.on('activeServerChanged', handleActiveServerChanged)
+    return () => {
+      socket.off('activeServerChanged', handleActiveServerChanged)
+    }
+  }, [socket, fetchPlayers, checkBridgeStatus])
 
   useEffect(() => {
     if (!bridgeConnected) {

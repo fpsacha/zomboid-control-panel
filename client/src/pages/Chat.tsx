@@ -158,6 +158,23 @@ export default function Chat() {
     return () => clearInterval(interval)
   }, [fetchPlayers])
 
+  // bug-hunt-2026-09-04/06 (activeServerChanged sweep): this page never
+  // re-read the active server after mount, same gap as Console.tsx/
+  // Dashboard.tsx before their own fixes -- the player roster (used to
+  // target admin/general chat) is a read-only display with no unsaved-edit
+  // risk, so this reloads unconditionally, matching the Console-shape
+  // precedent. chatHistory is deliberately left alone, same call Console.tsx
+  // made for its own liveLog: it's a display of past activity, and sending
+  // always goes through panelBridgeApi, which resolves against whichever
+  // server is active server-side regardless of what this array shows.
+  useEffect(() => {
+    if (!socket) return
+    socket.on('activeServerChanged', fetchPlayers)
+    return () => {
+      socket.off('activeServerChanged', fetchPlayers)
+    }
+  }, [socket, fetchPlayers])
+
   // Listen for chat messages from the server log tailer
   useEffect(() => {
     if (socket) {

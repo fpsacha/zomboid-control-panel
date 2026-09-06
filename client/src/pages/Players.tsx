@@ -98,6 +98,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { DisabledReason } from '@/components/DisabledReason'
 import { useAuth } from '@/contexts/AuthContext'
 import { useConfirm } from '@/contexts/ConfirmContext'
+import { useSocket } from '@/contexts/SocketContext'
 import { cn, copyText } from '@/lib/utils'
 
 interface PerkChoice {
@@ -368,6 +369,7 @@ export default function Players() {
   const [initialLoading, setInitialLoading] = useState(true)
   const { toast } = useToast()
   const confirm = useConfirm()
+  const socket = useSocket()
 
   // Stats tracking
   const [peakPlayers, setPeakPlayers] = useState(0)
@@ -874,6 +876,32 @@ export default function Players() {
       clearInterval(interval)
     }
   }, [fetchPlayers, fetchData, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, canGmTools])
+
+  // bug-hunt-2026-09-04/06 (activeServerChanged sweep): this page never
+  // re-read the active server after mount, same gap as Console.tsx/
+  // Dashboard.tsx before their own fixes. Roster/bans/whitelist/access
+  // levels are read-only displays of the PREVIOUS server's data with no
+  // unsaved-edit risk, so this reloads unconditionally rather than
+  // block-and-warn (ServerConfig/Backups/Mods-shape) -- matches the
+  // Console-shape precedent exactly. fetchData() (perks) is deliberately
+  // excluded: GET /players/perks returns a static hardcoded catalog, not
+  // server-scoped data (server/routes/players.js:713-715), so refetching it
+  // would be pure waste, not a correctness fix.
+  useEffect(() => {
+    if (!socket) return
+    const handleActiveServerChanged = () => {
+      fetchPlayers()
+      fetchNotesAndStats()
+      fetchBannedSteamIds()
+      fetchWhitelist()
+      fetchAccessLevels()
+      if (canGmTools) fetchRosterVitals()
+    }
+    socket.on('activeServerChanged', handleActiveServerChanged)
+    return () => {
+      socket.off('activeServerChanged', handleActiveServerChanged)
+    }
+  }, [socket, fetchPlayers, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, canGmTools])
 
   const requestedPlayerAppliedRef = useRef(false)
   useEffect(() => {
