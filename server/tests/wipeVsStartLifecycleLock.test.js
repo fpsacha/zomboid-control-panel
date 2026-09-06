@@ -63,10 +63,15 @@ afterEach(() => {
 describe("POST /api/server/wipe holds the shared lifecycle lock across its backup+delete window", () => {
   it("refuses a concurrent /start-shaped lock acquisition until the wipe finishes, then allows one", async () => {
     let releaseBackup;
+    let backupEntered;
+    const backupReached = new Promise((r) => {
+      backupEntered = r;
+    });
     const backupService = {
       createBackup: () =>
         new Promise((resolve) => {
           releaseBackup = () => resolve({ success: true, skippedFiles: [] });
+          backupEntered();
         }),
       getBackupsPath: async () => "/tmp/backups",
     };
@@ -98,10 +103,14 @@ describe("POST /api/server/wipe holds the shared lifecycle lock across its backu
     const wipeCall = handler(request, response);
     // Let the wipe pass getActiveServer(), loadConfig(),
     // getServerProcessDetails() and reach the (suspended) backup call --
-    // each is its own microtask tick.
-    while (!releaseBackup) {
-      await new Promise((resolve) => setImmediate(resolve));
-    }
+    // each is its own microtask tick. Awaiting an explicit "entered
+    // createBackup" signal instead of polling `releaseBackup` keeps this
+    // deterministic and, if a future edit stops the handler from ever
+    // reaching createBackup() (a new guard, a changed precondition), fails
+    // on an unresolved await at the suite's timeout with `backupReached`
+    // named in the trace -- instead of a `while` loop that would just spin
+    // until the same timeout with no indication of where it got stuck.
+    await backupReached;
 
     // This is exactly what /start's own handler does as its very first
     // action, before touching anything else -- see routes/server.js's
