@@ -1232,6 +1232,37 @@ class AuthService {
     return { id: user.id, username: user.username, role: user.role };
   }
 
+  /**
+   * Sessions: logout is the one revocation trigger that isn't reached by
+   * searching for "what invalidates a credential" -- it doesn't bump
+   * tokenGen or touch the password, it just removes one refresh session
+   * (single-device, by design; see the class comment above this method's
+   * neighbors for why a full-fleet wipe belongs to changePassword/
+   * regenerateJwtSecret instead). That's exactly why it was missing from
+   * the socket-eviction bus (sweep-round2, c0017c7b) until now: every one
+   * of the five triggers that bus already covered was found by asking
+   * "where does this file invalidate a credential" -- logout ends a
+   * session WITHOUT touching one. A socket opened before logout kept its
+   * rooms (including rcon-live, which carries RCON whitelist passwords)
+   * indefinitely, with nothing server-side enforcing the disconnect --
+   * only the web client's own cleanup (client/src/App.tsx's socket
+   * useEffect closes the socket when isAuthenticated flips false), which
+   * is incidental client behavior, not something the server can rely on
+   * for a security boundary (a different client, a modified bundle, or a
+   * crash before that cleanup runs would all skip it).
+   *
+   * Scope tradeoff, deliberate: emits scope:"user" (every socket for this
+   * user, all devices), not scope tied to just the one refresh session
+   * that was revoked -- sockets authenticate off the access token, whose
+   * payload carries userId/role/tokenGen but no sessionId, so there is no
+   * per-device room to target more narrowly without a bigger change to
+   * what the access token carries. A user logging out on device A briefly
+   * disconnects device B's socket too, but device B's access/refresh
+   * tokens are untouched, so socketAuth.ts's reconnect-with-fresh-token
+   * flow (same mechanism c0017c7b's own comment already relies on) picks
+   * it back up immediately and transparently. Same shape and same
+   * tradeoff every one of the other four triggers already accepts.
+   */
   async logout(refreshToken) {
     if (!refreshToken) {
       return false;
@@ -1269,6 +1300,7 @@ class AuthService {
       const revoked = this.revokeRefreshSession(user, payload.sessionId);
       if (revoked) {
         await commitNow();
+        emitSessionRevoked({ scope: "user", userId: user.id });
       }
 
       return revoked;

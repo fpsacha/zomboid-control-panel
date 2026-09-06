@@ -17,7 +17,7 @@ import bcrypt from "bcryptjs";
 // role change, and user deletion. Nothing in the codebase ever called
 // disconnectSockets/socket.disconnect/fetchSockets to evict a live socket.
 //
-// Fix: services/auth.js's five revocation paths (regenerateJwtSecret,
+// Fix: services/auth.js's revocation paths (regenerateJwtSecret,
 // changePassword, resetPassword, changeUserRoleById, deleteUser) now emit
 // through a tiny onSessionRevoked() pub/sub (same shape as
 // utils/logger.js's onLog), and index.js subscribes with
@@ -25,6 +25,16 @@ import bcrypt from "bcryptjs";
 // disconnectSockets(true) -- globally for a secret regen, or scoped to the
 // `user:<id>` room every authenticated socket joins on connect for
 // everything else (that room membership is index.js's own addition too).
+//
+// sweep-round3 (2026-09-06): logout() was missing from that list. Every one
+// of the original five was found by asking "where does this file
+// invalidate a credential" (tokenGen bump, secret rotation, row deletion);
+// logout ends a session WITHOUT touching a credential, so that search never
+// surfaced it -- and it's the one action a user takes SPECIFICALLY to end
+// their session. See logout()'s own doc comment in services/auth.js for the
+// scope tradeoff (evicts every socket for that user, not just the one
+// device that logged out -- sockets authenticate off the access token,
+// which carries no per-device sessionId to target more narrowly).
 //
 // PRE-FIX BREAK-VERIFY: before this fix, `onSessionRevoked` was not an
 // export of services/auth.js and `evictRevokedSockets` was not an export
@@ -172,6 +182,25 @@ describe("Socket eviction wiring: real authService revocation calls reach the re
 
   it("a read that isn't a revocation path (getUsers) evicts nothing -- the wiring doesn't fire on every auth.js call", async () => {
     await authService.getUsers();
+
+    expect(disconnectSocketsSpy).not.toHaveBeenCalled();
+    expect(inSpy).not.toHaveBeenCalled();
+  });
+
+  it("logout() evicts that user's live sockets too -- sweep-round3: the sixth trigger, found by asking 'what ENDS a session' instead of 'what invalidates a credential'", async () => {
+    const user = db.data.users[0];
+    const session = authService.createRefreshSession(user);
+    const refreshToken = authService.generateRefreshToken(user, session.id);
+
+    await authService.logout(refreshToken);
+
+    expect(inSpy).toHaveBeenCalledWith("user:u-tech");
+    expect(roomDisconnectSpy).toHaveBeenCalledWith(true);
+    expect(disconnectSocketsSpy).not.toHaveBeenCalled();
+  });
+
+  it("a logout() call that revokes nothing (invalid token) evicts nothing -- no false eviction from a no-op", async () => {
+    await authService.logout("not-a-real-token");
 
     expect(disconnectSocketsSpy).not.toHaveBeenCalled();
     expect(inSpy).not.toHaveBeenCalled();
