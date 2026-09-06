@@ -119,6 +119,7 @@
   "BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE": "文件看起来不是有效的 .zip 压缩包。",
   "BACKUP_UPLOAD_INVALID_EXTENSION": "仅接受 .zip 格式的备份。",
   "BACKUP_UPLOAD_NAME_CONFLICT": "名为「{{name}}」的备份已存在。请先删除它，或为上传文件重命名。",
+  "BACKUP_UPLOAD_TOO_LARGE": "上传文件超过 4 GB 限制。",
   "BACKUPS_FOLDER_UNAVAILABLE": "备份文件夹不可用，请先配置服务器。",
   "USER_SELF_DELETE_REFUSED": "无法删除自己的账户，请让另一位管理员代为操作。",
   "SERVER_START_REMOTE_REFUSED": "无法启动远程服务器。远程服务器由外部管理——请使用 RCON 进行交互。",

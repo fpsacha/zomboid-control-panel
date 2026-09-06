@@ -119,6 +119,7 @@
   "BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE": "Dosye a pa sanble ak yon achiv .zip valid.",
   "BACKUP_UPLOAD_INVALID_EXTENSION": "Se sèlman kopi sovgad .zip ki aksepte.",
   "BACKUP_UPLOAD_NAME_CONFLICT": "Yon kopi sovgad ki rele \"{{name}}\" deja egziste. Efase l dabò oswa chanje non telechajman an.",
+  "BACKUP_UPLOAD_TOO_LARGE": "Telechajman an depase limit 4 GB la.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Dosye kopi sovgad pa disponib. Konfigire sèvè a dabò.",
   "USER_SELF_DELETE_REFUSED": "Ou pa ka efase pwòp kont pa ou. Mande yon lòt administratè fè l pito.",
   "SERVER_START_REMOTE_REFUSED": "Pa ka demare yon sèvè aleka. Sèvè aleka jere soti deyò — itilize RCON pou entèraji.",

@@ -119,6 +119,7 @@
   "BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE": "File does not look like a valid .zip archive.",
   "BACKUP_UPLOAD_INVALID_EXTENSION": "Only .zip backups are accepted.",
   "BACKUP_UPLOAD_NAME_CONFLICT": "A backup named \"{{name}}\" already exists. Delete it first or rename the upload.",
+  "BACKUP_UPLOAD_TOO_LARGE": "Upload exceeds the 4 GB limit.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Backups folder not available. Configure the server first.",
   "USER_SELF_DELETE_REFUSED": "You cannot delete your own account. Ask another administrator to do it instead.",
   "SERVER_START_REMOTE_REFUSED": "Cannot start a remote server. Remote servers are managed externally — use RCON to interact.",

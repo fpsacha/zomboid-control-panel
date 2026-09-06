@@ -119,6 +119,7 @@
   "BACKUP_UPLOAD_INVALID_ZIP_SIGNATURE": "El archivo no parece un .zip válido.",
   "BACKUP_UPLOAD_INVALID_EXTENSION": "Solo se aceptan copias de seguridad .zip.",
   "BACKUP_UPLOAD_NAME_CONFLICT": "Ya existe una copia de seguridad llamada \"{{name}}\". Elimínala primero o cambia el nombre de la subida.",
+  "BACKUP_UPLOAD_TOO_LARGE": "La subida supera el límite de 4 GB.",
   "BACKUPS_FOLDER_UNAVAILABLE": "La carpeta de copias de seguridad no está disponible. Configura primero el servidor.",
   "USER_SELF_DELETE_REFUSED": "No puedes eliminar tu propia cuenta. Pide a otro administrador que lo haga.",
   "SERVER_START_REMOTE_REFUSED": "No se puede iniciar un servidor remoto. Los servidores remotos se gestionan externamente — usa RCON para interactuar con él.",
