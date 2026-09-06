@@ -503,6 +503,15 @@ router.get("/users", requirePermission("users.manage"), async (req, res) => {
  * requireRole("admin"). Unlike /api/auth/setup, this does not auto-login
  * or set a session cookie for the caller — it creates an account for
  * someone else to log in with.
+ *
+ * Escalation: refuses to create a user in a role whose capabilities aren't
+ * a subset of the caller's own (authService.createUser's
+ * assertNoCapabilityEscalation, sweep-round2 2026-09-06) — same policy this
+ * codebase already enforces for Discord's authorization tiers
+ * (DISCORD_PERMISSIONS_CAPABILITY_REQUIRED), applied to the primary door
+ * for the same authority instead of only the secondary one. Without it, a
+ * users.manage holder could mint a brand-new admin account outright, zero
+ * cooperation from an actual admin needed.
  */
 router.post("/users", requirePermission("users.manage"), async (req, res) => {
   try {
@@ -519,12 +528,17 @@ router.post("/users", requirePermission("users.manage"), async (req, res) => {
         code: ErrorCode.AUTH_INVALID_ROLE,
       });
     }
-    const user = await authService.createUser(username, password, role);
+    const user = await authService.createUser(username, password, role, {
+      actingUserId: req.user?.userId,
+    });
     log.info(`User created by admin: ${username} (role: ${role})`);
     res.status(201).json({ success: true, user });
   } catch (error) {
     log.warn(`User creation failed: ${error.message}`);
-    res.status(400).json({ error: sanitizeError(error.message) });
+    const body = { error: sanitizeError(error.message) };
+    if (error.code) body.code = error.code;
+    if (error.params) body.params = sanitizeErrorParams(error.params);
+    res.status(error.status || 400).json(body);
   }
 });
 
@@ -540,6 +554,14 @@ router.post("/users", requirePermission("users.manage"), async (req, res) => {
  * to a custom role. Refuses to remove the last user able to manage roles
  * or users (enforced in authService.changeUserRoleById) and refuses an
  * unknown roleId outright rather than falling through to a default.
+ *
+ * Self-change and escalation: also refuses the caller targeting their own
+ * account (USER_SELF_ROLE_CHANGE_REFUSED, same two-party-action reasoning
+ * as DELETE .../:id below) and refuses assigning ANY user a role whose
+ * capabilities aren't a subset of the caller's own
+ * (assertNoCapabilityEscalation, sweep-round2 2026-09-06) — without these,
+ * a users.manage holder could PATCH themselves, or anyone else, straight to
+ * admin in one call.
  */
 router.patch(
   "/users/:id/role",
@@ -547,11 +569,13 @@ router.patch(
   async (req, res) => {
     try {
       const { roleId, role } = req.body || {};
+      const actingUserId = req.user?.userId;
       let user;
       if (typeof roleId === "string" && roleId.trim()) {
         user = await authService.changeUserRoleById(
           req.params.id,
           roleId.trim(),
+          { actingUserId },
         );
       } else {
         if (!USER_ROLES.includes(role)) {
@@ -560,7 +584,7 @@ router.patch(
             code: ErrorCode.AUTH_INVALID_ROLE,
           });
         }
-        user = await authService.changeUserRole(req.params.id, role);
+        user = await authService.changeUserRole(req.params.id, role, { actingUserId });
       }
       log.info(`Role changed by admin: ${user.username} -> ${user.role}`);
       res.json({ success: true, user });

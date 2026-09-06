@@ -209,6 +209,63 @@ async function assertNoRecoveryLockout(userId, currentCapabilities, nextCapabili
   }
 }
 
+// Per-capability "no escalation through a second door" rule. Same policy
+// this codebase already enforces for Discord's own authorization tiers
+// (ErrorCode.DISCORD_PERMISSIONS_CAPABILITY_REQUIRED, routes/discord.js's
+// PUT /permissions): "Setting a Discord tier is handing out an authority
+// through a second, unaudited door; you cannot hand out one you do not
+// hold yourself in the panel." Role ASSIGNMENT (createUser/
+// changeUserRoleById below) is the PRIMARY door for that exact same
+// authority -- there was never a reason the primary door should be less
+// guarded than a secondary one layered on top of it. Without this, a
+// users.manage holder (a capability an operator can delegate to a custom
+// role via the roles.manage-gated matrix, same as any other) could create
+// or reassign a user into ANY role, including one carrying capabilities --
+// up to and including roles.manage/users.manage themselves, i.e. full
+// admin -- the caller doesn't hold, with zero admin cooperation. Deliberately
+// per-capability, not special-cased to RECOVERY_CAPABILITIES the way
+// assertNoRecoveryLockout above is: this rule is about not handing out MORE
+// than you have at all, not just the two "keys to the kingdom" capabilities
+// -- the same subset check that keeps someone from granting roles.manage
+// they don't hold also stops them granting server.control or rcon.execute
+// they don't hold, matching how the Discord precedent works per-command,
+// not just for its own most-sensitive tier.
+//
+// actingUserId, not a pre-resolved actingUser object: matches
+// deleteUser(userId, { actingUserId })'s existing signature rather than
+// inventing a second shape, and re-reads the acting user's role fresh from
+// the DB itself rather than trusting whatever the caller passed in, same
+// discipline as every other capability check in this file.
+async function assertNoCapabilityEscalation(actingUserId, targetCapabilities) {
+  if (!actingUserId) return; // no caller context (e.g. first-user setup bootstrap) -- nothing to compare against, nothing to guard
+  const db = await getDb();
+  const users = db.data.users || [];
+  const actingUser = users.find((u) => String(u.id) === String(actingUserId));
+  if (!actingUser) return; // acting user's own row not found -- not this check's job to invent a refusal for that
+  const actingRole = actingUser.roleId
+    ? await getRoleById(actingUser.roleId)
+    : await getRoleByName(actingUser.role);
+  const actingCapabilities = actingRole?.capabilities || [];
+  const missing = (targetCapabilities || []).filter(
+    (capability) => !actingCapabilities.includes(capability),
+  );
+  if (missing.length > 0) {
+    // TODO(sweep-round2, 2026-09-06): register a real ErrorCode constant in
+    // errorCodes.js and add real translations to all 9
+    // client/src/locales/*/errors.json once that directory is free again
+    // (Pam is mid-flight there across errors.json/chunkCleaner.json/
+    // errorCodes.js as of this commit -- god's instruction was to leave
+    // this as a TODO rather than be a second writer on nine files). The
+    // string value below is chosen now and will not change when it's
+    // registered, so this placeholder is safe to ship ahead of that.
+    const code = "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES";
+    const detail = `Cannot grant a role that holds ${missing.join(", ")} without already holding ${
+      missing.length === 1 ? "it" : "them"
+    } yourself.`;
+    throw makeRoleError(code, detail, 403, { detail, missing });
+  }
+}
+
 // Session-revocation event bus. Socket.IO connections authenticate once at
 // handshake (index.js's io.use middleware) and are never re-validated per
 // event, so the tokenGen/secret/role/deletion checks below -- all of which
@@ -450,7 +507,7 @@ class AuthService {
    * defaulting it to a low-privilege role is a decision that belongs to the
    * caller, not this function.
    */
-  async createUser(username, password, role) {
+  async createUser(username, password, role, { actingUserId } = {}) {
     return this._withMutex(async () => {
       if (!username || !password) {
         throw new Error("Username and password are required");
@@ -488,6 +545,15 @@ class AuthService {
           throw new Error(`role must be one of: ${USER_ROLES.join(", ")}`);
         }
         resolvedRole = role;
+      }
+
+      // No-op on first-user bootstrap: isFirstUser forces admin
+      // unconditionally above (there's no OTHER role to escalate to, and no
+      // actingUserId exists yet either -- assertNoCapabilityEscalation
+      // returns early on that alone regardless).
+      if (!isFirstUser) {
+        const targetRole = await getRoleByName(resolvedRole);
+        await assertNoCapabilityEscalation(actingUserId, targetRole?.capabilities || []);
       }
 
       // Check for duplicate username
@@ -542,7 +608,7 @@ class AuthService {
    * acquires it, and this method's own async work above that call is
    * read-only lookups, not a write that needs serializing.
    */
-  async changeUserRole(userId, newRole) {
+  async changeUserRole(userId, newRole, { actingUserId } = {}) {
     if (!USER_ROLES.includes(newRole)) {
       throw new Error(`role must be one of: ${USER_ROLES.join(", ")}`);
     }
@@ -554,7 +620,7 @@ class AuthService {
       );
     }
 
-    return this.changeUserRoleById(userId, targetRole.id);
+    return this.changeUserRoleById(userId, targetRole.id, { actingUserId });
   }
 
   /**
@@ -579,9 +645,40 @@ class AuthService {
    * different count (excluding one user, not one role) because moving a
    * single user between two EXISTING roles doesn't change what either role
    * grants to anyone else.
+   *
+   * Self-change: refused unconditionally, no override — independent of and
+   * not redundant with the escalation check below. Same reasoning
+   * deleteUser's own self-delete refusal already states for itself: there's
+   * no routine reason an operator needs to change their own role while
+   * signed in as it, and another admin doing it instead is a deliberate
+   * two-party action, not a one-click accident. This closes a real
+   * structural asymmetry (sweep-round2, 2026-09-06) — deleteUser had this
+   * check and changeUserRoleById didn't — not just a gap the escalation
+   * rule below happens to leave: an actual admin (who by definition already
+   * holds every capability, so the escalation check never refuses them)
+   * could still move themselves to a different role with zero cooperation,
+   * exactly the one-click-accident shape deleteUser's own comment already
+   * rejected for account deletion.
+   *
+   * Escalation: refuses assigning ANYONE — self or otherwise — a role whose
+   * capabilities aren't a subset of the caller's own
+   * (assertNoCapabilityEscalation above). This is the check that stops a
+   * users.manage-only caller promoting a DIFFERENT account to admin, which
+   * the self-change block above has nothing to say about.
    */
-  async changeUserRoleById(userId, roleId) {
+  async changeUserRoleById(userId, roleId, { actingUserId } = {}) {
     return this._withMutex(async () => {
+      if (actingUserId && String(actingUserId) === String(userId)) {
+        throw makeRoleError(
+          // TODO(sweep-round2, 2026-09-06): register in errorCodes.js + all
+          // 9 client/src/locales/*/errors.json once that directory is free
+          // (see assertNoCapabilityEscalation's own TODO above for why).
+          "USER_SELF_ROLE_CHANGE_REFUSED",
+          "You cannot change your own role. Ask another administrator to do it instead.",
+          400,
+        );
+      }
+
       const targetRole = await getRoleById(roleId);
       if (!targetRole) {
         throw makeRoleError(
@@ -605,6 +702,7 @@ class AuthService {
       const nextCapabilities = targetRole.capabilities || [];
 
       await assertNoRecoveryLockout(userId, currentCapabilities, nextCapabilities);
+      await assertNoCapabilityEscalation(actingUserId, nextCapabilities);
 
       user.role = targetRole.name;
       user.roleId = targetRole.id;
