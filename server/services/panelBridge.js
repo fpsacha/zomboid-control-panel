@@ -1179,6 +1179,15 @@ class PanelBridge extends EventEmitter {
       if (now - cmd.timestamp > maxPendingAge) {
         clearTimeout(cmd.timeout);
         this.pendingCommands.delete(id);
+        // Same failure class as an isChecking latch left set on early return:
+        // deleting the map entry here without rejecting leaves sendCommand()'s
+        // promise with no path left to ever settle if this sweep wins the
+        // race against the command's own timeout (which normally rejects via
+        // its closure directly, not through the map) -- e.g. after a long
+        // stall/suspend, when Node fires every now-overdue timer in one
+        // catch-up burst and this interval-driven sweep's tick can beat the
+        // individual command's timer to it.
+        cmd.reject(new Error(`Command timeout: ${cmd.action} (stale pending command cleaned up, no response from mod)`));
         log.warn(`Cleaned up stale pending command: ${cmd.action} (age: ${Math.round((now - cmd.timestamp) / 1000)}s)`);
       }
     }

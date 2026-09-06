@@ -182,6 +182,71 @@ describe('PanelBridge pending commands', () => {
   });
 });
 
+// sweep-findings, panelBridge #1: cleanupResultTracking()'s stale-pending
+// sweep used to clearTimeout(cmd.timeout) and delete the map entry WITHOUT
+// ever calling cmd.reject() -- same failure class as an isChecking latch
+// left set on an early return. sendCommand()'s real timeout closure captures
+// reject directly (not through the map), so this was normally harmless, but
+// after a long stall/suspend Node fires every now-overdue timer in one
+// catch-up burst, and this interval-driven sweep's tick (triggers on
+// wall-clock age > maxPendingAge, already true for anything in flight across
+// a real suspend) can win the race against the individual command's own
+// timeout. When it wins, the real timeout never fires, the sweep deletes the
+// map entry instead, and the sendCommand() promise is left with no path left
+// to ever settle -- it hangs forever, and a late-arriving real result finds
+// no pending entry in processResult() and is silently dropped too.
+describe('PanelBridge cleanupResultTracking: stale pending commands must be rejected, not just dropped', () => {
+  it('rejects a stale pending command instead of leaving its promise unsettled forever (regression guard)', async () => {
+    const { PanelBridge } = await import('../services/panelBridge.js');
+    const bridge = new PanelBridge();
+
+    const resolveFn = vi.fn();
+    const rejectFn = vi.fn();
+    const timeout = setTimeout(() => {}, 10000);
+    // Older than maxPendingAge (commandTimeoutMs default 15000 * 2 = 30000ms).
+    const staleTimestamp = Date.now() - 31000;
+    bridge.pendingCommands.set('cmd-stale', {
+      resolve: resolveFn,
+      reject: rejectFn,
+      timeout,
+      action: 'ping',
+      timestamp: staleTimestamp,
+    });
+
+    bridge.cleanupResultTracking();
+
+    expect(bridge.pendingCommands.has('cmd-stale')).toBe(false);
+    expect(rejectFn).toHaveBeenCalledTimes(1);
+    expect(rejectFn.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(rejectFn.mock.calls[0][0].message).toMatch(/ping/);
+    expect(resolveFn).not.toHaveBeenCalled();
+  });
+
+  it('leaves a fresh pending command untouched', async () => {
+    const { PanelBridge } = await import('../services/panelBridge.js');
+    const bridge = new PanelBridge();
+
+    const rejectFn = vi.fn();
+    const timeout = setTimeout(() => {}, 10000);
+    bridge.pendingCommands.set('cmd-fresh', {
+      resolve: vi.fn(),
+      reject: rejectFn,
+      timeout,
+      action: 'ping',
+      timestamp: Date.now(),
+    });
+
+    try {
+      bridge.cleanupResultTracking();
+
+      expect(bridge.pendingCommands.has('cmd-fresh')).toBe(true);
+      expect(rejectFn).not.toHaveBeenCalled();
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+});
+
 describe('PanelBridge queue recovery', () => {
   it('resumes command numbering after a cleared SFTP cache', async () => {
     const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'pz-bridge-test-'));
