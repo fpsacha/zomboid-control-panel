@@ -10,7 +10,12 @@ import path from 'path';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
-import { logPlayerAction, recordPlayerSession } from '../database/init.js';
+import {
+  logPlayerAction,
+  recordPlayerSession,
+  logServerEvent,
+  applySuspendGapToInFlightSessions,
+} from '../database/init.js';
 import { createLogger } from '../utils/logger.js';
 import { PanelBridgeSftpTransport } from './panelBridgeSftp.js';
 const log = createLogger('Bridge');
@@ -39,6 +44,18 @@ const RESULT_FILE_PATTERN = /^res-(\d+)\.json(?:\.txt)?$/;
 // file that is not yet a full sweep interval old gets deleted while a
 // writer might still be using it.
 const MIN_ORPHAN_TMP_AGE_MS = 60_000;
+
+// 2026-09-06, host-suspend-resume sweep (operator-decided shape): a laptop
+// sleep or VM pause freezes the whole Node process, timers included --
+// setInterval callbacks simply do not fire while it's frozen, and the very
+// next tick after resume sees a Date.now() that jumped by the full real
+// elapsed time, not by ~heartbeatIntervalMs. checkHeartbeat() below measures
+// that jump. This threshold is how far past the expected interval a tick can
+// land before it counts as a genuine suspend rather than ordinary
+// event-loop jitter or a GC pause -- comfortably above anything routine
+// jitter produces, comfortably below the shortest suspend anyone would
+// actually notice happened.
+const SUSPEND_GAP_THRESHOLD_MS = 10_000;
 
 // Fails toward KEEPING the file on any ambiguity (stat failure means "can't
 // prove this is safe to delete"), matching pidLiveness.js's isPidAlive()
@@ -72,6 +89,8 @@ class PanelBridge extends EventEmitter {
     this.isRunning = false;
     this.pollInterval = null;
     this.statusInterval = null;
+    this.heartbeatInterval = null;
+    this.lastHeartbeatAt = null;
     this.fileWatcher = null;
     this.sftpTransport = null;
     this.lastSftpStatus = null;
@@ -115,7 +134,8 @@ class PanelBridge extends EventEmitter {
       commandTimeoutMs: 15000,
       statusStaleMs: 45000,         // Status considered stale after 45 seconds (Lua updates every 3s)
       statusStaleIdleMs: 300000,    // 5 min tolerance when 0 players (PZ stops ticking with no players)
-      fileWatchDebounceMs: 100      // Debounce file change events
+      fileWatchDebounceMs: 100,     // Debounce file change events
+      heartbeatIntervalMs: 5000     // Suspend-detection heartbeat (see checkHeartbeat())
     };
   }
 
@@ -549,6 +569,10 @@ class PanelBridge extends EventEmitter {
     // Start checking mod status
     this.statusInterval = setInterval(() => this.checkModStatus(), this.config.statusCheckMs);
 
+    // Start the suspend-detection heartbeat (see checkHeartbeat())
+    this.lastHeartbeatAt = Date.now();
+    this.heartbeatInterval = setInterval(() => this.checkHeartbeat(), this.config.heartbeatIntervalMs);
+
     // Setup file watcher for immediate response to file changes
     this.setupFileWatcher();
 
@@ -654,6 +678,11 @@ class PanelBridge extends EventEmitter {
       clearInterval(this.statusInterval);
       this.statusInterval = null;
     }
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    this.lastHeartbeatAt = null;
     if (this.fileWatcher) {
       this.fileWatcher.close();
       this.fileWatcher = null;
@@ -1550,6 +1579,37 @@ class PanelBridge extends EventEmitter {
 
     // Update previous players set
     this.previousPlayers = current;
+  }
+
+  /**
+   * Detect a host suspend/pause (laptop sleep, VM pause) by watching for the
+   * wall-clock gap between heartbeat ticks. See SUSPEND_GAP_THRESHOLD_MS's
+   * own comment for why this can't just reuse checkModStatus()'s existing
+   * staleness check: that measures the MOD's liveness (the status file's own
+   * age), which conflates "host was frozen" with "game server crashed" --
+   * two different problems needing two different responses. This measures
+   * the PANEL PROCESS's own wall clock directly, independent of the mod.
+   */
+  async checkHeartbeat() {
+    const now = Date.now();
+    const gap = now - this.lastHeartbeatAt - this.config.heartbeatIntervalMs;
+    this.lastHeartbeatAt = now;
+
+    if (gap < SUSPEND_GAP_THRESHOLD_MS) return;
+
+    log.warn(`Detected a ${formatAge(gap)} gap since the last heartbeat -- host was likely suspended/paused. Subtracting it from every in-flight player session.`);
+    try {
+      const { adjustedPlayers } = await applySuspendGapToInFlightSessions(gap);
+      await logServerEvent(
+        'host_suspend_detected',
+        `Detected a ~${formatAge(gap)} gap since the last heartbeat (host suspend/pause?)` +
+          (adjustedPlayers.length > 0
+            ? `; subtracted from ${adjustedPlayers.length} in-flight session(s): ${adjustedPlayers.join(', ')}`
+            : '; no players were online at the time'),
+      );
+    } catch (err) {
+      log.warn(`Failed to record host-suspend diagnostic event: ${err.message}`);
+    }
   }
 
   /**

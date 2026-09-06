@@ -2248,6 +2248,19 @@ export async function getPlayerStat(playerName) {
   );
 }
 
+// 2026-09-06, host-suspend-resume sweep (operator-decided shape): this used
+// to compute duration as pure wall clock (`sessionEnd - sessionStart`), so a
+// host suspend (laptop sleep, VM pause) while a player was connected got the
+// entire suspended window credited to them as playtime on their next real
+// disconnect -- distinct from a genuine game-server crash/offline (which
+// panelBridge.js's handleStatusFailure()/stop() already close out via a
+// synthetic disconnect). PanelBridge's own heartbeat (checkHeartbeat())
+// detects a suspend by the wall-clock gap between its ticks and calls
+// applySuspendGapToInFlightSessions() below, which shifts every currently
+// open session's start forward by the detected gap -- so THIS function's own
+// `sessionEnd - sessionStart` arithmetic naturally excludes the suspended
+// time once the player eventually disconnects. The session row stays one
+// contiguous session; only its computed duration is corrected.
 export async function recordPlayerSession(playerName, action) {
   const db = await getDb();
   if (!db.data.player_stats) db.data.player_stats = [];
@@ -2268,6 +2281,7 @@ export async function recordPlayerSession(playerName, action) {
       last_seen: now,
       last_session_start: null,
       sessions: [],
+      pending_suspend_adjustment_seconds: 0,
     };
     db.data.player_stats.push(playerStat);
   }
@@ -2276,6 +2290,7 @@ export async function recordPlayerSession(playerName, action) {
     playerStat.last_session_start = now;
     playerStat.last_seen = now;
     playerStat.session_count++;
+    playerStat.pending_suspend_adjustment_seconds = 0;
   } else if (action === "disconnect" && playerStat.last_session_start) {
     const sessionStart = new Date(playerStat.last_session_start);
     const sessionEnd = new Date(now);
@@ -2285,10 +2300,17 @@ export async function recordPlayerSession(playerName, action) {
     playerStat.last_seen = now;
 
     if (!playerStat.sessions) playerStat.sessions = [];
+    // suspended_seconds is a diagnostic annotation only -- sessionDuration
+    // above is already correct on its own, because applySuspendGapToInFlightSessions()
+    // shifted last_session_start forward at detection time. This just makes
+    // that correction visible on the session row instead of a duration that
+    // looks unremarkable but silently excludes a multi-hour gap.
+    const suspendedSeconds = playerStat.pending_suspend_adjustment_seconds || 0;
     playerStat.sessions.unshift({
       start: playerStat.last_session_start,
       end: now,
       duration_seconds: sessionDuration,
+      ...(suspendedSeconds > 0 ? { suspended_seconds: suspendedSeconds } : {}),
     });
     if (playerStat.sessions.length > RETENTION.player_sessions) {
       playerStat.sessions = playerStat.sessions.slice(
@@ -2298,10 +2320,42 @@ export async function recordPlayerSession(playerName, action) {
     }
 
     playerStat.last_session_start = null;
+    playerStat.pending_suspend_adjustment_seconds = 0;
   }
 
   scheduleWrite();
   return playerStat;
+}
+
+// Called by PanelBridge's heartbeat (checkHeartbeat()) the moment it detects
+// a host suspend/pause -- shifts every currently-open session's start
+// forward by the detected gap so the eventual disconnect's own
+// `sessionEnd - sessionStart` naturally excludes the suspended window,
+// rather than crediting it as playtime. Applies to EVERY in-flight session
+// at once (not just one), since a host suspend freezes the whole process,
+// every connected player alike. The session row itself is never split --
+// only its future duration computation is affected, plus a diagnostic
+// `suspended_seconds` annotation recorded on it at disconnect (see
+// recordPlayerSession() above).
+export async function applySuspendGapToInFlightSessions(gapMs) {
+  if (!(gapMs > 0)) return { adjustedPlayers: [] };
+
+  const db = await getDb();
+  if (!db.data.player_stats) return { adjustedPlayers: [] };
+
+  const adjustedPlayers = [];
+  const gapSeconds = Math.round(gapMs / 1000);
+  for (const playerStat of db.data.player_stats) {
+    if (!playerStat.last_session_start) continue;
+    const shifted = new Date(playerStat.last_session_start).getTime() + gapMs;
+    playerStat.last_session_start = new Date(shifted).toISOString();
+    playerStat.pending_suspend_adjustment_seconds =
+      (playerStat.pending_suspend_adjustment_seconds || 0) + gapSeconds;
+    adjustedPlayers.push(playerStat.player_name);
+  }
+
+  if (adjustedPlayers.length > 0) scheduleWrite();
+  return { adjustedPlayers };
 }
 
 // ============================================
