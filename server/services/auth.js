@@ -258,11 +258,24 @@ async function assertNoCapabilityEscalation(actingUserId, targetCapabilities) {
     // this as a TODO rather than be a second writer on nine files). The
     // string value below is chosen now and will not change when it's
     // registered, so this placeholder is safe to ship ahead of that.
+    //
+    // `params.detail` is deliberately JUST the joined capability list, not
+    // a full sentence -- same shape as DISCORD_PERMISSIONS_CAPABILITY_REQUIRED's
+    // own `detail` param (routes/discord.js), which is the precedent this
+    // whole guard follows. Keeping the variable part isolated to `detail`
+    // and the surrounding sentence in the (future) locale template, rather
+    // than baking the full sentence into `detail` itself, is what lets that
+    // template exist in 9 languages instead of only English leaking through
+    // untranslated. `message` (the thrown Error's own .message, used
+    // server-side in logs and as the pre-registration fallback text) stays
+    // the full English sentence -- only `params.detail` needs to match the
+    // future template's {{detail}} shape.
     const code = "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES";
-    const detail = `Cannot grant a role that holds ${missing.join(", ")} without already holding ${
+    const detail = missing.join(", ");
+    const message = `Cannot grant a role that holds ${detail} without already holding ${
       missing.length === 1 ? "it" : "them"
     } yourself.`;
-    throw makeRoleError(code, detail, 403, { detail, missing });
+    throw makeRoleError(code, message, 403, { detail, missing });
   }
 }
 

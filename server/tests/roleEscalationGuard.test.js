@@ -101,6 +101,20 @@ describe("createUser() -- refuses creating a user in a role that exceeds the cal
     });
   });
 
+  it("params.detail is JUST the joined capability list, not a full sentence -- the shape a future locale template's {{detail}} will interpolate, matching DISCORD_PERMISSIONS_CAPABILITY_REQUIRED's own params.detail precedent", async () => {
+    await expect(
+      authService.createUser("newadmin2", "password123", "admin", {
+        actingUserId: "u-support",
+      }),
+    ).rejects.toMatchObject({
+      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      // admin holds users.manage, roles.manage, server.control, rcon.execute;
+      // support holds users.manage, players.moderate -- everything admin has
+      // that support doesn't, in order, comma-joined, nothing else.
+      params: { detail: "roles.manage, server.control, rcon.execute" },
+    });
+  });
+
   it("refuses a users.manage-only (support) caller minting a brand-new ADMIN account -- the exploit this closes", async () => {
     await expect(
       authService.createUser("newadmin", "password123", "admin", {
