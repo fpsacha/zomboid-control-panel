@@ -209,6 +209,34 @@ async function assertNoRecoveryLockout(userId, currentCapabilities, nextCapabili
   }
 }
 
+// Session-revocation event bus. Socket.IO connections authenticate once at
+// handshake (index.js's io.use middleware) and are never re-validated per
+// event, so the tokenGen/secret/role/deletion checks below -- all of which
+// authenticateAccessToken and refreshAccessToken re-run on every HTTP
+// request -- are otherwise no-ops for any socket that connected before the
+// change. This lets index.js's Socket.IO layer evict live sockets when one
+// of those paths fires, without auth.js importing the `io` instance
+// (circular). Same shape as utils/logger.js's onLog.
+const sessionRevocationCallbacks = [];
+
+export function onSessionRevoked(callback) {
+  sessionRevocationCallbacks.push(callback);
+  return () => {
+    const index = sessionRevocationCallbacks.indexOf(callback);
+    if (index > -1) sessionRevocationCallbacks.splice(index, 1);
+  };
+}
+
+function emitSessionRevoked(event) {
+  sessionRevocationCallbacks.forEach((cb) => {
+    try {
+      cb(event);
+    } catch (error) {
+      log.warn(`Session-revocation callback failed: ${error.message}`);
+    }
+  });
+}
+
 class AuthService {
   constructor() {
     this.jwtSecret = null;
@@ -384,6 +412,7 @@ class AuthService {
         "existing access and refresh token is now invalid — every user, on " +
         "every device, must log in again.",
     );
+    emitSessionRevoked({ scope: "all" });
     return { path: secretPath };
   }
 
@@ -584,6 +613,7 @@ class AuthService {
       log.info(
         `Role changed for user ${user.username}: ${user.role} (roleId: ${user.roleId})`,
       );
+      emitSessionRevoked({ scope: "user", userId: user.id });
       return {
         id: user.id,
         username: user.username,
@@ -614,13 +644,16 @@ class AuthService {
    * neither roles.manage nor users.manage). Refuses to delete the last
    * user able to manage roles or manage users.
    *
-   * Sessions: deleting the row is the whole mechanism — no separate
-   * tokenGen bump or session-revocation step is needed. Both
-   * authenticateAccessToken (every authenticated request) and
-   * refreshAccessToken look the user up by id fresh, every call, and
-   * already refuse when no row matches; there is nothing left to check
-   * once the row is gone. Takes effect on the deleted user's very next
-   * request, not at their access token's natural expiry.
+   * Sessions: deleting the row is the whole mechanism for HTTP — no
+   * separate tokenGen bump is needed. Both authenticateAccessToken (every
+   * authenticated request) and refreshAccessToken look the user up by id
+   * fresh, every call, and already refuse when no row matches; there is
+   * nothing left to check once the row is gone. Takes effect on the deleted
+   * user's very next request, not at their access token's natural expiry.
+   * Socket.IO connections authenticate once at handshake and never re-run
+   * that lookup, so a live socket opened before the delete would otherwise
+   * keep working forever with the deleted user's stale identity/rooms —
+   * emitSessionRevoked below closes that gap by evicting it.
    */
   async deleteUser(userId, { actingUserId } = {}) {
     return this._withMutex(async () => {
@@ -650,6 +683,7 @@ class AuthService {
       await commitNow();
 
       log.info(`Deleted user: ${user.username} (${user.id})`);
+      emitSessionRevoked({ scope: "user", userId: user.id });
       return { id: user.id, username: user.username };
     });
   }
@@ -881,6 +915,7 @@ class AuthService {
     await commitNow();
 
     log.info(`Password changed for user: ${user.username}`);
+    emitSessionRevoked({ scope: "user", userId: user.id });
     return true;
   }
 
@@ -1170,6 +1205,7 @@ class AuthService {
     await commitNow();
 
     log.info(`Password reset for user: ${user.username}`);
+    emitSessionRevoked({ scope: "user", userId: user.id });
     return { username: user.username };
   }
 

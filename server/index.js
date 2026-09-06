@@ -73,7 +73,7 @@ import {
 } from "./services/updateBundle.js";
 import { LogTailer } from "./services/logTailer.js";
 import { DiskMonitor } from "./services/diskMonitor.js";
-import authService from "./services/auth.js";
+import authService, { onSessionRevoked } from "./services/auth.js";
 import { getRoleByName } from "./services/permissions.js";
 import { requireRole } from "./services/auth.js";
 import authRoutes from "./routes/auth.js";
@@ -2058,6 +2058,16 @@ io.on("connection", (socket) => {
     `Client connected: ${socket.id}${socket.user ? ` (${socket.user.username})` : ""}`,
   );
 
+  // Membership for the per-user eviction room used by the
+  // onSessionRevoked() subscription below (password change/reset, role
+  // change, user delete). Auth-disabled and no-setup-needed connections
+  // have no real userId (socket.user.userId is null, or socket.user is
+  // unset entirely) and are intentionally left out -- there is no DB user
+  // row for either to be revoked against.
+  if (socket.user?.userId) {
+    socket.join(`user:${socket.user.userId}`);
+  }
+
   socket.on("disconnect", () => {
     log.debug(`Client disconnected: ${socket.id}`);
   });
@@ -2126,6 +2136,26 @@ io.on("connection", (socket) => {
   });
 });
 
+// Sockets authenticate once at handshake (io.use above) and are never
+// re-validated per event, so without this, regenerate-jwt-secret,
+// change-password/reset-password, role changes, and user deletion (the
+// revocation paths in services/auth.js) would all be no-ops for any socket
+// that connected before the change -- e.g. a revoked user's already-open
+// socket would keep receiving the rcon-live room's whitelist passwords
+// indefinitely. disconnectSockets(true) forces a reconnect, which re-runs
+// io.use and picks up the new state (or fails closed if the user is gone).
+// Exported (not an inline closure) so tests can call it directly against
+// the real `io` instance and assert the disconnect calls it makes, without
+// needing a live network socket to prove the wiring is correct.
+export function evictRevokedSockets(event) {
+  if (event.scope === "all") {
+    io.disconnectSockets(true);
+  } else if (event.scope === "user" && event.userId) {
+    io.in(`user:${event.userId}`).disconnectSockets(true);
+  }
+}
+onSessionRevoked(evictRevokedSockets);
+
 // Stream logs to Socket.IO clients
 onLog((logEntry) => {
   addLogToBuffer(logEntry.level, logEntry.message, logEntry.source);
@@ -2163,21 +2193,46 @@ async function autoExportPlayer(username) {
     );
     fs.mkdirSync(exportDir, { recursive: true });
 
-    // Write timestamped export file
+    // Write timestamped export file. toISOString() is millisecond-resolution
+    // -- two auto-exports for the SAME player landing in the same
+    // millisecond (e.g. a rapid disconnect/reconnect scheduling two
+    // 10-second-delayed timers close together) would otherwise silently
+    // overwrite one export with the other. Same collision-suffix convention
+    // as configBackup.js/database/init.js's backup rings -- the suffix goes
+    // BEFORE the .json extension (name-<n>.json), not after, so the
+    // rotation filter/sort below (which matches on ".json") still sees the
+    // file: an earlier draft of this fix appended "-<n>" after ".json" and
+    // silently exempted every collided export from rotation forever.
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `${username.replace(/[^a-zA-Z0-9_-]/g, "_")}_${timestamp}.json`;
-    fs.writeFileSync(
-      path.join(exportDir, filename),
-      JSON.stringify(result.data || result, null, 2),
-    );
+    const safeUsername = username.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const exportBaseName = `${safeUsername}_${timestamp}`;
+    let exportPath = path.join(exportDir, `${exportBaseName}.json`);
+    for (let collision = 2; fs.existsSync(exportPath); collision++) {
+      exportPath = path.join(exportDir, `${exportBaseName}-${collision}.json`);
+    }
+    fs.writeFileSync(exportPath, JSON.stringify(result.data || result, null, 2));
 
-    // Rotate — keep only the last N exports
+    // Rotate — keep only the last N exports. Same (timestampKey,
+    // collisionSuffix)-parsing sort as database/init.js's
+    // sortBackupFilenamesNewestFirst(): a raw string sort would put
+    // "-2.json" before ".json" ('-' < '.'), treating a collision's later
+    // duplicate as older than the original it collided with.
     const maxExports = Number(await getSetting("autoExportMaxPerPlayer")) || 3;
     const files = fs
       .readdirSync(exportDir)
       .filter((f) => f.endsWith(".json"))
-      .sort()
-      .reverse(); // newest first by name (ISO timestamp)
+      .map((name) => {
+        const withoutExt = name.slice(0, -".json".length);
+        const match = withoutExt.match(/^(.*)-(\d+)$/);
+        return match
+          ? { name, key: match[1], suffix: parseInt(match[2], 10) }
+          : { name, key: withoutExt, suffix: 1 };
+      })
+      .sort((a, b) => {
+        if (a.key !== b.key) return a.key < b.key ? 1 : -1; // newest first
+        return b.suffix - a.suffix; // higher collision suffix = created later
+      })
+      .map((c) => c.name);
 
     if (files.length > maxExports) {
       for (const old of files.slice(maxExports)) {
