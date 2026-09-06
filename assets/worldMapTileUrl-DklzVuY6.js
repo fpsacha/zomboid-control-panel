@@ -1,0 +1,1 @@
+function e(e,t){let n=[e===0?``:`floor=${e}`,t?`v=${encodeURIComponent(t)}`:``].filter(Boolean).join(`&`);return n?`?${n}`:``}export{e as t};

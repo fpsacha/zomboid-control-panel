@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" class="dark theme-survival">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/zomboid-control-panel/zombie.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Admin control panel for Project Zomboid dedicated servers - manage players, mods, backups, and more" />
+    <meta name="theme-color" content="#0a0c05" />
+    <link rel="preload" href="/zomboid-control-panel/fonts/bebas-neue-v16-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <!--
+      Anti-FOUC: set the real theme class BEFORE first paint / before the app
+      bundle loads. Without this, the page always paints with the static
+      fallback above (dark + theme-survival) for a frame or two, then
+      ThemeContext's post-mount effect swaps it — visible as a dark flash on
+      every load for anyone using the light theme. This is a synchronous,
+      blocking script by design (the whole point is to run before paint);
+      keep it framework-free and tiny. Must stay in sync with
+      applyThemeClass() in contexts/ThemeContext.tsx.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('pz-panel-theme');
+          var theme = (stored === 'light' || stored === 'survival') ? stored : 'survival';
+          var root = document.documentElement;
+          root.classList.remove('theme-survival', 'theme-light', 'dark');
+          root.classList.add('theme-' + theme);
+          if (theme === 'light') {
+            root.style.colorScheme = 'light';
+          } else {
+            root.classList.add('dark');
+            root.style.colorScheme = 'dark';
+          }
+        } catch (e) { /* localStorage may be unavailable; static fallback class above stands */ }
+      })();
+    </script>
+    <title>Zomboid Control Panel</title>
+    <script type="module" crossorigin src="/zomboid-control-panel/assets/index-D2R_-sUc.js"></script>
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/rolldown-runtime-hePW80VL.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/charts-Dq0Ev4Y1.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/vendor-BJKu70JR.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/router-BCQk2xQl.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/radix-vendor-B3wYL-GB.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/icons-DHiR8inR.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/utils-DVIToxJS.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/api-2Uj0AU02.js">
+    <link rel="modulepreload" crossorigin href="/zomboid-control-panel/assets/label-fcDucJWM.js">
+    <link rel="stylesheet" crossorigin href="/zomboid-control-panel/assets/index-DOavVR9Y.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

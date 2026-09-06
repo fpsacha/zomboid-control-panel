@@ -1,0 +1,1 @@
+import{a as e,o as t}from"./label-fcDucJWM.js";function n(n,r){let i=typeof n.progressCode==`string`&&n.progressCode?n.progressCode:void 0;if(!i)return r;let a=e(n.params);return t(`installProgress`,i,a)??r}export{n as t};
