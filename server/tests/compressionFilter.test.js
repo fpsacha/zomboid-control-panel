@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isUncompressedBinaryProxyPath, UNCOMPRESSED_BINARY_PROXY_PREFIXES } from "../utils/compressionFilter.js";
+import {
+  isUncompressedBinaryProxyPath,
+  isEventStreamResponse,
+  UNCOMPRESSED_BINARY_PROXY_PREFIXES,
+} from "../utils/compressionFilter.js";
 
 // bug-hunt-2026-08-26 / VastayanWings: index.js's global compression()
 // middleware had no exclusion, so every map tile and mod thumbnail response
@@ -36,5 +40,40 @@ describe("isUncompressedBinaryProxyPath", () => {
       "/api/map/b41tiles/",
       "/api/mods/thumbnail/",
     ]);
+  });
+});
+
+// bug-hunt-2026-09-06 / god: text/event-stream is compressible by the
+// `compressible` package's own mime rules, so it went through the same
+// global gzip stream as ordinary JSON responses with no exemption -- zlib's
+// internal buffering (never flushed, since no SSE route calls the
+// `res.flush()` `compression` attaches) held every event until the stream
+// ended, making a healthy conflict scan look timed-out client-side.
+describe("isEventStreamResponse", () => {
+  const stubRes = (contentType) => ({
+    getHeader: (name) => (name === "Content-Type" ? contentType : undefined),
+  });
+
+  it("recognizes an SSE response by its Content-Type header", () => {
+    expect(isEventStreamResponse(stubRes("text/event-stream"))).toBe(true);
+  });
+
+  it("recognizes an SSE response whose Content-Type carries a charset parameter", () => {
+    expect(isEventStreamResponse(stubRes("text/event-stream; charset=utf-8"))).toBe(true);
+  });
+
+  it("does not flag ordinary JSON or HTML responses", () => {
+    expect(isEventStreamResponse(stubRes("application/json; charset=utf-8"))).toBe(false);
+    expect(isEventStreamResponse(stubRes("text/html"))).toBe(false);
+  });
+
+  it("does not flag a response with no Content-Type set yet", () => {
+    expect(isEventStreamResponse(stubRes(undefined))).toBe(false);
+  });
+
+  it("does not false-positive on a merely similar content type", () => {
+    // Guards against an overly loose match, mirroring the path-prefix test
+    // above for isUncompressedBinaryProxyPath.
+    expect(isEventStreamResponse(stubRes("text/event-streaming"))).toBe(false);
   });
 });

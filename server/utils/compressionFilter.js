@@ -22,3 +22,27 @@ export const UNCOMPRESSED_BINARY_PROXY_PREFIXES = [
 export function isUncompressedBinaryProxyPath(req) {
   return UNCOMPRESSED_BINARY_PROXY_PREFIXES.some((prefix) => req.path.startsWith(prefix));
 }
+
+// Server-Sent Event responses (Content-Type: text/event-stream) must never
+// go through gzip/deflate/br. `compressible` classifies text/event-stream as
+// compressible (it's text/*), so express's global compression() middleware
+// wraps res.write in a real zlib Transform unless something opts it out --
+// and zlib buffers written bytes internally until it decides to flush or the
+// stream ends. Nothing in an SSE handler calls the `res.flush()` that
+// `compression` attaches for exactly this case, so every event queued up
+// behind zlib's buffer instead of reaching the client as it's produced,
+// making a healthy long-running scan look hung/timed-out client-side.
+// Setting `X-Accel-Buffering: no` does not help here -- that header is a
+// signal to an nginx reverse proxy, not to this in-process compressor.
+//
+// res is anything with a `.getHeader` function (a real Express/http res, or
+// a plain stub in a unit test) -- kept minimal so this stays testable
+// without spinning up an app. Checked by content-type rather than by route
+// path so any current or future SSE endpoint is covered without needing its
+// own entry here.
+export function isEventStreamResponse(res) {
+  const contentType = res.getHeader("Content-Type");
+  if (typeof contentType !== "string") return false;
+  const mimeType = contentType.split(";")[0].trim();
+  return mimeType === "text/event-stream";
+}
