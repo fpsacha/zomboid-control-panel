@@ -612,9 +612,24 @@ export function isValidPath(inputPath) {
   return true;
 }
 
-function resolveZomboidPaths(installPath, zomboidDataPath) {
+export function resolveZomboidPaths(installPath, zomboidDataPath) {
+  // path-resolution sweep, 2026-09-06: this used to be a naive template
+  // string (`${installPath}_Data`), which only produces the intended
+  // SIBLING folder when installPath has no trailing separator. isValidPath()
+  // (above) rejects ".." and non-absolute paths but not a trailing one, and
+  // path.normalize() does not strip a single trailing separator either --
+  // so installPath="D:\Servers\MyServer\" (plausible from a pasted Explorer
+  // address bar) silently nested the default data folder INSIDE the install
+  // folder ("MyServer\_Data") instead of beside it ("MyServer_Data"), which
+  // is exactly the condition the delete-files route above refuses to delete
+  // through (comment at its own nested-data-path check). path.dirname() and
+  // path.basename() both already strip a trailing separator before
+  // extracting their piece, so deriving the default this way is
+  // separator-agnostic by construction -- it doesn't matter whether
+  // upstream trimmed anything, this can't reproduce the bug.
   const defaultZomboidDataPath =
-    process.env.PZ_SAVE_PATH || `${installPath}_Data`;
+    process.env.PZ_SAVE_PATH ||
+    path.join(path.dirname(installPath), `${path.basename(installPath)}_Data`);
   const zomboidPath = zomboidDataPath || defaultZomboidDataPath;
 
   return {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import fs from "fs";
+import path from "path";
 import { EventEmitter } from "events";
 
 // spawn() is mocked at module scope (not per-test) because server.js binds
@@ -140,6 +141,47 @@ describe("server path validation rejects raw traversal segments", () => {
         : "/var/lib/../etc";
 
     expect(isValidPath(absolutePath)).toBe(false);
+  });
+});
+
+// path-resolution sweep, 2026-09-06: resolveZomboidPaths()'s default data
+// path used to be a naive template string (`${installPath}_Data`), which
+// only produces the intended SIBLING folder when installPath has no
+// trailing separator. isValidPath() rejects ".." and non-absolute paths but
+// not a trailing one, and path.normalize() does not strip a single trailing
+// separator either -- so an installPath copy-pasted from an Explorer
+// address bar (which often carries one) silently nested the default data
+// folder INSIDE the install folder instead of beside it, exactly the
+// condition /delete-files's own nested-data-path check exists to refuse.
+describe("resolveZomboidPaths default data path survives a trailing separator", () => {
+  it("derives the same sibling _Data folder whether or not installPath has a trailing separator", async () => {
+    const { resolveZomboidPaths } = await import("../routes/server.js");
+    const withoutSep =
+      process.platform === "win32" ? "D:\\Servers\\MyServer" : "/srv/pz/MyServer";
+    const withSep = withoutSep + path.sep;
+
+    const resultWithoutSep = resolveZomboidPaths(withoutSep, null);
+    const resultWithSep = resolveZomboidPaths(withSep, null);
+
+    expect(resultWithSep.zomboidPath).toBe(resultWithoutSep.zomboidPath);
+    expect(resultWithSep.zomboidPath).toBe(withoutSep + "_Data");
+    // The bug's exact wrong shape: a trailing separator used to make this a
+    // subdirectory named "_Data" INSIDE the install folder instead of a
+    // sibling next to it.
+    expect(resultWithSep.zomboidPath).not.toBe(path.join(withoutSep, "_Data"));
+  });
+
+  it("still honors an explicit zomboidDataPath regardless of installPath's separator", async () => {
+    const { resolveZomboidPaths } = await import("../routes/server.js");
+    const installPath =
+      (process.platform === "win32" ? "D:\\Servers\\MyServer" : "/srv/pz/MyServer") +
+      path.sep;
+    const explicitData =
+      process.platform === "win32" ? "D:\\Data\\Custom" : "/srv/data/custom";
+
+    const result = resolveZomboidPaths(installPath, explicitData);
+
+    expect(result.zomboidPath).toBe(explicitData);
   });
 });
 
