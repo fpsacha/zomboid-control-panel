@@ -8,6 +8,11 @@ vi.mock("../database/init.js", () => ({
 }));
 
 const { default: router } = await import("../routes/server.js");
+const { getActiveServer } = await import("../database/init.js");
+getActiveServer.mockResolvedValue({
+  zomboidDataPath: null,
+  serverName: "servertest",
+});
 
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
@@ -39,6 +44,7 @@ describe("POST /api/server/wipe concurrency guard", () => {
 
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: () => {
         checkCalls += 1;
         // Suspend the first request inside its validation phase.
@@ -64,8 +70,16 @@ describe("POST /api/server/wipe concurrency guard", () => {
     const secondResponse = createResponse();
 
     const firstCall = handler(buildRequest(), firstResponse);
-    // Let the first request reach its await.
-    await Promise.resolve();
+    // Let the first request reach its suspension point inside
+    // getServerProcessDetails(). A single microtask tick isn't reliably
+    // enough any more (path-resolution sweep, 2026-09-06: /wipe now awaits
+    // getActiveServer() and reloadConfig() first) -- poll until the
+    // synchronous checkCalls increment inside getServerProcessDetails()
+    // has actually happened, rather than guessing a fixed tick count that
+    // breaks again the next time a new await lands ahead of it.
+    while (checkCalls === 0) {
+      await Promise.resolve();
+    }
 
     await handler(buildRequest(), secondResponse);
 
@@ -78,6 +92,7 @@ describe("POST /api/server/wipe concurrency guard", () => {
   it("releases the guard so a later wipe is not blocked forever", async () => {
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: async () => ({
         running: true,
         scanFailed: false,
@@ -108,6 +123,7 @@ describe("POST /api/server/wipe fails closed when detection can't confirm the se
   it("refuses the wipe instead of assuming the server is stopped", async () => {
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: async () => ({
         running: false,
         scanFailed: true,

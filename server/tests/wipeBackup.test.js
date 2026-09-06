@@ -15,6 +15,7 @@ vi.mock("../routes/chunks.js", () => ({
 }));
 
 const { default: router } = await import("../routes/server.js");
+const { getActiveServer } = await import("../database/init.js");
 
 const SERVER_NAME = "servertest";
 
@@ -42,6 +43,16 @@ beforeEach(() => {
   saveDir = path.join(savePath, "Saves", "Multiplayer", SERVER_NAME);
   fs.mkdirSync(path.join(saveDir, "map"), { recursive: true });
   fs.writeFileSync(path.join(saveDir, "map", "0_0.bin"), "chunk");
+  // path-resolution sweep, 2026-09-06: /wipe now derives its target from a
+  // fresh getActiveServer() read (matching backupService's own already-
+  // correct derivation) instead of serverManager's cache -- see
+  // wipeStaleServerManagerDerivation.test.js for why. Every fixture here
+  // still describes ONE consistent server, so this mock and
+  // buildServerManager()'s fields below intentionally agree.
+  getActiveServer.mockResolvedValue({
+    zomboidDataPath: savePath,
+    serverName: SERVER_NAME,
+  });
 });
 
 afterEach(() => {
@@ -51,6 +62,7 @@ afterEach(() => {
 function buildServerManager() {
   return {
     loadConfig: async () => {},
+    reloadConfig: async () => {},
     getServerProcessDetails: async () => ({ running: false, scanFailed: false }),
     savePath,
     serverName: SERVER_NAME,

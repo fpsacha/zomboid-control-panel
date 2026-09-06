@@ -5415,7 +5415,41 @@ export async function countDir(dir, budget) {
 router.post("/wipe/preview", requirePermission("server.wipe"), async (req, res) => {
   try {
     const serverManager = req.app.get("serverManager");
-    await serverManager.loadConfig();
+    // path-resolution sweep, 2026-09-06: this used to read serverManager's
+    // CACHED savePath/serverName, refreshed only by an explicit
+    // reloadConfig() (servers.js's /:id/activate and PUT /servers/:id) --
+    // a failed reload there is treated as best-effort (the DB write is
+    // never rolled back, see servers.js:1706-1710) and serverManager's own
+    // loadConfig() is a no-op once already loaded (serverManager.js:525),
+    // so it does NOT self-heal. backupService.js's getSavesPath() /
+    // getBackupsPath() -- used by /wipe's own pre-wipe backup -- always
+    // re-read getActiveServer() fresh from the DB, independent of
+    // serverManager. Two derivations of "the active server's save path"
+    // that agree under normal conditions but can silently diverge when an
+    // earlier reload failed -- collapsed here onto ONE fresh source
+    // (getActiveServer(), matching backupService's own already-correct
+    // approach) instead of reconciling two. reloadConfig() (a REAL reload,
+    // not the guarded loadConfig() above) is forced so the stopped-check in
+    // /wipe itself (getServerProcessDetails(), which depends on
+    // serverManager's OTHER cached fields -- serverPath, serverBat,
+    // launchMode -- to find the right OS process) examines this same
+    // server too, rather than whatever serverManager last successfully
+    // loaded. A reload failure here fails the preview closed instead of
+    // silently describing a possibly-wrong server -- see the follow-up
+    // report on whether activate/update's own best-effort posture should
+    // change; not touched here.
+    const activeServer = await getActiveServer();
+    if (!activeServer) {
+      return res.status(400).json({ error: "No active server configured", code: ErrorCode.WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED });
+    }
+    try {
+      await serverManager.reloadConfig();
+    } catch (e) {
+      return res.status(503).json({
+        error: "Could not verify the active server's configuration — refusing to preview a wipe against possibly-stale state. Try again, or restart the panel.",
+        code: ErrorCode.SERVER_STATE_UNKNOWN,
+      });
+    }
 
     const { targets } = req.body || {}; // e.g. ["map", "players", "world"]
     if (!Array.isArray(targets) || targets.length === 0) {
@@ -5437,8 +5471,8 @@ router.post("/wipe/preview", requirePermission("server.wipe"), async (req, res) 
       });
     }
 
-    const savePath = serverManager.savePath;
-    const serverName = serverManager.serverName || "servertest";
+    const savePath = activeServer.zomboidDataPath;
+    const serverName = activeServer.serverName || "servertest";
     if (!savePath) {
       return res.status(400).json({ error: "No zomboid data path configured", code: ErrorCode.WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED });
     }
@@ -5693,7 +5727,29 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
 
   try {
     const serverManager = req.app.get("serverManager");
-    await serverManager.loadConfig();
+    // path-resolution sweep, 2026-09-06: serverManager.loadConfig() alone
+    // (below) is a no-op once already loaded (serverManager.js:525) and
+    // does NOT self-heal a stale manager -- see the matching comment on
+    // /wipe/preview above for the full mechanism. Fetched fresh here
+    // (not reusing activeServerForLock, computed before the lock above was
+    // acquired) since the lifecycle lock now held for the rest of this
+    // request guarantees the active server can't change under us -- this
+    // read is the one source of truth the target path, the stopped-check,
+    // and the pre-wipe backup below all now agree on, matching
+    // backupService's own already-correct getActiveServer()-based
+    // derivation instead of reconciling two different ones.
+    const activeServer = await getActiveServer();
+    if (!activeServer) {
+      return res.status(400).json({ error: "No active server configured", code: ErrorCode.WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED });
+    }
+    try {
+      await serverManager.reloadConfig();
+    } catch (e) {
+      return res.status(503).json({
+        error: "Could not verify the active server's configuration — refusing to wipe against possibly-stale state. Nothing was deleted. Try again, or restart the panel.",
+        code: ErrorCode.SERVER_STATE_UNKNOWN,
+      });
+    }
 
     // Safety: server must be stopped, and we must be SURE of that.
     // checkServerRunning() collapses a failed detection scan into `false`
@@ -5738,8 +5794,8 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
         .json({ error: `Invalid targets: ${invalid.join(", ")}`, code: ErrorCode.WIPE_INVALID_TARGETS });
     }
 
-    const savePath = serverManager.savePath;
-    serverName = serverManager.serverName || "servertest";
+    const savePath = activeServer.zomboidDataPath;
+    serverName = activeServer.serverName || "servertest";
     if (!savePath) {
       return res.status(400).json({ error: "No zomboid data path configured", code: ErrorCode.WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED });
     }

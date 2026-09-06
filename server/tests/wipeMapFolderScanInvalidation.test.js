@@ -18,6 +18,7 @@ vi.mock("../routes/chunks.js", () => ({
 }));
 
 const { default: router } = await import("../routes/server.js");
+const { getActiveServer } = await import("../database/init.js");
 
 const SERVER_NAME = "servertest";
 
@@ -46,6 +47,14 @@ beforeEach(() => {
   fs.mkdirSync(path.join(saveDir, "map"), { recursive: true });
   fs.writeFileSync(path.join(saveDir, "map", "0_0.bin"), "chunk");
   invalidateMapFolderScanMock.mockClear();
+  // path-resolution sweep, 2026-09-06: /wipe now derives its target from a
+  // fresh getActiveServer() read instead of serverManager's cache -- see
+  // wipeStaleServerManagerDerivation.test.js. Kept consistent with this
+  // file's own serverManager stubs below (same savePath/serverName).
+  getActiveServer.mockResolvedValue({
+    zomboidDataPath: savePath,
+    serverName: SERVER_NAME,
+  });
 });
 
 afterEach(() => {
@@ -62,6 +71,7 @@ describe("POST /api/server/wipe invalidates chunks.js's cached map/ folder scan"
     // map/ folder that no longer exists.
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: async () => ({ running: false, scanFailed: false }),
       savePath,
       serverName: SERVER_NAME,
@@ -92,6 +102,7 @@ describe("POST /api/server/wipe invalidates chunks.js's cached map/ folder scan"
   it("does not invalidate the map/ scan cache when only non-map targets are wiped", async () => {
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: async () => ({ running: false, scanFailed: false }),
       savePath,
       serverName: SERVER_NAME,
