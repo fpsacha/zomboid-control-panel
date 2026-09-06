@@ -2167,7 +2167,10 @@ onLog((logEntry) => {
 // ============================================
 import { getDataPaths } from "./utils/paths.js";
 
-async function autoExportPlayer(username) {
+// Exported so tests can call it directly against real fs/database state
+// without needing a live PanelBridge mod connection -- see
+// server/tests/autoExportPlayerCollision.test.js.
+export async function autoExportPlayer(username) {
   try {
     if (!panelBridge.isRunning || !panelBridge.isModConnected()) {
       log.debug(
