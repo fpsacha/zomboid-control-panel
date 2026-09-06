@@ -360,6 +360,18 @@ export const ErrorCode = Object.freeze({
    * delete button is disabled for it -- this closes that gap in the
    * service itself, not just the one screen that happened to check first. */
   ROLE_IS_SEEDED: "ROLE_IS_SEEDED",
+  /** server/services/auth.js -- createUser()/changeUserRoleById()'s
+   * assertNoCapabilityEscalation(): the caller tried to create or reassign
+   * a user into a role whose capabilities aren't a subset of their own.
+   * Same policy as DISCORD_PERMISSIONS_CAPABILITY_REQUIRED below (routes/
+   * discord.js), applied to role assignment -- the PRIMARY door for the
+   * same authority Discord's tiers hand out through a secondary one.
+   * Carries {{detail}}, the comma-joined list of capability keys the
+   * target role grants that the caller doesn't hold -- same shape as
+   * DISCORD_PERMISSIONS_CAPABILITY_REQUIRED's own detail param (a
+   * pre-joined list, not a single capability key to relabel via
+   * CAPABILITY_KEY_PARAM_NAMES). */
+  ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
   /** server/services/auth.js -- DELETE /api/auth/users/:id, the caller
    * targeted their own account. Hard refusal, no override: unlike editing
    * your own role's capabilities (ROLE_SELF_CAPABILITY_LOSS_CONFIRM, which
@@ -369,6 +381,13 @@ export const ErrorCode = Object.freeze({
    * admin can delete the account instead, which is a deliberate two-party
    * action rather than a one-click accident. */
   USER_SELF_DELETE_REFUSED: "USER_SELF_DELETE_REFUSED",
+  /** server/services/auth.js -- changeUserRoleById(), the caller targeted
+   * their own account. Hard refusal, no override, same reasoning as
+   * USER_SELF_DELETE_REFUSED above: no routine reason an operator needs to
+   * change their own role while signed in as it, and another admin doing
+   * it instead is a deliberate two-party action, not a one-click
+   * accident. */
+  USER_SELF_ROLE_CHANGE_REFUSED: "USER_SELF_ROLE_CHANGE_REFUSED",
   /** server/index.js -- Docker-update apply path ONLY: server is running
    * and RCON isn't connected, so the panel can't stop it automatically
    * before applying the update. Split out from SERVER_RUNNING_LEGACY

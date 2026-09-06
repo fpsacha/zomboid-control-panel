@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "Der Upload überschreitet das Limit von 4 GB.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Backup-Ordner nicht verfügbar. Konfiguriere zuerst den Server.",
   "USER_SELF_DELETE_REFUSED": "Du kannst dein eigenes Konto nicht löschen. Bitte stattdessen einen anderen Administrator darum.",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "Du kannst deine eigene Rolle nicht ändern. Bitte stattdessen einen anderen Administrator darum.",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "Kann keine Rolle zuweisen, die {{detail}} gewährt, ohne dies selbst zu besitzen.",
   "SERVER_START_REMOTE_REFUSED": "Ein externer Server kann nicht gestartet werden. Externe Server werden extern verwaltet — verwende RCON zur Interaktion.",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "Ein externer Server kann nicht zwangsgestoppt werden. Der Prozess wird nicht von diesem Panel verwaltet.",
   "SERVER_RESTART_REMOTE_REFUSED": "Ein externer Server kann nicht neu gestartet werden. Der Prozess wird nicht von diesem Panel verwaltet.",

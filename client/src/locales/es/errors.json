@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "La subida supera el límite de 4 GB.",
   "BACKUPS_FOLDER_UNAVAILABLE": "La carpeta de copias de seguridad no está disponible. Configura primero el servidor.",
   "USER_SELF_DELETE_REFUSED": "No puedes eliminar tu propia cuenta. Pide a otro administrador que lo haga.",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "No puedes cambiar tu propio rol. Pide a otro administrador que lo haga.",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "No se puede asignar un rol que otorga {{detail}} sin tener tú mismo esa capacidad.",
   "SERVER_START_REMOTE_REFUSED": "No se puede iniciar un servidor remoto. Los servidores remotos se gestionan externamente — usa RCON para interactuar con él.",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "No se puede forzar la detención de un servidor remoto. El proceso no está gestionado por este panel.",
   "SERVER_RESTART_REMOTE_REFUSED": "No se puede reiniciar un servidor remoto. El proceso no está gestionado por este panel.",

@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "L'import dépasse la limite de 4 Go.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Dossier de sauvegardes indisponible. Configurez d'abord le serveur.",
   "USER_SELF_DELETE_REFUSED": "Vous ne pouvez pas supprimer votre propre compte. Demandez à un autre administrateur de le faire.",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "Vous ne pouvez pas modifier votre propre rôle. Demandez à un autre administrateur de le faire.",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "Impossible d'attribuer un rôle accordant {{detail}} sans détenir vous-même cette capacité.",
   "SERVER_START_REMOTE_REFUSED": "Impossible de démarrer un serveur distant. Les serveurs distants sont gérés en externe — utilisez RCON pour interagir.",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "Impossible de forcer l'arrêt d'un serveur distant. Le processus n'est pas géré par ce panneau.",
   "SERVER_RESTART_REMOTE_REFUSED": "Impossible de redémarrer un serveur distant. Le processus n'est pas géré par ce panneau.",

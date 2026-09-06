@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorCode } from "../utils/errorCodes.js";
 
 // sweep-round2 (2026-09-06, dwight): auth.js:507 (POST /users) and auth.js:544
 // (PATCH /users/:id/role) are both gated requirePermission("users.manage"),
@@ -23,14 +24,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // refusal (USER_SELF_ROLE_CHANGE_REFUSED), closing the asymmetry with
 // deleteUser's own pre-existing self-delete refusal.
 //
-// The new ErrorCode values (ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
-// USER_SELF_ROLE_CHANGE_REFUSED) are deliberately NOT YET registered in
-// errorCodes.js/the 9 locales' errors.json as of this commit -- god's
-// instruction was to ship the guard now and leave client-facing
-// registration as a follow-up once client/src/locales/ is free of another
-// agent's concurrent work. The server-side behavior (throw, correct code
-// string, correct status, correct params) is fully real and tested here
-// regardless of that.
+// ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES and USER_SELF_ROLE_CHANGE_REFUSED
+// were shipped (ff17ee11) ahead of their errorCodes.js/locale registration
+// -- client/src/locales/ was contested by another agent's concurrent,
+// unrelated work at the time -- and registered once that cleared
+// (29a080c3 fixed the params.detail shape first; this commit adds the
+// ErrorCode constants and all 9 locales' translations).
 
 const settings = new Map();
 const db = { data: { users: [], roles: [] } };
@@ -107,7 +106,7 @@ describe("createUser() -- refuses creating a user in a role that exceeds the cal
         actingUserId: "u-support",
       }),
     ).rejects.toMatchObject({
-      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      code: ErrorCode.ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
       // admin holds users.manage, roles.manage, server.control, rcon.execute;
       // support holds users.manage, players.moderate -- everything admin has
       // that support doesn't, in order, comma-joined, nothing else.
@@ -121,7 +120,7 @@ describe("createUser() -- refuses creating a user in a role that exceeds the cal
         actingUserId: "u-support",
       }),
     ).rejects.toMatchObject({
-      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      code: ErrorCode.ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
       status: 403,
     });
     expect(db.data.users.find((u) => u.username === "newadmin")).toBeUndefined();
@@ -161,7 +160,7 @@ describe("changeUserRoleById() -- self-change refusal and escalation guard", () 
         actingUserId: "u-admin",
       }),
     ).rejects.toMatchObject({
-      code: "USER_SELF_ROLE_CHANGE_REFUSED",
+      code: ErrorCode.USER_SELF_ROLE_CHANGE_REFUSED,
       status: 400,
     });
     // Refused before any DB mutation -- the target user's row is untouched.
@@ -174,7 +173,7 @@ describe("changeUserRoleById() -- self-change refusal and escalation guard", () 
         actingUserId: "u-support",
       }),
     ).rejects.toMatchObject({
-      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      code: ErrorCode.ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
       status: 403,
     });
     expect(db.data.users.find((u) => u.id === "u-target").role).toBe("technician");
@@ -215,7 +214,7 @@ describe("changeUserRole() (legacy fixed-name wrapper) threads actingUserId thro
     await expect(
       authService.changeUserRole("u-target", "admin", { actingUserId: "u-support" }),
     ).rejects.toMatchObject({
-      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      code: ErrorCode.ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
       status: 403,
     });
   });

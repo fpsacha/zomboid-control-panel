@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "上传文件超过 4 GB 限制。",
   "BACKUPS_FOLDER_UNAVAILABLE": "备份文件夹不可用，请先配置服务器。",
   "USER_SELF_DELETE_REFUSED": "无法删除自己的账户，请让另一位管理员代为操作。",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "无法更改自己的角色，请让另一位管理员代为操作。",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "无法分配授予 {{detail}} 的角色，因为你自己没有该权限。",
   "SERVER_START_REMOTE_REFUSED": "无法启动远程服务器。远程服务器由外部管理——请使用 RCON 进行交互。",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "无法强制停止远程服务器。该进程不受此面板管理。",
   "SERVER_RESTART_REMOTE_REFUSED": "无法重启远程服务器。该进程不受此面板管理。",

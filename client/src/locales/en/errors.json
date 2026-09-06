@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "Upload exceeds the 4 GB limit.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Backups folder not available. Configure the server first.",
   "USER_SELF_DELETE_REFUSED": "You cannot delete your own account. Ask another administrator to do it instead.",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "You cannot change your own role. Ask another administrator to do it instead.",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "Cannot assign a role that grants {{detail}} without holding it yourself.",
   "SERVER_START_REMOTE_REFUSED": "Cannot start a remote server. Remote servers are managed externally — use RCON to interact.",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "Cannot force-stop a remote server. The process is not managed by this panel.",
   "SERVER_RESTART_REMOTE_REFUSED": "Cannot restart a remote server. The process is not managed by this panel.",

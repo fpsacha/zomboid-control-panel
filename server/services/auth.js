@@ -250,32 +250,26 @@ async function assertNoCapabilityEscalation(actingUserId, targetCapabilities) {
     (capability) => !actingCapabilities.includes(capability),
   );
   if (missing.length > 0) {
-    // TODO(sweep-round2, 2026-09-06): register a real ErrorCode constant in
-    // errorCodes.js and add real translations to all 9
-    // client/src/locales/*/errors.json once that directory is free again
-    // (Pam is mid-flight there across errors.json/chunkCleaner.json/
-    // errorCodes.js as of this commit -- god's instruction was to leave
-    // this as a TODO rather than be a second writer on nine files). The
-    // string value below is chosen now and will not change when it's
-    // registered, so this placeholder is safe to ship ahead of that.
-    //
     // `params.detail` is deliberately JUST the joined capability list, not
     // a full sentence -- same shape as DISCORD_PERMISSIONS_CAPABILITY_REQUIRED's
     // own `detail` param (routes/discord.js), which is the precedent this
     // whole guard follows. Keeping the variable part isolated to `detail`
-    // and the surrounding sentence in the (future) locale template, rather
-    // than baking the full sentence into `detail` itself, is what lets that
-    // template exist in 9 languages instead of only English leaking through
-    // untranslated. `message` (the thrown Error's own .message, used
-    // server-side in logs and as the pre-registration fallback text) stays
-    // the full English sentence -- only `params.detail` needs to match the
-    // future template's {{detail}} shape.
-    const code = "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES";
+    // and the surrounding sentence in the locale template, rather than
+    // baking the full sentence into `detail` itself, is what lets that
+    // template exist in 9 languages instead of only English leaking
+    // through untranslated. `message` (the thrown Error's own .message,
+    // used server-side in logs) stays the full English sentence --
+    // only `params.detail` needs to match the template's {{detail}} shape.
     const detail = missing.join(", ");
     const message = `Cannot grant a role that holds ${detail} without already holding ${
       missing.length === 1 ? "it" : "them"
     } yourself.`;
-    throw makeRoleError(code, message, 403, { detail, missing });
+    throw makeRoleError(
+      ErrorCode.ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES,
+      message,
+      403,
+      { detail, missing },
+    );
   }
 }
 
@@ -683,10 +677,7 @@ class AuthService {
     return this._withMutex(async () => {
       if (actingUserId && String(actingUserId) === String(userId)) {
         throw makeRoleError(
-          // TODO(sweep-round2, 2026-09-06): register in errorCodes.js + all
-          // 9 client/src/locales/*/errors.json once that directory is free
-          // (see assertNoCapabilityEscalation's own TODO above for why).
-          "USER_SELF_ROLE_CHANGE_REFUSED",
+          ErrorCode.USER_SELF_ROLE_CHANGE_REFUSED,
           "You cannot change your own role. Ask another administrator to do it instead.",
           400,
         );

@@ -122,6 +122,8 @@
   "BACKUP_UPLOAD_TOO_LARGE": "上傳檔案超過 4 GB 限制。",
   "BACKUPS_FOLDER_UNAVAILABLE": "備份資料夾無法使用，請先設定伺服器。",
   "USER_SELF_DELETE_REFUSED": "無法刪除自己的帳號，請讓另一位管理員代為操作。",
+  "USER_SELF_ROLE_CHANGE_REFUSED": "無法更改自己的角色，請讓另一位管理員代為操作。",
+  "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES": "無法指派授予 {{detail}} 的角色，因為你自己沒有該權限。",
   "SERVER_START_REMOTE_REFUSED": "無法啟動遠端伺服器。遠端伺服器由外部管理——請使用 RCON 進行互動。",
   "SERVER_FORCE_STOP_REMOTE_REFUSED": "無法強制停止遠端伺服器。該程序不受此面板管理。",
   "SERVER_RESTART_REMOTE_REFUSED": "無法重新啟動遠端伺服器。該程序不受此面板管理。",
