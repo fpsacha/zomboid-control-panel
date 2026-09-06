@@ -133,9 +133,57 @@ describe("formatWritablePathError: variant split (2026-08-22 correction)", () =>
   it("container detection is skipped entirely on Windows, by design", () => {
     vi.spyOn(fs, "existsSync").mockReturnValue(true); // even if the marker files exist
     const result = formatWritablePathError("install", "/srv/pz", true);
-    expect(result.code).toBe(ErrorCode.WRITABLE_PATH_INSTALL_BAREMETAL);
+    // sweep-round2, Windows non-admin install shapes (2026-09-06): this used
+    // to fall all the way through to WRITABLE_PATH_INSTALL_BAREMETAL --
+    // "container is skipped" was correct, but the OLD assertion pinned the
+    // actual bug alongside it: Windows landed on the SAME chown/chmod
+    // guidance as bare-metal Linux, commands that don't exist on Windows.
+    // Now has its own branch -- see the two tests directly below.
+    expect(result.code).toBe("WRITABLE_PATH_INSTALL_WINDOWS");
+    expect(result.message).not.toContain("chown");
+    expect(result.message).not.toContain("chmod");
   });
 
+  // sweep-round2, Windows non-admin install shapes (2026-09-06): a real
+  // operator report shape -- docs/install/windows.md's own documented,
+  // intended install path is a NON-ADMIN account extracting to a
+  // user-owned folder (its own example: C:\ZomboidPanel), so an operator
+  // pointing the install wizard's Install Path / Zomboid Data Path fields
+  // at a folder their account can't write to (Program Files, another
+  // account's profile, a UAC-protected system folder) is a live, documented
+  // shape, not a hypothetical. Before this fix, formatWritablePathError()
+  // only branched on isContainer (a Linux-only concept for this app --
+  // isContainer is unconditionally false when platformIsWindows is true,
+  // see the function's own comment), so EVERY non-container caller,
+  // Windows included, got told to fix it "with chown/chmod" -- exactly the
+  // wrong-OS-guidance defect class this function's own 2026-08-29 fix
+  // comment says it was hunting ("run as Administrator" on Linux) and
+  // ironically reintroduced in the mirror-image direction.
+  it("install + Windows: names Windows-appropriate remediation, not chown/chmod", () => {
+    const result = formatWritablePathError("install", "C:\\Program Files\\pz", true);
+    expect(result.code).toBe("WRITABLE_PATH_INSTALL_WINDOWS");
+    expect(result.params).toEqual({ path: "C:\\Program Files\\pz" });
+    expect(result.message).toContain("C:\\Program Files\\pz");
+    expect(result.message).not.toContain("chown");
+    expect(result.message).not.toContain("chmod");
+    expect(result.message).toMatch(/Security tab|Administrator|write to/i);
+  });
+
+  it("data + Windows: same Windows-appropriate remediation as install", () => {
+    const result = formatWritablePathError("data", "C:\\Program Files\\pz_Data", true);
+    expect(result.code).toBe("WRITABLE_PATH_DATA_WINDOWS");
+    expect(result.params).toEqual({ path: "C:\\Program Files\\pz_Data" });
+    expect(result.message).not.toContain("chown");
+    expect(result.message).not.toContain("chmod");
+  });
+
+  // WRITABLE_PATH_INSTALL_WINDOWS/WRITABLE_PATH_DATA_WINDOWS deliberately NOT
+  // included here yet: those two codes are not registered in errorCodes.js
+  // or any locale's errors.json as of this commit (TODO, see
+  // formatWritablePathError's own comment for why) -- EN_ERRORS[code] would
+  // be undefined and interpolate() would throw on a template that doesn't
+  // exist yet, not prove anything about the real (still front-end-untranslated,
+  // by design, for now) behavior. Add them here once registered.
   it.each([
     ["install", false, ErrorCode.WRITABLE_PATH_INSTALL_BAREMETAL],
     ["install", true, ErrorCode.WRITABLE_PATH_INSTALL_CONTAINER],

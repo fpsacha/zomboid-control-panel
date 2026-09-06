@@ -678,6 +678,44 @@ export function formatWritablePathError(
     };
   }
 
+  // sweep-round2, Windows non-admin install shapes (2026-09-06): this
+  // branch used to be the unconditional "everything that isn't a
+  // container" fallback, telling every non-container caller to fix it
+  // "with chown/chmod" -- commands that don't exist on Windows. Same defect
+  // class this whole function exists to have already fixed once (see the
+  // 2026-08-29 comment above: "run as Administrator" on Linux, "pull the
+  // latest code with git" for Docker) -- the isContainer split above never
+  // covered the OS axis, only the container axis, so a non-admin Windows
+  // operator pointing the install wizard's install/data path fields at a
+  // folder their account can't write to (Program Files, another account's
+  // profile, a UAC-protected system folder) got told to run a shell command
+  // that fails outright on their OS. formatDirectoryReadError() right below
+  // this function already branches on platformIsWindows for the read-side
+  // equivalent of this same problem -- this mirrors that, not a new shape.
+  if (platformIsWindows) {
+    return {
+      message:
+        `${baseMessage} The Windows account running the panel does not own ` +
+        `this folder or lacks write permission to it -- choose a folder ` +
+        `your account can already write to (see docs/install/windows.md), ` +
+        `grant your account write access via the folder's Properties > ` +
+        `Security tab, or run Start.bat as Administrator.`,
+      code:
+        // TODO(sweep-round2, 2026-09-06): register in errorCodes.js + all 9
+        // client/src/locales/*/errors.json once that directory is free
+        // (another agent is mid-flight there as of this commit). Wire
+        // values chosen now and won't change once registered -- until then
+        // an unregistered 4xx code passes this raw message through to the
+        // client untranslated rather than being silently dropped, same
+        // TODO pattern already used for the auth.js escalation fix this
+        // same sweep.
+        kind === "install"
+          ? "WRITABLE_PATH_INSTALL_WINDOWS"
+          : "WRITABLE_PATH_DATA_WINDOWS",
+      params: { path: directoryPath },
+    };
+  }
+
   return {
     message:
       `${baseMessage} The user running the panel does not own this folder ` +
