@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   custom role holding only role-management permission, with nothing else standing in the way. Editing
   a role's capabilities now refuses to add anything beyond what the acting user's own role already
   grants; narrowing or renaming an existing role is unaffected.
+- **GET /panel-bridge/status exposed unmasked file-system paths to anyone signed in, regardless of
+  role: the panel's own local SFTP cache directory, and, for a remotely-managed server, the remote
+  server's own save and mirror directory paths.** None of those three fields were used anywhere in the
+  panel, so they were removed outright rather than gated. The two fields genuinely shown on the
+  Settings page's PanelBridge card - where the bridge is installed, and its status-file path - now
+  require the same bridge-related permission the /ping fix below also introduced.
 - **Anyone signed in to the panel could see the names of players currently online, whatever their role**
   - the panel-bridge status ping returned the live player list with no player-viewing permission
   required, unlike every other place the panel shows who is on a server. The same response also
@@ -70,6 +76,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same gap: each could trust a running/stopped check for the wrong server immediately after switching
   the active one. All three now re-verify the real, current state of the actual target before
   proceeding.
+- **Creating a backup could label the archive with the wrong server's name if the active server was
+  switched elsewhere in the panel while the backup was being written** - the archive's actual contents
+  could come from one server while its filename and history entry named a different one, discovered
+  (if at all) at the worst possible time: restore. Creating a backup now reads the active server once
+  for the whole operation instead of re-deriving it three separate times.
+- **Deleting map chunks or a region, clearing or deleting a server's install folder, or applying a
+  server-config template could run at the same moment as starting that same server**, letting a live
+  game process read files mid-delete or a half-written config - each of these checked only that the
+  server was stopped at the instant the operation began, not for the whole operation that followed. All
+  three now hold the same server-wide lock Start/Stop/Restart, world wipe, and backup restore already
+  use, so a start landing mid-operation is cleanly refused instead of racing it.
 - **Being rate-limited after too many failed login attempts showed the same "check your username and
   password" message as an actual wrong password** - telling you to recheck credentials that were never
   the problem. Being rate-limited now says so.
