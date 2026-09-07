@@ -195,8 +195,14 @@ describe("POST /upload streams the body to disk", () => {
     expect(
       fs.readFileSync(path.join(backupsPath, "uploaded-world.zip"), "utf8"),
     ).toBe("concurrent winner");
-    // No leftover tmp file after the refusal.
-    expect(fs.readdirSync(backupsPath)).toEqual(["uploaded-world.zip"]);
+    // No leftover tmp file after the refusal -- the route's own EEXIST
+    // catch cleans it up via fs.unlink(tmpPath, () => {}), which is a
+    // fire-and-forget async call: it schedules the unlink and returns
+    // before the callback actually fires, same asynchronous-cleanup shape
+    // uploadStream.test.js already waits out (see its own comment there).
+    await vi.waitFor(() =>
+      expect(fs.readdirSync(backupsPath)).toEqual(["uploaded-world.zip"]),
+    );
   });
 
   it("maps a size-limit rejection from streamUploadToFile() to 413", async () => {
