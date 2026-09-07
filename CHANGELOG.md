@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.17] - 2026-09-07
+
+### Security
+
+- **Editing a role's own capabilities directly could grant it more than the person making the change
+  actually held themselves** - a self-service path to full administrator access, reachable by any
+  custom role holding only role-management permission, with nothing else standing in the way. Editing
+  a role's capabilities now refuses to add anything beyond what the acting user's own role already
+  grants; narrowing or renaming an existing role is unaffected.
+- **A backup's existence, filenames, and the panel's own file-system paths could be read by anyone with
+  a valid login, regardless of role** - none of the three read-only backup routes (status, list,
+  history) required any capability at all. They now require holding at least one of the three
+  backup-related permissions (manage, download, or restore); a role holding only one of the three can
+  still see what there is to act on.
+
+### Fixed
+
+- **Updating to v1.2.16 could leave the panel unable to start again at all, failing every subsequent
+  launch with `Update startup validation failed [invalid_bundle]` (exit code 76) and no indication of
+  what to do about it.** v1.2.16 itself caused this. If your panel is stuck this way: delete
+  `update-bundle.json` and `.update-applying` from the folder containing the panel executable, then
+  start it again - this release closes the underlying bug so it won't recur.
+- **A backward step in the system clock - an NTP correction, a daylight-saving change, or a manual
+  clock adjustment - could permanently disable four separate self-healing safety checks**, each going
+  quiet exactly when it was needed most: the mod-update auto-restart grace period, the player-count
+  forced-restart watchdog, a stuck mod-conflict-scan lock's auto-reset, and the panel bridge's stuck
+  outbox-resync recovery. Each compared the current time against an earlier reading of the same wall
+  clock, so a step backward could hide hours or more of real elapsed time; all four now measure elapsed
+  time with a clock that can only move forward.
+- **Saving RCON or network settings, editing a mod's load order or INI entries, or editing server files
+  (sandbox settings, spawn points/regions, templates) right after switching the active server elsewhere
+  in the panel could, in rare cases, combine data from two different servers** - reading one server's
+  config path but another server's name, for example - instead of cleanly using either the old server
+  or the new one. All three files now read the active server once per action instead of two or three
+  times separately.
+- **Clearing or deleting a server's install folder could act on the wrong server's actual running
+  state** if a different server was the one currently active in the panel - the safety check requiring
+  the target to be stopped was reading whichever server happened to be active, not the one actually
+  being deleted. Applying a server-config template, and restoring or overwriting server files, had the
+  same gap: each could trust a running/stopped check for the wrong server immediately after switching
+  the active one. All three now re-verify the real, current state of the actual target before
+  proceeding.
+- **Being rate-limited after too many failed login attempts showed the same "check your username and
+  password" message as an actual wrong password** - telling you to recheck credentials that were never
+  the problem. Being rate-limited now says so.
+- **On Linux, a self-update interrupted by a crash, power loss, or out-of-memory kill at exactly the
+  wrong moment could leave the panel binary, or its own start script or service file, missing entirely
+  - refusing to start on every subsequent attempt with no automatic recovery.** The panel-binary swap
+  and the launcher-file swap can no longer leave anything missing even if interrupted, and a detected
+  version mismatch on the next startup now rolls back automatically instead of leaving the panel stuck
+  exiting forever. When manual recovery is still needed for another reason, the startup failure log now
+  names the exact journal file to check, matching the standard the Windows updater's own failure
+  messages already held themselves to.
+- **An invalid `PORT` environment variable or a corrupted panel-port setting silently fell back to port
+  3001 with no explanation** - the panel would start, just not where you configured it, with nothing in
+  the log to say why. It's now logged as a warning naming the value that was rejected.
+- **Two requests landing in the same millisecond - deleting map chunks/regions for the same save, or
+  two players triggering the same missing map tile at once - could silently share one backup folder or
+  one temporary cache file instead of each getting their own**, undermining the very backup a
+  destructive chunk/region delete depends on. Both now generate a genuinely unique name per request.
+- **Uploading a backup file could hang forever, with the upload button stuck disabled and no error
+  shown, if the connection stalled partway through** - the upload had no timeout at all, unlike every
+  other request the panel makes. It now gives up and reports a failure after 3 minutes with no
+  progress.
+- **The Import Template dialog could get stuck open with a blank text box and no error** if reading the
+  selected file failed partway through (for example, a removable or network drive disappearing right
+  after the file was picked). A failed read is now reported instead of silently doing nothing.
+
 ## [1.2.16] - 2026-09-07
 
 ### Security
