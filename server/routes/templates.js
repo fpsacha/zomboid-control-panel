@@ -5,6 +5,10 @@ import { ErrorCode } from "../utils/errorCodes.js";
 import { requirePermission } from "../services/permissions.js";
 import { getActiveServer } from "../database/init.js";
 import {
+  acquireLifecycleLock,
+  lifecycleInProgressResponse,
+} from "../services/lifecycleCoordinator.js";
+import {
   listTemplates,
   listHiddenBuiltinTemplates,
   getTemplate,
@@ -112,6 +116,19 @@ router.post("/:id/preview", async (req, res) => {
 });
 
 router.post("/:id/apply", requirePermission("templates.manage"), async (req, res) => {
+  // lifecycle-lock-set sweep, 2026-09-07: the active-server branch below
+  // checks getServerProcessDetails() once, then applyTemplate() does real
+  // config-file I/O with no lock held. A concurrent /start landing in that
+  // window launches the JVM reading a partially-written config. Same fix
+  // as /wipe, /delete-files, and chunks.js's delete-chunks/delete-region:
+  // take the process-wide lifecycleCoordinator lock for the whole handler.
+  // The non-active-server branch below always fails closed unconditionally
+  // regardless of this lock (it never reaches applyTemplate()), so holding
+  // the lock for that branch too is harmless, just a brief no-op hold.
+  const lifecycleLock = acquireLifecycleLock("template-apply");
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
     const { serverId, options } = req.body || {};
     if (!serverId) {
@@ -196,6 +213,8 @@ router.post("/:id/apply", requirePermission("templates.manage"), async (req, res
   } catch (error) {
     log.error(`Failed to apply template: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 
