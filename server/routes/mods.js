@@ -1633,7 +1633,13 @@ router.get("/collection/extension-bundle", async (req, res) => {
         'attachment; filename="zomboid-panel-extension.zip"',
       );
       res.setHeader("Content-Length", String(stat.size));
-      fs.createReadStream(zipPath).pipe(res);
+      const zipStream = fs.createReadStream(zipPath);
+      zipStream.on("error", (err) => {
+        log.error(`Extension bundle stream error: ${err.message}`);
+        if (!res.headersSent) res.status(500).end();
+        else res.destroy();
+      });
+      zipStream.pipe(res);
       return;
     }
 
