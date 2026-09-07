@@ -39,6 +39,7 @@ import { GAME_PORT_MAX, applyUpnpToIni } from "./server.js";
 import {
   resolveLaunchMode,
   ServerManager,
+  scoreServerProcessOwnership,
 } from "../services/serverManager.js";
 import {
   buildLifecycleTemplate,
@@ -594,10 +595,10 @@ router.get("/", async (req, res) => {
 });
 
 // Per-server running status. Scans the host once for all PZ server processes
-// and attributes each match to a configured server by comparing its install
-// path against the process command line. Servers with no matching process
-// are reported as not running. The active server's state is reported by
-// serverManager directly so it stays consistent with /api/server/status.
+// and attributes each match to a configured server via the same
+// scoreServerProcessOwnership() rules serverManager.js uses for its own
+// server (-servername/-cachedir first, install path only as a fallback).
+// Servers with no matching process are reported as not running.
 router.get("/status", async (req, res) => {
   try {
     const serverManager = req.app.get("serverManager");
@@ -605,29 +606,26 @@ router.get("/status", async (req, res) => {
     const activeServer = await getActiveServer();
     const activeId = activeServer?.id || null;
 
+    // A throwaway instance, not the shared `serverManager` singleton:
+    // scanHostForServerProcesses() (via the private scan it wraps) writes
+    // `this.isRunning` as a side effect, and that value means something
+    // different here -- "some PZ process exists somewhere on the host" --
+    // than what the shared instance's cached isRunning is supposed to mean
+    // ("MY configured server is running"), which server.js's start/stop
+    // polling and the fallback below both still read.
     let matched = [];
     let detectionError = null;
-    if (serverManager?.getServerProcessDetails) {
-      try {
-        const result = await serverManager.getServerProcessDetails();
-        matched = Array.isArray(result?.matched) ? result.matched : [];
-        if (result?.scanFailed) {
-          detectionError = result.error || "Process detection failed";
-        }
-      } catch (err) {
-        detectionError = err.message;
-        log.debug(`Per-server status detection failed: ${err.message}`);
+    try {
+      const scanner = new ServerManager();
+      const scan = await scanner.scanHostForServerProcesses();
+      matched = Array.isArray(scan?.matched) ? scan.matched : [];
+      if (scan?.scanFailed) {
+        detectionError = scan.error || "Process detection failed";
       }
+    } catch (err) {
+      detectionError = err.message;
+      log.debug(`Per-server status detection failed: ${err.message}`);
     }
-
-    // Normalise install paths for comparison: lowercase + forward slashes.
-    // Windows command lines may double-quote the path or use backslashes;
-    // the substring check below covers both.
-    const norm = (p) =>
-      String(p || "")
-        .toLowerCase()
-        .replace(/\\/g, "/")
-        .trim();
 
     const statuses = await Promise.all(servers.map(async (server) => {
       if (isManagedLifecycleProvider(server.lifecycleProvider)) {
@@ -658,22 +656,29 @@ router.get("/status", async (req, res) => {
           };
         }
       }
-      const installPathNorm = norm(server.installPath);
+      // Same ownership scorer serverManager.js uses for the active server's
+      // own detection (-servername/-cachedir first, install-path substring
+      // only as a fallback for a stock launch with no identifying args) --
+      // using a second, weaker, ad-hoc match here would let this list and
+      // the active server's own status disagree about the same process.
+      const descriptor = {
+        serverName: server.serverName,
+        savePath: server.zomboidDataPath,
+        serverPath: server.serverPath || server.installPath,
+      };
       let running = false;
       let pid;
-      if (installPathNorm) {
-        for (const m of matched) {
-          if (norm(m.cmd).includes(installPathNorm)) {
-            running = true;
-            pid = m.pid;
-            break;
-          }
+      for (const m of matched) {
+        if (scoreServerProcessOwnership(m.cmd, descriptor) > 0) {
+          running = true;
+          pid = m.pid;
+          break;
         }
       }
       // Fallback: the active server's running state is authoritative even
-      // when the install path doesn't appear in the command line (e.g. when
-      // the process was started outside the panel and uses a different
-      // working directory).
+      // when nothing in the scan can be attributed to it (e.g. when the
+      // process was started outside the panel and uses a different working
+      // directory, with no -servername/-cachedir either).
       if (!running && server.id === activeId && serverManager?.isRunning) {
         running = true;
       }

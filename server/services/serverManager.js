@@ -395,6 +395,26 @@ function normalizePathForCompare(value) {
   return isWindows ? normalized.toLowerCase() : normalized;
 }
 
+// A bare String.includes() lets "C:/Servers/MyServer" match inside
+// "C:/Servers/MyServer2/..." -- a real sibling install, not this one. Require
+// whatever comes right after the match (if anything) to actually end the
+// path segment, the same boundary confineToRoots() already checks for the
+// identical reason. cmd has already been through normalizePathForCompare, so
+// every separator is "/" and there's nothing left to also match on "\\".
+function pathAppearsInCommandLine(cmd, needle) {
+  if (!needle) return false;
+  let from = 0;
+  for (;;) {
+    const idx = cmd.indexOf(needle, from);
+    if (idx === -1) return false;
+    const after = cmd[idx + needle.length];
+    if (after === undefined || after === "/" || after === '"' || after === "'" || after === " ") {
+      return true;
+    }
+    from = idx + 1;
+  }
+}
+
 // Two supported ways to point the panel at a server -- an operator ruling,
 // not an accident (2026-08-27, user-report-servertest-ini-and-sandbox-
 // reverted-to-default-after-restart): MANAGED (a directory -- the panel
@@ -457,7 +477,7 @@ export function scoreServerProcessOwnership(commandLine, descriptor = {}) {
   }
 
   const installPath = normalizePathForCompare(descriptor.serverPath);
-  if (installPath && normalizePathForCompare(cmd).includes(installPath)) {
+  if (installPath && pathAppearsInCommandLine(normalizePathForCompare(cmd), installPath)) {
     score += 1;
   }
 
@@ -840,6 +860,19 @@ export class ServerManager {
       owned: resolved,
       scanFailed: Boolean(scan.scanFailed),
     };
+  }
+
+  // Public wrapper around the raw, unfiltered, host-wide scan for callers
+  // that need to judge MULTIPLE configured servers against one scan (e.g.
+  // servers.js's /status list) rather than getServerProcessDetails()'s own
+  // `matched`, which is already filtered down to (and capped/truncated for)
+  // whichever ONE server this instance's loadConfig() points at -- reusing
+  // that for every OTHER configured server silently made every non-active
+  // server's real running process invisible to the list page. Callers
+  // should attribute each returned candidate themselves via
+  // scoreServerProcessOwnership(candidate.cmd, descriptor) per server.
+  async scanHostForServerProcesses() {
+    return this._scanDedicatedServerProcesses();
   }
 
   // Raw OS scan: every Project Zomboid dedicated server process on this host,

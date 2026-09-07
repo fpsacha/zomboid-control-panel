@@ -79,6 +79,25 @@ describe('ServerManager process ownership', () => {
 
     expect(scoreServerProcessOwnership(commandLine, serverA)).toBe(0);
   });
+
+  it('does not claim a sibling install whose name is a prefix of its own (no -servername present)', () => {
+    // serverA.serverPath is "C:\pz\a" -- a naive substring check on the
+    // normalized path would also match "C:\pz\ab", a real, different,
+    // sibling server folder that merely starts with the same characters.
+    const commandLine =
+      '"C:\\pz\\ab\\jre64\\bin\\java.exe" -cp pz.jar zombie.network.GameServer';
+
+    expect(scoreServerProcessOwnership(commandLine, serverA)).toBe(0);
+  });
+
+  it('still claims its own install path when followed by a real path separator or end of string', () => {
+    const trailingSlash =
+      '"C:\\pz\\a/jre64/bin/java.exe" -cp pz.jar zombie.network.GameServer';
+    const exactEnd = 'java -cp pz.jar zombie.network.GameServer -installdir "C:\\pz\\a"';
+
+    expect(scoreServerProcessOwnership(trailingSlash, serverA)).toBeGreaterThan(0);
+    expect(scoreServerProcessOwnership(exactEnd, serverA)).toBeGreaterThan(0);
+  });
 });
 
 describe('ServerManager detection with two servers on one host', () => {
