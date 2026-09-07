@@ -1205,6 +1205,22 @@ export default function Settings() {
       const status = await panelUpdateApi.check();
       setPanelUpdateStatus(status);
 
+      // Preflight only auto-refreshes when hasActionablePanelUpdate/
+      // stagedPanelUpdatePath actually CHANGE (see the effect a few lines
+      // up) -- if an update was already available before this check and
+      // still is after it, those deps are unchanged and the effect won't
+      // refire. Without this, a preflight block (disk full, no write
+      // permission) that gets resolved outside the panel has no way back:
+      // Download/Restart-and-Apply are themselves disabled by the stale
+      // `preflight.ok === false`, so the only buttons left that could
+      // trigger a fresh preflight check are the ones the stale check is
+      // blocking. "Check for Updates" is never preflight-gated, so it's the
+      // one button a blocked user can still press -- make it also clear the
+      // block once the real-world condition is fixed.
+      if (status.updateAvailable || status.stagedUpdate) {
+        fetchPanelUpdatePreflight();
+      }
+
       if (status.updateAvailable) {
         toast({
           title: t("toasts.updateAvailable.title"),

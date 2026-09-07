@@ -456,13 +456,14 @@ function apiGet<T = any>(
 function apiPost<T = any>(
   endpoint: string,
   body?: unknown,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; timeout?: number },
 ): Promise<T> {
   return fetchWithRetry(`${API_BASE}${endpoint}`, {
     method: "POST",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
     signal: options?.signal,
+    timeout: options?.timeout,
   }).then((response) => handleResponse<T>(response));
 }
 
@@ -3491,8 +3492,20 @@ export const panelUpdateApi = {
   getStatus: (): Promise<PanelUpdateStatus> => apiGet("/panel/update-status"),
   preflight: (): Promise<PanelUpdatePreflight> =>
     apiGet("/panel/update-preflight"),
+  // POST /panel/update-download awaits the FULL binary + client-dist archive
+  // download (server/index.js's handlePanelUpdateDownload -> checker.
+  // downloadUpdate()) before responding at all -- there is no "kicked off,
+  // poll for completion" split the way restart/apply has. The default 15s
+  // fetchWithRetry timeout is sized for a normal API call, not a real
+  // multi-file network transfer; on a slow connection it fires while the
+  // server is still legitimately downloading, aborts the client's view of
+  // the request, and surfaces a false "Download failed" even though the
+  // server keeps going and stages the update successfully moments later
+  // (the next click then hits the server's own "already downloading" guard
+  // instead of a clean retry). Matches this codebase's STALL_MS convention
+  // (Servers.tsx/ServerSetup.tsx/chunksApi) for genuinely long operations.
   download: (confirm: boolean = false): Promise<PanelUpdateActionResult> =>
-    apiPost("/panel/update-download", { confirm }),
+    apiPost("/panel/update-download", { confirm }, { timeout: 5 * 60 * 1000 }),
   getApplyLog: (): Promise<{ log: string | null; logPath: string }> =>
     apiGet("/panel/update-apply-log"),
 };
