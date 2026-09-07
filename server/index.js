@@ -95,7 +95,7 @@ import {
   readClientDistMetadata,
   resolveClientDistPath,
 } from "./utils/embeddedClient.js";
-import { resolveObservedServerRunning } from "./utils/serverStatus.js";
+import { resolveObservedServerRunning, resolveServerPhase } from "./utils/serverStatus.js";
 import { discoverMounts } from "./services/mountDiscovery.js";
 import { shouldAutoOpenBrowser } from "./utils/browserLaunch.js";
 import { isLinuxPanelSupervisor } from "./utils/restartSupervisor.js";
@@ -2744,6 +2744,7 @@ function stopPerfPolling() {
 // ============================================
 let statusWatchdogInterval = null;
 let lastKnownRunning = null;
+let lastKnownPhase = null;
 
 // Thin, no-arg wrapper over utils/serverStatus.js's shared
 // resolveObservedServerRunning() -- see that function's own doc comment for
@@ -2793,12 +2794,28 @@ export async function checkServerStatusNow(detectionReason = "watchdog") {
       log.debug("Status watchdog: server state is unknown; skipping transition");
       return;
     }
-    if (lastKnownRunning !== null && running !== lastKnownRunning) {
+    // Display-only refinement of `running` -- see resolveServerPhase()'s own
+    // comment. Never read for any decision in this function: the
+    // running/stopped comparisons and Discord notifications below are
+    // unchanged, so a starting/unresponsive server can't newly block or skip
+    // anything that a plain running:true already didn't.
+    const phase = resolveServerPhase({
+      running,
+      serverStarting: Boolean(rconService.serverStarting),
+      rconConnected: Boolean(rconService.connected),
+    });
+    const runningChanged = lastKnownRunning !== null && running !== lastKnownRunning;
+    // `running` stays true across the whole starting -> unresponsive/running
+    // handoff (host process is up the entire time), so without this the dot
+    // would freeze on whatever phase it first saw and never update -- the
+    // exact "starting forever" lie this feature exists to avoid.
+    const phaseChanged = lastKnownPhase !== null && phase !== lastKnownPhase;
+    if (runningChanged || phaseChanged) {
       log.info(
-        `Server state changed → ${running ? "running" : "stopped"} (detected by ${detectionReason})`,
+        `Server state changed → ${running ? "running" : "stopped"}${runningChanged ? "" : ` (phase: ${phase})`} (detected by ${detectionReason})`,
       );
-      io.emit("server:status", { running });
-      if (!running) {
+      io.emit("server:status", { running, phase });
+      if (runningChanged && !running) {
         logServerEvent(
           "server_stop",
           `Server process exited (detected by ${detectionReason})`,
@@ -2810,7 +2827,7 @@ export async function checkServerStatusNow(detectionReason = "watchdog") {
               `Discord serverStop notification failed: ${err.message}`,
             ),
           );
-      } else {
+      } else if (runningChanged) {
         discordBot
           .sendEventNotification("serverStart", {})
           .catch((err) =>
@@ -2821,6 +2838,7 @@ export async function checkServerStatusNow(detectionReason = "watchdog") {
       }
     }
     lastKnownRunning = running;
+    lastKnownPhase = phase;
   } catch (err) {
     log.debug(`Status watchdog error: ${err.message}`);
   }

@@ -63,6 +63,7 @@
     "statusRunning": "Sèvè a ap fonksyone",
     "statusStopped": "Sèvè a sispann",
     "statusTransitioning": "Sèvè a ap demare oswa sispann",
+    "statusUnresponsive": "Sèvè a demare men li pa reponn",
     "statusUnknown": "Estati sèvè enkoni"
   },
   "modBadge": {

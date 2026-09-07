@@ -357,7 +357,7 @@ export default function Layout({ children }: LayoutProps) {
   // re-shows the banner. Was sessionStorage which got cleared on browser restart.
   const [updateDismissed, setUpdateDismissed] = useState(false)
   const [playerCount, setPlayerCount] = useState<number>(0)
-  const [serverRunState, setServerRunState] = useState<'unknown' | 'running' | 'stopped' | 'transitioning'>('unknown')
+  const [serverRunState, setServerRunState] = useState<'unknown' | 'running' | 'stopped' | 'transitioning' | 'unresponsive'>('unknown')
   const [modUpdatesAvailable, setModUpdatesAvailable] = useState<number>(0)
   const [panelUpdateAvailable, setPanelUpdateAvailable] = useState<{ version: string | null } | null>(null)
   const [panelVersion, setPanelVersion] = useState('')
@@ -484,11 +484,23 @@ export default function Layout({ children }: LayoutProps) {
 
   useEffect(() => {
     if (!socket) return
-    const onStatus = (data?: { running?: boolean; isRunning?: boolean }) => {
+    const onStatus = (data?: {
+      running?: boolean
+      isRunning?: boolean
+      phase?: 'starting' | 'running' | 'stopped' | 'unresponsive' | 'unknown'
+    }) => {
       // Fast path: for a native server, a pushed boolean is as trustworthy
       // as a fresh fetch and avoids a round trip. Everything else needs the
       // composed status to know what the push actually means.
       if (provider === 'native') {
+        // `phase` refines the raw boolean for exactly the window a bare
+        // running:true used to lie about (host process up, RCON not
+        // connected yet -- 2026-09-07, the "STARTING state" gap). Source of
+        // truth: resolveServerPhase() in server/utils/serverStatus.js.
+        // Display-only -- it never gates anything, only which dot/label
+        // renders. Falls back to the plain boolean when phase is absent.
+        if (data?.phase === 'starting') { setServerRunState('transitioning'); return }
+        if (data?.phase === 'unresponsive') { setServerRunState('unresponsive'); return }
         const running = typeof data?.running === 'boolean' ? data.running : data?.isRunning
         if (typeof running === 'boolean') { setServerRunState(running ? 'running' : 'stopped'); return }
       }
@@ -833,6 +845,7 @@ export default function Layout({ children }: LayoutProps) {
                     {serverRunState === 'running' && t('activeServer.statusRunning')}
                     {serverRunState === 'stopped' && t('activeServer.statusStopped')}
                     {serverRunState === 'transitioning' && t('activeServer.statusTransitioning')}
+                    {serverRunState === 'unresponsive' && t('activeServer.statusUnresponsive')}
                     {serverRunState === 'unknown' && t('activeServer.statusUnknown')}
                   </span>
                 </div>

@@ -729,6 +729,16 @@ input[type="number"] {
   box-shadow: 0 0 8px hsl(var(--warning) / 0.45);
 }
 
+/* Host/container confirmed up, but RCON never connected within the startup
+   grace window -- distinct from --stopped (nothing is running) and from
+   --transitioning (still inside that window): this is "up, but something is
+   wrong", so it keeps blinking like --transitioning instead of settling like
+   --stopped, in destructive red instead of warning amber. */
+.active-server-strip--unresponsive .active-server-strip__edge {
+  background: hsl(var(--destructive));
+  box-shadow: 0 0 8px hsl(var(--destructive) / 0.45);
+}
+
 .active-server-strip__dot {
   background: hsl(var(--muted-foreground) / 0.4);
 }
@@ -775,8 +785,14 @@ input[type="number"] {
   box-shadow: 0 0 0 3px hsl(var(--warning) / 0.18);
 }
 
+.active-server-strip--unresponsive .active-server-strip__dot {
+  background: hsl(var(--destructive));
+  box-shadow: 0 0 0 3px hsl(var(--destructive) / 0.18);
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .active-server-strip--transitioning .active-server-strip__dot {
+  .active-server-strip--transitioning .active-server-strip__dot,
+  .active-server-strip--unresponsive .active-server-strip__dot {
     animation: active-dot-blink 1.4s ease-in-out infinite;
   }
 }

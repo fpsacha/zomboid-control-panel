@@ -63,6 +63,7 @@
     "statusRunning": "Le serveur est en cours d'exécution",
     "statusStopped": "Le serveur est arrêté",
     "statusTransitioning": "Le serveur démarre ou s'arrête",
+    "statusUnresponsive": "Le serveur a démarré mais ne répond pas",
     "statusUnknown": "État du serveur inconnu"
   },
   "modBadge": {

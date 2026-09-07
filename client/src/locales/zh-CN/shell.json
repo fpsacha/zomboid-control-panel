@@ -63,6 +63,7 @@
     "statusRunning": "服务器运行中",
     "statusStopped": "服务器已停止",
     "statusTransitioning": "服务器正在启动或停止",
+    "statusUnresponsive": "服务器已启动但无响应",
     "statusUnknown": "服务器状态未知"
   },
   "modBadge": {

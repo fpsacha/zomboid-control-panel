@@ -63,6 +63,7 @@
     "statusRunning": "Сервер працює",
     "statusStopped": "Сервер зупинено",
     "statusTransitioning": "Сервер запускається або зупиняється",
+    "statusUnresponsive": "Сервер запущено, але він не відповідає",
     "statusUnknown": "Стан сервера невідомий"
   },
   "modBadge": {

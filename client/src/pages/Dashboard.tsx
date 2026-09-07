@@ -572,9 +572,12 @@ export default function Dashboard() {
       setStatus(prev => {
         if (prev) return { ...prev, ...data }
         // Every real server:status emit (server/index.js, routes/server.js,
-        // services/scheduler.js) sends only { running } -- never enough
-        // fields to safely stand in for a full ServerStatus (rcon/startTime/
-        // uptime/serverPath/serverPathConfigured all missing). Before prev
+        // services/scheduler.js) sends only { running, phase } -- never
+        // enough fields to safely stand in for a full ServerStatus (rcon/
+        // startTime/uptime/serverPath/serverPathConfigured all missing;
+        // `phase` -- 2026-09-07, see resolveServerPhase() -- is display-only
+        // refinement of `running` for Layout.tsx's sidebar dot, not read
+        // here). Before prev
         // exists there is nothing to merge onto, so an early push here is
         // dropped; fetchStatus()'s REST call populates the first real
         // snapshot instead. (This used to check for a `configured` field

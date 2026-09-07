@@ -63,6 +63,7 @@
     "statusRunning": "الخادم قيد التشغيل",
     "statusStopped": "الخادم متوقف",
     "statusTransitioning": "الخادم قيد البدء أو الإيقاف",
+    "statusUnresponsive": "تم تشغيل الخادم لكنه لا يستجيب",
     "statusUnknown": "حالة الخادم غير معروفة"
   },
   "modBadge": {

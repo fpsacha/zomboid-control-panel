@@ -72,7 +72,11 @@ describe("checkServerStatusNow(detectionReason) -- the reason reaches both trans
       await checkServerStatusNow("integration-test-reason");
       await flush();
 
-      expect(emitSpy).toHaveBeenCalledWith("server:status", { running: false });
+      // 2026-09-07 STARTING-state fix: checkServerStatusNow now also emits
+      // a display-only `phase` (resolveServerPhase(), server/utils/serverStatus.js)
+      // alongside the pre-existing `running` boolean -- running:false always
+      // resolves to phase:'stopped' regardless of RCON/serverStarting state.
+      expect(emitSpy).toHaveBeenCalledWith("server:status", { running: false, phase: "stopped" });
       const stateChangedLog = logEntries.find((e) =>
         e.message.includes("Server state changed"),
       );

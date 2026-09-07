@@ -21,6 +21,33 @@ export function isServerObservedRunning({
   return Boolean(processRunning || rconConnected || bridgeConnected);
 }
 
+// 2026-09-07 lifecycle-actions hardening: `running` above answers "is
+// SOMETHING up" -- for a native/docker-managed host, hostStateAuthoritative
+// makes that true the instant the JVM/container process exists, seconds
+// after POST /start spawns it, while a real world load can leave RCON
+// unreachable for 60-180+ seconds after that (waitForRconAfterStart's own
+// comment). Layout.tsx's sidebar dot -- visible on every page -- read that
+// raw boolean and went green immediately, so the panel told the operator
+// "running" for the exact window where trying to connect would fail. This
+// resolves a separate, purely-additive phase for that same moment using the
+// SAME signals the route's startup sequence already tracks (rconService's
+// serverStarting flag, set right after spawn and cleared by
+// waitForRconAfterStart() once it either connects or exhausts its own
+// ~5-minute poll -- see server/routes/server.js) instead of adding a new
+// clock: 'starting' while host is up, RCON isn't connected yet, and we're
+// still inside that window; 'unresponsive' once the window has closed
+// (serverStarting cleared, whether by a successful connect or the wait
+// exhausting itself) and RCON still never connected -- an honest state that
+// answers god's exact guard: "starting forever is the same lie wearing a
+// different colour." Both new phases are display-only: `running` above is
+// computed exactly as before and nothing gates on this function's result.
+export function resolveServerPhase({ running, serverStarting, rconConnected } = {}) {
+  if (running === null || running === undefined) return "unknown";
+  if (!running) return "stopped";
+  if (rconConnected) return "running";
+  return serverStarting ? "starting" : "unresponsive";
+}
+
 /**
  * The single "is the active server observed running" verdict for whichever
  * server is currently active -- OR-combines the local process scan (or, for

@@ -12,6 +12,7 @@ import {
   lifecycleInProgressResponse,
 } from "./lifecycleCoordinator.js";
 import { createBackupIfChanged } from "../utils/configBackup.js";
+import { resolveServerPhase } from "../utils/serverStatus.js";
 import {
   candidateIniPaths,
   refreshLaunchTargetBeforeStart,
@@ -264,9 +265,15 @@ export class Scheduler {
   // here, so there is nothing left for that function to verify -- but see
   // its own header comment for why every OTHER "did state change" decision
   // still funnels through it alone.
-  _emitVerifiedTransition(running) {
+  // `phase` defaults to deriving straight from `running` (stopped/running)
+  // for the common case; the restart-start transition below passes an
+  // explicit 'starting' or 'unresponsive' from resolveServerPhase() instead
+  // -- see that function's own comment for why "the new instance is up" and
+  // "RCON is ready" are different claims (2026-09-07 STARTING-state fix).
+  // Display-only, same as everywhere else this phase is threaded through.
+  _emitVerifiedTransition(running, phase = running ? "running" : "stopped") {
     if (typeof this.io?.emit === "function") {
-      this.io.emit("server:status", { running });
+      this.io.emit("server:status", { running, phase });
     }
   }
 
@@ -1710,8 +1717,21 @@ export class Scheduler {
       // (managed.handled branch above), or the process/RCON poll just
       // confirmed it natively. RCON itself may still take another 60-240s
       // below, but the host/container signal is real now; no reason to make
-      // clients wait for that too.
-      this._emitVerifiedTransition(true);
+      // clients wait for that too. Phase is 'starting', not a bare
+      // running:true -- serverStarting is still true and RCON isn't
+      // connected yet at this exact point (see the RCON-wait loop right
+      // below), so a plain boolean here would be the identical premature-
+      // green-dot lie POST /start used to tell (2026-09-07 STARTING-state
+      // fix). The corresponding running/unresponsive correction is emitted
+      // once that wait settles, a few lines down.
+      this._emitVerifiedTransition(
+        true,
+        resolveServerPhase({
+          running: true,
+          serverStarting: rconService.serverStarting,
+          rconConnected: rconService.connected,
+        }),
+      );
 
       // Wait for RCON to be ready (PZ server takes 60-180s to fully initialize)
       // Keep serverStarting=true the whole time to block auto-reconnect
@@ -1790,6 +1810,23 @@ export class Scheduler {
       } else {
         rconService.serverStarting = false;
       }
+
+      // The starting-grace window is over: correct the phase the emit above
+      // left the client on. If RCON connected, this is the running
+      // confirmation the "starting" dot has been waiting for. If it never
+      // did, this is the "started but not responding" state god's guard
+      // named directly ("starting forever is the same lie wearing a
+      // different colour") -- an honest terminal state instead of leaving
+      // clients on 'starting' indefinitely (checkServerStatusNow's own
+      // watchdog can't be relied on to catch this: it only re-emits when ITS
+      // last-known phase differs, and a restart that returns to the exact
+      // phase it started from looks like no change from that function's
+      // point of view, since these _emitVerifiedTransition calls don't feed
+      // its lastKnownPhase -- see that function's own comment on why not).
+      this._emitVerifiedTransition(
+        true,
+        resolveServerPhase({ running: true, serverStarting: false, rconConnected }),
+      );
 
       const restartDuration = Date.now() - restartStartTime;
 

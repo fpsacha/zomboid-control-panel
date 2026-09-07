@@ -63,6 +63,7 @@
     "statusRunning": "Server läuft",
     "statusStopped": "Server ist gestoppt",
     "statusTransitioning": "Server startet oder stoppt",
+    "statusUnresponsive": "Server gestartet, reagiert aber nicht",
     "statusUnknown": "Serverstatus unbekannt"
   },
   "modBadge": {
