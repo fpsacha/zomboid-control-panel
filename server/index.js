@@ -1446,6 +1446,41 @@ function inspectPendingPanelUpdate() {
     runningMetadata: _buildMetadata,
   });
 }
+
+// State-machine sweep, 2026-09-07 (god's dispatch): inspectPendingPanelUpdate()
+// runs BEFORE httpServer.listen() and calls ensureCompatibleBundle()
+// internally the moment a journal is "awaiting_startup_ack" (or its Windows
+// equivalent) -- so a real version_mismatch (the staged build's own
+// metadata not matching what's actually running, the one integrity check
+// this whole bundle system exists to catch) throws HERE, first, every
+// single time. The ready-callback further down (search for
+// "Update startup handshake failed") ALSO handles version_mismatch, by
+// rolling the bundle back via acknowledgeUpdateBundle()'s own internal
+// catch -- but it runs strictly LATER, after this exact check already threw
+// and this process already called process.exit(76). That later code is
+// unreachable for this condition: same journal, same runningMetadata, same
+// comparison, so a real mismatch is always caught here first. Without this,
+// every subsequent restart hits the identical throw with nothing ever
+// having rolled back -- the one safety net actually catching the exact
+// problem it was built for, then getting permanently stuck instead of
+// healing, bounded only by whatever supervisor eventually gives up on
+// repeated nonzero exits. Exported so it can be unit-tested directly
+// against a real on-disk journal instead of through start()'s full
+// listen()-and-banner sequence.
+export function recoverFromStartupInspectionFailure(error, journalPath) {
+  if (error?.code !== "version_mismatch") return;
+  try {
+    recoverInterruptedUpdateBundle(journalPath, "version_mismatch");
+    log.warn(
+      "Rolled back the pending update bundle after a startup version-mismatch; the next restart should boot the previous, working build.",
+    );
+  } catch (rollbackError) {
+    log.error(
+      `Automatic rollback also failed [${rollbackError.code || "rollback_failed"}]: ${rollbackError.message}. ` +
+        `To recover manually, delete ${journalPath} and any .update-applying marker next to it, then restart.`,
+    );
+  }
+}
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
@@ -2816,6 +2851,7 @@ async function start() {
         log.error(
           `Update startup validation failed [${error.code || "invalid_bundle"}]: ${error.message}`,
         );
+        recoverFromStartupInspectionFailure(error, updateBundleJournalPath());
         process.exit(76);
         return;
       }
