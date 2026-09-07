@@ -21,8 +21,10 @@ vi.mock("../database/init.js", () => ({
   logServerEvent: vi.fn(),
   setSetting: vi.fn(),
   getSetting: vi.fn(),
-  getActiveServer: vi.fn(async () => ({ name: "servertest" })),
+  getActiveServer: vi.fn(),
 }));
+
+const { getActiveServer } = await import("../database/init.js");
 
 const { default: router } = await import("../routes/server.js");
 const { acquireLifecycleLock } = await import(
@@ -54,6 +56,11 @@ beforeEach(() => {
   saveDir = path.join(savePath, "Saves", "Multiplayer", SERVER_NAME);
   fs.mkdirSync(path.join(saveDir, "map"), { recursive: true });
   fs.writeFileSync(path.join(saveDir, "map", "0_0.bin"), "chunk");
+  getActiveServer.mockResolvedValue({
+    name: SERVER_NAME,
+    serverName: SERVER_NAME,
+    zomboidDataPath: savePath,
+  });
 });
 
 afterEach(() => {
@@ -78,6 +85,7 @@ describe("POST /api/server/wipe holds the shared lifecycle lock across its backu
 
     const serverManager = {
       loadConfig: async () => {},
+      reloadConfig: async () => {},
       getServerProcessDetails: async () => ({
         running: false,
         scanFailed: false,
