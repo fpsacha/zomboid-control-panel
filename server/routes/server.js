@@ -1808,7 +1808,14 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
       result.message =
         result.message || result.response || "Shutdown requested";
       result.confirmed = false;
-      monitorGracefulStop(serverManager, releaseLifecycleLock);
+      monitorGracefulStop({
+        serverManager,
+        releaseLifecycleLock,
+        serverId: activeServer?.id ?? null,
+        io: req.app.get("io"),
+        checkServerStatusNow,
+        discordBot: req.app.get("discordBot"),
+      });
       lifecycleLockTransferred = true;
     }
 
@@ -1837,13 +1844,84 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
 const FORCE_STOP_SAVE_TIMEOUT_MS = 3000;
 const GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000;
 
-function monitorGracefulStop(serverManager, releaseLifecycleLock) {
+// A graceful stop that never confirms must not just sit there: performRestart()'s
+// own stop-phase (this file's restart flow lives in scheduler.js) already
+// escalates to a force-kill after 60 failed 1s polls following its RCON quit,
+// because "we asked it to stop and nothing ever confirmed it" is a hung panel,
+// not a safe wait -- exactly the failure mode the 2026-09-07 hardening request
+// named directly ("a graceful shutdown that hangs forever with no escalation
+// to a hard kill"). Before this fix, plain POST /stop's monitor only ever
+// polled up to GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS (5 minutes) and then gave
+// up silently, releasing the lock with the game process potentially still
+// running and nothing having ever tried to actually kill it. This brings
+// /stop in line with the SAME bound and the SAME mechanism restart already
+// uses (serverManager.stopServer(false, ...)) rather than inventing a new
+// escalation path. Only reached for the native-process RCON-quit branch --
+// a Docker- or systemd/openrc-managed stop is already confirmed synchronously
+// before the route ever calls this (see the `managed.handled || serviceManaged`
+// branch above), so there is nothing to escalate there.
+const GRACEFUL_STOP_ESCALATE_AFTER_MS = 60 * 1000;
+
+function monitorGracefulStop({
+  serverManager,
+  releaseLifecycleLock,
+  serverId = null,
+  io = null,
+  checkServerStatusNow = null,
+  discordBot = null,
+}) {
   if (typeof serverManager?.getServerProcessDetails !== "function") {
     releaseLifecycleLock();
     return;
   }
 
-  const deadline = Date.now() + GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS;
+  const announceStopped = (reason) => {
+    if (typeof checkServerStatusNow === "function") {
+      Promise.resolve(checkServerStatusNow(reason)).catch((err) =>
+        log.debug(`Post-stop status re-check failed: ${err.message}`),
+      );
+    } else if (io) {
+      io.emit("server:status", { running: false });
+    }
+  };
+
+  const startedAt = Date.now();
+  const deadline = startedAt + GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS;
+  let escalated = false;
+
+  const escalateToForceStop = async () => {
+    escalated = true;
+    log.warn(
+      `Graceful stop did not confirm within ${GRACEFUL_STOP_ESCALATE_AFTER_MS / 1000}s; escalating to force-stop`,
+    );
+    try {
+      const forced = await serverManager.stopServer(false, { serverId });
+      if (forced?.success && forced.confirmed !== false) {
+        serverManager?.markServerStopped?.();
+        announceStopped("graceful-stop-escalated");
+        await logServerEventBestEffort(
+          "server_stop",
+          "Graceful shutdown did not complete in time; escalated to a force stop",
+        );
+        discordBot
+          ?.sendEventNotification("serverStop", {})
+          .catch((err) =>
+            log.debug(`Discord serverStop notification failed: ${err.message}`),
+          );
+      } else {
+        // Left running deliberately -- the final poll below still has until
+        // GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS to catch a delayed exit, and
+        // the operator's next Force Stop click will report the real reason
+        // (this one is just a log trail for what was already tried).
+        log.error(
+          `Graceful-stop escalation's force-stop did not confirm: ${forced?.error || forced?.message || "unknown error"}`,
+        );
+      }
+    } catch (error) {
+      log.error(`Graceful-stop escalation threw: ${error.message}`);
+    }
+  };
+
   const poll = async () => {
     try {
       const details = await serverManager.getServerProcessDetails();
@@ -1855,7 +1933,23 @@ function monitorGracefulStop(serverManager, releaseLifecycleLock) {
       log.debug(`Graceful stop confirmation failed: ${error.message}`);
     }
 
-    if (Date.now() >= deadline) {
+    const now = Date.now();
+    if (!escalated && now - startedAt >= GRACEFUL_STOP_ESCALATE_AFTER_MS) {
+      await escalateToForceStop();
+      // Check again right away instead of waiting out another full poll
+      // tick -- a successful kill confirms in well under a second.
+      try {
+        const details = await serverManager.getServerProcessDetails();
+        if (details && !details.scanFailed && details.running === false) {
+          releaseLifecycleLock();
+          return;
+        }
+      } catch (error) {
+        log.debug(`Post-escalation confirmation failed: ${error.message}`);
+      }
+    }
+
+    if (now >= deadline) {
       log.warn("Graceful stop confirmation timed out; releasing lifecycle lock");
       releaseLifecycleLock();
       return;
