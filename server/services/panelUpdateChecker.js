@@ -514,10 +514,22 @@ export class PanelUpdateChecker {
    */
   async downloadUpdate() {
     if (this.isDownloading) {
+      // See "Should the download request be held open at all?" (Pam's
+      // 0924a187, god-dispatched 2026-09-07): POST /panel/update-download
+      // still blocks the whole HTTP request for the full transfer today, so
+      // this branch is reachable only from a second, overlapping click. The
+      // client is not wired to treat this as "still going" yet -- that's a
+      // client-contract change for whoever picks up the fire-and-poll
+      // redesign, not something to do unilaterally from this side. What IS
+      // safe to add here, additively, without changing any existing field:
+      // downloadProgress, so a retry click at least carries live progress
+      // instead of a bare "already in progress" the client can only treat
+      // as an error today.
       return {
         success: false,
         error: "Download already in progress",
         code: "already_downloading",
+        downloadProgress: this.downloadProgress,
       };
     }
     if (this.isApplying) {
