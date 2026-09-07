@@ -196,8 +196,24 @@ const UNGATED_BY_DESIGN = new Map([
   // this test's per-route gate check on this exact route, which is the
   // point -- an exclusion that outlives the gap it documented is a stale
   // pass, not a record.
-  ["panelBridge.js GET /ping", "returns only mod connectivity + modStatus, no secrets"],
-  ["panelBridge.js GET /commands", "static hardcoded action list, no live/per-install data"],
+  // GET /ping's old reason here ("returns only mod connectivity +
+  // modStatus, no secrets") was written the same day, by the same author,
+  // under the same "the other two in this group are obviously fine too"
+  // judgement that turned out wrong for /status above. Re-verified against
+  // source rather than re-inherited (release-1-2-17, 2026-09-07): NOT
+  // confirmed safe. modStatus.path (the mod's own base path on the game
+  // server) and modStatus.filePath (the panel's local path to the status
+  // file -- for a remote/SFTP server, the local mirror directory) are the
+  // same class of unmasked-filesystem-path leak /status had, and
+  // modStatus.players is a live username list with no players.view check,
+  // unlike every other route that exposes player presence. Reported to god
+  // as a likely real hole rather than fixed here -- god's call on whether
+  // it lands in v1.2.17 or after. This entry currently documents only that
+  // the route remains ungated in the code today; it is not a claim that
+  // ungated is correct, and must be removed the moment that changes (same
+  // rule that applied to /status above).
+  ["panelBridge.js GET /ping", "NOT CONFIRMED SAFE -- known gap, reported not fixed, see comment above"],
+  ["panelBridge.js GET /commands", "static hardcoded action list (every field a literal in the handler, nothing derived from req/DB/per-install state) -- re-verified against source, confirmed safe"],
 
   // --- rcon.js: password explicitly excluded from what's returned ---
   ["rcon.js GET /status", "rconService.getConfig() excludes password by construction (host/port/connected/reconnect fields only)"],
