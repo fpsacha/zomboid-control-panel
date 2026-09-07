@@ -963,6 +963,40 @@ trap 'stop_panel INT' INT
 echo "Starting Zomboid Control Panel..."
 echo ""
 
+# Self-heal an interrupted self-update. updateBundle.js's applyUpdateBundle()
+# runs IN-PROCESS, while this panel is the thing being replaced: it renames
+# the live binary to ZomboidControlPanel.bundle-previous, then (a few
+# filesystem operations later) renames the staged replacement into place.
+# A crash, OOM-kill, or power loss anywhere in that window leaves NOTHING at
+# ./ZomboidControlPanel for setsid to exec below -- and without this check,
+# that exact symptom would repeat on every restart this loop attempts (each
+# one just fails to exec and burns another try from MAX_RAPID_CRASHES), then
+# again on every restart systemd attempts after this script gives up and
+# exits non-zero, forever, because nothing here ever looks at
+# ZomboidControlPanel.bundle-previous. Restoring it is always safe: the
+# rename dance never leaves both the live binary and its backup on disk at
+# once by construction (the backup is created FROM the live file, and the
+# live file is deleted -- see applyUpdateBundle()'s rollback()/rename
+# sequence), so seeing both here can only mean a successful apply's own
+# backup cleanup (acknowledgeUpdateBundle(), on the FIRST successful start
+# after the swap) simply has not run yet -- restoring in that case would
+# overwrite the live binary with an identical-or-newer file, not a
+# regression. Checked at the top of every loop iteration, not just once
+# before it, because the crash THIS loop is about to retry from could be the
+# very interruption this is recovering from.
+restore_interrupted_update() {
+  if [ ! -f "./ZomboidControlPanel" ] && [ -f "./ZomboidControlPanel.bundle-previous" ]; then
+    echo "WARNING: ./ZomboidControlPanel is missing but a pre-update backup exists -- restoring it (an update apply was likely interrupted)."
+    mv "./ZomboidControlPanel.bundle-previous" "./ZomboidControlPanel"
+    chmod +x "./ZomboidControlPanel" 2>/dev/null || true
+  fi
+  if [ ! -d "./client/dist" ] && [ -d "./client/dist.previous" ]; then
+    echo "WARNING: ./client/dist is missing but a pre-update backup exists -- restoring it (an update apply was likely interrupted)."
+    mv "./client/dist.previous" "./client/dist"
+  fi
+}
+restore_interrupted_update
+
 if [ ! -f "./ZomboidControlPanel" ]; then
   echo "ERROR: ./ZomboidControlPanel was not found in this folder."
   exit 1
@@ -996,6 +1030,8 @@ while true; do
   if [ "$STOPPING" = "1" ]; then
     exit 0
   fi
+
+  restore_interrupted_update
 
   PANEL_STARTED_AT=$(date +%s)
   setsid ./ZomboidControlPanel &
