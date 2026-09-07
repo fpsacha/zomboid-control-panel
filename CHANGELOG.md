@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.18] - 2026-09-07
+
+**TL;DR:**
+
+- The sidebar status dot no longer shows a server as Running before it can actually be connected to, and a Stop that never gets confirmed now escalates to a force-kill instead of hanging forever.
+- Fixed a serious bug where deleting a server's files could delete a **different, still-running** server's files instead.
+- Windows updater: long downloads, backups, restores, and world wipes no longer get killed early and falsely reported as failed.
+- On multi-server hosts, status detection no longer mixes up similarly-named servers or hides a running non-active server as stopped.
+- Non-Steam (GOG) installs no longer see a red error checking for mod updates - the panel now explains plainly that Workshop updates don't apply.
+
+### Fixed
+
+**Server status & actions**
+
+- **The sidebar status dot showed a server as Running the moment its process started, well before it could actually accept a connection** - it now shows Starting, and Not Responding if it never comes up.
+- **A Stop that PZ never confirmed could leave the server running indefinitely with the panel stuck** - it now force-kills the process after 60 seconds if a normal shutdown doesn't finish.
+- **Deleting a server's files could recursively delete a different, still-running server's install folder instead**, with no bad timing required.
+- **On a host running more than one server, a stopped server could appear Running** (mistaken for a similarly-named server that was actually up), **and a genuinely running non-active server could appear Stopped.**
+- **Restarting the panel while players were online could leave their sessions marked connected**, so their next join looked like a brand-new one instead of a reconnect.
+
+**Windows updater**
+
+- **A long download could report "failed" while it was still succeeding**, and a disk-space or permission block resolved outside the panel had no way back except a full reload.
+- **Clicking retry on a download already in progress showed a dead-end message instead of live progress.**
+- **Backup, restore, world wipe, Stop, and Force Stop could be reported as failed simply for taking longer than 15 seconds**, even when they were working correctly.
+- **An update interrupted mid-download could leave a leftover partial file behind forever** instead of being cleaned up.
+- **A panel update rolled back at exactly the wrong moment (a crash or forced shutdown) could corrupt the panel's database**, leaving it unable to start.
+- **A permanently-failed update could keep retrying the same failed step on every restart, forever**, instead of giving up and leaving the current version running.
+
+**Mod Manager**
+
+- **The "Fix Path" button did nothing when clicked**, unless a restart happened to already be pending.
+- **Non-Steam (GOG) installs got a red "Update Check Failed" error clicking Check Updates** - the panel now explains plainly that Workshop update checking doesn't apply, instead of throwing an error (#148).
+
+**PanelBridge (in-game mod)**
+
+- **A malformed internal data file could crash the in-game PanelBridge mod** instead of being safely ignored.
+- **A backward change to the game server's clock could permanently disable PanelBridge's self-healing checks.**
+- **SFTP-managed servers on hosts that don't support overwrite-on-rename could fail to sync their mod-update tracking file on every attempt** (#146).
+
 ## [1.2.17] - 2026-09-07
 
 ### Security
