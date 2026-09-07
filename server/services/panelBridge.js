@@ -1689,6 +1689,26 @@ class PanelBridge extends EventEmitter {
     return this.modStatus?.alive === true;
   }
 
+  // sweep-round5 follow-up (2026-09-07, release-1-2-17): ping() used to
+  // spread the FULL this.modStatus into its response -- an allow-list
+  // hazard, not just an oversight, since modStatus is shared internal
+  // state that legitimately carries fields this route was never meant to
+  // expose: path (the mod's own base path on the game server) and
+  // filePath (the panel's local status-file path, i.e. the SFTP mirror
+  // dir for a remote server) leaked the same class of filesystem paths
+  // /status did, and players (a live online-username list) bypassed
+  // players.view entirely, unlike every other route that exposes player
+  // presence -- reachable by ANY authenticated session regardless of
+  // role. Deliberately narrows what ping()'s RESPONSE merges in, not
+  // modStatus itself (still passed whole to getStatus() and elsewhere) --
+  // and deliberately an allow-list (only serverName, the one field
+  // Settings.tsx's handlePingMod actually reads), not a delete-list: a
+  // subtract-list silently re-leaks the next field someone adds to
+  // modStatus, which is exactly how this one happened.
+  pingModStatusView() {
+    return { serverName: this.modStatus?.serverName ?? null };
+  }
+
   /**
    * Convenience method: ping the mod
    */
@@ -1697,12 +1717,12 @@ class PanelBridge extends EventEmitter {
       return { success: false, error: 'Bridge not running' };
     }
     if (!this.isModConnected()) {
-      return { success: false, error: 'Mod not connected', modStatus: this.modStatus };
+      return { success: false, error: 'Mod not connected', modStatus: this.pingModStatusView() };
     }
     try {
       const result = await this.sendCommand('ping', {});
-      // Include modStatus in the response for the frontend
-      return { ...result, modStatus: this.modStatus };
+      // Include a narrowed modStatus view in the response for the frontend
+      return { ...result, modStatus: this.pingModStatusView() };
     } catch (error) {
       return { success: false, error: error.message };
     }

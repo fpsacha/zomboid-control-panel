@@ -167,20 +167,29 @@ describe("panelBridge.js: /commands stays outside the matrix -- static API docum
   });
 });
 
-// /ping is NOT confirmed safe. Its modStatus.path (the mod's own base path
-// on the game server) and modStatus.filePath (the panel's local path to the
-// status file -- for a remote/SFTP server, the local mirror directory) are
-// the same class of unmasked-filesystem-path leak /status had; it also
-// returns a live modStatus.players username list with no players.view
-// check, unlike every other route that exposes player presence. Reported
-// to god as a likely real hole rather than fixed here (release-1-2-17,
-// 2026-09-07) -- god's call on whether it lands in v1.2.17 or after. This
-// test documents only that the route remains ungated in the code today; it
-// is not a claim that ungated is correct, and must be deleted (not just
-// have its assertion flipped) the moment that changes -- same rule that
-// applied to /status above.
-describe("panelBridge.js: /ping -- KNOWN GAP, not yet actioned (see comment above)", () => {
-  it("GET /ping has no requirePermission gate ahead of its handler -- documents current (leaky) state, not a design decision", async () => {
+// /ping was NOT confirmed safe when first re-checked: bridge.ping() spread
+// the FULL this.modStatus into its response, so modStatus.path (the mod's
+// own base path on the game server) and modStatus.filePath (the panel's
+// local path to the status file -- for a remote/SFTP server, the local
+// mirror directory) leaked the same class of unmasked filesystem paths
+// /status had, and modStatus.players -- a live online-username list with no
+// players.view check, unlike every other route that exposes player
+// presence -- leaked THIRD-PARTY data (the players, not the operator).
+// That distinction (not the operator's own data) is why god reversed the
+// initial "ship the path leak tomorrow" call specifically for this route
+// and had it fixed same-day instead of deferred.
+//
+// Fixed in services/panelBridge.js: ping() now merges an explicit
+// allow-listed pingModStatusView() (serverName only -- the one field
+// Settings.tsx's handlePingMod actually reads) into its response instead
+// of the raw modStatus object. The route itself is still, correctly,
+// ungated -- there is nothing left in the response worth gating. See
+// panelBridgePingModStatusLeak.test.js for the dedicated regression: it
+// asserts players/path/filePath/stats/queue are explicitly ABSENT, not
+// just that serverName is present, so a field re-added to modStatus later
+// can't silently ride back through unnoticed the way this one did.
+describe("panelBridge.js: /ping stays outside the matrix -- response is now allow-listed, nothing left to gate", () => {
+  it("GET /ping has no requirePermission gate ahead of its handler -- correct now that its response no longer carries modStatus.players/path/filePath (see panelBridgePingModStatusLeak.test.js)", async () => {
     const { default: router } = await import("../routes/panelBridge.js");
     const layer = router.stack.find(
       (entry) => entry.route?.path === "/ping" && entry.route.methods.get,

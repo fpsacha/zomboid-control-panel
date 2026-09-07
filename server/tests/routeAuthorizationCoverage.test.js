@@ -200,19 +200,26 @@ const UNGATED_BY_DESIGN = new Map([
   // modStatus, no secrets") was written the same day, by the same author,
   // under the same "the other two in this group are obviously fine too"
   // judgement that turned out wrong for /status above. Re-verified against
-  // source rather than re-inherited (release-1-2-17, 2026-09-07): NOT
-  // confirmed safe. modStatus.path (the mod's own base path on the game
-  // server) and modStatus.filePath (the panel's local path to the status
-  // file -- for a remote/SFTP server, the local mirror directory) are the
-  // same class of unmasked-filesystem-path leak /status had, and
-  // modStatus.players is a live username list with no players.view check,
-  // unlike every other route that exposes player presence. Reported to god
-  // as a likely real hole rather than fixed here -- god's call on whether
-  // it lands in v1.2.17 or after. This entry currently documents only that
-  // the route remains ungated in the code today; it is not a claim that
-  // ungated is correct, and must be removed the moment that changes (same
-  // rule that applied to /status above).
-  ["panelBridge.js GET /ping", "NOT CONFIRMED SAFE -- known gap, reported not fixed, see comment above"],
+  // source: NOT actually safe as shipped -- bridge.ping() spread the FULL
+  // this.modStatus into its response, including modStatus.path/filePath
+  // (the same class of unmasked filesystem paths /status leaked) and
+  // modStatus.players, a live online-username list with no players.view
+  // check, unlike every other route that exposes player presence.
+  // THIRD-PARTY data (the players, not the operator), which is why god
+  // reversed the initial "path leak, ship tomorrow" call specifically for
+  // this one and had it fixed same-day instead. Fixed in
+  // services/panelBridge.js: ping() now merges an explicit allow-listed
+  // pingModStatusView() (serverName only -- the one field Settings.tsx's
+  // handlePingMod actually reads) instead of the raw modStatus object.
+  // Deliberately an allow-list, not a delete-list, and deliberately scoped
+  // to the RESPONSE, not this.modStatus itself (still passed whole to
+  // getStatus() and other legitimate consumers) -- see
+  // panelBridgePingModStatusLeak.test.js for the dedicated regression
+  // coverage, including an explicit assert-ABSENT check for
+  // players/path/filePath/stats/queue, not just assert-present for
+  // serverName. GET /ping genuinely has no gate -- correctly excluded now
+  // that the response itself no longer has anything worth gating.
+  ["panelBridge.js GET /ping", "response is allow-listed to serverName only (pingModStatusView()) -- modStatus.players/path/filePath no longer reach it; see panelBridgePingModStatusLeak.test.js"],
   ["panelBridge.js GET /commands", "static hardcoded action list (every field a literal in the handler, nothing derived from req/DB/per-install state) -- re-verified against source, confirmed safe"],
 
   // --- rcon.js: password explicitly excluded from what's returned ---
