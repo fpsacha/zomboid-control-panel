@@ -11,6 +11,23 @@ vi.mock("../database/init.js", () => ({
   getServers: vi.fn(),
 }));
 
+// checkSpecificServerStopped() (server.js) scans the whole host and
+// attributes candidates via the REAL scoreServerProcessOwnership() -- keep
+// that real (importActual) and only replace ServerManager's host scan, so
+// these tests exercise the actual attribution logic, not a re-description
+// of it.
+const scanHostForServerProcesses = vi.fn();
+
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
+
 const { default: router } = await import("../routes/server.js");
 const { getServers } = await import("../database/init.js");
 
@@ -35,7 +52,6 @@ function getDeleteFilesHandler() {
 // callers treat "cannot tell" as "stopped".
 describe("POST /api/server/delete-files safety guards", () => {
   let installDir;
-  let serverManager;
 
   beforeEach(() => {
     installDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-delete-files-"));
@@ -43,16 +59,8 @@ describe("POST /api/server/delete-files safety guards", () => {
     // check passes and the guards under test are the only thing left
     // that could refuse the request.
     fs.writeFileSync(path.join(installDir, "ProjectZomboid64.json"), "{}");
-    serverManager = {
-      loadConfig: async () => {},
-      // split-derivation sweep, 2026-09-07: the route no longer trusts a
-      // flat `running` field (that was serverManager's own ambient
-      // active-server state, not necessarily the server being deleted) --
-      // it matches the TARGET server's installPath against `matched`, the
-      // same system-wide process list servers.js's per-server-status route
-      // already keys off of. Default: no processes found at all.
-      getServerProcessDetails: async () => ({ scanFailed: false, matched: [] }),
-    };
+    // Default: no PZ processes anywhere on the host at all.
+    scanHostForServerProcesses.mockReset().mockResolvedValue({ scanFailed: false, matched: [] });
     // bug-hunt-2026-08-27: deletePath must now also match a configured
     // server's own installPath -- the marker-file check alone was
     // trivially satisfiable. Default every test to a configured server
@@ -68,7 +76,6 @@ describe("POST /api/server/delete-files safety guards", () => {
   });
 
   const buildRequest = (body) => ({
-    app: { get: () => serverManager },
     body: { path: installDir, ...body },
   });
 
@@ -90,7 +97,7 @@ describe("POST /api/server/delete-files safety guards", () => {
   });
 
   it("refuses while the server is running", async () => {
-    serverManager.getServerProcessDetails = async () => ({
+    scanHostForServerProcesses.mockResolvedValue({
       scanFailed: false,
       matched: [{ cmd: installDir, pid: 111 }],
     });
@@ -107,27 +114,68 @@ describe("POST /api/server/delete-files safety guards", () => {
     expect(fs.existsSync(installDir)).toBe(true);
   });
 
-  // split-derivation sweep, 2026-09-07 (the actual bug this route had):
-  // before the fix, "is it running" was answered from serverManager's own
-  // ambient state -- whichever server the panel currently has
-  // active/loaded, NOT necessarily installDir's owner. This simulates the
-  // exact wrong-pairing scenario: the ACTIVE server (id 2, a different
-  // install path, tracked by serverManager) is stopped, while the TARGET
-  // of this delete (id 1, installDir, not active) is actually running.
-  // Pre-fix, this would have sailed through -- serverManager.running would
-  // have reported the ACTIVE server's (stopped) state, not installDir's.
-  it("refuses to delete a NON-active configured server's files while THAT server is running, even though the active server (tracked by serverManager) is stopped", async () => {
-    const otherInstallDir = path.join(os.tmpdir(), "pz-other-active-server");
+  // state-detection lane, 2026-09-07 (round 2 -- the exact scenario god
+  // asked to be reproduced as a destructive-path test, not just a scoring
+  // assertion): Server A is the target of THIS delete and is genuinely
+  // stopped. Server B is a completely different, unrelated configured
+  // server, and IS running, launched with its own -servername. Before this
+  // fix, checkSpecificServerStopped asked the shared, ACTIVE-server-scoped
+  // serverManager singleton "are you running" instead of scanning the host
+  // and attributing by TARGET identity -- so this scenario's real danger
+  // (a genuinely running non-active server) never even entered the
+  // decision. Now: scoreServerProcessOwnership disqualifies Server B's
+  // process against Server A's descriptor (mismatched -servername), so it
+  // correctly contributes nothing to Server A's own verdict, and Server A
+  // is correctly confirmed stopped -- proving the fix answers "is THIS ONE
+  // stopped", not "is anything on the host running".
+  it("still deletes a genuinely stopped target even while a completely different configured server is running", async () => {
+    const otherInstallDir = path.join(os.tmpdir(), "pz-other-running-server");
     getServers.mockResolvedValue([
-      { id: 1, installPath: installDir },
-      { id: 2, installPath: otherInstallDir },
+      { id: 1, installPath: installDir, serverName: "ServerA" },
+      { id: 2, installPath: otherInstallDir, serverName: "ServerB" },
     ]);
-    // serverManager's own process-detection reports the ACTIVE server
-    // (id 2) is stopped -- but the scan itself is system-wide, so its
-    // `matched` list still surfaces installDir's (id 1's) real process.
-    serverManager.getServerProcessDetails = async () => ({
+    scanHostForServerProcesses.mockResolvedValue({
       scanFailed: false,
-      matched: [{ cmd: installDir, pid: 222 }],
+      matched: [
+        {
+          pid: 222,
+          cmd: `java zombie.network.GameServer -servername "ServerB" -cachedir="${otherInstallDir}"`,
+        },
+      ],
+    });
+
+    const handler = getDeleteFilesHandler();
+    const response = createResponse();
+
+    await handler(buildRequest({ confirm: true }), response);
+
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true }),
+    );
+    expect(fs.existsSync(installDir)).toBe(false);
+  });
+
+  // The actual destructive-path regression this round exists to close:
+  // Server A (the delete target) is genuinely RUNNING but is not the
+  // active/loaded server. Pre-fix, checkSpecificServerStopped asked the
+  // shared serverManager singleton (scoped to whichever OTHER server was
+  // active) whether IT was running -- so it could answer "not running"
+  // while Server A's own real process sat right there in a host-wide scan
+  // it never looked at. Assert the REFUSAL and that the install directory
+  // survives -- the value of this finding is the deterministic destructive
+  // path, not merely that a score changed.
+  it("refuses to delete a target server's files while THAT target is running, even though it is not the active/loaded server", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, installPath: installDir, serverName: "ServerA" },
+    ]);
+    scanHostForServerProcesses.mockResolvedValue({
+      scanFailed: false,
+      matched: [
+        {
+          pid: 111,
+          cmd: `java zombie.network.GameServer -servername "ServerA" -cachedir="C:\\Zomboid\\A"`,
+        },
+      ],
     });
 
     const handler = getDeleteFilesHandler();
@@ -143,9 +191,36 @@ describe("POST /api/server/delete-files safety guards", () => {
   });
 
   it("refuses when it cannot be determined whether the server is running (fails closed)", async () => {
-    serverManager.getServerProcessDetails = async () => ({
+    scanHostForServerProcesses.mockResolvedValue({
       matched: [],
       scanFailed: true,
+    });
+    const handler = getDeleteFilesHandler();
+    const response = createResponse();
+
+    await handler(buildRequest({ confirm: true }), response);
+
+    expect(response.status).toHaveBeenCalledWith(503);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "SERVER_STATE_UNKNOWN" }),
+    );
+    expect(fs.existsSync(installDir)).toBe(true);
+  });
+
+  // god's ruling, 2026-09-07: a recursive fs.rmSync against a live install
+  // must not proceed on "probably stopped". A real PZ-server-shaped process
+  // that scoreServerProcessOwnership can't attribute to this target OR rule
+  // out (no -servername/-cachedir, install path doesn't match either) must
+  // read the same as a failed scan -- refuse -- not as "safe to delete".
+  it("refuses (fails closed) when a PZ-shaped process exists that can't be confirmed to belong to a different server", async () => {
+    scanHostForServerProcesses.mockResolvedValue({
+      scanFailed: false,
+      matched: [
+        // No -servername/-cachedir, and this cmd doesn't mention installDir
+        // at all -- scoreServerProcessOwnership returns 0 (unattributable),
+        // not -1 (positively someone else's).
+        { pid: 999, cmd: "java -cp pz.jar zombie.network.GameServer" },
+      ],
     });
     const handler = getDeleteFilesHandler();
     const response = createResponse();
@@ -257,17 +332,12 @@ describe("POST /api/server/delete-files safety guards", () => {
   // redundant premature check ever coming back, rather than simulating a
   // race between two checks that no longer both exist.
   it("checks the target server's process state exactly once, immediately before the delete -- not a stale entry check", async () => {
-    let calls = 0;
-    serverManager.getServerProcessDetails = async () => {
-      calls += 1;
-      return { scanFailed: false, matched: [] };
-    };
     const handler = getDeleteFilesHandler();
     const response = createResponse();
 
     await handler(buildRequest({ confirm: true }), response);
 
-    expect(calls).toBe(1);
+    expect(scanHostForServerProcesses).toHaveBeenCalledTimes(1);
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true }),
     );

@@ -20,6 +20,22 @@ vi.mock("../database/init.js", () => ({
   getServers: vi.fn(),
 }));
 
+// checkSpecificServerStopped() (server.js) scans the whole host via a
+// throwaway ServerManager instance -- keep scoreServerProcessOwnership real
+// (importActual) and only replace the host scan itself, same pattern as
+// deleteFilesGuards.test.js.
+const scanHostForServerProcesses = vi.fn();
+
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
+
 const { default: router } = await import("../routes/server.js");
 const { getServers } = await import("../database/init.js");
 const { acquireLifecycleLock, isLifecycleLocked } = await import(
@@ -42,13 +58,13 @@ function getDeleteFilesHandler() {
 
 describe("POST /api/server/delete-files holds the shared lifecycle lock across its stopped-check + delete window", () => {
   let installDir;
-  let serverManager;
 
   beforeEach(() => {
     installDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-delete-files-lock-"));
     fs.writeFileSync(path.join(installDir, "ProjectZomboid64.json"), "{}");
     getServers.mockReset();
     getServers.mockResolvedValue([{ id: 1, installPath: installDir }]);
+    scanHostForServerProcesses.mockReset();
   });
 
   afterEach(() => {
@@ -59,7 +75,6 @@ describe("POST /api/server/delete-files holds the shared lifecycle lock across i
   });
 
   const buildRequest = (body) => ({
-    app: { get: () => serverManager },
     body: { path: installDir, confirm: true, ...body },
   });
 
@@ -69,14 +84,13 @@ describe("POST /api/server/delete-files holds the shared lifecycle lock across i
     const checkReached = new Promise((r) => {
       checkEntered = r;
     });
-    serverManager = {
-      loadConfig: async () => {},
-      getServerProcessDetails: () =>
+    scanHostForServerProcesses.mockImplementation(
+      () =>
         new Promise((resolve) => {
           releaseCheck = () => resolve({ scanFailed: false, matched: [] });
           checkEntered();
         }),
-    };
+    );
 
     const handler = getDeleteFilesHandler();
     const response = createResponse();
@@ -107,10 +121,7 @@ describe("POST /api/server/delete-files holds the shared lifecycle lock across i
   });
 
   it("refuses with 409 when another lifecycle operation already holds the lock, before any validation or deletion", async () => {
-    serverManager = {
-      loadConfig: async () => {},
-      getServerProcessDetails: vi.fn(async () => ({ scanFailed: false, matched: [] })),
-    };
+    scanHostForServerProcesses.mockResolvedValue({ scanFailed: false, matched: [] });
     const held = acquireLifecycleLock("start", "servertest");
     expect(held).not.toBeNull();
 
@@ -121,17 +132,14 @@ describe("POST /api/server/delete-files holds the shared lifecycle lock across i
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(getServers).not.toHaveBeenCalled();
-    expect(serverManager.getServerProcessDetails).not.toHaveBeenCalled();
+    expect(scanHostForServerProcesses).not.toHaveBeenCalled();
     expect(fs.existsSync(installDir)).toBe(true);
 
     held.release();
   });
 
   it("releases the lock even when the delete fails after the stopped-check passes", async () => {
-    serverManager = {
-      loadConfig: async () => {},
-      getServerProcessDetails: async () => ({ scanFailed: false, matched: [] }),
-    };
+    scanHostForServerProcesses.mockResolvedValue({ scanFailed: false, matched: [] });
     // Delete a path that will vanish out from under fs.rmSync -- force is
     // true so this doesn't throw ENOENT, but exercises the finally on a
     // non-throwing-but-unusual path. To actually exercise the catch branch,

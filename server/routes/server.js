@@ -17,7 +17,11 @@ import {
 } from "../database/init.js";
 import { sanitizeError, sanitizeIniValue } from "../utils/sanitize.js";
 import { hasIniKeyValue, setIniKeyLine } from "../utils/iniKeyWrite.js";
-import { resolveLaunchMode } from "../services/serverManager.js";
+import {
+  resolveLaunchMode,
+  ServerManager,
+  scoreServerProcessOwnership,
+} from "../services/serverManager.js";
 import {
   isSteamOperationIdle,
   getActiveSteamOperations,
@@ -1565,7 +1569,23 @@ router.post("/start", requirePermission("server.control"), async (req, res) => {
     // immediately and go straight to waiting for RCON, skipping the poll
     // entirely for this path.
     if (managed.handled) {
-      if (io) io.emit("server:status", { running: true });
+      // Not a bare io.emit("server:status", {running:true}) -- the host
+      // (container) being confirmed up is not the same claim as the server
+      // being ready to use, and RCON can still take well past this moment to
+      // come up (waitForRconAfterStart below). checkServerStatusNow is the
+      // sole place that computes the starting/running/unresponsive phase
+      // (see resolveServerPhase's own comment) from rconService.serverStarting,
+      // which was just set true above -- asserting our own competing
+      // {running:true} here would reintroduce the exact premature-green-dot
+      // bug this fix exists to close.
+      const checkServerStatusNow = req.app.get("checkServerStatusNow");
+      if (typeof checkServerStatusNow === "function") {
+        Promise.resolve(checkServerStatusNow("start-managed")).catch((err) =>
+          log.debug(`Post-start status re-check failed: ${err.message}`),
+        );
+      } else if (io) {
+        io.emit("server:status", { running: true });
+      }
       log.info("Container start confirmed by Docker; skipping local process poll");
       lifecycleLockTransferred = true;
       void waitForRconAfterStart({
@@ -1575,7 +1595,17 @@ router.post("/start", requirePermission("server.control"), async (req, res) => {
         .catch((err) =>
           log.error(`Post-start RCON wait failed: ${err.message}`),
         )
-        .finally(() => releaseLifecycleLock());
+        .finally(() => {
+          // Nudge for the running/unresponsive transition the instant
+          // waitForRconAfterStart settles, rather than leaving it to the
+          // periodic watchdog's own next tick (up to 10s later).
+          if (typeof checkServerStatusNow === "function") {
+            Promise.resolve(checkServerStatusNow("start-managed-rcon-settled")).catch(
+              (err) => log.debug(`Post-start status re-check failed: ${err.message}`),
+            );
+          }
+          releaseLifecycleLock();
+        });
       res.json(result);
       return;
     }
@@ -1628,9 +1658,29 @@ router.post("/start", requirePermission("server.control"), async (req, res) => {
         if (isRunning) {
           pollCleared = true;
           clearInterval(pollInterval);
-          if (io) io.emit("server:status", { running: true });
+          // See the managed branch's own comment above: the host process
+          // existing is not the same claim as the server being ready, so
+          // this asks checkServerStatusNow to compute the real phase
+          // (starting, since rconService.serverStarting is still true here)
+          // instead of asserting a bare running:true directly.
+          const checkServerStatusNow = req.app.get("checkServerStatusNow");
+          if (typeof checkServerStatusNow === "function") {
+            Promise.resolve(checkServerStatusNow("start-detected")).catch((err) =>
+              log.debug(`Post-start status re-check failed: ${err.message}`),
+            );
+          } else if (io) {
+            io.emit("server:status", { running: true });
+          }
           log.info("Server detected as running");
           await waitForRconAfterStart({ rconService, discordBot: req.app.get("discordBot") });
+          // Nudge for the running/unresponsive transition the instant
+          // waitForRconAfterStart settles, rather than leaving it to the
+          // periodic watchdog's own next tick (up to 10s later).
+          if (typeof checkServerStatusNow === "function") {
+            Promise.resolve(checkServerStatusNow("start-rcon-settled")).catch((err) =>
+              log.debug(`Post-start status re-check failed: ${err.message}`),
+            );
+          }
           releaseLifecycleLock();
         } else if (attempts >= maxAttempts) {
           pollCleared = true;
@@ -4586,17 +4636,36 @@ router.get("/steamcmd/check", requirePermission("server.install"), async (req, r
 // Folder"/"Delete Everything" can target a server that isn't active), so
 // the old check answered "is the ACTIVE server stopped?" while the route
 // deleted a DIFFERENT server's files entirely -- reachable without even a
-// race, just by acting on a non-active server. Fixed by checking the
-// TARGET server's own installPath against a live, targeted scan instead of
-// serverManager's ambient cache -- same {status,body}-or-null fail-closed
-// contract as before. Mirrors servers.js's own per-server-status route
-// (GET /api/servers/status, ~line 632), which already had to solve
-// "is this arbitrary (possibly non-active) configured server running" and
-// branches the same way: a managed-lifecycle server (Docker/systemd) has
-// its own independent status() call with no shared process list to scan;
-// a direct/native server is matched by installPath substring against
-// getServerProcessDetails()'s system-wide `matched` process list.
-async function checkSpecificServerStopped(serverManager, targetServer, actionLabel) {
+// race, just by acting on a non-active server.
+//
+// state-detection lane, 2026-09-07 (round 2 -- the first fix above didn't
+// go far enough): still used serverManager.getServerProcessDetails() --
+// which is scoped to whichever server serverManager itself has loaded, NOT
+// targetServer -- plus a bare, unbounded substring match on installPath.
+// Concretely: Server A active+stopped, Server B configured+running with its
+// own -servername; scoring B's real process against A's descriptor
+// disqualifies it (-1), so it lands in neither owned nor unattributable and
+// vanishes from `matched` entirely; this check then saw an empty list and
+// confidently said "not running." Fixed the same way as servers.js's own
+// GET /api/servers/status (611687a5): scan the whole host
+// (ServerManager.scanHostForServerProcesses(), unfiltered by any one
+// server's loadConfig()) and attribute via scoreServerProcessOwnership()
+// against TARGET's own descriptor, on a throwaway instance -- never the
+// shared `serverManager` singleton, whose cached isRunning means something
+// different ("MY loaded server") than a host-wide answer would.
+//
+// A THIRD outcome now matters that didn't for the read-only /status list:
+// scoreServerProcessOwnership() can return 0 ("unattributable" -- a real
+// PZ-server-shaped process with no -servername/-cachedir, whose install
+// path doesn't match this target either) for a candidate that might still
+// BE this target, launched via a stock script with no identifying args, in
+// a shape this scan just couldn't pin down. /status can afford to render
+// that as "stopped" (a wrong badge is cosmetic); this check guards a
+// recursive fs.rmSync against a live install, so "cannot confirm it isn't
+// this one" must refuse exactly like a failed scan does, not read as "safe
+// to delete." Only zero owned AND zero unattributable candidates counts as
+// confirmed stopped.
+async function checkSpecificServerStopped(targetServer, actionLabel) {
   if (isManagedLifecycleProvider(targetServer.lifecycleProvider)) {
     try {
       const status = await createLinuxServiceLifecycle(
@@ -4633,8 +4702,19 @@ async function checkSpecificServerStopped(serverManager, targetServer, actionLab
     }
   }
 
-  const processDetails = await serverManager.getServerProcessDetails();
-  if (processDetails.scanFailed) {
+  let scan;
+  try {
+    scan = await new ServerManager().scanHostForServerProcesses();
+  } catch (error) {
+    return {
+      status: 503,
+      body: {
+        error: `Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server (${error.message}).`,
+        code: ErrorCode.SERVER_STATE_UNKNOWN,
+      },
+    };
+  }
+  if (scan.scanFailed) {
     return {
       status: 503,
       body: {
@@ -4643,22 +4723,37 @@ async function checkSpecificServerStopped(serverManager, targetServer, actionLab
       },
     };
   }
-  const norm = (p) =>
-    String(p || "")
-      .toLowerCase()
-      .replace(/\\/g, "/")
-      .trim();
-  const installPathNorm = norm(targetServer.installPath);
-  const matched = Array.isArray(processDetails.matched) ? processDetails.matched : [];
-  const isRunning =
-    Boolean(installPathNorm) && matched.some((m) => norm(m.cmd).includes(installPathNorm));
-  if (isRunning) {
+
+  const descriptor = {
+    serverName: targetServer.serverName,
+    savePath: targetServer.zomboidDataPath,
+    serverPath: targetServer.serverPath || targetServer.installPath,
+  };
+  const matched = Array.isArray(scan.matched) ? scan.matched : [];
+  let owned = false;
+  let unattributable = false;
+  for (const m of matched) {
+    const score = scoreServerProcessOwnership(m.cmd, descriptor);
+    if (score > 0) owned = true;
+    else if (score === 0) unattributable = true;
+  }
+
+  if (owned) {
     return {
       status: 400,
       body: {
         error: `Server must be stopped before ${actionLabel}. Stop the server first.`,
         // Shared with /wipe -- see errorCodes.js for why.
         code: ErrorCode.WIPE_SERVER_RUNNING,
+      },
+    };
+  }
+  if (unattributable) {
+    return {
+      status: 503,
+      body: {
+        error: "Can't verify whether the server is actually stopped — a dedicated PZ server process exists on this host that can't be confirmed to belong to a different server. Check the panel's log for the process, or stop it and try again.",
+        code: ErrorCode.SERVER_STATE_UNKNOWN,
       },
     };
   }
@@ -4687,8 +4782,6 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
     return res.status(409).json(lifecycleInProgressResponse());
   }
   try {
-    const serverManager = req.app.get("serverManager");
-
     const { path: deletePath, confirm } = req.body || {};
     if (confirm !== true) {
       return res.status(400).json({
@@ -4795,7 +4888,6 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
     // not just answering it from a stale source -- leaving this single,
     // correctly-targeted check right before the delete it guards.
     const notStoppedError = await checkSpecificServerStopped(
-      serverManager,
       targetServer,
       "deleting its files",
     );
