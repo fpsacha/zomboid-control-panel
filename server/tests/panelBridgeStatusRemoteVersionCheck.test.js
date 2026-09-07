@@ -39,9 +39,15 @@ function getHandler(routePath, method) {
   const layer = router.stack.find(
     (entry) => entry.route?.path === routePath && entry.route.methods[method],
   );
-  // GET /status carries no requirePermission middleware -- the handler is
-  // the only (and therefore first) entry in its stack.
-  return layer.route.stack[0].handle;
+  // sweep-round5 (2026-09-07): GET /status now carries a
+  // requireAnyPermission("bridge.setup", "bridge.diagnostics") gate ahead
+  // of the real handler, so the stack has two entries. This test's own
+  // job is the remoteBridgeVersionCheck LOGIC, already exercised past the
+  // gate elsewhere (requireAnyPermission.test.js, backupReadRoutesAnyCapability.test.js's
+  // sibling coverage, routeAuthorizationCoverage.test.js) -- grab the LAST
+  // handler (the real one), not the first, rather than re-proving the gate
+  // exists here too.
+  return layer.route.stack[layer.route.stack.length - 1].handle;
 }
 
 function createResponse() {

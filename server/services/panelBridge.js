@@ -1672,8 +1672,13 @@ class PanelBridge extends EventEmitter {
       },
       statusFile: fileInfo,
       hasFileWatcher: !!this.fileWatcher,
-      transport: this.sftpTransport?.getStatus() || { type: 'local', running: this.isRunning },
-      lastSftpTransport: this.lastSftpStatus
+      transport: this.sftpTransport?.getStatus() || { type: 'local', running: this.isRunning }
+      // lastSftpTransport (this.lastSftpStatus) intentionally dropped from
+      // this response, sweep-round5 (2026-09-07): grepped client/src --
+      // never read anywhere, not even in a TypeScript type declaration.
+      // this.lastSftpStatus itself is left alone (harmless internal
+      // bookkeeping, written once elsewhere in this file); only the
+      // outward-facing HTTP field is removed.
     };
   }
 

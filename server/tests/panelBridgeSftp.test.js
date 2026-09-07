@@ -247,11 +247,36 @@ describe('PanelBridge SFTP sync', () => {
     }
 
     const status = transport.getStatus();
-    expect(status.remotePath).toBe(valid.bridgePath);
     expect(status.diagnostics.failureCount).toBe(21);
     expect(status.diagnostics.recentErrors).toHaveLength(20);
     expect(status.diagnostics.recentErrors[0].message).toBe('failure-1');
     expect(JSON.stringify(status)).not.toContain(valid.password);
+  });
+
+  // sweep-round5 (2026-09-07): cachePath (local host path) and
+  // remotePath/remoteDirectories (the REMOTE server's filesystem paths)
+  // used to be unconditionally returned here, and were never read anywhere
+  // in client/src -- grepped before removing, not assumed. "Removing beats
+  // gating": a field absent from the response has nothing for a future
+  // debug log, support bundle, or screenshot to leak, and cannot be
+  // silently widened back open the way a gate can. This is the regression
+  // guard for that removal, not a new capability test (GET
+  // /panel-bridge/status's own permission gate is covered separately, in
+  // server/routes/panelBridge.js's route definition).
+  it('does not expose cachePath, remotePath, or remoteDirectories -- host and remote filesystem paths nothing client-side reads', () => {
+    const transport = new PanelBridgeSftpTransport();
+    transport.config = validateSftpBridgeConfig(valid);
+    transport.cachePath = '/some/local/cache/path';
+
+    const status = transport.getStatus();
+
+    expect(status).not.toHaveProperty('cachePath');
+    expect(status).not.toHaveProperty('remotePath');
+    expect(status).not.toHaveProperty('remoteDirectories');
+    // The instance property itself is untouched -- only the outward-facing
+    // getStatus() response changed. Real internal uses of this.cachePath
+    // (opening/writing the local cache) are unaffected.
+    expect(transport.cachePath).toBe('/some/local/cache/path');
   });
 
   it('uploads queued commands before downloading remote Bridge files', async () => {

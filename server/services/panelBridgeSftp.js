@@ -541,22 +541,29 @@ export class PanelBridgeSftpTransport {
   }
 
   getStatus() {
+    // sweep-round5 (2026-09-07): cachePath (local host filesystem path)
+    // and remotePath/remoteDirectories (the REMOTE server's filesystem
+    // paths, reached over SFTP) used to be returned here unconditionally.
+    // Neither is read anywhere in client/src -- grepped before removing,
+    // not assumed -- so per god's ruling on this exact class of finding
+    // ("removing beats gating": a field that isn't in the response has
+    // nothing for a future debug log, support bundle, or screenshot to
+    // leak). Genuinely load-bearing fields (type/running/lastSyncAt/
+    // lastLatencyMs/lastError*/pollIntervalSeconds/diagnostics) are
+    // untouched; GET /api/panel-bridge/status (the route this feeds) is
+    // separately gated to requireAnyPermission("bridge.setup",
+    // "bridge.diagnostics") for the two path-bearing fields it still
+    // does return (bridgePath, statusFile.path -- both genuinely
+    // displayed in Settings.tsx).
     return {
       type: 'sftp',
       running: this.running,
-      cachePath: this.cachePath,
       lastSyncAt: this.lastSyncAt,
       lastLatencyMs: this.lastLatencyMs,
       lastError: this.lastError,
       lastErrorGuidance: this.lastError ? getSftpErrorGuidance({ message: this.lastError }) : null,
       lastErrorCode: this.lastError ? classifySftpErrorCode({ message: this.lastError }) : null,
       pollIntervalSeconds: this.config?.pollIntervalSeconds ?? null,
-      remotePath: this.config?.bridgePath ?? null,
-      remoteDirectories: this.config ? {
-        bridge: this.config.bridgePath,
-        inbox: `${this.config.bridgePath}/inbox`,
-        outbox: `${this.config.bridgePath}/outbox`,
-      } : null,
       diagnostics: {
         connected: Boolean(this.client),
         connectionAttempts: this.connectionAttempts,

@@ -1348,7 +1348,18 @@ export default function Settings() {
   };
 
   // Panel Bridge functions
+  // sweep-round5 (2026-09-07): GET /panel-bridge/status now requires
+  // bridge.setup OR bridge.diagnostics (it returns bridgePath and
+  // statusFile.path, both genuinely rendered further down this file) --
+  // skip the fetch (and its recursive polling below) entirely for a role
+  // holding neither, rather than let it 3s/10s-poll into a guaranteed 403
+  // forever. can() fails OPEN while capabilities are still loading, same
+  // as every other capability check in this file (see the users/roles/sso
+  // tab-hiding above) -- so this only stops polling once we genuinely know
+  // the answer is no, never on a transient "haven't loaded yet."
+  const canViewBridgeStatus = can("bridge.setup") || can("bridge.diagnostics");
   const fetchBridgeStatus = useCallback(async () => {
+    if (!canViewBridgeStatus) return;
     try {
       const status = await panelBridgeApi.getStatus();
       setBridgeStatus(status);
@@ -1359,7 +1370,7 @@ export default function Settings() {
         getUserErrorMessage(error, t("bridge.statusFetchFailedFallback")),
       );
     }
-  }, [t]);
+  }, [t, canViewBridgeStatus]);
 
   // Fetch servers list for install dropdown
   const fetchServers = useCallback(async () => {

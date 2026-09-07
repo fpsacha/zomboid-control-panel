@@ -184,18 +184,18 @@ const UNGATED_BY_DESIGN = new Map([
   ["oidc.js GET /callback", "pre-session: the OIDC provider redirects back here before a local session exists"],
 
   // --- panelBridge.js ---
-  // CAVEAT found during this sweep, NOT fixed here: getStatus() (the
-  // service method behind this route) returns this.bridgePath and, via
-  // sftpTransport.getStatus(), cachePath/remotePath/remoteDirectories --
-  // absolute host (and remote-server) filesystem paths -- unmasked, to
-  // any authenticated user. This is NOT the same "no single capability
-  // fits" shape as backup.js's fix; it's a plain missing single-capability
-  // gate, reported separately for a shape decision (bridge.setup alone
-  // plausibly loses moderator visibility into basic bridge connectivity,
-  // which is today's behavior) rather than fixed unilaterally in this
-  // commit. Left in this exclusion list, with this note, rather than
-  // silently omitted -- an exclusion with a caveat is still documentation.
-  ["panelBridge.js GET /status", "dashboard read of bridge connectivity -- KNOWN to also leak bridgePath/cachePath/remoteDirectories (host+remote filesystem paths), flagged separately, not yet fixed"],
+  // GET /status used to be in this list (a documented caveat: leaked
+  // bridgePath/cachePath/remotePath/remoteDirectories to any authenticated
+  // user). Follow-up landed: cachePath/remotePath/remoteDirectories were
+  // never read anywhere in client/src (grepped, not assumed) and were
+  // removed from the response entirely (services/panelBridgeSftp.js);
+  // bridgePath and statusFile.path ARE genuinely rendered in Settings.tsx,
+  // so the route itself is now gated requireAnyPermission("bridge.setup",
+  // "bridge.diagnostics") instead -- see its own route-level comment. It
+  // is intentionally NOT an entry here any more: removing it re-enables
+  // this test's per-route gate check on this exact route, which is the
+  // point -- an exclusion that outlives the gap it documented is a stale
+  // pass, not a record.
   ["panelBridge.js GET /ping", "returns only mod connectivity + modStatus, no secrets"],
   ["panelBridge.js GET /commands", "static hardcoded action list, no live/per-install data"],
 

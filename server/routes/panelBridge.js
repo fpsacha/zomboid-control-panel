@@ -23,7 +23,7 @@ import {
 import { sanitizeError, sanitizeErrorParams, isMaskedSecret } from "../utils/sanitize.js";
 import { getDataPaths } from "../utils/paths.js";
 import { persistSandboxValues } from "./serverFiles.js";
-import { requirePermission } from "../services/permissions.js";
+import { requirePermission, requireAnyPermission } from "../services/permissions.js";
 import { parseClampedInteger } from "../utils/queryNumbers.js";
 import {
   getEmbeddedPanelBridgeLua,
@@ -447,8 +447,21 @@ function isValidBridgePath(inputPath) {
 // -- same capability players.js uses for reading player details/status, and
 // held by all three default roles, so no legitimate caller loses access.
 
-// Get bridge status
-router.get("/status", async (req, res) => {
+// sweep-round5 (2026-09-07): the response still carries two host
+// filesystem paths that ARE genuinely displayed client-side (bridgePath,
+// statusFile.path -- both rendered in Settings.tsx's PanelBridge card;
+// three others that were never read anywhere -- cachePath, remotePath,
+// remoteDirectories -- were removed from the response entirely instead,
+// see services/panelBridgeSftp.js's getStatus()). "Displayed" is not
+// "public": gated to any role that could legitimately need to see basic
+// bridge connectivity -- the same two capabilities that already govern
+// configuring (bridge.setup) or diagnosing (bridge.diagnostics) it.
+// Matches the client-side check added alongside this (Settings.tsx only
+// fetches this route when the signed-in user holds one of the two).
+router.get(
+  "/status",
+  requireAnyPermission("bridge.setup", "bridge.diagnostics"),
+  async (req, res) => {
   const status = bridge.getStatus();
 
   // Also include detected paths and either local auto-install status or a

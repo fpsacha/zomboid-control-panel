@@ -2275,7 +2275,6 @@ export const panelBridgeApi = {
       transport?: {
         type: "local" | "sftp";
         running: boolean;
-        cachePath?: string | null;
         lastSyncAt?: number | null;
         lastLatencyMs?: number | null;
         lastError?: string | null;
