@@ -1385,15 +1385,20 @@ export class PanelUpdateChecker {
         fs.rmSync(backup, { force: true });
         fs.copyFileSync(source, staged);
         fs.chmodSync(staged, file.mode);
-        if (fs.existsSync(target)) fs.renameSync(target, backup);
-        try {
-          fs.renameSync(staged, target);
-        } catch (error) {
-          if (fs.existsSync(backup) && !fs.existsSync(target)) {
-            fs.renameSync(backup, target);
-          }
-          throw error;
-        }
+        // state-machine sweep, 2026-09-07: backing up via COPY (not the
+        // rename-then-rename-back this used to do) means `target` is never
+        // absent from disk even for an instant -- a crash right here still
+        // leaves the OLD file in place, not a gap. The final
+        // fs.renameSync(staged, target) is a same-directory rename onto an
+        // EXISTING destination, which POSIX guarantees is atomic: the
+        // directory entry flips from old to new in one operation, so
+        // `target` is always either the old file or the new one, never
+        // neither -- unlike applyUpdateBundle()'s binary swap (fix
+        // 03431c65), which has to remove the live file first because it is
+        // swapping between two DIFFERENT directory entries it must
+        // reconcile via a temporary backup name.
+        if (fs.existsSync(target)) fs.copyFileSync(target, backup);
+        fs.renameSync(staged, target);
         swapped.push({ target, backup });
       }
     } catch (error) {
