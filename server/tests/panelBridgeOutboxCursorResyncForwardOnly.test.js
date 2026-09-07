@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -124,5 +124,49 @@ describe("PanelBridge.tryResyncOutboxCursor", () => {
 
     expect(resynced).toBe(false);
     expect(bridge.queueState.lastConsumedResultSeq).toBe(3);
+  });
+
+  // bug hunt 2026-09-07 (Date.now()-for-elapsed-time sweep): the stuck-gate
+  // used to be Date.now()-based -- a wall-clock step BACKWARD (NTP
+  // correction, DST, a manual clock change) landing between the first call
+  // (which records the stuck state) and a later one would keep
+  // `now < nextCheckAt` true far longer than resyncStuckMs actually
+  // elapsed, delaying the self-heal this function exists to provide. Fixed
+  // by switching to performance.now() (monotonic, cannot step backward).
+  // Proves it by making Date.now() report something wildly inconsistent
+  // (a huge step backward) while advancing the MOCKED monotonic clock past
+  // resyncStuckMs -- the resync must still fire, driven only by the
+  // monotonic clock.
+  it("the stuck-duration gate is immune to a Date.now() backward jump -- it runs on performance.now(), not wall clock", () => {
+    tmpDir = makeTempBridgeDir();
+    const bridge = new PanelBridge();
+    bridge.configure(tmpDir, true);
+    bridge.queueState.lastConsumedResultSeq = 5;
+
+    let mockPerfNow = 1_000;
+    const perfSpy = vi.spyOn(performance, "now").mockImplementation(() => mockPerfNow);
+    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    const first = bridge.tryResyncOutboxCursor(6);
+    expect(first).toBe(false); // records the stuck state at mockPerfNow=1000
+
+    // Wall clock steps backward by a huge amount -- a Date.now()-based gate
+    // would never see `now >= nextCheckAt` again after this.
+    dateSpy.mockReturnValue(-1_000_000_000);
+    // Real (monotonic) time advances past resyncStuckMs (20000ms default).
+    mockPerfNow += 21_000;
+
+    fs.writeFileSync(
+      path.join(tmpDir, "queue-state-lua.json.txt"),
+      JSON.stringify({ protocolVersion: "queue-v1", lastCommandSeq: 0, nextResultSeq: 51 }),
+    );
+
+    const resynced = bridge.tryResyncOutboxCursor(6);
+
+    perfSpy.mockRestore();
+    dateSpy.mockRestore();
+
+    expect(resynced).toBe(true);
+    expect(bridge.queueState.lastConsumedResultSeq).toBe(50);
   });
 });

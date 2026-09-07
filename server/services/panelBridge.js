@@ -885,9 +885,25 @@ class PanelBridge extends EventEmitter {
    * (or, if the mod is far ahead and already rotated the old file away,
    * effectively forever). Mirrors the equivalent fix in PanelBridge.lua
    * for the inbox/commands direction.
+   *
+   * Uses performance.now() (monotonic), not Date.now() (wall clock), for
+   * the stuck-duration/next-check math -- bug hunt 2026-09-07 (Date.now()-
+   * for-elapsed-time sweep): the old Date.now()-based version could have a
+   * clock step backward (NTP correction, DST, a manual clock change) land
+   * between the two reads, making `now` LESS than `nextCheckAt` far longer
+   * than resyncStuckMs actually elapsed -- the exact "watchdog that misses
+   * is absent, not late" shape, here meaning a genuinely desynced cursor
+   * would never get the self-heal this function exists to provide until
+   * real wall-clock time closed the gap the step introduced (which, for a
+   * large correction, could be hours). Monotonic time cannot step
+   * backward, so `now < nextCheckAt` can only ever be true because not
+   * enough real time has passed yet, matching this function's actual
+   * intent. (createdAt/expiresAt on the command payload itself, read by
+   * the Lua side, stay on wall clock -- that's a cross-process timestamp
+   * a different runtime has to parse, not an in-process duration.)
    */
   tryResyncOutboxCursor(seq) {
-    const now = Date.now();
+    const now = performance.now();
     if (this.outboxStuckState.seq !== seq) {
       this.outboxStuckState = { seq, since: now, nextCheckAt: now + this.queue.resyncStuckMs };
       return false;
