@@ -35,6 +35,9 @@ vi.mock("../database/init.js", () => ({
 
 const { getActiveServer, getServers, getSetting } = await import("../database/init.js");
 const { default: router } = await import("../routes/chunks.js");
+const { acquireLifecycleLock, LIFECYCLE_IN_PROGRESS_CODE } = await import(
+  "../services/lifecycleCoordinator.js"
+);
 
 // ── sql.js setup for a real vehicles.db fixture ────────────────────────────
 let sqlPromise = null;
@@ -1063,23 +1066,41 @@ describe("delete-chunks/delete-region: CHUNKS_STALE_SERVER_SCAN refuses a delete
   });
 });
 
-// bug hunt 2026-09-07 (uniqueness-generator sweep): backupPath used to be
-// `${sanitizedSaveName}_chunks_${Date.now()}` / `${sanitizedSaveName}_region_
-// ${Date.now()}` with no collision guard -- no lock serializes these two
-// routes the way /wipe and restoreBackup() are (see server.js's
-// wipeInProgress / backupService.js's restoreInProgress), so two concurrent
-// requests for the SAME save landing in the same millisecond (a
-// double-submit, or two operators acting on the same save at once) computed
-// the IDENTICAL backup directory. mkdirSync's recursive:true does not throw
-// EEXIST, so both would silently share one directory instead of getting
-// their own -- the exact "two different code paths generate the same name
-// for different content" shape. Forces the collision deterministically by
-// freezing Date.now() (real timing would only occasionally land in the same
-// millisecond) rather than hoping two real concurrent requests happen to
-// race into it.
-describe("backup directory naming: concurrent same-millisecond requests must not collide", () => {
+// bug hunt 2026-09-07 (uniqueness-generator sweep, Kevin): backupPath used
+// to be `${sanitizedSaveName}_chunks_${Date.now()}` / `${sanitizedSaveName}_
+// region_${Date.now()}` with no collision guard -- at the time this was
+// written, no lock serialized these two routes the way /wipe and
+// restoreBackup() were (see server.js's wipeInProgress / backupService.js's
+// restoreInProgress), so two concurrent requests for the SAME save landing
+// in the same millisecond (a double-submit, or two operators acting on the
+// same save at once) computed the IDENTICAL backup directory. The random
+// suffix fixed that collision.
+//
+// lifecycle-lock-set sweep, 2026-09-07 (Angela, same day, god's ruling):
+// that premise is no longer true. delete-chunks/delete-region now take the
+// same process-wide lifecycleCoordinator lock /wipe and /delete-files do
+// (see chunks.js's own comment on the fix), so two concurrent requests
+// through these HTTP routes can no longer both reach the naming code at
+// all -- the second is refused with 409 before it gets there. That does
+// NOT make the naming generator's own uniqueness irrelevant: the lock
+// protects these two ROUTES, not the naming code itself, which a future
+// caller (a retry path, an internal reuse, a test) could still reach twice
+// without going through the lock. Per god's explicit instruction: keep
+// Kevin's uniqueness proof (two calls with a frozen clock still produce
+// distinct directories) as defence-in-depth, re-expressed SEQUENTIALLY so
+// it no longer depends on concurrency the lock now forecloses, and add the
+// lock's own guarantee (concurrent request #2 refused, #1 untouched)
+// alongside it rather than in place of it -- a test deleted because a
+// later fix made its scenario unreachable is how a guarantee quietly stops
+// being checked; if the lock is ever removed for a good-sounding reason,
+// Kevin's collision must still be able to fail.
+describe("backup directory naming: unique even without concurrency, AND the routes now serialize", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    // Best-effort: don't let a failed assertion mid-test leak the real
+    // process-wide lock into a later test in this file or another.
+    const stray = acquireLifecycleLock("test-cleanup");
+    if (stray) stray.release();
   });
 
   function listBackupDirsMatching(pattern) {
@@ -1088,9 +1109,75 @@ describe("backup directory naming: concurrent same-millisecond requests must not
     return fs.readdirSync(backupsRoot).filter((name) => pattern.test(name));
   }
 
-  it("delete-chunks: two concurrent createBackup requests for the same save get two distinct backup directories", async () => {
+  it("delete-chunks: two SEQUENTIAL same-millisecond backups for the same save still get two distinct backup directories", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
 
+    writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
+    writeFileDeep(path.join(savePath, "map", "1", "1.bin"), "b");
+
+    // Sequential, not Promise.all -- the lock now refuses a concurrent
+    // second call outright, which would prove nothing about the naming
+    // generator's own entropy. Awaiting the first call's release before
+    // starting the second isolates exactly the property Kevin's test
+    // proved: the random suffix, not serialization, is what keeps two
+    // same-millisecond names apart.
+    const res1 = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+      createBackup: true,
+    });
+    const res2 = await postAs("/delete-chunks", {
+      saveName: SAVE_NAME,
+      chunks: [{ file: "1/1.bin", x: 1, y: 1 }],
+      createBackup: true,
+    });
+
+    expect(res1.getStatusCode()).toBe(200);
+    expect(res2.getStatusCode()).toBe(200);
+    expect(res1.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
+    expect(res2.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
+
+    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_chunks_1700000000000`));
+    expect(backupDirs).toHaveLength(2);
+  });
+
+  it("delete-region: two SEQUENTIAL same-millisecond backups for the same save still get two distinct backup directories", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+
+    writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
+    writeFileDeep(path.join(savePath, "map", "5", "5.bin"), "b");
+
+    const res1 = await postAs("/delete-region", {
+      saveName: SAVE_NAME,
+      minX: 0,
+      maxX: 0,
+      minY: 0,
+      maxY: 0,
+      createBackup: true,
+    });
+    const res2 = await postAs("/delete-region", {
+      saveName: SAVE_NAME,
+      minX: 5,
+      maxX: 5,
+      minY: 5,
+      maxY: 5,
+      createBackup: true,
+    });
+
+    expect(res1.getStatusCode()).toBe(200);
+    expect(res2.getStatusCode()).toBe(200);
+
+    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_region_1700000000000`));
+    expect(backupDirs).toHaveLength(2);
+  });
+
+  // lifecycle-lock-set sweep, 2026-09-07: the property Kevin's fix could
+  // not have proven at the time -- the routes now genuinely serialize
+  // against each other (and against /wipe, /restore, /start, ...), so a
+  // REAL concurrent double-submit no longer risks the naming collision at
+  // all. The second request never reaches the naming code; the first's
+  // work is never touched.
+  it("delete-chunks: two CONCURRENT requests for the same save -- the second is refused 409, the first's backup is untouched", async () => {
     writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
     writeFileDeep(path.join(savePath, "map", "1", "1.bin"), "b");
 
@@ -1108,43 +1195,18 @@ describe("backup directory naming: concurrent same-millisecond requests must not
     ]);
 
     expect(res1.getStatusCode()).toBe(200);
-    expect(res2.getStatusCode()).toBe(200);
     expect(res1.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
-    expect(res2.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
+    expect(res2.getStatusCode()).toBe(409);
+    expect(res2.getBody()).toEqual(
+      expect.objectContaining({ code: LIFECYCLE_IN_PROGRESS_CODE }),
+    );
 
-    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_chunks_1700000000000`));
-    expect(backupDirs).toHaveLength(2);
-  });
-
-  it("delete-region: two concurrent createBackup requests for the same save get two distinct backup directories", async () => {
-    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
-
-    writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
-    writeFileDeep(path.join(savePath, "map", "5", "5.bin"), "b");
-
-    const [res1, res2] = await Promise.all([
-      postAs("/delete-region", {
-        saveName: SAVE_NAME,
-        minX: 0,
-        maxX: 0,
-        minY: 0,
-        maxY: 0,
-        createBackup: true,
-      }),
-      postAs("/delete-region", {
-        saveName: SAVE_NAME,
-        minX: 5,
-        maxX: 5,
-        minY: 5,
-        maxY: 5,
-        createBackup: true,
-      }),
-    ]);
-
-    expect(res1.getStatusCode()).toBe(200);
-    expect(res2.getStatusCode()).toBe(200);
-
-    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_region_1700000000000`));
-    expect(backupDirs).toHaveLength(2);
+    // The first request's backup exists and is the only one -- the second
+    // never got far enough to create its own (or touch anything).
+    const backupsRoot = path.join(dataRoot, "backups");
+    const backupDirs = fs.readdirSync(backupsRoot);
+    expect(backupDirs).toHaveLength(1);
+    // The chunk the refused second request would have deleted must survive.
+    expect(fs.existsSync(path.join(savePath, "map", "1", "1.bin"))).toBe(true);
   });
 });

@@ -16,6 +16,10 @@ import { requirePermission, getRoleByName } from "../services/permissions.js";
 import { deleteVehiclesInBoxes } from "../utils/vehiclesDb.js";
 import { confineToRoots } from "../utils/browseRoots.js";
 import {
+  acquireLifecycleLock,
+  lifecycleInProgressResponse,
+} from "../services/lifecycleCoordinator.js";
+import {
   normalizeUserPath,
   getCandidateZomboidPaths,
   invalidateCandidatePathsCache,
@@ -1250,6 +1254,23 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
 
 // Delete selected chunks
 router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, res) => {
+  // lifecycle-lock-set sweep, 2026-09-07: this route unlinks real chunk
+  // files (Pass 1 below) with no lock a concurrent /start could also see --
+  // only the stopped-check above, which only proves the server was stopped
+  // at the moment it ran. A /start landing after that check and before
+  // deletion finishes launches the JVM against a save mid-delete. Same shape
+  // as /wipe pre-bfc0e515 and /delete-files pre-dd1e44f1; same fix: take the
+  // process-wide lifecycleCoordinator lock for the whole handler, not just
+  // the stopped-check. Acquired unconditionally (not skipped by force=true)
+  // -- force only overrides "is the server currently running", a different
+  // question from "could a lifecycle op start while this one runs".
+  const lifecycleLock = acquireLifecycleLock(
+    "delete-chunks",
+    typeof req.body?.saveName === "string" ? req.body.saveName : null,
+  );
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
     const {
       saveName,
@@ -1714,11 +1735,22 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
     res
       .status(error.statusCode || 500)
       .json({ error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 
 // Delete chunks by region (x/y coordinate range)
 router.post("/delete-region", requirePermission("chunks.manage"), async (req, res) => {
+  // lifecycle-lock-set sweep, 2026-09-07: same finding and fix as
+  // delete-chunks above -- see its comment for the full rationale.
+  const lifecycleLock = acquireLifecycleLock(
+    "delete-region",
+    typeof req.body?.saveName === "string" ? req.body.saveName : null,
+  );
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
     const {
       saveName,
@@ -2243,6 +2275,8 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
     res
       .status(error.statusCode || 500)
       .json({ error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 
