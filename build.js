@@ -377,9 +377,15 @@ export function generateStartBat() {
   // different attempt each time, against possibly-changed external
   // conditions (an AV scan finishing, OneDrive releasing a lock), naturally
   // rate-limited to once per restart, a human-paced action. Retention here
-  // is deliberately unbounded and untouched by this change -- Dwight proved
-  // it rescues a real transient failure (a relaunch completed his pending
-  // update once he released a file lock).
+  // was originally unbounded, deliberately -- Dwight proved it rescues a
+  // real transient failure (a relaunch completed his pending update once
+  // he released a file lock). It is now bounded at MAX_PENDING_APPLY_ATTEMPTS
+  // (see "Pending-apply retry cap" further down): Dwight separately found
+  // that "unbounded" also means a GENUINELY permanent failure (a lock that
+  // never releases, a staged binary AV has already deleted for good) retries
+  // silently forever, once per restart, with nothing to show for it but a
+  // supervisor.log line -- the same disease as .update-applying's, just at a
+  // slower, restart-paced cadence instead of a relaunch-paced one.
   //
   // .update-applying is different in kind, not just in which file survives.
   // It only exists once :apply_update has ALREADY succeeded and the new
@@ -454,6 +460,35 @@ rem === a legitimately fresh context worth one more shot.                 ===
 set "MAX_ROLLBACK_RETRIES=2"
 set "ROLLBACK_RETRY_COUNT=0"
 if defined PANEL_SUPERVISOR_MAX_ROLLBACK_RETRIES set "MAX_ROLLBACK_RETRIES=%PANEL_SUPERVISOR_MAX_ROLLBACK_RETRIES%"
+
+rem === Pending-apply retry cap (Dwight's finding, god-dispatched 2026-09-07 ===
+rem === as part of hardening the Windows updater state machine). ===
+rem === .update-pending is DELIBERATELY unbounded through most of          ===
+rem === :apply_update -- an AV scan finishing or a lock releasing between  ===
+rem === restarts is a genuinely different attempt each time, and every     ===
+rem === validation branch below (missing journal, missing staged binary,   ===
+rem === a hash mismatch) already deletes the marker itself, so those never ===
+rem === loop at all. Two shapes do not: the running executable can never   ===
+rem === be renamed away (still locked by a scanner, or blocked by          ===
+rem === Controlled Folder Access) -- nothing was touched yet, so there is  ===
+rem === nothing for :rollback_update to undo, and the marker survives to   ===
+rem === trigger the identical attempt on every future restart, forever,    ===
+rem === with nothing but a line in supervisor.log to show for it. A failed ===
+rem === :rollback_update ("journal retained for recovery") has the same    ===
+rem === shape -- the marker survives that too, and ROLLBACK_RETRY_COUNT    ===
+rem === above does not cover it: that counter only guards the loop AFTER a ===
+rem === swap has already succeeded (the "%APPLYING%" check in run_loop),   ===
+rem === and these failures happen BEFORE the marker ever becomes APPLYING. ===
+rem === PENDING_ATTEMPTS_FILE is persisted on disk -- unlike               ===
+rem === ROLLBACK_RETRY_COUNT, it must survive a full process exit, not     ===
+rem === just a relaunch inside one supervisor run -- and is checked at the ===
+rem === very top of :apply_update, before any file operation runs, so it   ===
+rem === bounds both shapes in one place: past the cap, stop retrying and   ===
+rem === keep running whatever build is currently in place instead of       ===
+rem === trying forever.                                                    ===
+set "PENDING_ATTEMPTS_FILE=%INSTALL_DIR%.update-pending-attempts"
+set "MAX_PENDING_APPLY_ATTEMPTS=3"
+if defined PANEL_SUPERVISOR_MAX_PENDING_APPLY_ATTEMPTS set "MAX_PENDING_APPLY_ATTEMPTS=%PANEL_SUPERVISOR_MAX_PENDING_APPLY_ATTEMPTS%"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
@@ -608,7 +643,29 @@ rem  - Backs up current .exe and client\\dist under fixed transaction names.
 rem  - Keeps both backups until the new backend acknowledges listener startup.
 rem ============================================================
 :apply_update
-  call :stamp "Apply: marker present, beginning swap"
+  rem See "Pending-apply retry cap" above. Checked before anything else in
+  rem this label runs -- a give-up here must not attempt any further file
+  rem operation against a state nothing has changed about.
+  set "PENDING_ATTEMPTS=0"
+  if exist "%PENDING_ATTEMPTS_FILE%" set /p PENDING_ATTEMPTS=<"%PENDING_ATTEMPTS_FILE%"
+  if not defined PENDING_ATTEMPTS set "PENDING_ATTEMPTS=0"
+  set /a PENDING_ATTEMPTS+=1
+  if !PENDING_ATTEMPTS! GTR !MAX_PENDING_APPLY_ATTEMPTS! (
+    call :stamp "Apply: giving up after !PENDING_ATTEMPTS! attempts to apply this update [pending_apply_exhausted]"
+    echo.
+    echo ERROR: The staged update could not be applied after multiple attempts,
+    echo most likely because an antivirus scan or backup tool is holding a
+    echo file open. The panel will keep running its CURRENT version.
+    echo To retry, download the update again from Settings, or delete
+    echo .update-pending and update-bundle.json from this folder to give up
+    echo permanently.
+    echo.
+    del /f /q "%MARKER%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
+    goto :eof
+  )
+  > "%PENDING_ATTEMPTS_FILE%" echo !PENDING_ATTEMPTS!
+
+  call :stamp "Apply: marker present, beginning swap (attempt !PENDING_ATTEMPTS! of !MAX_PENDING_APPLY_ATTEMPTS!)"
   rem See "Rollback false-positive fix" above. Reset per attempt -- these
   rem must never carry a stale value into a later :rollback_update call.
   set "EXE_BACKUP_MADE=0"
@@ -616,7 +673,7 @@ rem ============================================================
 
   if not exist "%JOURNAL%" (
     call :stamp "Apply: update-bundle.json missing [version_mismatch]"
-    del /f /q "%MARKER%" >nul 2>&1
+    del /f /q "%MARKER%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
     goto :eof
   )
 
@@ -625,7 +682,7 @@ rem ============================================================
 
   if not defined STAGED_NAME (
     call :stamp "Apply: staged binary missing or quarantined [av_quarantine]"
-    del /f /q "%MARKER%" >nul 2>&1
+    del /f /q "%MARKER%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
     goto :eof
   )
 
@@ -675,7 +732,7 @@ rem ============================================================
     ) else (
       call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [av_quarantine]"
     )
-    del /f /q "%MARKER%" >nul 2>&1
+    del /f /q "%MARKER%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
     goto :eof
   )
 
@@ -760,7 +817,7 @@ rem ============================================================
     ) else (
       call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [av_quarantine]"
     )
-    del /f /q "%MARKER%" >nul 2>&1
+    del /f /q "%MARKER%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
     goto :eof
   )
 
@@ -818,8 +875,11 @@ rem ============================================================
   rem A fresh, successfully-activated bundle is a new incident, not a
   rem continuation of whatever handshake failures a PREVIOUS bundle may have
   rem hit -- reset here so an old, already-resolved retry count can never
-  rem count against an unrelated later update.
+  rem count against an unrelated later update. Same reasoning for the
+  rem pending-apply attempt count: this attempt succeeded, so a FUTURE
+  rem update (a different transaction entirely) must start counting fresh.
   set "ROLLBACK_RETRY_COUNT=0"
+  del /f /q "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
   call :stamp "Apply: bundle activated; waiting for backend startup acknowledgement"
 goto :eof
 
@@ -895,7 +955,7 @@ goto :eof
     goto :eof
   )
 
-  del /f /q "%MARKER%" "%APPLYING%" >nul 2>&1
+  del /f /q "%MARKER%" "%APPLYING%" "%PENDING_ATTEMPTS_FILE%" >nul 2>&1
   if exist "%MARKER%" (
     call :stamp "Apply: rollback cleanup incomplete; pending marker remains, journal retained [rollback_failed]"
     goto :eof

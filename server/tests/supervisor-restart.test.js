@@ -1208,6 +1208,86 @@ describe.skipIf(!!skipReason)(
     );
 
     it(
+      "bounds the pending-apply retry loop when the exe backup step can never complete, instead of retrying forever",
+      async () => {
+        // Dwight's finding, god-dispatched 2026-09-07 as part of hardening
+        // the Windows updater state machine ("if the panel dies right here,
+        // can the next launch get out without a human deleting a file?").
+        // Before this fix, a PERMANENTLY blocked exe-backup step never got
+        // as far as touching anything, so there was nothing for
+        // :rollback_update to undo -- the marker survived untouched and
+        // :apply_update retried the identical rename on every single
+        // restart, forever, with only a supervisor.log line to show for it.
+        // A directory pre-existing at the backup's target name (rather than
+        // a locked handle on the live exe, which turned out to also deny
+        // Windows the access it needs to LAUNCH that exe at all -- confirmed
+        // separately, and would have made this scenario impossible to even
+        // set up) reproduces a permanent, non-file-lock block on the `ren`
+        // step alone: cmd's `ren` refuses to rename onto an existing name of
+        // either kind, and nothing in :apply_update ever removes a
+        // directory at that path (its own cleanup line is `del`, which
+        // cannot touch directories) -- so the block persists across every
+        // attempt on its own, no re-application needed between restarts.
+        const dir = freshScenarioDir("pending-apply-retry-cap");
+        await writeStartBatInto(dir);
+        setupStub(dir, [1, 1, 0], [0, 0, 0]);
+        setupPendingUpdate(dir);
+
+        const exePath = path.join(dir, "ZomboidControlPanel.exe");
+        const backupPath = path.join(
+          dir,
+          "ZomboidControlPanel.exe.bundle-previous",
+        );
+        fs.mkdirSync(backupPath);
+
+        const result = await runSupervisor(
+          dir,
+          {
+            PANEL_SUPERVISOR_BACKOFF_SECONDS: "0",
+            PANEL_SUPERVISOR_MAX_PENDING_APPLY_ATTEMPTS: "2",
+          },
+          60000,
+        );
+
+        // cap=2: attempts 1 and 2 both try and fail to rename the exe;
+        // attempt 3 is refused outright by the cap before touching
+        // anything. Each of the first two launches the untouched original
+        // exe (still named ZomboidControlPanel.exe -- the rename never
+        // succeeded even once) and crashes (exit 1); the third launch, after
+        // giving up, exits cleanly (exit 0) so the run ends deterministically.
+        expect(countLaunches(result.stdout)).toBe(3);
+        expect(result.status).toBe(0);
+        const log = readSupervisorLog(dir);
+        expect(log).toMatch(/could not back up running executable/i);
+        expect(log).toMatch(/attempt 1 of 2/);
+        expect(log).toMatch(/attempt 2 of 2/);
+        expect(log).not.toMatch(/attempt 3 of 2/);
+        expect(log).toMatch(/pending_apply_exhausted/);
+        expect(log).toMatch(/giving up after 3 attempts/i);
+        // The console halt message is the delivery path an operator actually
+        // sees -- checked on stdout (the plain `echo` lines), same pattern
+        // as the rollback-retry-cap test above.
+        expect(result.stdout).toMatch(/could not be applied after multiple attempts/i);
+        expect(result.stdout).toMatch(/keep running its CURRENT version/i);
+        // The rename never once succeeded -- the panel really did keep
+        // running the pre-existing build throughout, not a half-swapped one.
+        expect(fs.existsSync(exePath)).toBe(true);
+        expect(fs.statSync(backupPath).isDirectory()).toBe(true);
+        // The marker and attempt counter are cleared so a later, unrelated
+        // update starts counting from zero; the journal is deliberately
+        // retained for a human to diagnose why the backup step was blocked.
+        expect(fs.existsSync(path.join(dir, ".update-pending"))).toBe(false);
+        expect(
+          fs.existsSync(path.join(dir, ".update-pending-attempts")),
+        ).toBe(false);
+        expect(fs.existsSync(path.join(dir, "update-bundle.json"))).toBe(
+          true,
+        );
+      },
+      75000,
+    );
+
+    it(
       "resets the crash counter after a run that stays up long enough, so the cap never trips",
       async () => {
         const dir = freshScenarioDir("resets-after-stable-run");
