@@ -470,6 +470,23 @@ export class PanelBridgeSftpTransport {
     const uploadOnce = async () => {
       try {
         await client.put(buffer, temporaryRemotePath);
+        if (entryType) {
+          // Unlike uploadInbox()'s once-per-command targets, this file is
+          // re-uploaded to the SAME remote name every sync tick, so the
+          // rename destination usually already exists by the time we get
+          // here. Standard SFTP rename (SSH_FXP_RENAME) is specified to FAIL
+          // when the destination exists -- only the optional
+          // posix-rename@openssh.com extension overwrites, and not every
+          // host implements it (GH #146: Godlike hosting's SFTP server
+          // rejected 20 consecutive renames onto this exact path with an
+          // identical, non-specific "_rename: failure", never once
+          // succeeding). Deleting the old file first -- only after the new
+          // content is already safely staged at the temp path -- turns the
+          // overwrite into two operations every baseline SFTP server
+          // supports, instead of depending on the remote behaving like a
+          // local POSIX filesystem.
+          await client.delete(remotePath);
+        }
         await client.rename(temporaryRemotePath, remotePath);
       } catch (error) {
         await client.delete(temporaryRemotePath).catch(() => {});

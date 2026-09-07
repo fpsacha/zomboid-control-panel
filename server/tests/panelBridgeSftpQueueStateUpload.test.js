@@ -95,6 +95,48 @@ describe('uploadQueueStateNode', () => {
     expect(rename).toHaveBeenCalledWith(`${remotePath}.test-transfer.uploading`, remotePath);
   });
 
+  // GH #146: Godlike hosting's SFTP server refused every rename of the temp
+  // upload onto .queue-state-node.json once that file already existed
+  // remotely (which it does on every tick after the first) -- 20 consecutive
+  // identical "_rename: failure" errors, never once succeeding, because
+  // standard SFTP rename is specified to fail onto an existing destination
+  // and this server doesn't implement the optional overwrite extension. Fix:
+  // delete the old remote file (only after the new content is already
+  // staged at the temp path) before renaming, so the overwrite never
+  // depends on the remote supporting POSIX rename-replace semantics.
+  it('deletes the existing remote file before renaming the new upload into place', async () => {
+    const calls = [];
+    const put = vi.fn(async () => { calls.push('put'); });
+    const deleteRemote = vi.fn(async (target) => { calls.push(`delete:${target}`); });
+    const rename = vi.fn(async () => { calls.push('rename'); });
+    const transport = new PanelBridgeSftpTransport();
+    transport.config = validateSftpBridgeConfig(valid);
+    transport.transferId = 'test-transfer';
+    transport.client = { exists: vi.fn(async () => '-'), put, rename, delete: deleteRemote };
+
+    await transport.uploadQueueStateNode({ nextCommandSeq: 3, lastConsumedResultSeq: 1 });
+
+    const remotePath = `${valid.bridgePath}/.queue-state-node.json`;
+    expect(deleteRemote).toHaveBeenCalledWith(remotePath);
+    expect(rename).toHaveBeenCalledWith(`${remotePath}.test-transfer.uploading`, remotePath);
+    // Order matters: the new content must already be staged at the temp
+    // path before the old file is destroyed, so a put failure never touches
+    // the existing remote file.
+    expect(calls).toEqual(['put', `delete:${remotePath}`, 'rename']);
+  });
+
+  it('does not attempt to delete a remote file that does not exist yet', async () => {
+    const deleteRemote = vi.fn(async () => {});
+    const transport = new PanelBridgeSftpTransport();
+    transport.config = validateSftpBridgeConfig(valid);
+    transport.transferId = 'test-transfer';
+    transport.client = { exists: vi.fn(async () => false), put: vi.fn(async () => {}), rename: vi.fn(async () => {}), delete: deleteRemote };
+
+    await transport.uploadQueueStateNode({ nextCommandSeq: 1 });
+
+    expect(deleteRemote).not.toHaveBeenCalled();
+  });
+
   it('removes a partial remote queue-state file when the upload fails', async () => {
     const deleteRemote = vi.fn(async () => {});
     const transport = new PanelBridgeSftpTransport();
