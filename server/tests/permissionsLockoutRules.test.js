@@ -176,6 +176,108 @@ describe("updateRole -- lockout rule 2 (soft block: acting user losing their own
   });
 });
 
+// sweep-round5 (2026-09-07): assertNoRoleEditEscalation(). Mirrors
+// roleEscalationGuard.test.js's coverage of services/auth.js's
+// assertNoCapabilityEscalation() (ff17ee11), but for the OTHER path into
+// the same hole -- editing a role's OWN capabilities array directly,
+// rather than assigning a user to a different role. Before this guard,
+// a caller holding only roles.manage (no users.manage, no anything else)
+// could PUT /roles/:id their own role and add every capability in the
+// catalogue; requirePermission() re-resolves capabilities fresh from the
+// DB every request, so their very next call was granted under the
+// expanded list. Neither assertNoCapabilityEscalation() nor
+// changeUserRoleById's self-role-change refusal ever runs on this path --
+// no user record is touched, only the role's own definition.
+describe("createRole / updateRole -- capability-escalation guard (assertNoRoleEditEscalation)", () => {
+  it("PRE-FIX BREAK-VERIFY SHAPE: a caller holding only roles.manage cannot add users.manage to their OWN role -- the exact self-escalation this guard closes", async () => {
+    seedRole("role-limited", "Limited Roles Editor", ["roles.manage"]);
+    users = [{ id: "u1", role: "Limited Roles Editor", roleId: "role-limited" }];
+
+    await expect(
+      updateRole(
+        "role-limited",
+        { capabilities: ["roles.manage", "users.manage"] },
+        { actingUser: { userId: "u1", role: "Limited Roles Editor" } },
+      ),
+    ).rejects.toMatchObject({
+      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      params: { detail: "users.manage", missing: ["users.manage"] },
+    });
+    // Untouched -- the refusal must be BEFORE any write, not a rollback.
+    expect(rolesById.get("role-limited").capabilities).toEqual(["roles.manage"]);
+  });
+
+  it("also refuses granting an unheld capability to a DIFFERENT role, not just the acting user's own -- this is not a self-edit-only check", async () => {
+    seedRole("role-limited", "Limited Roles Editor", ["roles.manage"]);
+    seedRole("role-target", "Target", ["players.view"]);
+    users = [{ id: "u1", role: "Limited Roles Editor", roleId: "role-limited" }];
+
+    await expect(
+      updateRole(
+        "role-target",
+        { capabilities: ["players.view", "server.control"] },
+        { actingUser: { userId: "u1", role: "Limited Roles Editor" } },
+      ),
+    ).rejects.toMatchObject({ code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES" });
+  });
+
+  it("createRole refuses a brand-new role granting a capability the caller doesn't hold", async () => {
+    seedRole("role-limited", "Limited Roles Editor", ["roles.manage"]);
+
+    await expect(
+      createRole(
+        { name: "New Role", capabilities: ["roles.manage", "diagnostics.manage"] },
+        { actingUser: { userId: "u1", role: "Limited Roles Editor" } },
+      ),
+    ).rejects.toMatchObject({
+      code: "ROLE_GRANT_EXCEEDS_CALLER_CAPABILITIES",
+      params: { detail: "diagnostics.manage" },
+    });
+  });
+
+  it("allows granting a capability that IS within the acting user's own reach", async () => {
+    seedRole("role-limited", "Limited Roles Editor", ["roles.manage", "server.control"]);
+    users = [{ id: "u1", role: "Limited Roles Editor", roleId: "role-limited" }];
+
+    const updated = await updateRole(
+      "role-limited",
+      { capabilities: ["roles.manage", "server.control"] },
+      { actingUser: { userId: "u1", role: "Limited Roles Editor" } },
+    );
+    expect(updated.capabilities.slice().sort()).toEqual(["roles.manage", "server.control"]);
+  });
+
+  it("is a DELTA check, not a full-list check: leaves a role's PRE-EXISTING over-reach (capabilities the acting user never held) untouched when the edit doesn't add anything new", async () => {
+    // A role wider than the acting user's own reach, created by someone
+    // else (an admin) before this edit -- e.g. technician, which holds
+    // rcon.execute that "Limited Roles Editor" never held.
+    seedRole("role-tech", "technician", ["server.control", "rcon.execute"]);
+    seedRole("role-limited", "Limited Roles Editor", ["roles.manage", "server.control"]);
+    users = [{ id: "u1", role: "Limited Roles Editor", roleId: "role-limited" }];
+
+    // Renaming it, or leaving capabilities exactly as they were, must stay
+    // legal -- this edit adds nothing beyond what the role already granted.
+    const updated = await updateRole(
+      "role-tech",
+      { capabilities: ["server.control", "rcon.execute"] },
+      { actingUser: { userId: "u1", role: "Limited Roles Editor" } },
+    );
+    expect(updated.capabilities.slice().sort()).toEqual(["rcon.execute", "server.control"]);
+  });
+
+  it("skips the check entirely with no actingUser -- internal/bootstrap callers are not this guard's job", async () => {
+    seedRole("role-empty", "Empty", []);
+    const updated = await updateRole("role-empty", {
+      capabilities: ["roles.manage", "users.manage", "server.control"],
+    });
+    expect(updated.capabilities.slice().sort()).toEqual([
+      "roles.manage",
+      "server.control",
+      "users.manage",
+    ]);
+  });
+});
+
 // docs/qa/kevin-access-control-french-usability.md Finding 1: deleteRole()
 // used to have no isSeeded check at all -- a seeded role with zero current
 // members could be deleted outright via a direct call/API request, even

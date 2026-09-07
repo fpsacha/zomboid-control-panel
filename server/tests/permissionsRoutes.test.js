@@ -45,6 +45,7 @@ vi.mock("../database/init.js", () => ({
 }));
 
 const { default: router } = await import("../routes/permissions.js");
+const { CAPABILITIES } = await import("../services/permissions.js");
 
 function createResponse() {
   const response = { status: () => response, json: () => response };
@@ -104,7 +105,19 @@ const ADMIN_ROLE_ID = "role-admin";
 beforeEach(() => {
   rolesById.clear();
   users = [];
-  seedRole(ADMIN_ROLE_ID, "admin", ["roles.manage", "users.manage", "server.control"]);
+  // Every capability, matching real admin (DEFAULT_ROLE_CAPABILITIES.admin =
+  // every CAPABILITIES key) -- not a hardcoded handful. sweep-round5's
+  // assertNoRoleEditEscalation() now refuses PUT/POST /roles from an acting
+  // user who doesn't already hold whatever capability is being added to a
+  // role, so a trimmed-down fixture admin would spuriously fail any test
+  // that creates or edits a role with a capability the fixture happened not
+  // to list, for a reason that has nothing to do with what that test means
+  // to check.
+  seedRole(
+    ADMIN_ROLE_ID,
+    "admin",
+    CAPABILITIES.map((c) => c.key),
+  );
   users.push({ id: "u-admin", role: "admin", roleId: ADMIN_ROLE_ID });
 });
 
