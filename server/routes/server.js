@@ -553,29 +553,43 @@ export async function ensureRconConfigured() {
   }
 }
 
-// Helper functions for multi-server support
-async function getServerConfigPath() {
+// Helper for multi-server support.
+//
+// split-derivation sweep, 2026-09-07 (same class as /wipe's pre-fix bug,
+// 5c2e73e9): this file used to have two separate functions,
+// getServerConfigPath() and getServerName(), each making its OWN
+// independent getActiveServer() call. Both call sites in this file need
+// both values, so a concurrent request switching the active server between
+// the two separate awaited calls could produce e.g. serverConfigPath from
+// server A + serverName from server B, matching neither server's real INI.
+// This reads the active server ONCE and derives both values from that
+// single snapshot.
+// Exported so server/tests/getActiveServerPathsSingleRead.test.js can assert
+// the single-read behaviour directly, rather than only indirectly through
+// a route handler.
+export async function getActiveServerPaths() {
   const activeServer = await getActiveServer();
-  if (activeServer?.serverConfigPath) {
-    return activeServer.serverConfigPath;
-  }
-  const legacyPath = await getSetting("serverConfigPath");
-  return legacyPath || null;
-}
 
-async function getServerName() {
-  const activeServer = await getActiveServer();
-  if (activeServer?.serverName) {
-    return activeServer.serverName;
+  let serverConfigPath = activeServer?.serverConfigPath || null;
+  if (!serverConfigPath) {
+    const legacyPath = await getSetting("serverConfigPath");
+    serverConfigPath = legacyPath || null;
   }
-  const legacyName = await getSetting("serverName");
-  // No active server and no legacy settings name either -- "servertest" used
-  // to fill in here, which is Project Zomboid's own vanilla single-player/
-  // test-server name. On a machine with a real, unrelated PZ install at the
-  // default path, an unconfigured panel would silently target its
-  // Server/servertest.ini. Callers already gate on `!serverConfigPath`;
-  // returning null lets the same gate also catch "no server name configured".
-  return legacyName || null;
+
+  let serverName = activeServer?.serverName || null;
+  if (!serverName) {
+    const legacyName = await getSetting("serverName");
+    // No active server and no legacy settings name either -- "servertest"
+    // used to fill in here, which is Project Zomboid's own vanilla
+    // single-player/test-server name. On a machine with a real, unrelated
+    // PZ install at the default path, an unconfigured panel would silently
+    // target its Server/servertest.ini. Callers already gate on
+    // `!serverConfigPath`; null here lets the same gate also catch "no
+    // server name configured".
+    serverName = legacyName || null;
+  }
+
+  return { serverConfigPath, serverName };
 }
 
 // Security: Sanitize string for use in batch files/commands
@@ -3449,9 +3463,9 @@ router.post("/configure-rcon", requirePermission("server.configure"), async (req
       return res.status(400).json({ error: "RCON password is required", code: ErrorCode.CONFIGURE_RCON_PASSWORD_REQUIRED });
     }
 
-    // Get the server config path from active server or settings
-    const serverConfigPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    // Get the server config path from active server or settings -- ONE
+    // read, not two (split-derivation sweep, 2026-09-07).
+    const { serverConfigPath, serverName } = await getActiveServerPaths();
 
     if (!serverConfigPath || !serverName) {
       return res.status(400).json({
@@ -3542,9 +3556,9 @@ router.post("/configure-network", requirePermission("server.configure"), async (
       });
     }
 
-    // Get the server config path from active server or settings
-    const serverConfigPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    // Get the server config path from active server or settings -- ONE
+    // read, not two (split-derivation sweep, 2026-09-07).
+    const { serverConfigPath, serverName } = await getActiveServerPaths();
 
     if (!serverConfigPath || !serverName) {
       return res.status(400).json({
