@@ -9,10 +9,10 @@ const SERVER_DIR = path.join(__dirname, "..");
 
 // Every `code: "<literal>"` object-literal property across server/routes,
 // server/services, server/middleware and server/index.js -- this is the
-// "attached to a response" shape (an object property, always alongside an
-// `error`/`message`/`success` sibling in every real case checked
-// 2026-08-22). Deliberately regex-based, not a full AST parse: the pattern
-// is narrow and well-defined enough not to need one, and it avoids taking
+// "attached to a response" shape (an object property, always
+// alongside an `error`/`message`/`success` sibling in every real case
+// checked 2026-08-22). Deliberately regex-based, not a full AST parse: the
+// pattern is narrow and well-defined enough not to need one, and it avoids
 // a permanent, self-enforcing test dependent on @babel/parser or glob --
 // neither is a declared dependency of this project (both happen to be
 // present transitively today, pulled in by other tooling, which is not
@@ -42,6 +42,15 @@ const SCANNED_FILES = [
   ...listJsFiles(path.join(SERVER_DIR, "services")),
   ...listJsFiles(path.join(SERVER_DIR, "middleware")),
   path.join(SERVER_DIR, "index.js"),
+  // Deliberately NOT server/utils: errorCodes.js itself lives there, and
+  // its own header comments use illustrative `code: "<literal>"` snippets
+  // (the same documentation style this file's own header comments use) --
+  // scanning that directory makes CODE_LITERAL_RE match those illustrative
+  // strings as if they were real emitted codes. See
+  // KNOWN_INTENTIONALLY_UNREFERENCED below for the actual fix to the
+  // updateBundle.js "referenced but this scanner can't see it" gap that
+  // motivated trying this once (updateBundle.js lives in server/services,
+  // already scanned above -- it was never a missing-directory problem).
 ];
 
 function findCodeLiterals() {
@@ -82,6 +91,48 @@ function findMemberReferences() {
   return found;
 }
 
+// A THIRD reference shape, for the orphan check below only (findCodeLiterals()
+// above stays scoped to the `code:` object-literal property on purpose --
+// see its own header comment). server/tests/errorCodeThrownVsRegistered.test.js
+// established that this codebase has exactly three local helper functions
+// whose whole job is "build an Error carrying a wire `.code`" -- makeRoleError
+// (services/auth.js), makeError (services/permissions.js) and updateError
+// (services/updateBundle.js), all shape `(code, message, ...) => {
+// err.code = code; return err; }` -- and that every coded throw in the files
+// defining them goes through one of the three rather than assigning `.code`
+// ad hoc. A string-literal first argument to any of them (e.g.
+// `updateError("invalid_bundle", ...)`) is therefore a real reference, just
+// not the `code:` property or `ErrorCode.NAME` member-access shape the two
+// scanners above look for. Without this, every code emitted ONLY that way
+// reads as orphaned here regardless of which directory holds the factory's
+// call sites -- 2026-09-07: confirmed by trying to fix it via SCANNED_FILES
+// instead (widening to include server/utils/ changed nothing, because
+// updateBundle.js already lives in server/services/, already scanned; the
+// gap was always the call SHAPE, not the directory). Deliberately narrower
+// than errorCodeThrownVsRegistered.test.js's own resolution logic (no
+// same-file const-alias one-hop-back, no ErrorCode.NAME-as-factory-arg --
+// that's already covered by findMemberReferences() above scanning the same
+// files): this only needs to prove a value is REFERENCED at all, not resolve
+// every call site's argument, so a plain string-literal check is enough to
+// close the gap without duplicating that file's more elaborate machinery.
+const CODED_ERROR_FACTORIES = ["makeRoleError", "makeError", "updateError"];
+
+function findFactoryLiteralReferences() {
+  const found = new Set();
+  for (const factory of CODED_ERROR_FACTORIES) {
+    const re = new RegExp(`\\b${factory}\\(\\s*(["'])([^"']+)\\1`, "g");
+    for (const file of SCANNED_FILES) {
+      const source = fs.readFileSync(file, "utf8");
+      let match;
+      re.lastIndex = 0;
+      while ((match = re.exec(source))) {
+        found.add(match[2]);
+      }
+    }
+  }
+  return found;
+}
+
 // Three ErrorCode entries are registered but deliberately never emitted --
 // each was split into narrower variants because the original covered
 // multiple distinct outcomes behind one message. WRITABLE_PATH_ERROR and
@@ -111,6 +162,17 @@ const KNOWN_INTENTIONALLY_UNREFERENCED = new Set([
   "WRITABLE_PATH_ERROR",
   "DIRECTORY_READ_FAILED",
   "RCON_CONNECT_FAILED",
+
+  // The seven updateBundle.js legacy codes (INVALID_BUNDLE_LEGACY etc.,
+  // registered by Kevin in 11fe8dea) deliberately do NOT belong in this
+  // set, even though they used to fail the orphan check below: they are
+  // not dead, and this set is for codes that really are never emitted.
+  // findFactoryLiteralReferences() above is the actual fix -- it
+  // recognizes updateError("invalid_bundle", ...)'s positional-string-
+  // literal shape as a real reference, the same way findMemberReferences()
+  // already recognizes ErrorCode.NAME. Putting them here instead would
+  // have recorded a false "never emitted" as true just to silence the
+  // assertion.
 ]);
 
 // The mirror image of the above: an errors.json key that exists ONLY on
@@ -188,15 +250,17 @@ describe("server error codes: registry membership (structure, not meaning)", () 
   // progressCodeRegistry.test.js's equivalent check; the reference set here
   // is wider (literal OR member access) because ErrorCode, unlike
   // ProgressCode, is genuinely used both ways in this codebase.
-  it("every registered ErrorCode value is referenced at least once (as a `code:` literal or an `ErrorCode.NAME` member access) in server/routes, server/services, server/middleware or server/index.js", () => {
+  it("every registered ErrorCode value is referenced at least once (as a `code:` literal, an `ErrorCode.NAME` member access, or a known coded-error-factory's literal argument) in server/routes, server/services, server/middleware or server/index.js", () => {
     const literalValues = new Set(findCodeLiterals().map((l) => l.value));
     const memberNames = findMemberReferences();
+    const factoryValues = findFactoryLiteralReferences();
 
     const unused = Object.keys(ErrorCode).filter(
       (name) =>
         !KNOWN_INTENTIONALLY_UNREFERENCED.has(name) &&
         !memberNames.has(name) &&
-        !literalValues.has(ErrorCode[name]),
+        !literalValues.has(ErrorCode[name]) &&
+        !factoryValues.has(ErrorCode[name]),
     );
 
     expect(
