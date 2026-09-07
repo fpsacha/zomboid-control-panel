@@ -5,7 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.16] - 2026-09-07
+
+### Security
+
+- **A crafted path value could leak the panel's own secrets, one request at a time.** Two routes (the
+  map-chunk cleaner's custom path, and the server-edit existence check) expanded `%VAR%`/`${VAR}`/`$VAR`
+  references in a path and echoed the *expanded* value back in their error message when it didn't
+  resolve to something real - so a caller holding only chunk-management or server-management
+  permission (neither implies admin) could read `JWT_SECRET`, `RCON_PASSWORD`, `STEAM_API_KEY`, or an
+  OIDC client secret by submitting a value like `%JWT_SECRET%` and reading the rejection. Expansion
+  still works for legitimate paths; only the echo changed, and it now always returns your literal
+  input, never the expanded value.
+- **Any account with diagnostics access - not just an administrator - could read any file in the
+  server's install directory by name**, including the generated startup script that embeds the admin
+  password in plain text, through the crash-log download route. That route checked a filename only
+  against a blacklist (no `..`, no path separators), not against what a crash log actually looks like;
+  it now uses the same allow-list shape check the crash-log *listing* route already applied.
+- **Every documented way of ending a session - regenerating the signing secret, changing or resetting
+  a password, changing a user's role, deleting an account, or logging out - was a no-op for any live
+  Socket.IO connection.** Sockets authenticate once at handshake and were never re-checked afterward,
+  unlike every HTTP request; a connection open before any of those actions kept working, and kept its
+  RCON-password-bearing room membership, indefinitely, with nothing server-side enforcing the
+  disconnect. All six triggers now forcibly disconnect the affected sockets, which reconnect and
+  re-authenticate transparently.
+- **A role holding only the ability to run RCON commands could redirect every operator's live RCON
+  connection to a host and port of its choosing** - including keeping the server's real password,
+  which was then sent to that address - through the reconnect endpoint, which never received the same
+  permission check its sibling test-connection endpoint was given in an earlier release. It now
+  requires the same server-management permission whenever a request actually changes the connection
+  target; a plain reconnect to the already-configured server needs nothing extra.
+- **Creating a user, or changing a user's role, could hand out capabilities the person doing it didn't
+  hold themselves** - a self-service path to administrator with no admin cooperation required, for any
+  role that already held user-management. Both actions now refuse to grant a role holding any
+  capability the acting user doesn't already have, and an account can no longer change its own role at
+  all, closing the same one-click-accident shape already closed for account deletion.
+- **A crafted admin password or data-path value could inject an extra line into the generated startup
+  script**, which the panel then runs as part of launching the server - the input sanitizer stripped
+  shell metacharacters but not carriage-return/line-feed characters, the one thing standing between
+  those two fields and the script. All control characters are now stripped, not just the ones already
+  covered.
 
 ### Added
 
@@ -19,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Server Config page is now fully translated, in every supported language, and its search box
   now matches on the setting's translated label as well as its English name** - translation coverage
   went from 330 of the page's 1,736 individual settings to all of them, and search previously only
-  ever matched English text regardless of your language.
+  ever matched English text regardless of your language. A Simplified Chinese display bug for boolean
+  settings was also fixed in the same community-contributed pass.
 
 ### Fixed
 
@@ -54,6 +94,162 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   setup**, training it to be ignored; the explanation is now shown as informational text instead.
 - **A "blocked by another operation" message when starting, stopping, or restarting a server didn't
   say which operation or which server** - it now names both.
+- **Restoring a backup, saving Server Config, wiping a server, or deleting map chunks could silently
+  act on the wrong server** if the active server was switched elsewhere in the panel first. Restoring
+  a backup could overwrite a different server's live world than the one shown on screen; Server Config
+  saves and world wipes could target one server while having been confirmed against another; and a
+  chunk-cleaner delete mid-scan could remove the wrong server's map data with no undo. All four now
+  re-check which server is genuinely active at the moment of the destructive action - the restore and
+  Server Config confirmations now name and re-verify the real target instead of trusting what was
+  loaded on open, and a world wipe now holds the same lifecycle lock Start/Stop/Restart already do, so
+  a start can't land in the middle of its pre-wipe backup. Reordering a server's mod list is also now
+  blocked, not silently misdirected, across the same kind of switch.
+- **Several pages kept showing the previous server's data after switching the active server elsewhere
+  in the panel** - the Players roster, Events, Chat, and Debug's diagnostics, the Console, the
+  Dashboard's live performance chart (after a reconnect), Settings' PanelBridge card, and the log
+  tailer feeding the chat/admin-log relay to Discord could all silently lag behind a switch, even
+  though the underlying actions already acted on the real, current server. All now refresh
+  automatically the moment the active server changes.
+- **A second backup, template-apply backup, character-import safety snapshot, or same-name backup
+  upload landing in the same millisecond as another could silently overwrite it**, with both
+  operations still reporting success - affecting the panel's own database backups, server-config
+  template backups, player character-import recovery copies, and duplicate-named backup uploads. All
+  now disambiguate a genuine collision instead of colliding.
+- **Certain file-read errors during a support-bundle or mod-collection download could crash the
+  entire panel process**, not just fail the one request - a support bundle's log-file zip, a mod
+  extension-bundle download, and a large backup upload could each trigger it under the right timing
+  (a log rotating mid-download, a locked file, a disk issue). All three now fail just the one request.
+- **The panel could fail to start entirely, generating its own self-signed HTTPS certificate**, on a
+  rare encoding edge case in the certificate's serial number that a strict certificate parser
+  rejected; a corrupted or invalid custom certificate file could crash the whole panel the same way,
+  before it ever started listening. Both are now handled without taking the process down.
+- **On Windows, extracting the panel to a folder your account can't write to (Program Files without
+  administrator rights is the common case) crashed the panel immediately with a raw, unexplained
+  error**, before it even printed its version. It now shows a clear message naming the likely cause
+  and the two ways to fix it (move the install, or run as Administrator) - and the install wizard's
+  own error for the same underlying problem stopped telling non-admin Windows users to run
+  `chown`/`chmod`, commands that don't exist on Windows.
+- **Setting up a Linux server as a managed systemd service, following the panel's own documented
+  steps in order, failed on step three with a permission-denied bus error** - the suggested commands
+  ran a systemd step before the one that makes it possible on a freshly created service account. The
+  steps are now in a working order, and a failure here shows the real underlying error instead of a
+  generic "not installed" message that pointed at the wrong fix.
+- **A Docker deployment run under an enforced non-root container runtime failed partway through
+  startup with an unexplained error** instead of a clear one, since the image assumes it starts as
+  root to fix bind-mount ownership first. It now fails immediately with a named cause when that
+  assumption doesn't hold.
+- **Typing or pasting an install path with a trailing slash could nest a fresh server's default data
+  folder inside its install folder** instead of placing it alongside it, silently - which then
+  permanently confused the "Delete Everything" safety check for that server, with nothing connecting
+  the two. Fixed at both places a fresh server's default data path is derived.
+- **A Windows panel self-update could be refused forever and misreported as a corrupted download**,
+  on some installs, even though the downloaded update was completely valid - several unrelated
+  path-handling bugs in the verification step (a PowerShell module that fails to autoload on some
+  systems, a long username or install path throwing off a path comparison, a trailing slash
+  corrupting a file-move step) could each independently produce this. All are fixed, verification now
+  uses a method that doesn't depend on the affected module at all, and a related Linux-side bug that
+  conflated a missing staged file with genuine corruption is fixed too.
+- **A failed self-update could report your install as damaged ("rollback failed, journal retained for
+  recovery") when nothing was actually touched** - the rollback check couldn't tell "a backup was
+  never made because the failure happened before that step" apart from "a real backup went missing."
+  It now only reports a genuine loss. Windows updates also now verify the downloaded file's integrity
+  right before installing it, closing a corruption window between the last check and the install that
+  Linux updates already closed; the same verification now covers the downloaded web-interface bundle,
+  which previously wasn't checked at all.
+- **A self-update stuck partway through applying, on Windows, could crash-loop forever retrying the
+  same rollback** instead of stopping - it's now bounded to two attempts before halting with a clear
+  message naming the exact files to delete by hand to recover.
+- **A panel self-update download that failed partway could leave a corrupted partial file that blocked
+  the next attempt, and a certain kind of connection failure during the periodic update check could
+  permanently stop the panel from ever checking for updates again** until restarted - both silent.
+  Both are now cleaned up and handled correctly.
+- **Turning on automatic updates after an update was already showing as available did nothing**, and
+  a scheduled auto-update that failed once never retried on a later check either - both looked like
+  automatic updates were silently broken. The panel now reconsiders on every periodic check instead of
+  only the first time an update appears.
+- **The update preflight check silently skipped its disk-space warning whenever it couldn't actually
+  determine free space**, instead of saying so - it now shows an honest "couldn't check" warning
+  rather than staying quiet.
+- **A Linux install stuck in a crash loop retried only a third as long as the same situation on
+  Windows** before giving up, due to a missing backoff-escalation step - both platforms now retry with
+  the same increasing delay and the same total budget.
+- **Restoring your single oldest backup could delete the very archive being restored, before the
+  restore finished reading it** - the mandatory pre-restore safety backup ran the normal retention
+  cleanup, which didn't know one of the backups on disk was the one currently being read. Retention
+  now skips safety backups taken immediately before a restore or a wipe.
+- **A scheduled task, backup, or auto-restart that got skipped because the host was asleep, frozen, or
+  under heavy load never showed any sign it had happened** - the panel now logs it and records it in
+  Schedule History, instead of it looking identical to a task that was simply never configured.
+- **A schedule running more often than once an hour can pause for up to an hour across a
+  daylight-saving fall-back**, a real limitation of the underlying scheduling library - the panel now
+  warns about it up front for any schedule in that range, rather than leaving an operator to discover
+  a missed run on their own.
+- **A scheduler timezone saved as a raw UTC offset (like "-05:00") instead of a real timezone name
+  would silently drift by an hour on every daylight-saving transition**, with nothing to notice it by
+  - raw offsets are no longer accepted; every real timezone name, including older aliases, still
+  works.
+- **A PanelBridge command could hang forever with no error** if its result arrived after the panel
+  had already considered it timed out following a long stall or host suspend - a background cleanup
+  could discard the command's tracking entry without ever telling the code waiting on it that it
+  failed. It now always settles that wait, one way or the other.
+- **Reconfiguring the SFTP-based PanelBridge connection could leave a leaked, still-running connection
+  behind if the final step failed**, and could then report itself as configured against a connection
+  that wasn't actually running - both fixed.
+- **A player still connected when the game server crashed, hung, or was stopped from the panel could
+  silently lose their in-progress session's playtime** - the panel never recorded a matching
+  disconnect for a session that ended this way. Sessions now close out correctly in all three cases.
+- **A bulk "remove vehicles in area" action could report success without actually removing anything**,
+  trusting only that the underlying call didn't throw rather than confirming the vehicles were
+  actually gone - it now verifies by re-checking afterward, matching the same fix already applied to
+  removing a single vehicle.
+- **A hand-edited server `.ini` file with spaces around `Mods=`, `WorkshopItems=`, or `Map=` could
+  make nine different mod-related actions silently see an empty or wrong list** - the conflict
+  scanner, the Mods page itself, duplicate-ID detection, config validation, presets, disk-mod
+  detection, the Steam-collection diff, "Sync from server", and stale map-entry cleanup all now
+  tolerate the same spacing every other part of the panel already did.
+- **"Sync from server" could label a Workshop item with a completely unrelated mod's name** when
+  Steam's own name lookup and the on-disk name both failed, by falling back to matching two unrelated
+  lists by list position - it now falls back to a generic placeholder that a later refresh can still
+  correct, instead of a wrong name that looked plausible and never got fixed.
+- **Uploading a large backup file held the entire upload in memory at once** before writing it to
+  disk - a multi-gigabyte upload now streams straight to disk as it arrives instead.
+- **If the panel's own database file went missing, the panel could treat it as a brand-new install and
+  silently overwrite a fully intact backup history with an empty one**, instead of recovering from it;
+  a corrupted database file next to an empty backup history was also being overwritten before a
+  forensic copy of it was ever saved. Both gaps are closed - a missing database now recovers from
+  backups exactly like a corrupted one, and a corrupted file is always preserved for inspection first.
+- **A setting saved immediately before a manual or scheduled database backup could be missing from
+  that backup** - the backup could be taken before the change had actually finished writing to disk.
+  Backups now wait for any pending write to finish first.
+- **Applying a server-config template, or saving Sandbox settings, could silently drop part of the
+  change while still reporting success** - a template's own backup could fail with no warning shown,
+  and a Sandbox key with no matching line in the file to update was returned by the server but never
+  actually shown to you. Both now show a warning naming what happened.
+- **Several two-column layouts (Settings' and Server Config's side navigation, and a couple of smaller
+  form splits) didn't mirror at all in a right-to-left language** - swapping both the column order and
+  the column sizing the same way canceled itself out, leaving everything on its original side. Fixed
+  across all affected layouts.
+- **Sliders, dropdowns, tabs, menus, and other interactive controls never actually adapted to a
+  right-to-left language**, despite the rest of the interface mirroring correctly - the underlying
+  component library's own direction setting was never connected to the panel's language switch. It
+  now is, and switching language updates these controls immediately, not just on next load.
+- **A right-to-left language could show several smaller visual glitches** - a search icon or
+  password-visibility toggle overlapping typed text, the World Map's zoom/floor/layer controls
+  overlapping the roster panel, and a couple of status banners not appearing symmetrically - all found
+  and fixed by checking actual rendered screenshots rather than just the code.
+- **A long-running mod-conflict scan's progress could appear hung** even though it was working,
+  because its progress updates were being buffered by gzip compression instead of delivered as they
+  happened - live progress streams are now exempted from compression.
+- **A host going to sleep or pausing while a player was connected credited them with the entire
+  suspended time as playtime** on their next disconnect - detected suspend gaps are now subtracted
+  from the recorded session.
+- **A server could very rarely be confused with an unrelated Project Zomboid process that happened to
+  reuse the same process ID**, on the fast lookup path that skips a full host scan after a restart -
+  it now requires the same positive-ownership signal the full scan already requires.
+- **A critical low-disk-space banner could silently disappear on its own** when a single disk-space
+  reading came back unverifiable (an unreachable mount, a permission hiccup), instead of staying up
+  until the problem was confirmed resolved - it now holds the last known state rather than treating
+  "couldn't check" as "all clear."
 
 ## [1.2.15] - 2026-09-03
 
