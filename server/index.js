@@ -69,6 +69,7 @@ import {
   applyUpdateBundle,
   inspectPendingUpdateBundle,
   PANEL_API_CONTRACT_VERSION as DEFAULT_API_CONTRACT_VERSION,
+  recoverFromUnreadableJournal,
   recoverInterruptedUpdateBundle,
 } from "./services/updateBundle.js";
 import { LogTailer } from "./services/logTailer.js";
@@ -1467,17 +1468,106 @@ function inspectPendingPanelUpdate() {
 // repeated nonzero exits. Exported so it can be unit-tested directly
 // against a real on-disk journal instead of through start()'s full
 // listen()-and-banner sequence.
+//
+// Hotfix, 2026-09-07 ("hotfix-invalid-bundle"): widened beyond
+// version_mismatch to also cover invalid_bundle -- thrown from roughly ten
+// sites in updateBundle.js (unparseable JSON, a structurally-invalid
+// journal, an installDir that no longer matches where the journal actually
+// lives, an unreadable applying-marker) and, unlike version_mismatch, it
+// was falling straight through this function and out to a bare
+// process.exit(76) with nothing ever cleaned up -- so every single restart
+// re-hit the identical throw, forever. Confirmed in the wild on v1.2.16.
+//
+// invalid_bundle is not one condition, it is two, and they need different
+// recoveries:
+//   - The journal itself is fine (parses, validates) but something ELSE
+//     inspectPendingPanelUpdate() touched while checking it was bad (e.g.
+//     the staged/applied frontend's own build-info.json is unreadable).
+//     The journal still knows exactly what to roll back to here, so this
+//     is really the same shape as version_mismatch -- try
+//     recoverInterruptedUpdateBundle() first, unconditionally, for both
+//     codes.
+//   - The journal ITSELF is what's unreadable. recoverInterruptedUpdateBundle()
+//     re-reads that same journalPath as its very first step, so it just
+//     re-throws the identical invalid_bundle back at us -- that specific
+//     failure shape (a *second* invalid_bundle, from the rollback attempt
+//     itself) is exactly the signal that there is no journal left to trust,
+//     and is the only case that falls through to recoverFromUnreadableJournal()'s
+//     fixed-path, journal-less recovery.
 export function recoverFromStartupInspectionFailure(error, journalPath) {
-  if (error?.code !== "version_mismatch") return;
+  if (error?.code === "version_mismatch") {
+    try {
+      recoverInterruptedUpdateBundle(journalPath, "version_mismatch");
+      log.warn(
+        "Rolled back the pending update bundle after a startup version-mismatch; the next restart should boot the previous, working build.",
+      );
+    } catch (rollbackError) {
+      log.error(
+        `Automatic rollback also failed [${rollbackError.code || "rollback_failed"}]: ${rollbackError.message}. ` +
+          `To recover manually, delete ${journalPath} and any .update-applying marker next to it, then restart.`,
+      );
+    }
+    return;
+  }
+
+  if (error?.code !== "invalid_bundle") return;
+
   try {
-    recoverInterruptedUpdateBundle(journalPath, "version_mismatch");
-    log.warn(
-      "Rolled back the pending update bundle after a startup version-mismatch; the next restart should boot the previous, working build.",
-    );
+    const rolledBack = recoverInterruptedUpdateBundle(journalPath, "invalid_bundle");
+    if (rolledBack) {
+      log.warn(
+        "Rolled back the pending update bundle after a startup validation failure; the next restart should boot the previous, working build.",
+      );
+    }
+    // rolledBack === false means the journal parsed fine but said "staged"
+    // (nothing was ever applied, so there is nothing to roll back) -- not
+    // an error, nothing further to do; the operator's next start attempt
+    // simply re-evaluates the same, still-merely-staged journal.
+    return;
   } catch (rollbackError) {
+    if (rollbackError?.code !== "invalid_bundle") {
+      // The journal WAS readable; the rollback it described was attempted
+      // and failed for its own reason (e.g. rollback_failed). Same
+      // actionable shape as version_mismatch's failure branch.
+      log.error(
+        `Automatic rollback also failed [${rollbackError.code || "rollback_failed"}]: ${rollbackError.message}. ` +
+          `To recover manually, delete ${journalPath} and any .update-applying marker next to it, then restart.`,
+      );
+      return;
+    }
+    // Second invalid_bundle in a row: recoverInterruptedUpdateBundle()
+    // could not even re-read the journal. The journal is the corrupt thing
+    // itself, not something it points at -- fall back to fixed-location,
+    // journal-less recovery.
+  }
+
+  try {
+    const outcome = recoverFromUnreadableJournal({
+      journalPath,
+      binaryPath: panelUpdateChecker.getExeBasePath(),
+      liveClientPath: path.join(
+        path.dirname(panelUpdateChecker.getExeBasePath()),
+        "client",
+        "dist",
+      ),
+    });
+    const restoredParts = [
+      outcome.restoredBinary ? "binary" : null,
+      outcome.restoredClient ? "frontend" : null,
+    ].filter(Boolean);
+    const restoredSummary = restoredParts.length
+      ? `Restored the previous ${restoredParts.join(" and ")} from backup. `
+      : "No previous-build backup was found to restore (nothing was actually pending). ";
+    const journalSummary = outcome.quarantinedJournalPath
+      ? `Moved the unreadable journal aside to ${outcome.quarantinedJournalPath} so startup can proceed.`
+      : `Could not move the unreadable journal aside; it is still at ${journalPath} and startup will keep tripping over it.`;
+    log.warn(
+      `Startup validation could not read the update bundle journal at all [${error.code}]: ${error.message}. ${restoredSummary}${journalSummary}`,
+    );
+  } catch (recoveryError) {
     log.error(
-      `Automatic rollback also failed [${rollbackError.code || "rollback_failed"}]: ${rollbackError.message}. ` +
-        `To recover manually, delete ${journalPath} and any .update-applying marker next to it, then restart.`,
+      `Could not recover from the unreadable update bundle journal [${recoveryError.code || "recovery_failed"}]: ${recoveryError.message}. ` +
+        `To recover manually, delete ${journalPath} and any .update-applying marker or .bundle-previous/dist.previous backups next to it, then restart.`,
     );
   }
 }

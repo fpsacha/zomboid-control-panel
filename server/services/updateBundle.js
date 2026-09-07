@@ -396,23 +396,41 @@ export function stageUpdateBundle({
   return journalPath;
 }
 
+// Shared by rollback() (journal-driven, below) and recoverFromUnreadableJournal()
+// (journal-LESS, near the bottom of this file -- the journal itself is the
+// thing that's broken there, so it has no journal.paths to read backup
+// locations from; its caller derives live/backup paths independently and
+// calls this directly). Restoring via a captured-rename intermediate step
+// means a failure partway through never leaves `backup` deleted with `live`
+// not yet in place -- either both ends land correctly or the backup is
+// restored to where it started.
+function restoreFromBackupIfPresent(live, backup, isDirectory) {
+  const capturedBackup = `${backup}.restoring-${process.pid}`;
+  try {
+    fs.rmSync(capturedBackup, { recursive: isDirectory, force: true });
+    if (!renameIfPresent(backup, capturedBackup)) {
+      return { present: false, restored: false };
+    }
+    try {
+      fs.rmSync(live, { recursive: isDirectory, force: true });
+      fs.renameSync(capturedBackup, live);
+      return { present: true, restored: true };
+    } catch (error) {
+      renameIfPresent(capturedBackup, backup);
+      return { present: true, restored: false, error };
+    }
+  } catch (error) {
+    return { present: true, restored: false, error };
+  }
+}
+
 function rollback(journalPath, journal, reason) {
   const { paths } = journal;
   const rollbackErrors = [];
   const restore = (live, backup, isDirectory) => {
-    const capturedBackup = `${backup}.restoring-${process.pid}`;
-    try {
-      fs.rmSync(capturedBackup, { recursive: isDirectory, force: true });
-      if (!renameIfPresent(backup, capturedBackup)) return;
-      try {
-        fs.rmSync(live, { recursive: isDirectory, force: true });
-        fs.renameSync(capturedBackup, live);
-      } catch (error) {
-        renameIfPresent(capturedBackup, backup);
-        throw error;
-      }
-    } catch (error) {
-      rollbackErrors.push(error.message);
+    const result = restoreFromBackupIfPresent(live, backup, isDirectory);
+    if (result.present && !result.restored) {
+      rollbackErrors.push(result.error.message);
     }
   };
   restore(paths.binary, paths.backupBinary, false);
@@ -588,4 +606,88 @@ export function recoverInterruptedUpdateBundle(
     );
   }
   return true;
+}
+
+// Hotfix, 2026-09-07 (god's dispatch, "hotfix-invalid-bundle" -- a real
+// v1.2.16 user was permanently stuck at exit code 76 on `invalid_bundle`):
+// recoverInterruptedUpdateBundle() above needs a JOURNAL to know what to
+// roll back to -- its first line re-reads the very same journalPath that
+// just failed. That is fine for version_mismatch (the journal parsed and
+// validated fine; only the build METADATA it describes was wrong) but
+// cannot work when the journal itself is what's unreadable: unparseable
+// JSON, a structurally-invalid journal, an installDir that no longer
+// matches where this journalPath actually lives (e.g. the install folder
+// was moved/reinstalled/restored-from-backup with a stale journal still
+// inside it), or an I/O error inspecting it. Calling
+// recoverInterruptedUpdateBundle() in that state just re-throws the exact
+// same invalid_bundle it was meant to recover from.
+//
+// This is the fallback for exactly that case. It cannot ask the journal
+// what to restore, so it does not try to -- stageUpdateBundle() always
+// writes its previous-binary/previous-client backups at FIXED locations
+// derived only from the live binary/client paths (`<binary>.bundle-previous`,
+// `dist.previous` next to the live client dir), independent of anything the
+// journal itself contains. Best-effort restore from those fixed locations,
+// then move the unreadable journal ASIDE (renamed, not deleted -- keeps the
+// evidence for whoever investigates why it went bad) so it can never again
+// be the reason startup refuses forever. The now-meaningless
+// `.update-applying` marker (nothing left to reference it once its journal
+// is gone) is removed outright rather than renamed -- it carries no
+// diagnostic content of its own, just presence/absence.
+//
+// The principle this exists to satisfy: a file the panel wrote, that the
+// panel cannot read, must not be the panel's permanent death sentence.
+// Refusing to start THIS attempt is a reasonable response to a corrupt
+// update; refusing to start every subsequent attempt, forever, with no way
+// back, is not.
+export function recoverFromUnreadableJournal({
+  journalPath,
+  binaryPath,
+  liveClientPath,
+}) {
+  const backupBinaryPath = `${binaryPath}.bundle-previous`;
+  const backupClientPath = path.join(path.dirname(liveClientPath), "dist.previous");
+
+  const binaryResult = restoreFromBackupIfPresent(binaryPath, backupBinaryPath, false);
+  if (binaryResult.present && !binaryResult.restored) {
+    throw updateError(
+      "rollback_failed",
+      `Could not restore the previous panel binary from ${backupBinaryPath}: ${binaryResult.error.message}`,
+      binaryResult.error,
+    );
+  }
+
+  const clientResult = restoreFromBackupIfPresent(liveClientPath, backupClientPath, true);
+  if (clientResult.present && !clientResult.restored) {
+    throw updateError(
+      "rollback_failed",
+      `Could not restore the previous panel frontend from ${backupClientPath}: ${clientResult.error.message}`,
+      clientResult.error,
+    );
+  }
+
+  const quarantinedJournalPath = `${journalPath}.corrupt-${Date.now()}`;
+  let quarantined = false;
+  try {
+    quarantined = renameIfPresent(journalPath, quarantinedJournalPath);
+  } catch {
+    // Best-effort: even if the journal itself can't be moved aside (e.g. a
+    // read-only mount), we still report what WAS restored below, and the
+    // caller's own actionable log names journalPath directly as the manual
+    // fallback -- an operator who has to delete it by hand still has an
+    // exact path, not a guess.
+  }
+
+  const applyingMarkerPath = path.join(path.dirname(journalPath), ".update-applying");
+  try {
+    fs.rmSync(applyingMarkerPath, { force: true });
+  } catch {
+    // Best-effort, same reasoning as above -- not fatal to the recovery.
+  }
+
+  return {
+    restoredBinary: binaryResult.restored,
+    restoredClient: clientResult.restored,
+    quarantinedJournalPath: quarantined ? quarantinedJournalPath : null,
+  };
 }

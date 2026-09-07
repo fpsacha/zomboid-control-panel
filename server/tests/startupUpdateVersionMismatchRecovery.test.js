@@ -4,7 +4,11 @@ import os from "os";
 import path from "path";
 import { fileURLToPath } from "url";
 import { recoverFromStartupInspectionFailure } from "../index.js";
-import { applyUpdateBundle, stageUpdateBundle } from "../services/updateBundle.js";
+import {
+  applyUpdateBundle,
+  inspectPendingUpdateBundle,
+  stageUpdateBundle,
+} from "../services/updateBundle.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,11 +93,11 @@ describe("recoverFromStartupInspectionFailure: the pre-listen version_mismatch c
     expect(fs.existsSync(journalPath)).toBe(false);
   });
 
-  it("does nothing for a different error code -- must not roll back an unrelated startup failure (e.g. a genuinely corrupt journal, which rollback cannot safely interpret)", () => {
+  it("does nothing for an unrelated error code -- must not roll back a startup failure this function doesn't understand", () => {
     const { binaryPath, journalPath } = prepareAppliedBundle();
     const before = fs.readFileSync(binaryPath, "utf8");
-    const error = new Error("corrupt");
-    error.code = "invalid_bundle";
+    const error = new Error("some other startup failure");
+    error.code = "hash_unverifiable";
 
     recoverFromStartupInspectionFailure(error, journalPath);
 
@@ -121,6 +125,110 @@ describe("recoverFromStartupInspectionFailure: the pre-listen version_mismatch c
     error.code = "version_mismatch";
 
     expect(() => recoverFromStartupInspectionFailure(error, journalPath)).not.toThrow();
+  });
+});
+
+// Hotfix, 2026-09-07 ("hotfix-invalid-bundle"): a real v1.2.16 user
+// (Charon, via Discord) updated and could not start the panel at all --
+// "Update startup validation failed [invalid_bundle]: Update bundle
+// journal is invalid. Panel exited with code 76", forever, on every
+// restart. invalid_bundle is thrown from roughly ten sites in
+// updateBundle.js and, before this fix, fell straight through
+// recoverFromStartupInspectionFailure() (which only understood
+// version_mismatch) to a bare process.exit(76) with nothing ever cleaned
+// up. These tests cover both shapes invalid_bundle actually arrives in:
+// a journal that's still readable (something ELSE it points at was bad --
+// treated the same as version_mismatch, since the journal still knows what
+// to roll back to), and a journal that is itself the corrupt thing (falls
+// back to recoverFromUnreadableJournal()'s fixed-location recovery).
+describe("recoverFromStartupInspectionFailure: invalid_bundle no longer gets stuck forever", () => {
+  beforeEach(() => {
+    installDir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-startup-invalid-bundle-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(installDir, { recursive: true, force: true });
+  });
+
+  it("rolls back a still-readable journal for invalid_bundle exactly like version_mismatch -- the journal knows what to restore even though something ELSE about it was invalid", () => {
+    const { binaryPath, liveClientPath, journalPath } = prepareAppliedBundle();
+    const error = new Error("Applied frontend build-info.json could not be read");
+    error.code = "invalid_bundle";
+
+    recoverFromStartupInspectionFailure(error, journalPath);
+
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "old-client",
+    );
+    expect(fs.existsSync(journalPath)).toBe(false);
+  });
+
+  it("recovers from a genuinely unreadable journal by restoring the previous binary/client from their fixed-location backups and quarantining the journal, so the next startup no longer trips over it", () => {
+    const { binaryPath, liveClientPath, journalPath } = prepareAppliedBundle();
+    // Simulate the journal itself going bad post-apply (the shape Charon
+    // hit) -- overwrite the well-formed journal stageUpdateBundle/
+    // applyUpdateBundle produced with garbage, while the real backups
+    // those calls already wrote (<binary>.bundle-previous, dist.previous)
+    // stay right where they are on disk.
+    fs.writeFileSync(journalPath, "{not valid json");
+    const error = new Error("Update bundle journal is not valid JSON");
+    error.code = "invalid_bundle";
+
+    // recoverFromUnreadableJournal's fallback derives binaryPath/liveClientPath
+    // from panelUpdateChecker.getExeBasePath() (= process.execPath, minus
+    // any .new/.new2 suffix) -- the SAME derivation stageUpdateBundle() used
+    // when it originally wrote these fixed-location backups in production.
+    // Point process.execPath at this test's fixture binary for the duration
+    // of the call so the fallback looks in the same place this fixture
+    // actually put the backups, then restore it.
+    const realExecPath = process.execPath;
+    process.execPath = binaryPath;
+    try {
+      recoverFromStartupInspectionFailure(error, journalPath);
+    } finally {
+      process.execPath = realExecPath;
+    }
+
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "old-client",
+    );
+    // Not just gone -- quarantined under a new name, so the evidence
+    // survives; and crucially, the ORIGINAL journalPath no longer exists,
+    // so a fresh inspection on the next restart is no longer pending.
+    expect(fs.existsSync(journalPath)).toBe(false);
+    const siblings = fs.readdirSync(installDir);
+    expect(siblings.some((name) => name.startsWith("update-bundle.json.corrupt-"))).toBe(
+      true,
+    );
+  });
+
+  it("after recovering from an unreadable journal, the NEXT startup inspection sees no pending update at all -- this is the fix for 'every restart re-hits it forever'", () => {
+    const { journalPath } = prepareAppliedBundle();
+    fs.writeFileSync(journalPath, "{not valid json");
+    const error = new Error("Update bundle journal is not valid JSON");
+    error.code = "invalid_bundle";
+
+    recoverFromStartupInspectionFailure(error, journalPath);
+
+    const nextInspection = inspectPendingUpdateBundle({
+      journalPath,
+      applyingMarkerPath: path.join(installDir, ".update-applying"),
+      runningMetadata: metadata(),
+    });
+    expect(nextInspection).toEqual({ pending: false, awaitingStartupAck: false });
+  });
+
+  it("quarantines an unreadable journal even with no backups present, and does not throw", () => {
+    const journalPath = path.join(installDir, "update-bundle.json");
+    fs.mkdirSync(installDir, { recursive: true });
+    fs.writeFileSync(journalPath, "{not valid json");
+    const error = new Error("Update bundle journal is not valid JSON");
+    error.code = "invalid_bundle";
+
+    expect(() => recoverFromStartupInspectionFailure(error, journalPath)).not.toThrow();
+    expect(fs.existsSync(journalPath)).toBe(false);
   });
 });
 

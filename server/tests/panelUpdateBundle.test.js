@@ -8,6 +8,7 @@ import {
   applyUpdateBundle,
   inspectPendingUpdateBundle,
   readUpdateBundleJournalIfPresent,
+  recoverFromUnreadableJournal,
   recoverInterruptedUpdateBundle,
   stageUpdateBundle,
   validateBuildCompatibility,
@@ -439,5 +440,125 @@ describe("versioned panel update bundles", () => {
     expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
       "old-client",
     );
+  });
+});
+
+// Hotfix, 2026-09-07 ("hotfix-invalid-bundle"): recoverInterruptedUpdateBundle()
+// needs a readable journal to know what to roll back to -- it re-reads the
+// same journalPath as its first step, so it cannot help when the journal
+// ITSELF is what's corrupt (unparseable JSON, structurally invalid, an
+// installDir that no longer matches where the journal actually lives). A
+// real v1.2.16 user hit exactly this and was stuck at exit code 76 forever,
+// on every restart, because nothing before this fix ever cleaned up an
+// unreadable journal. recoverFromUnreadableJournal() is the fallback: it
+// cannot ask the journal what to restore, so it restores from the FIXED
+// backup locations stageUpdateBundle() always writes
+// (`<binary>.bundle-previous`, `dist.previous` next to the live client),
+// then moves the corrupt journal aside (renamed, not deleted) so it can
+// never again be the reason startup refuses forever.
+describe("recoverFromUnreadableJournal: fixed-location recovery when the journal itself can't be trusted", () => {
+  beforeEach(() => {
+    installDir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-unreadable-journal-"));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(installDir, { recursive: true, force: true });
+  });
+
+  it("restores the binary and client from their bundle-previous/dist.previous backups, and quarantines (not deletes) the corrupt journal", () => {
+    const binaryPath = path.join(installDir, "ZomboidControlPanel");
+    const liveClientPath = path.join(installDir, "client", "dist");
+    const journalPath = path.join(installDir, "update-bundle.json");
+    writeFile(binaryPath, "half-applied-binary");
+    writeFile(`${binaryPath}.bundle-previous`, "previous-working-binary");
+    writeFile(path.join(liveClientPath, "index.html"), "half-applied-client");
+    writeFile(
+      path.join(path.dirname(liveClientPath), "dist.previous", "index.html"),
+      "previous-working-client",
+    );
+    writeFile(journalPath, "{not valid json");
+    const applyingMarkerPath = path.join(installDir, ".update-applying");
+    writeFile(applyingMarkerPath, "applying");
+
+    const outcome = recoverFromUnreadableJournal({
+      journalPath,
+      binaryPath,
+      liveClientPath,
+    });
+
+    expect(outcome.restoredBinary).toBe(true);
+    expect(outcome.restoredClient).toBe(true);
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("previous-working-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "previous-working-client",
+    );
+    // Quarantined, not gone -- the evidence survives for investigation.
+    expect(fs.existsSync(journalPath)).toBe(false);
+    expect(outcome.quarantinedJournalPath).not.toBeNull();
+    expect(fs.existsSync(outcome.quarantinedJournalPath)).toBe(true);
+    expect(fs.readFileSync(outcome.quarantinedJournalPath, "utf8")).toBe(
+      "{not valid json",
+    );
+    // Orphaned once its journal is gone -- nothing left to reference it.
+    expect(fs.existsSync(applyingMarkerPath)).toBe(false);
+  });
+
+  it("quarantines the journal even when neither backup exists -- nothing was actually pending, the journal is just garbage", () => {
+    const binaryPath = path.join(installDir, "ZomboidControlPanel");
+    const liveClientPath = path.join(installDir, "client", "dist");
+    const journalPath = path.join(installDir, "update-bundle.json");
+    writeFile(binaryPath, "current-binary");
+    writeFile(path.join(liveClientPath, "index.html"), "current-client");
+    writeFile(journalPath, "{not valid json");
+
+    const outcome = recoverFromUnreadableJournal({
+      journalPath,
+      binaryPath,
+      liveClientPath,
+    });
+
+    expect(outcome.restoredBinary).toBe(false);
+    expect(outcome.restoredClient).toBe(false);
+    // Untouched -- nothing to restore from, so nothing was touched.
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("current-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "current-client",
+    );
+    expect(fs.existsSync(journalPath)).toBe(false);
+    expect(fs.existsSync(outcome.quarantinedJournalPath)).toBe(true);
+  });
+
+  it("throws an actionable rollback_failed, and leaves the journal in place, if the binary backup exists but can't be activated", () => {
+    const binaryPath = path.join(installDir, "ZomboidControlPanel");
+    const backupBinaryPath = `${binaryPath}.bundle-previous`;
+    const liveClientPath = path.join(installDir, "client", "dist");
+    const journalPath = path.join(installDir, "update-bundle.json");
+    writeFile(binaryPath, "half-applied-binary");
+    writeFile(backupBinaryPath, "previous-working-binary");
+    writeFile(journalPath, "{not valid json");
+
+    const capturedPath = `${backupBinaryPath}.restoring-${process.pid}`;
+    const realRenameSync = fs.renameSync;
+    vi.spyOn(fs, "renameSync").mockImplementation((src, dest) => {
+      if (src === capturedPath && dest === binaryPath) {
+        throw new Error("simulated EBUSY: file in use");
+      }
+      return realRenameSync(src, dest);
+    });
+
+    expect(() =>
+      recoverFromUnreadableJournal({ journalPath, binaryPath, liveClientPath }),
+    ).toThrowError(
+      expect.objectContaining({
+        code: "rollback_failed",
+        message: expect.stringContaining(backupBinaryPath),
+      }),
+    );
+    // Bailed before touching the journal -- the manual-recovery fallback
+    // this throws to the caller still names an exact, still-present path.
+    expect(fs.existsSync(journalPath)).toBe(true);
+    // The failed activation attempt must not have lost the backup either.
+    expect(fs.existsSync(backupBinaryPath)).toBe(true);
   });
 });
