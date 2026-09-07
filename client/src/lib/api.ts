@@ -577,8 +577,21 @@ export const serverApi = {
     interfaces: { name: string; address: string }[];
   }> => apiGet("/server/network-interfaces"),
   start: () => apiPost("/server/start"),
-  stop: () => apiPost("/server/stop"),
-  forceStop: () => apiPost("/server/force-stop"),
+  // Unlike /server/start and /server/restart (both explicitly "return
+  // immediately, progress via socket/poll" -- see their own server-side
+  // comments), POST /server/stop and /server/force-stop hold the request
+  // open for the full graceful-shutdown chain: RCON save (rcon.js's own
+  // commandTimeout is 10s), then either RCON quit (another ~10s) or, for a
+  // Docker-managed server, dockerClient.js's lifecycleTimeoutMs -- the
+  // container's configured StopTimeout (10s default, but operator-set,
+  // uncapped here) plus a 30s grace period before Docker escalates to
+  // SIGKILL. A Docker-managed stop can legitimately take 40s+ even on a
+  // default config. Same STALL_MS-class timeout as the rest of this file's
+  // "waits on the game server" endpoints, not a blanket bump -- /start and
+  // /restart stay on the generic default because they're genuinely fast.
+  stop: () => apiPost("/server/stop", undefined, { timeout: 3 * 60 * 1000 }),
+  forceStop: () =>
+    apiPost("/server/force-stop", undefined, { timeout: 3 * 60 * 1000 }),
   restart: (warningMinutes?: number) =>
     apiPost("/server/restart", { warningMinutes }),
   restartNow: () => apiPost("/server/restart", { warningMinutes: 0 }),
@@ -588,8 +601,16 @@ export const serverApi = {
   // Wipe
   wipePreview: (targets: string[]) =>
     apiPost("/server/wipe/preview", { targets }),
+  // POST /wipe awaits a full pre-wipe backup (server/routes/server.js's own
+  // comment calls it "the multi-minute pre-wipe backup") before the
+  // destructive delete even starts -- same held-open-request shape as
+  // backupApi.createBackup below, just reached through a different route.
   wipe: (targets: string[], createBackup: boolean = true) =>
-    apiPost("/server/wipe", { targets, confirm: true, createBackup }) as Promise<{
+    apiPost(
+      "/server/wipe",
+      { targets, confirm: true, createBackup },
+      { timeout: 10 * 60 * 1000 },
+    ) as Promise<{
       success: boolean;
       backupCreated: boolean;
       backupName: string | null;
@@ -3059,7 +3080,13 @@ export const backupApi = {
   ): Promise<{ success: boolean; settings: BackupSettings }> =>
     apiPost("/backup/settings", settings),
 
-  // Create a manual backup
+  // Create a manual backup. POST /backup/create awaits the full archive
+  // (server/routes/backup.js -> backupService.createBackup()) before
+  // responding -- socket `backup:progress` events give the UI live
+  // feedback, but the HTTP request itself stays open for the whole walk +
+  // zip of the save directory. Same held-open-request shape as
+  // panelUpdateApi.download; a big/modded world can easily exceed the
+  // generic 15s default.
   createBackup: (options?: {
     includeDb?: boolean;
   }): Promise<{
@@ -3067,7 +3094,7 @@ export const backupApi = {
     backup?: ServerBackupArchive;
     duration?: number;
     message?: string;
-  }> => apiPost("/backup/create", options || {}),
+  }> => apiPost("/backup/create", options || {}, { timeout: 10 * 60 * 1000 }),
 
   // Delete a backup
   deleteBackup: (
@@ -3079,7 +3106,10 @@ export const backupApi = {
       handleResponse<{ success: boolean; message?: string }>(response),
     ),
 
-  // Restore a backup
+  // Restore a backup. Same held-open shape as createBackup above --
+  // POST /backup/restore/:name awaits backupService.restoreBackup()
+  // (extract + swap the save directory, plus its own pre-restore safety
+  // backup) before responding.
   restoreBackup: (
     name: string,
     options?: { createPreRestoreBackup?: boolean },
@@ -3087,7 +3117,12 @@ export const backupApi = {
     success: boolean;
     message?: string;
     duration?: number;
-  }> => apiPost(`/backup/restore/${encodeURIComponent(name)}`, options || {}),
+  }> =>
+    apiPost(
+      `/backup/restore/${encodeURIComponent(name)}`,
+      options || {},
+      { timeout: 10 * 60 * 1000 },
+    ),
 
   // Delete backups older than X days
   deleteOlderThan: (
