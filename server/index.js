@@ -2827,6 +2827,33 @@ export async function logExposureWarningIfNeeded({
   }
 }
 
+// Startup-failure-mode sweep, 2026-09-07 (god's dispatch): resolves the
+// configured HTTP port, falling back to 3001 for anything out of range --
+// same fallback this always had, but now WARNS when that fallback actually
+// discards an operator-set value instead of silently substituting it. A
+// bad PORT env var (a typo, a stray quote from a .env file, a value copied
+// from a different app) or a corrupted `panelPort` setting used to just
+// become 3001 with nothing in the log to explain why the panel wasn't
+// listening where the operator expected -- SILENT-OR-GENERIC in the exact
+// sense this sweep is looking for: it doesn't fail, so there's nothing to
+// investigate, and it doesn't do what was asked either. Exported so the
+// resolution logic is directly testable without booting start()'s full
+// listen()-and-banner sequence.
+export function resolvePanelPort(rawValue, { onInvalid } = {}) {
+  const configuredPort = Number(rawValue);
+  if (
+    Number.isInteger(configuredPort) &&
+    configuredPort >= 1 &&
+    configuredPort <= 65535
+  ) {
+    return configuredPort;
+  }
+  if (rawValue !== undefined && rawValue !== null && rawValue !== "") {
+    onInvalid?.(rawValue);
+  }
+  return 3001;
+}
+
 // Initialize and start server
 async function start() {
   try {
@@ -3281,10 +3308,12 @@ async function start() {
 
     // Read panel port from DB (saved via Settings UI), fallback to env or 3001
     const savedPort = await getSetting("panelPort");
-    const configuredPort = Number(process.env.PORT || savedPort || 3001);
-    const PORT = Number.isInteger(configuredPort) && configuredPort >= 1 && configuredPort <= 65535
-      ? configuredPort
-      : 3001;
+    const PORT = resolvePanelPort(process.env.PORT || savedPort || 3001, {
+      onInvalid: (value) =>
+        log.warn(
+          `Configured panel port "${value}" is not valid (must be a number 1-65535) -- using 3001 instead.`,
+        ),
+    });
     let listenPort = PORT;
 
     // ── HTTPS Setup ──
