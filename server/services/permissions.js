@@ -430,6 +430,82 @@ export function requirePermission(capability) {
 }
 
 /**
+ * sweep-round5 (2026-09-07): requireAnyPermission(...capabilities) -- the
+ * missing "or" in this file's authorization vocabulary. Grants access if
+ * the caller's role holds ANY ONE of the listed capabilities, not all of
+ * them. Built specifically because its absence was the root cause of a
+ * real hole, not preemptively: backup.js's GET /status, /list, /history
+ * had NO capability check at all, because no single capability describes
+ * "may see what backups exist" -- that's legitimately true of anyone
+ * holding backups.manage, backups.download, OR backups.restore, and
+ * requirePermission() can only express exactly one. Gating on
+ * backups.manage alone would have broken a download-only or restore-only
+ * custom role's ability to even see what to act on (the UI needs /list
+ * before it can call /download/:name or /restore/:name) -- a legitimate
+ * role suddenly unable to use a capability it holds is a bug whose
+ * predictable fix is someone widening the role, which is worse than
+ * where this started. Leaving the route ungated was the path of least
+ * resistance BECAUSE the language had no way to say the true thing about
+ * it. This closes that gap for every future route of the same shape, not
+ * just these three.
+ *
+ * Same fail-closed discipline as requirePermission() above -- every
+ * failure path refuses, there is no branch that falls through to next()
+ * on anything other than a confirmed grant.
+ */
+export function requireAnyPermission(...capabilities) {
+  const unknown = capabilities.filter((c) => !isKnownCapability(c));
+  if (capabilities.length === 0 || unknown.length > 0) {
+    // Programming error at the call site -- same posture as
+    // requirePermission()'s own unregistered-capability guard: fail
+    // closed for every request rather than crash the whole route file.
+    log.error(
+      unknown.length > 0
+        ? `requireAnyPermission() called with an unregistered capability: "${unknown[0]}" -- refusing every request to this route until fixed.`
+        : "requireAnyPermission() called with no capabilities -- refusing every request to this route until fixed.",
+    );
+    return (req, res) => {
+      res.status(403).json({
+        error: "Insufficient permissions",
+        code: ErrorCode.PERMISSION_DENIED,
+      });
+    };
+  }
+
+  return async (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        error: "Authentication required",
+        code: ErrorCode.AUTH_REQUIRED,
+      });
+    }
+
+    try {
+      const role = await getRoleByName(req.user.role);
+      if (!role || !Array.isArray(role.capabilities)) {
+        return res.status(403).json({
+          error: "Insufficient permissions",
+          code: ErrorCode.PERMISSION_DENIED,
+        });
+      }
+      if (!capabilities.some((capability) => role.capabilities.includes(capability))) {
+        return res.status(403).json({
+          error: "Insufficient permissions",
+          code: ErrorCode.PERMISSION_DENIED,
+        });
+      }
+      return next();
+    } catch (error) {
+      log.error(`requireAnyPermission(${capabilities.join(", ")}) failed: ${error.message}`);
+      return res.status(403).json({
+        error: "Insufficient permissions",
+        code: ErrorCode.PERMISSION_DENIED,
+      });
+    }
+  };
+}
+
+/**
  * A role's effective capabilities, for a client-side UX check (e.g. "should
  * this tab be visible") -- NOT an access-control decision. requirePermission()
  * above remains the only thing that actually enforces anything server-side;

@@ -4,7 +4,7 @@ import fs from "fs";
 import { createLogger } from "../utils/logger.js";
 import { sanitizeError, sanitizeErrorParams } from "../utils/sanitize.js";
 import { getActiveServer } from "../database/init.js";
-import { requirePermission } from "../services/permissions.js";
+import { requirePermission, requireAnyPermission } from "../services/permissions.js";
 import { listBackupRecords } from "../services/backupRecords.js";
 import {
   acquireLifecycleLock,
@@ -24,6 +24,23 @@ import {
 const log = createLogger("API:Backup");
 
 const router = express.Router();
+
+// sweep-round5 (2026-09-07): GET /status, /list and /history had no
+// capability check at all -- no single capability describes "may see
+// what backups exist and where," since that's legitimately true of
+// anyone holding backups.manage, backups.download, OR backups.restore.
+// The responses carry savesPath/backupsPath (absolute host filesystem
+// paths, not just backup filenames), so leaving them open to any signed-in
+// user is the same class of disclosure this floor already closed twice
+// tonight (5e3e2bcd, c19f351f) -- metadata-is-not-secret is defensible for
+// a filename, not for host layout. Gating on backups.manage alone would
+// break a download-only or restore-only custom role's ability to see what
+// to act on before calling /download/:name or /restore/:name.
+const requireAnyBackupCapability = requireAnyPermission(
+  "backups.manage",
+  "backups.download",
+  "backups.restore",
+);
 
 function parseBackupBoolean(value) {
   if (typeof value === "boolean") return value;
@@ -45,7 +62,7 @@ function parseBackupMaxCount(value) {
 }
 
 // Get backup status and settings
-router.get("/status", async (req, res) => {
+router.get("/status", requireAnyBackupCapability, async (req, res) => {
   try {
     const backupService = req.app.get("backupService");
     const status = await backupService.getStatus();
@@ -69,7 +86,7 @@ router.get("/info", async (req, res) => {
 });
 
 // Get list of backups
-router.get("/list", async (req, res) => {
+router.get("/list", requireAnyBackupCapability, async (req, res) => {
   try {
     const backupService = req.app.get("backupService");
     const backups = await backupService.listBackups();
@@ -80,7 +97,7 @@ router.get("/list", async (req, res) => {
   }
 });
 
-router.get("/history", async (req, res) => {
+router.get("/history", requireAnyBackupCapability, async (req, res) => {
   try {
     const limit =
       req.query.limit === undefined
