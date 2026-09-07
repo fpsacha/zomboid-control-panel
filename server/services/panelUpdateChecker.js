@@ -2703,7 +2703,20 @@ export class PanelUpdateChecker {
   /**
    * Remove orphan .partial.<pid> files left behind by interrupted downloads.
    * Called at start() — at that moment no download can be in progress, so
-   * everything matching the partial pattern is safe to delete.
+   * everything matching either partial pattern is safe to delete.
+   *
+   * Two distinct naming shapes, both written by downloadAndStageUpdate():
+   *   - the staged binary download: `<stagedPath>.partial.<pid>` (no further
+   *     suffix -- matches partialPattern below).
+   *   - the client archive download: `.client-dist-<version>.partial.<pid>.zip`
+   *     (or `.tar.gz` on Linux) -- did NOT match partialPattern (its `$`
+   *     anchor requires the digits to be the last characters in the name,
+   *     but the archive extension follows them), so a process crash between
+   *     a successful client-archive download and its own happy-path unlink
+   *     (anywhere inside stageClientDist(), or the gap before line ~714's
+   *     cleanup) left one of these behind on every exeDir readdirSync scan
+   *     forever -- an accumulating, never-swept leak matching only the
+   *     unlucky half of "interrupted download", not both halves.
    */
   cleanupOrphanPartials() {
     if (typeof process.pkg === "undefined") return;
@@ -2714,9 +2727,12 @@ export class PanelUpdateChecker {
     } catch {
       return;
     }
-    const partialPattern = /\.partial\.\d+$/;
+    const partialPatterns = [
+      /\.partial\.\d+$/,
+      /^\.client-dist-.+\.partial\.\d+\.(?:zip|tar\.gz)$/,
+    ];
     for (const name of entries) {
-      if (!partialPattern.test(name)) continue;
+      if (!partialPatterns.some((pattern) => pattern.test(name))) continue;
       const fp = path.join(exeDir, name);
       try {
         fs.unlinkSync(fp);
