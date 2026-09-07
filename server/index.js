@@ -1642,7 +1642,12 @@ app.post("/api/panel/restart", requireRole("admin"), async (req, res) => {
       // failed (e.g. permission, disk full).
       checker.isApplying = false;
       log.error(`Failed to apply Linux staged update: ${err.message}`);
-      return res.status(500).json({ error: sanitizeError(err.message) });
+      const body = { error: sanitizeError(err.message) };
+      const code = registeredErrorCode(err);
+      if (code) {
+        body.code = code;
+      }
+      return res.status(500).json(body);
     }
   }
 
@@ -1955,14 +1960,27 @@ export function sendClientIndex(res, clientDistPath, callback) {
 // before this change -- do not "fix" that by widening the allowlist to
 // everything; that's the leak this exists to prevent.
 const REGISTERED_ERROR_CODES = new Set(Object.values(ErrorCode));
+// Same allowlist gate apiErrorHandler enforces below, factored out so a
+// route that builds its own res.json() directly instead of calling
+// next(err) -- and so never reaches apiErrorHandler at all -- can apply the
+// identical check instead of a hand-rolled copy. That's how the Linux
+// update-apply catch (POST /api/panel/restart) lost hash_unverifiable /
+// binary_swap_failed / rollback_failed silently: it builds its 500 body
+// locally and never called next(err), so this allowlist never ran for it.
+export function registeredErrorCode(err) {
+  return typeof err?.code === "string" && REGISTERED_ERROR_CODES.has(err.code)
+    ? err.code
+    : undefined;
+}
 // Exported so server/tests/errorCodeReachability.test.js can assert the
 // allowlist both ways directly against the real handler, not a reimplementation.
 export function apiErrorHandler(err, req, res, next) {
   log.error(`Unhandled API error on ${req.method} ${req.path}: ${err.message}`);
   const status = err.status || 500;
   const body = { error: sanitizeError(err.message) };
-  if (typeof err.code === "string" && REGISTERED_ERROR_CODES.has(err.code)) {
-    body.code = err.code;
+  const code = registeredErrorCode(err);
+  if (code) {
+    body.code = code;
   }
   res.status(status).json(body);
 }
