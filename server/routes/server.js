@@ -4573,6 +4573,25 @@ async function checkSpecificServerStopped(serverManager, targetServer, actionLab
 
 // Delete server files (used when removing a server from panel with file deletion)
 router.post("/delete-files", requirePermission("server.wipe"), async (req, res) => {
+  // lifecycle-lock-set sweep, 2026-09-07: checkSpecificServerStopped()
+  // above already narrows the check-then-delete TOCTOU window "as far as
+  // it can go without a shared lock with /start, which is out of scope
+  // here" (dd1e44f1's own comment) -- that scoping was correct then
+  // (a different lane, single-source derivation only), it's this lane's
+  // question now. The actual rmSync() below is synchronous and runs
+  // immediately after the check, so the only exposed window is the
+  // checked round-trip itself, but a /start landing in exactly that
+  // window still launches the JVM against files about to be deleted out
+  // from under it. Same fix as /wipe (bfc0e515) and now chunks.js's
+  // delete-chunks/delete-region: take the process-wide lifecycleCoordinator
+  // lock for the whole handler. Acquired before deletePath is even parsed
+  // (nothing here identifies a target server yet), so the cosmetic
+  // serverName is degraded to the generic wording -- see
+  // lifecycleCoordinator.js's own comment on that fallback.
+  const lifecycleLock = acquireLifecycleLock("delete-files");
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
     const serverManager = req.app.get("serverManager");
 
@@ -4700,6 +4719,8 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
   } catch (error) {
     log.error(`Failed to delete server files: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 
