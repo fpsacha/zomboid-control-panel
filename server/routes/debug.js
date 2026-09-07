@@ -1610,14 +1610,15 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
       log.warn(`Log zip warning: ${error.message}`);
     });
 
-    archive.on("error", (error) => {
+    const handleArchiveFailure = (error) => {
       log.error(`Failed to create log archive: ${error.message}`);
       if (!res.headersSent) {
         res.status(500).json({ error: "Failed to create log archive" });
       } else {
         res.destroy(error);
       }
-    });
+    };
+    archive.on("error", handleArchiveFailure);
 
     archive.pipe(res);
 
@@ -1647,10 +1648,15 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
     archive.append(manifest, { name: "support-bundle-info.txt" });
 
     for (const entry of entries) {
-      archive.append(
-        fs.createReadStream(entry.filePath).pipe(createRedactingLogStream(knownSecrets)),
-        { name: entry.archivePath },
-      );
+      // pipe() does not forward 'error' from source to destination -- the
+      // raw read stream needs its own handler or a rotated/deleted/unreadable
+      // log file crashes the whole process instead of failing this request
+      // (same convention as backupService.js's restore-extraction path).
+      const entryStream = fs.createReadStream(entry.filePath);
+      entryStream.on("error", handleArchiveFailure);
+      archive.append(entryStream.pipe(createRedactingLogStream(knownSecrets)), {
+        name: entry.archivePath,
+      });
     }
 
     // ── Diagnostic JSON files (best-effort; collectors never throw) ──
