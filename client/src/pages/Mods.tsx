@@ -2717,14 +2717,6 @@ export default function Mods() {
               <Clock className="w-5 h-5 animate-pulse text-warning" />
               <div>
                 <p className="font-medium text-warning">{t('restartPending.title')}</p>
-
-            <FolderBrowser
-              open={workshopBrowserOpen}
-              onOpenChange={setWorkshopBrowserOpen}
-              onSelect={handleWorkshopFolderSelected}
-              initialPath={workshopBrowserInitialPath}
-              title={t('folderBrowser.title')}
-            />
                 <p className="text-xs text-muted-foreground">
                   {t('restartPending.waiting', { minutes: status.maxDelayMinutes })}
                 </p>
@@ -5952,6 +5944,24 @@ export default function Mods() {
         </>
         )}
       </div>
+
+      {/* bug-hunt-2026-09-07 (Discord report: "when pressing fix path nothing
+          happens"): this was nested inside the pendingRestart-only banner
+          above, several hundred lines from here -- FolderBrowser only ever
+          MOUNTED while a mod change was awaiting a restart, so for anyone
+          NOT in that specific state (the overwhelming majority of "Fix
+          path" clicks, including the reporting user's) handleOpenWorkshopBrowser
+          ran fine and called setWorkshopBrowserOpen(true), but there was no
+          component anywhere in the tree to open -- an offered action that
+          could never succeed. Always mounted here now, matching every other
+          page-level dialog's placement. */}
+      <FolderBrowser
+        open={workshopBrowserOpen}
+        onOpenChange={setWorkshopBrowserOpen}
+        onSelect={handleWorkshopFolderSelected}
+        initialPath={workshopBrowserInitialPath}
+        title={t('folderBrowser.title')}
+      />
 
       {/* Single mod remove confirmation */}
       <AlertDialog open={!!confirmRemoveMod} onOpenChange={(open) => { if (!open) setConfirmRemoveMod(null) }}>
