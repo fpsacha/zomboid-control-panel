@@ -278,14 +278,31 @@ export class BackupService {
   }
 
   /**
-   * Get the saves folder path for the current server
+   * Get the saves folder path for the current server.
+   *
+   * lifecycle-lock-set sweep, 2026-09-07: `activeServerOverride` lets a
+   * caller that already resolved getActiveServer() (createBackup(), which
+   * also needs the same server for getBackupsPath() and the backup's
+   * filename label) reuse that single fresh read instead of each callee
+   * re-querying the DB independently -- a concurrent /servers/:id/activate
+   * landing between three independent reads could otherwise put the
+   * archive's DATA under one server's save folder while its FILENAME
+   * labels a different server (Kevin's finding, backup-restore lane).
+   * Every other existing caller (getStatus(), routes/backup.js's listing
+   * routes, /wipe's pre-wipe backup path resolution) passes nothing, so
+   * `activeServerOverride` stays `undefined` there and this falls back to
+   * its own always-fresh read exactly as before -- byte-identical
+   * behavior for every call site that isn't createBackup().
    */
-  async getSavesPath() {
+  async getSavesPath(activeServerOverride) {
     /**
      * (getSavesPath starts here)
      */
     try {
-      const activeServer = await getActiveServer();
+      const activeServer =
+        activeServerOverride !== undefined
+          ? activeServerOverride
+          : await getActiveServer();
 
       if (activeServer?.zomboidDataPath && activeServer?.serverName) {
         const savesPath = path.join(
@@ -347,11 +364,19 @@ export class BackupService {
   }
 
   /**
-   * Get the backups folder path
+   * Get the backups folder path.
+   *
+   * `activeServerOverride` -- see getSavesPath()'s comment just above for
+   * the full rationale; same optional-reuse parameter, same "every
+   * existing caller passes nothing and keeps its own always-fresh read"
+   * guarantee.
    */
-  async getBackupsPath() {
+  async getBackupsPath(activeServerOverride) {
     try {
-      const activeServer = await getActiveServer();
+      const activeServer =
+        activeServerOverride !== undefined
+          ? activeServerOverride
+          : await getActiveServer();
       let basePath;
 
       if (activeServer?.zomboidDataPath) {
@@ -498,8 +523,19 @@ export class BackupService {
   async _doCreateBackup(options, startTime, emitProgress) {
     emitProgress("preparing", 5, "Preparing backup...");
 
-    const savesPath = await this.getSavesPath();
-    const backupsPath = await this.getBackupsPath();
+    // lifecycle-lock-set sweep, 2026-09-07 (Kevin's finding, backup-restore
+    // lane): POST /create takes no lifecycle lock, so a concurrent
+    // /servers/:id/activate could switch the active server between
+    // separate reads. One fresh read here, reused for the saves path, the
+    // backups path, the filename label, and the snapshot below, so all
+    // four agree on which server this backup is actually of -- restore's
+    // own two getActiveServer() calls (restoreBackup(), further down) stay
+    // as they are: restore holds the lifecycle lock for its whole
+    // duration, and /servers/:id/activate takes that same lock, so the
+    // active server provably cannot change under restore already.
+    const activeServer = await getActiveServer();
+    const savesPath = await this.getSavesPath(activeServer);
+    const backupsPath = await this.getBackupsPath(activeServer);
 
     if (!savesPath) {
       throw new Error(
@@ -520,7 +556,6 @@ export class BackupService {
       .toISOString()
       .replace(/[:.]/g, "-")
       .slice(0, 23);
-    const activeServer = await getActiveServer();
     const serverName = activeServer?.serverName || "server";
     const baseBackupName = `${serverName}_${timestamp}`;
     let backupName = `${baseBackupName}.zip`;
@@ -702,7 +737,7 @@ export class BackupService {
         // destructive step is waiting on it.
         if (!options.isPreRestore && !options.isPreWipe) {
           try {
-            await this.cleanupOldBackups();
+            await this.cleanupOldBackups(activeServer);
           } catch (cleanupError) {
             log.warn(`Backup retention cleanup failed for ${backupName}: ${cleanupError.message}`);
           }
@@ -814,11 +849,19 @@ export class BackupService {
   }
 
   /**
-   * Get list of existing backups
+   * Get list of existing backups.
+   *
+   * `activeServerOverride` -- see getSavesPath()'s comment; same optional
+   * reuse parameter, threaded through to getBackupsPath() so
+   * cleanupOldBackups() (called right after a createBackup() completes)
+   * lists the SAME server's backups folder the backup just created, not a
+   * freshly re-derived one a concurrent activate() could have switched.
+   * Every other existing caller (routes/backup.js's listing route, etc.)
+   * passes nothing and keeps its own always-fresh read.
    */
-  async listBackups() {
+  async listBackups(activeServerOverride) {
     try {
-      const backupsPath = await this.getBackupsPath();
+      const backupsPath = await this.getBackupsPath(activeServerOverride);
       if (!backupsPath || !fs.existsSync(backupsPath)) {
         return [];
       }
@@ -955,10 +998,10 @@ export class BackupService {
    * choice: it is operator-initiated, not automatic, so it does the
    * opposite and includes uploads -- see its own comment.
    */
-  async cleanupOldBackups() {
+  async cleanupOldBackups(activeServerOverride) {
     try {
       const settings = await this.getSettings();
-      const backups = await this.listBackups();
+      const backups = await this.listBackups(activeServerOverride);
       const prunable = backups.filter((b) => !b.name.startsWith("uploaded-"));
 
       if (prunable.length <= settings.maxBackups) {
