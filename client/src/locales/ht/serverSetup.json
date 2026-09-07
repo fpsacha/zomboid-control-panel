@@ -143,6 +143,7 @@
       "savePathButton": "Sove Chemen",
       "readyTitle": "SteamCMD Pare",
       "changePathButton": "Chanje Chemen",
+      "downloadStalledStatus": "Taking longer than expected -- SteamCMD may still be downloading. Reload this page to check its real status.",
       "manualStep2Windows": "Extract to a folder such as <1>C:\\SteamCMD</1>.",
       "manualStep2Posix": "Extract to a folder such as <1>~/steamcmd</1>."
     },
@@ -187,6 +188,7 @@
       "portInfoGame": "UDP - Trafik jwèt",
       "portInfoDirect": "UDP - Koneksyon dirèk",
       "installingButton": "N ap enstale sèvè... tcheke jounal anba a",
+      "installStalledLog": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. The install may still be running in the background -- reload this page to check its real status before trying again.",
       "installButton": "Enstale Sèvè Project Zomboid",
       "missingAdminPassword": "Ajoute yon Modpas Administratè nan Opsyon Avanse anvan w enstale.",
       "logTitle": "Jounal Enstalasyon",

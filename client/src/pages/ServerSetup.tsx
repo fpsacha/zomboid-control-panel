@@ -287,6 +287,23 @@ export default function ServerSetup() {
 
   // Installation state
   const [installing, setInstalling] = useState(false);
+  // bug-hunt-2026-09-06: the request that kicks off an install only confirms
+  // SteamCMD was launched (see the comment at its call site below) -- the
+  // real outcome arrives later, ONLY via install:complete. If that event
+  // never lands, `installing` (and the Install button it disables) would
+  // stay stuck forever with zero indication anything went wrong, the same
+  // "nobody's listening" shape as tonight's server uploadStream crash.
+  // installStalled flips true after INSTALL_STALL_MS of no install:log
+  // activity and re-enables the button without fabricating a result --
+  // matching the same fix applied to Servers.tsx's steam dialog.
+  // installViaSteamCmd scopes the watchdog to ONLY the socket-dependent
+  // flow (handleInstall) -- handleQuickSetup also sets `installing` but is
+  // fully HTTP-await-driven start to finish, so applying the same stall
+  // detection there would risk a false "stalled" mid-legitimate-request and
+  // let a second click race the still-in-flight create()/activate() calls.
+  const [installStalled, setInstallStalled] = useState(false);
+  const [installViaSteamCmd, setInstallViaSteamCmd] = useState(false);
+  const installLastActivityRef = useRef<number>(0);
   const [logs, setLogs] = useState<InstallLog[]>([]);
   const [installComplete, setInstallComplete] = useState(false);
   // A leftover marker from a PREVIOUS page load (see readInstallInFlightMarker
@@ -301,6 +318,10 @@ export default function ServerSetup() {
 
   // SteamCMD auto-download state
   const [downloadingSteamCmd, setDownloadingSteamCmd] = useState(false);
+  // Same stuck-forever risk as installStalled above, for the separate
+  // steamcmd:status/steamcmd:log channel handleAutoDownloadSteamCmd depends on.
+  const [downloadStalled, setDownloadStalled] = useState(false);
+  const downloadLastActivityRef = useRef<number>(0);
   const [steamCmdStatus, setSteamCmdStatus] = useState<string>("");
 
   const { toast } = useToast();
@@ -514,6 +535,8 @@ export default function ServerSetup() {
       progressCode?: string;
       params?: Record<string, string | number>;
     }) => {
+      installLastActivityRef.current = Date.now();
+      setInstallStalled(false);
       const text = data.text.trim();
       const displayText = getInstallProgressMessage(data, text);
       setLogs((prev) => [
@@ -718,6 +741,8 @@ export default function ServerSetup() {
         // still in flight, letting a second click wipe the in-flight logs and
         // fire a second real SteamCMD install underneath the first.
         setInstalling(false);
+        setInstallStalled(false);
+        setInstallViaSteamCmd(false);
       }
     };
 
@@ -731,6 +756,8 @@ export default function ServerSetup() {
       progressCode?: string;
       params?: Record<string, string | number>;
     }) => {
+      downloadLastActivityRef.current = Date.now();
+      setDownloadStalled(false);
       const displayMessage = getInstallProgressMessage(data, data.message);
       setSteamCmdStatus(displayMessage);
       if (data.status === "complete" && data.path) {
@@ -757,6 +784,8 @@ export default function ServerSetup() {
       progressCode?: string;
       params?: Record<string, string | number>;
     }) => {
+      downloadLastActivityRef.current = Date.now();
+      setDownloadStalled(false);
       setSteamCmdStatus(getInstallProgressMessage(data, data.text.trim()));
     };
 
@@ -771,6 +800,48 @@ export default function ServerSetup() {
     };
   }, [socket, toast, t]);
 
+  // Watchdogs for the install:complete/steamcmd:status-never-arrives case
+  // above -- see installStalled's own comment. Deliberately does NOT
+  // re-enable the Install button (unlike Servers.tsx's steam dialog, which
+  // had no other escape at all): a second click here would launch a second
+  // real SteamCMD install racing whatever the first one is still doing.
+  // Reload is already a safe, built recovery path (see resumeMarker/the
+  // in-flight marker above), so the fix is just to stop being silent about
+  // it -- surface a warning in the live log and point the user at that path.
+  useEffect(() => {
+    if (!installViaSteamCmd) return;
+    const INSTALL_STALL_MS = 3 * 60 * 1000;
+    const interval = setInterval(() => {
+      if (Date.now() - installLastActivityRef.current >= INSTALL_STALL_MS) {
+        setInstallStalled(true);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [installViaSteamCmd]);
+
+  useEffect(() => {
+    if (!installStalled) return;
+    addLog("warning", t("full.step4.installStalledLog"));
+  }, [installStalled, t]);
+
+  useEffect(() => {
+    if (!downloadingSteamCmd) return;
+    const DOWNLOAD_STALL_MS = 3 * 60 * 1000;
+    const interval = setInterval(() => {
+      if (Date.now() - downloadLastActivityRef.current >= DOWNLOAD_STALL_MS) {
+        setDownloadStalled(true);
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [downloadingSteamCmd]);
+
+  // Same "don't stay silent" fix as installStalled, surfaced directly on
+  // the download button's own status text rather than a separate banner.
+  useEffect(() => {
+    if (!downloadStalled) return;
+    setSteamCmdStatus(t("full.step1.downloadStalledStatus"));
+  }, [downloadStalled, t]);
+
   const addLog = (type: InstallLog["type"], message: string) => {
     setLogs((prev) => [...prev, { type, message, timestamp: new Date() }]);
   };
@@ -778,11 +849,14 @@ export default function ServerSetup() {
   const handleAutoDownloadSteamCmd = async () => {
     if (!canInstall) return;
     setDownloadingSteamCmd(true);
+    setDownloadStalled(false);
+    downloadLastActivityRef.current = Date.now();
     setSteamCmdStatus(t("toasts.startingDownloadLog"));
     try {
       await serverApi.downloadSteamCmd(steamCmdPath);
     } catch (error) {
       setDownloadingSteamCmd(false);
+      setDownloadStalled(false);
       toast({
         title: t("toasts.downloadFailedTitle"),
         description: getUserErrorMessage(error, t("toasts.downloadFailedFallback")),
@@ -873,6 +947,9 @@ export default function ServerSetup() {
       return;
     }
     setInstalling(true);
+    setInstallStalled(false);
+    setInstallViaSteamCmd(true);
+    installLastActivityRef.current = Date.now();
     setLogs([]);
     setInstallProgress(null);
     addLog("info", t("toasts.startingInstallLog"));
@@ -905,6 +982,8 @@ export default function ServerSetup() {
       const msg = installationErrorGuidance(rawMessage, displayMessage, t, serverPlatform);
       addLog("error", msg);
       setInstalling(false);
+      setInstallStalled(false);
+      setInstallViaSteamCmd(false);
       toast({
         title: t("toasts.installationFailedTitle"),
         description: msg,

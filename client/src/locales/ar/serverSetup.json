@@ -144,7 +144,8 @@
       "manualPathPlaceholder": "المسار إلى مجلد SteamCMD الموجود لديك",
       "savePathButton": "حفظ المسار",
       "readyTitle": "SteamCMD جاهز",
-      "changePathButton": "تغيير المسار"
+      "changePathButton": "تغيير المسار",
+      "downloadStalledStatus": "Taking longer than expected -- SteamCMD may still be downloading. Reload this page to check its real status."
     },
     "step2": {
       "title": "تفاصيل الخادم",
@@ -187,6 +188,7 @@
       "portInfoGame": "UDP - حركة اللعبة",
       "portInfoDirect": "UDP - الاتصال المباشر",
       "installingButton": "جارٍ تثبيت الخادم... راجع السجل أدناه",
+      "installStalledLog": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. The install may still be running in the background -- reload this page to check its real status before trying again.",
       "installButton": "تثبيت خادم Project Zomboid",
       "missingAdminPassword": "أضف كلمة مرور المسؤول في الخيارات المتقدّمة قبل التثبيت.",
       "logTitle": "سجل التثبيت",

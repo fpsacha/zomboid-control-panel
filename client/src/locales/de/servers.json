@@ -297,7 +297,9 @@
     "startUpdate": "Update starten",
     "done": "Fertig",
     "retry": "Erneut versuchen",
-    "noPermission": "Das Aktualisieren oder Überprüfen von Serverdateien erfordert die Berechtigung server.install, über die diese Rolle nicht verfügt."
+    "noPermission": "Das Aktualisieren oder Überprüfen von Serverdateien erfordert die Berechtigung server.install, über die diese Rolle nicht verfügt.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "Installationsordner leeren?",

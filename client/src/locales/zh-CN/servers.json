@@ -297,7 +297,9 @@
     "startUpdate": "开始更新",
     "done": "完成",
     "retry": "重试",
-    "noPermission": "更新或校验服务器文件需要 server.install 权限，而该角色没有此权限。"
+    "noPermission": "更新或校验服务器文件需要 server.install 权限，而该角色没有此权限。",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "清除安装文件夹？",

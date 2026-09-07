@@ -143,6 +143,7 @@
       "savePathButton": "保存路径",
       "readyTitle": "SteamCMD 已就绪",
       "changePathButton": "更改路径",
+      "downloadStalledStatus": "Taking longer than expected -- SteamCMD may still be downloading. Reload this page to check its real status.",
       "manualStep2Windows": "Extract to a folder such as <1>C:\\SteamCMD</1>.",
       "manualStep2Posix": "Extract to a folder such as <1>~/steamcmd</1>."
     },
@@ -187,6 +188,7 @@
       "portInfoGame": "UDP - 游戏流量",
       "portInfoDirect": "UDP - 直接连接",
       "installingButton": "正在安装服务器...请查看下方日志",
+      "installStalledLog": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. The install may still be running in the background -- reload this page to check its real status before trying again.",
       "installButton": "安装 Project Zomboid 服务器",
       "missingAdminPassword": "安装前请在高级选项中设置管理员密码。",
       "logTitle": "安装日志",

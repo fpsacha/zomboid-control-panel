@@ -390,6 +390,19 @@ export default function Servers() {
   const [steamLogs, setSteamLogs] = useState<string[]>([])
   const [steamRunning, setSteamRunning] = useState(false)
   const [steamCompleted, setSteamCompleted] = useState<'success' | 'error' | null>(null)
+  // bug-hunt-2026-09-06: steamRunning is only ever cleared by the
+  // steam:complete socket event (or a launch-request-level catch) -- never
+  // on success from the awaited serversApi.steamVerify/steamUpdate call,
+  // which only confirms steamcmd was LAUNCHED, not that it finished. If
+  // that event is dropped (the same "nobody's listening" shape as tonight's
+  // server uploadStream crash, just silent instead of fatal here), this
+  // dialog's own onOpenChange and Close button are BOTH disabled while
+  // steamRunning -- there was no way to close it short of a page reload.
+  // steamStalled is the escape hatch: true once STEAM_STALL_MS has passed
+  // with no steam:log/steam:start activity, and re-enables closing the
+  // dialog without fabricating a success/failure result.
+  const [steamStalled, setSteamStalled] = useState(false)
+  const steamLastActivityRef = useRef<number>(0)
   const [clearingInstall, setClearingInstall] = useState(false)
   const [confirmClearInstall, setConfirmClearInstall] = useState(false)
   const [steamcmdPath, setSteamcmdPath] = useState('')
@@ -760,17 +773,22 @@ export default function Servers() {
     if (!socket) return
 
     const handleSteamStart = (data: { type: string; message: string; progressCode?: string; params?: Record<string, string | number> }) => {
+      steamLastActivityRef.current = Date.now()
       setSteamRunning(true)
+      setSteamStalled(false)
       setSteamLogs([getInstallProgressMessage(data, data.message)])
     }
 
     const handleSteamLog = (data: { type: string; text: string; progressCode?: string; params?: Record<string, string | number> }) => {
+      steamLastActivityRef.current = Date.now()
+      setSteamStalled(false)
       setSteamLogs(prev => [...prev.slice(-200), getInstallProgressMessage(data, data.text)]) // Keep last 200 lines
     }
 
     const handleSteamComplete = (data: { success: boolean; message: string; progressCode?: string; params?: Record<string, string | number> }) => {
       const displayMessage = getInstallProgressMessage(data, data.message)
       setSteamRunning(false)
+      setSteamStalled(false)
       setSteamCompleted(data.success ? 'success' : 'error')
       setSteamLogs(prev => [...prev, '', data.success ? '✓ ' + displayMessage : '✗ ' + displayMessage])
       toast({
@@ -790,6 +808,22 @@ export default function Servers() {
       socket.off('steam:complete', handleSteamComplete)
     }
   }, [socket, toast, t])
+
+  // Watchdog for the steam:complete-never-arrives case above: if no
+  // steam:start/steam:log activity has landed in STEAM_STALL_MS, treat the
+  // dialog as stalled rather than trusting steamRunning to resolve on its
+  // own. Doesn't fabricate a success/failure -- just restores the user's
+  // ability to close the dialog and check actual server status another way.
+  useEffect(() => {
+    if (!steamRunning) return
+    const STEAM_STALL_MS = 3 * 60 * 1000
+    const interval = setInterval(() => {
+      if (Date.now() - steamLastActivityRef.current >= STEAM_STALL_MS) {
+        setSteamStalled(true)
+      }
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [steamRunning])
 
   // Detect server settings from data path
   const handleDetectServer = async () => {
@@ -1326,6 +1360,8 @@ export default function Servers() {
 
     setSteamLogs([])
     setSteamRunning(true)
+    setSteamStalled(false)
+    steamLastActivityRef.current = Date.now()
     setSteamCompleted(null)
 
     try {
@@ -1336,6 +1372,7 @@ export default function Servers() {
       }
     } catch (error) {
       setSteamRunning(false)
+      setSteamStalled(false)
       toast({
         title: t('toasts.error'),
         description: getUserErrorMessage(error, t('toasts.startOperationFailed')),
@@ -1397,6 +1434,7 @@ export default function Servers() {
     setSteamOperation({ server, type, branch: initialBranch })
     setSteamLogs([])
     setSteamRunning(false)
+    setSteamStalled(false)
     setSteamCompleted(null)
 
     // Load steamcmd path from settings if not already set
@@ -3027,7 +3065,7 @@ export default function Servers() {
       </AlertDialog>
 
       {/* Steam Update/Verify Dialog */}
-      <Dialog open={!!steamOperation} onOpenChange={(open) => !open && !steamRunning && setSteamOperation(null)}>
+      <Dialog open={!!steamOperation} onOpenChange={(open) => !open && (!steamRunning || steamStalled) && setSteamOperation(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -3146,15 +3184,21 @@ export default function Servers() {
                 </div>
               </div>
             )}
+
+            {steamStalled && (
+              <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-foreground">
+                {t('steamDialog.stalledMessage')}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setSteamOperation(null)}
-              disabled={steamRunning}
+              disabled={steamRunning && !steamStalled}
             >
-              {steamRunning ? t('steamDialog.running') : steamCompleted ? t('steamDialog.close') : t('steamDialog.cancel')}
+              {steamStalled ? t('steamDialog.closeAnyway') : steamRunning ? t('steamDialog.running') : steamCompleted ? t('steamDialog.close') : t('steamDialog.cancel')}
             </Button>
             {!steamCompleted && (
               <DisabledReason reason={!canServerInstall ? t('steamDialog.noPermission') : null}>

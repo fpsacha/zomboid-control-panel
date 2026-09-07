@@ -297,7 +297,9 @@
     "startUpdate": "Start Update",
     "done": "Done",
     "retry": "Retry",
-    "noPermission": "Updating or verifying server files requires the server.install permission, which this role doesn't have."
+    "noPermission": "Updating or verifying server files requires the server.install permission, which this role doesn't have.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "Clear Installation Folder?",

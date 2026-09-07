@@ -297,7 +297,9 @@
     "startUpdate": "Kòmanse Mizajou",
     "done": "Fini",
     "retry": "Eseye ankò",
-    "noPermission": "Pou ou mete ajou oswa verifye fichye sèvè yo, ou bezwen pèmisyon server.install, e wòl sa a pa genyen li."
+    "noPermission": "Pou ou mete ajou oswa verifye fichye sèvè yo, ou bezwen pèmisyon server.install, e wòl sa a pa genyen li.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "Efase Dosye Enstalasyon?",

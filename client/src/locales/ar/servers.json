@@ -297,7 +297,9 @@
     "startUpdate": "بدء التحديث",
     "done": "تم",
     "retry": "إعادة المحاولة",
-    "noPermission": "يتطلب تحديث ملفات الخادم أو التحقق منها صلاحية server.install، وهي غير متاحة لهذا الدور."
+    "noPermission": "يتطلب تحديث ملفات الخادم أو التحقق منها صلاحية server.install، وهي غير متاحة لهذا الدور.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "إفراغ مجلد التثبيت؟",

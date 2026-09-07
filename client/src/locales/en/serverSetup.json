@@ -144,7 +144,8 @@
       "manualPathPlaceholder": "Path to your existing SteamCMD folder",
       "savePathButton": "Save Path",
       "readyTitle": "SteamCMD Ready",
-      "changePathButton": "Change Path"
+      "changePathButton": "Change Path",
+      "downloadStalledStatus": "Taking longer than expected -- SteamCMD may still be downloading. Reload this page to check its real status."
     },
     "step2": {
       "title": "Server Details",
@@ -187,6 +188,7 @@
       "portInfoGame": "UDP - Game traffic",
       "portInfoDirect": "UDP - Direct connect",
       "installingButton": "Installing server... check the log below",
+      "installStalledLog": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. The install may still be running in the background -- reload this page to check its real status before trying again.",
       "installButton": "Install Project Zomboid Server",
       "missingAdminPassword": "Add an Admin Password in Advanced Options before installing.",
       "logTitle": "Installation Log",

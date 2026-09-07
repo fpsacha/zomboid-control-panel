@@ -297,7 +297,9 @@
     "startUpdate": "Почати оновлення",
     "done": "Готово",
     "retry": "Повторити",
-    "noPermission": "Оновлення або перевірка файлів сервера потребує дозволу server.install, якого ця роль не має."
+    "noPermission": "Оновлення або перевірка файлів сервера потребує дозволу server.install, якого ця роль не має.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "Очистити папку встановлення?",

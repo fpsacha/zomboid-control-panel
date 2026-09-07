@@ -297,7 +297,9 @@
     "startUpdate": "Iniciar actualización",
     "done": "Hecho",
     "retry": "Reintentar",
-    "noPermission": "Actualizar o verificar los archivos del servidor requiere el permiso server.install, del cual este rol no dispone."
+    "noPermission": "Actualizar o verificar los archivos del servidor requiere el permiso server.install, del cual este rol no dispone.",
+    "stalledMessage": "This is taking longer than expected and the panel hasn't heard back from SteamCMD. It may still be running in the background. You can close this dialog and check the server status separately.",
+    "closeAnyway": "Close Anyway"
   },
   "clearInstallDialog": {
     "title": "¿Vaciar carpeta de instalación?",
