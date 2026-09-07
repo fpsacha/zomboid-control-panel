@@ -15,6 +15,7 @@ import fs from "fs";
 import path from "path";
 import { EventEmitter } from "events";
 import { sanitizeError } from "../utils/sanitize.js";
+import { ErrorCode } from "../utils/errorCodes.js";
 import panelBridge from "./panelBridge.js";
 
 export const MOD_CHECK_INTERVAL_MINUTES_MIN = 1;
@@ -1270,11 +1271,20 @@ export class ModChecker extends EventEmitter {
       }
 
       if (!this.workshopAcfPath || !fs.existsSync(this.workshopAcfPath)) {
+        // This is the normal, permanent state for a non-Steam/GOG install
+        // (GitHub #148) -- there is no Workshop ACF file to find, ever, and
+        // that's not a misconfiguration. It's also indistinguishable from a
+        // legitimate SteamCMD install that has never had a Workshop mod
+        // downloaded, so this deliberately does NOT try to guess which case
+        // it is (see MODS_CHECK_UPDATES_ACF_NOT_FOUND's own comment) --
+        // `code` lets the client show an accurate, non-alarming message
+        // instead of a raw "not found" string in a red error toast.
         log.warn("Workshop ACF file not found - cannot check for updates");
         return {
           updated: false,
           mods: [],
           error: "Workshop ACF file not found",
+          code: ErrorCode.MODS_CHECK_UPDATES_ACF_NOT_FOUND,
         };
       }
 
@@ -1311,6 +1321,37 @@ export class ModChecker extends EventEmitter {
       for (const mod of trackedMods) {
         trackedMap.set(mod.workshop_id, mod);
       }
+
+      // Which mods actually belong to the CURRENTLY ACTIVE server. The
+      // Workshop ACF being read (this.workshopAcfPath) is SteamCMD's own
+      // content cache, not something scoped per configured panel server --
+      // on a host that has ever run more than one server through the same
+      // SteamCMD install, it can carry entries for servers that aren't this
+      // one at all. Prefer the active server's own .ini WorkshopItems= list;
+      // when that can't be read yet (a brand-new server before its first
+      // full config write, a custom launcher the panel doesn't manage the
+      // ini for, a transient error), fall back to this server's own tracked
+      // mods (getTrackedMods() is already server-scoped, unlike the ACF) --
+      // but only when there's at least one real signal to trust. With
+      // neither, there's no way to tell what belongs to this server at all,
+      // so this falls all the way back to no filtering rather than
+      // confidently reporting zero updates for a modChecker that simply
+      // hasn't been wired to a live server config yet. A real user hit the
+      // wrong-server version of this: "My mods list insists I have 24
+      // updates ready despite the fact I setup a NEW server and these are
+      // all freshly installed" -- his own new server's real, current mods
+      // were being compared against whatever a PREVIOUS server had left in
+      // the same shared ACF.
+      const iniWorkshopIds = await this.getConfiguredWorkshopIds();
+      const trackedWorkshopIds = new Set(
+        trackedMods.map((mod) => String(mod?.workshop_id ?? "")).filter(Boolean),
+      );
+      const relevantWorkshopIds =
+        iniWorkshopIds && iniWorkshopIds.size > 0
+          ? iniWorkshopIds
+          : trackedWorkshopIds.size > 0
+            ? trackedWorkshopIds
+            : null;
 
       // Query Steam Web API for latest timestamps.
       // Include tracked mods that aren't in the ACF (e.g. INI lists the ID
@@ -1371,6 +1412,12 @@ export class ModChecker extends EventEmitter {
         for (const [workshopId, details] of Object.entries(parsed.modDetails)) {
           const { timeupdated, latest_timeupdated } = details;
           if (latest_timeupdated > timeupdated) {
+            if (
+              relevantWorkshopIds &&
+              !relevantWorkshopIds.has(String(workshopId))
+            ) {
+              continue;
+            }
             // Skip mods the user explicitly removed from tracking
             if (
               !trackedMap.has(workshopId) &&
@@ -1401,6 +1448,12 @@ export class ModChecker extends EventEmitter {
           if (!steam) continue; // Not found on Steam (deleted/hidden)
 
           if (steam.time_updated > localTime) {
+            if (
+              relevantWorkshopIds &&
+              !relevantWorkshopIds.has(String(workshopId))
+            ) {
+              continue;
+            }
             const trackedMod = trackedMap.get(workshopId);
 
             // Skip mods the user explicitly removed from tracking

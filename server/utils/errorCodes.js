@@ -938,6 +938,15 @@ export const ErrorCode = Object.freeze({
    * MODS_RESTART_CHECK_INTERVAL_INVALID below (that route's field is named
    * checkInterval) -- kept separate. */
   MODS_CHECK_INTERVAL_INVALID: "MODS_CHECK_INTERVAL_INVALID",
+  /** server/services/modChecker.js checkForUpdates() -- no Workshop ACF file exists at the
+   * configured/detected path when POST /check-updates runs. Distinct from MODS_START_ACF_PATH_NOT_SET
+   * (that one is "never configured a path at all"): this is a 200-status, non-throwing result
+   * carrying `error` (kept verbatim for logs) + this code, sent whenever the ACF genuinely isn't
+   * there -- which is the normal, permanent state for a non-Steam/GOG install (GitHub #148) and is
+   * ALSO indistinguishable from a legitimate SteamCMD install that has never had a Workshop mod
+   * downloaded. Client uses this to show an informational, non-destructive message instead of a
+   * red "Update Check Failed" error, without claiming to know which of those two cases it is. */
+  MODS_CHECK_UPDATES_ACF_NOT_FOUND: "MODS_CHECK_UPDATES_ACF_NOT_FOUND",
   /** server/routes/mods.js -- (4 sites: POST/DELETE /collection/items(+/:id), /collection/sync,
    * /collection/test) -- workshopCollectionId setting not set. Identical
    * wording, shared code. */

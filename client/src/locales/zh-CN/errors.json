@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "更改项过多（最多 500 个）",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "拒绝向 Mods= 添加 {{count}} 个形似 Workshop ID 的条目（这些应属于 WorkshopItems=）。",
   "MODS_CHECK_INTERVAL_INVALID": "间隔必须为 60000ms 至 7200000ms 之间、以分钟为单位的整数",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "未找到此安装的创意工坊更新数据。如果这是非 Steam 安装，或是尚未下载过任何创意工坊模组的 Steam 安装，这属于正常情况——你仍然可以手动管理模组。",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "未配置合集 ID",
   "MODS_CONFIG_FILE_NOT_FOUND": "未找到服务器配置文件",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "未找到服务器配置文件。请先启动一次服务器以生成配置文件。",

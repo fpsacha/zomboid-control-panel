@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "عدد كبير جدًا من التغييرات (بحد أقصى 500)",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "تم رفض إضافة {{count}} من المدخلات التي تشبه معرّفات الورشة إلى Mods= (فمكانها WorkshopItems=).",
   "MODS_CHECK_INTERVAL_INVALID": "يجب أن يكون الفاصل الزمني عددًا صحيحًا من الدقائق بين 60000ms و 7200000ms",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "لا توجد بيانات تحديث للورشة لهذا التثبيت. هذا أمر متوقع لتثبيت غير Steam، أو تثبيت Steam لم يتم فيه تنزيل أي مود من الورشة بعد — يمكنك مع ذلك إدارة المودات يدويًا.",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "لم يُضبط معرّف المجموعة",
   "MODS_CONFIG_FILE_NOT_FOUND": "لم يُعثر على ملف إعدادات الخادم",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "لم يُعثر على ملف إعدادات الخادم. شغّل الخادم مرة واحدة أولًا لتوليد ملف الإعدادات.",

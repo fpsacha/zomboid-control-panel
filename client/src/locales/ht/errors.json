@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "Twòp chanjman (maksimòm 500)",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "Refize ajoute {{count}} antre ki gen fòma workshop-ID nan Mods= (sa yo dwe nan WorkshopItems=).",
   "MODS_CHECK_INTERVAL_INVALID": "Entèval la dwe yon nonm antye minit ant 60000ms ak 7200000ms",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "Pa gen done mizajou Workshop pou enstalasyon sa a. Sa nòmal pou yon enstalasyon ki pa Steam, oswa yon enstalasyon Steam ki poko telechaje okenn mod Workshop — ou ka toujou jere mod yo manyèlman.",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "ID koleksyon pa konfigire",
   "MODS_CONFIG_FILE_NOT_FOUND": "Fichye konfig sèvè pa jwenn",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "Fichye konfig sèvè pa jwenn. Demare sèvè a yon fwa dabò pou jenere fichye konfig la.",

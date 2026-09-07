@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "Забагато змін (максимум 500)",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "Відхилено додавання {{count}} записів у форматі workshop ID до Mods= (їхнє місце у WorkshopItems=).",
   "MODS_CHECK_INTERVAL_INVALID": "Інтервал має бути цілим числом хвилин від 60000 мс до 7200000 мс",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "Дані оновлень Workshop для цієї інсталяції не знайдено. Це нормально для інсталяції без Steam або для інсталяції Steam, у якій ще не завантажено жодного мода з Workshop — модами й надалі можна керувати вручну.",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "ID колекції не налаштовано",
   "MODS_CONFIG_FILE_NOT_FOUND": "Файл конфігурації сервера не знайдено",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "Файл конфігурації сервера не знайдено. Спершу запустіть сервер один раз, щоб створити файл конфігурації.",

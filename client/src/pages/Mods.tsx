@@ -72,6 +72,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { reportClientError, reportClientWarning } from '@/lib/client-errors'
 import { getUserErrorMessage } from '@/lib/errorMessage'
+import { resolveRegisteredTranslation } from '@/lib/paramTranslation'
 import {
   Dialog,
   DialogContent,
@@ -1122,7 +1123,24 @@ export default function Mods() {
       const count =
         (Array.isArray(result?.mods) ? result.mods.length : 0) ||
         (typeof result?.updatesFound === 'number' ? result.updatesFound : 0)
-      if (result?.error) {
+      // MODS_CHECK_UPDATES_ACF_NOT_FOUND is the normal, permanent state for a
+      // non-Steam/GOG install (GitHub #148) -- there is no Workshop ACF file
+      // to find, ever, and that's not a failure the operator caused or can
+      // "fix". It's also indistinguishable server-side from a legitimate
+      // SteamCMD install that has never downloaded a Workshop mod, so this
+      // shows an accurate, non-alarming explanation instead of the raw
+      // "Workshop ACF file not found" string in a red error toast.
+      const workshopAcfNotFoundMessage =
+        result?.code === 'MODS_CHECK_UPDATES_ACF_NOT_FOUND'
+          ? resolveRegisteredTranslation('errors', result.code, undefined)
+          : null
+      if (workshopAcfNotFoundMessage) {
+        toast({
+          title: t('toasts.workshopDataUnavailableTitle'),
+          description: workshopAcfNotFoundMessage,
+          variant: 'default',
+        })
+      } else if (result?.error) {
         toast({
           title: t('toasts.updateCheckFailedTitle'),
           description: String(result.error),
@@ -2613,18 +2631,27 @@ export default function Mods() {
             </>
           )}
 
-          {/* Workshop ACF Status */}
+          {/* Workshop ACF Status -- an install with no Workshop ACF file is
+              NOT necessarily broken: it's the normal, permanent state for a
+              non-Steam/GOG install (GitHub #148), and is indistinguishable
+              from a legitimate SteamCMD install that just hasn't downloaded
+              a Workshop mod yet. Neutral/informational styling on purpose --
+              this used to render as a persistent destructive/red banner
+              implying a misconfiguration the operator needed to "fix",
+              which is actively misleading for the non-Steam case. The
+              "Fix path" action stays for the operator who genuinely does
+              use Workshop mods and has the path wrong. */}
           {!status?.workshopAcfConfigured && (
             <>
               <Separator orientation="vertical" className="h-4" />
-              <div className="flex min-w-0 items-center gap-2 text-destructive" role="status">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <div className="flex min-w-0 items-center gap-2 text-muted-foreground" role="status">
+                <Info className="w-3.5 h-3.5 shrink-0" />
                 <span className="text-xs">{t('statusBar.workshopPathMissing')}</span>
                 <DisabledReason reason={!canManageServers ? t('permissions.noServersManage') : null}>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 border-destructive/30 px-2 text-xs text-foreground hover:bg-destructive/10"
+                    className="h-7 px-2 text-xs"
                     onClick={handleOpenWorkshopBrowser}
                     disabled={savingWorkshopPath || !canManageServers}
                   >

@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "Too many changes (max 500)",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "Refusing to add {{count}} workshop-ID-shaped entries to Mods= (those belong in WorkshopItems=).",
   "MODS_CHECK_INTERVAL_INVALID": "Interval must be a whole number of minutes from 60000ms to 7200000ms",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "No Workshop update data found for this install. This is expected for a non-Steam install, or a Steam install that hasn't downloaded a Workshop mod yet — you can still manage mods manually.",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "Collection ID not configured",
   "MODS_CONFIG_FILE_NOT_FOUND": "Server config file not found",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "Server config file not found. Start the server once first to generate the config file.",

@@ -16,6 +16,16 @@ import { ConfirmProvider } from '@/contexts/ConfirmContext'
 // Remove) that must never collapse into the same signal as a transient
 // outage.
 
+// toast() renders into a <Toaster/> this test's render tree doesn't mount
+// (it lives at the app root, not under Mods) -- asserting on DOM text for it
+// hangs findByText for the full vitest testTimeout rather than failing fast
+// (Events.utilitiesPersistWarning.test.tsx's own toastSpy convention).
+// Spying on useToast directly is the established pattern for this codebase.
+const toastSpy = vi.hoisted(() => vi.fn())
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({ toast: toastSpy, dismiss: vi.fn(), toasts: [] }),
+}))
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'u1', username: 'someone', role: 'admin', capabilities: [] },
@@ -45,6 +55,7 @@ vi.mock('@/lib/api', async () => {
       getCachedConflicts: vi.fn(),
       listDiskOnly: vi.fn(),
       batchRemove: vi.fn(),
+      checkUpdates: vi.fn(),
     },
     serversApi: {
       ...actual.serversApi,
@@ -63,6 +74,7 @@ const getPresets = vi.mocked(modsApi.getPresets)
 const getCachedConflicts = vi.mocked(modsApi.getCachedConflicts)
 const listDiskOnly = vi.mocked(modsApi.listDiskOnly)
 const batchRemove = vi.mocked(modsApi.batchRemove)
+const checkUpdates = vi.mocked(modsApi.checkUpdates)
 
 function renderMods() {
   return render(
@@ -118,6 +130,7 @@ const REMOVED_BANNER_KEY = /no longer exists on the Steam Workshop|no longer exi
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  toastSpy.mockClear()
   localStorage.clear()
 })
 
@@ -240,5 +253,71 @@ describe('Mods -- unknown Steam result (third state, must not collapse into remo
     renderMods()
     await screen.findAllByText(/mods/i)
     expect(screen.queryByText(/code \d/i)).not.toBeInTheDocument()
+  })
+})
+
+// 2026-09-07 lifecycle-actions hardening, GitHub #148: a non-Steam/GOG
+// install has no Workshop ACF file, ever -- that used to render as a
+// persistent destructive/red "Workshop path missing" banner and, on Check
+// Updates, a red "Update Check Failed / Workshop ACF file not found" toast.
+// Neither is a misconfiguration the operator caused; it's indistinguishable
+// server-side from a legitimate SteamCMD install with zero downloaded
+// Workshop mods. These prove the informational rewording actually replaces
+// the alarming one, not just that new text exists somewhere.
+describe('Mods -- Workshop ACF not found is informational, not an alarm (GitHub #148)', () => {
+  it('renders the status-bar note as neutral text, not the old "path missing" wording', async () => {
+    primeReadMocks({ workshopAcfConfigured: false })
+    renderMods()
+
+    expect(await screen.findByText('No Workshop data')).toBeInTheDocument()
+    expect(screen.queryByText(/workshop path missing/i)).not.toBeInTheDocument()
+  })
+
+  it('Check Updates fires an informational toast (not the raw "Workshop ACF file not found" destructive error) when the backend reports MODS_CHECK_UPDATES_ACF_NOT_FOUND', async () => {
+    primeReadMocks({ workshopAcfConfigured: false })
+    checkUpdates.mockResolvedValue({
+      updated: false,
+      mods: [],
+      error: 'Workshop ACF file not found',
+      code: 'MODS_CHECK_UPDATES_ACF_NOT_FOUND',
+    } as any)
+    renderMods()
+
+    fireEvent.click(await screen.findByRole('button', { name: /check updates/i }))
+
+    await waitFor(() => expect(toastSpy).toHaveBeenCalled())
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Workshop Data Unavailable',
+        description: expect.stringMatching(/expected for a non-Steam install/i),
+        variant: 'default',
+      }),
+    )
+    // The old alarming copy must not appear in the call at all.
+    expect(toastSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Update Check Failed' }),
+    )
+  })
+
+  it('a genuine, uncoded update-check failure still fires the destructive error toast unchanged', async () => {
+    primeReadMocks({ workshopAcfConfigured: true })
+    checkUpdates.mockResolvedValue({
+      updated: false,
+      mods: [],
+      error: 'Steam API request failed',
+    } as any)
+    renderMods()
+
+    fireEvent.click(await screen.findByRole('button', { name: /check updates/i }))
+
+    await waitFor(() =>
+      expect(toastSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Update Check Failed',
+          description: 'Steam API request failed',
+          variant: 'destructive',
+        }),
+      ),
+    )
   })
 })

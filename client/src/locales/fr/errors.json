@@ -237,6 +237,7 @@
   "MODS_BATCH_TOGGLE_TOO_MANY": "Trop de modifications (500 maximum)",
   "MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS": "Refus d'ajouter {{count}} entrée(s) ressemblant à un ID Workshop à Mods= (celles-ci appartiennent à WorkshopItems=).",
   "MODS_CHECK_INTERVAL_INVALID": "L'intervalle doit être un nombre entier de minutes, de 60000 ms à 7200000 ms",
+  "MODS_CHECK_UPDATES_ACF_NOT_FOUND": "Aucune donnée de mise à jour Workshop trouvée pour cette installation. C'est normal pour une installation non-Steam, ou une installation Steam qui n'a encore téléchargé aucun mod du Workshop — vous pouvez toujours gérer les mods manuellement.",
   "MODS_COLLECTION_ID_NOT_CONFIGURED": "ID de collection non configuré",
   "MODS_CONFIG_FILE_NOT_FOUND": "Fichier de configuration du serveur introuvable",
   "MODS_CONFIG_FILE_NOT_FOUND_GUIDANCE": "Fichier de configuration du serveur introuvable. Démarrez le serveur une première fois pour générer le fichier de configuration.",
