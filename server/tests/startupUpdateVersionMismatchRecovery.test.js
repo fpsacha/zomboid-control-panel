@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { fileURLToPath } from "url";
 import { recoverFromStartupInspectionFailure } from "../index.js";
 import { applyUpdateBundle, stageUpdateBundle } from "../services/updateBundle.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // State-machine sweep, 2026-09-07 (god's dispatch): inspectPendingPanelUpdate()
 // (index.js, called before httpServer.listen()) throws version_mismatch the
@@ -118,5 +121,37 @@ describe("recoverFromStartupInspectionFailure: the pre-listen version_mismatch c
     error.code = "version_mismatch";
 
     expect(() => recoverFromStartupInspectionFailure(error, journalPath)).not.toThrow();
+  });
+});
+
+// Log-adequacy follow-up, 2026-09-07 (god's dispatch): a log-only failure
+// path (nothing before httpServer.listen() has an HTTP client to report
+// through) IS the whole interface for that failure -- generic
+// error.message with no file path is not an interface, it's a symptom
+// description. Both of index.js's fatal update-startup catches now include
+// the journal path in the log line itself. start() isn't decomposable for
+// a real execution test (it boots the actual server), so this is a
+// textual regression guard on the source instead of a mocked-log
+// assertion -- cheap, and it fails immediately if a future edit to either
+// message drops the path again, the same way errorCodeRegistry.test.js's
+// own literal-scanning checks are textual rather than behavioral by
+// necessity.
+describe("startup update-failure log messages name the journal file to act on", () => {
+  const indexSource = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+
+  it("the pre-listen 'Update startup validation failed' catch includes the journal path", () => {
+    const match = indexSource.match(
+      /`Update startup validation failed \[[\s\S]{0,200}?`/,
+    );
+    expect(match).not.toBeNull();
+    expect(match[0]).toContain("journalPath");
+  });
+
+  it("the post-listen 'Update startup handshake failed' catch includes the journal path", () => {
+    const match = indexSource.match(
+      /`Update startup handshake failed \[[\s\S]{0,200}?`/,
+    );
+    expect(match).not.toBeNull();
+    expect(match[0]).toContain("updateBundleJournalPath()");
   });
 });

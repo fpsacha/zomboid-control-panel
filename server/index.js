@@ -2848,10 +2848,17 @@ async function start() {
       try {
         _pendingUpdateInspection = inspectPendingPanelUpdate();
       } catch (error) {
+        // A log line is the ENTIRE interface for a failure this early --
+        // there is no HTTP server yet for a UI to report through. Naming
+        // the journal path here is the difference between "delete the
+        // right file" and "go find it yourself" for whichever of the two
+        // outcomes below actually applies (a version_mismatch that just
+        // got rolled back, or anything else that didn't).
+        const journalPath = updateBundleJournalPath();
         log.error(
-          `Update startup validation failed [${error.code || "invalid_bundle"}]: ${error.message}`,
+          `Update startup validation failed [${error.code || "invalid_bundle"}]: ${error.message}. Journal: ${journalPath}`,
         );
-        recoverFromStartupInspectionFailure(error, updateBundleJournalPath());
+        recoverFromStartupInspectionFailure(error, journalPath);
         process.exit(76);
         return;
       }
@@ -3367,8 +3374,13 @@ async function start() {
             }
           }
         } catch (error) {
+          // Same reasoning as inspectPendingPanelUpdate()'s catch above:
+          // this is a log-only failure path (the process exits a few lines
+          // down, before any client can ever see a response), so the
+          // journal path belongs in the message itself, not left for an
+          // operator to rediscover.
           log.error(
-            `Update startup handshake failed [${error.code || "startup_handshake_failed"}]: ${error.message}`,
+            `Update startup handshake failed [${error.code || "startup_handshake_failed"}]: ${error.message}. Journal: ${updateBundleJournalPath()}`,
           );
           if (error.code === "version_mismatch") {
             // client/dist was just rolled back to the previous version by
