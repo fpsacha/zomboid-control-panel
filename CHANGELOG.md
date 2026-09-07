@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   custom role holding only role-management permission, with nothing else standing in the way. Editing
   a role's capabilities now refuses to add anything beyond what the acting user's own role already
   grants; narrowing or renaming an existing role is unaffected.
+- **Anyone signed in to the panel could see the names of players currently online, whatever their role**
+  - the panel-bridge status ping returned the live player list with no player-viewing permission
+  required, unlike every other place the panel shows who is on a server. The same response also
+  exposed the mod's installation path on the game server and, for a remotely-managed server, the
+  panel's own local mirror path. The ping now returns only what it is for - whether the bridge is
+  reachable and which server answered.
 - **A backup's existence, filenames, and the panel's own file-system paths could be read by anyone with
   a valid login, regardless of role** - none of the three read-only backup routes (status, list,
   history) required any capability at all. They now require holding at least one of the three
@@ -36,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on its own: a stale or corrupted update record is now rolled back automatically at startup instead of
   blocking every future launch, and if the record itself is unreadable, the panel restores from its own
   backup copy and quarantines the bad record so it can't cause the problem again.
+- **Restarting the panel (including "Restart and Apply Update") could drop you on an error page even
+  when the restart worked** - and could equally show success when it had not. The page waited a fixed
+  three seconds and then reloaded regardless of what had actually happened, which was never long enough
+  to be safe: the panel answers the restart request *before* it shuts down, so "success" only ever meant
+  the old process agreed to exit, not that a new one came back. The page now waits for the panel to
+  actually answer again - and checks the version that answers, so it cannot reconnect to the old process
+  on its way out - reloading only once the new panel is genuinely up, and offering to keep waiting if it
+  is taking longer than expected.
 - **A backward step in the system clock - an NTP correction, a daylight-saving change, or a manual
   clock adjustment - could permanently disable four separate self-healing safety checks**, each going
   quiet exactly when it was needed most: the mod-update auto-restart grace period, the player-count
