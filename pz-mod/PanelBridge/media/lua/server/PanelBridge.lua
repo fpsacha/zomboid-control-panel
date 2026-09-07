@@ -1,10 +1,21 @@
 ---@diagnostic disable: undefined-global, deprecated
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.7.53
+    Version: 1.7.54
 
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
+
+                v1.7.54 Changes:
+                - Fix: readJSON() called json.decode with no pcall protection,
+                    while processQueuedCommands wrapped the identical decode
+                    500 lines away specifically because a malformed file
+                    can't be allowed to throw. Same risk on all four readJSON
+                    callers (queue state load, inbox resync self-heal, and
+                    both legacy commands.json reads) is now closed the same
+                    way: a decode failure returns nil (treated as absent
+                    state, not empty) instead of crashing the mod's update
+                    tick.
 
                 v1.7.49 Changes:
                 - Fix: Build 42 exposes VehicleParts as Java userdata;
@@ -479,7 +490,7 @@
 local json
 
 local PanelBridge = {
-    VERSION = "1.7.53",
+    VERSION = "1.7.54",
     PROTOCOL_VERSION = "queue-v1",
     CHECK_INTERVAL = 250, -- milliseconds (fast command polling)
     lastCheck = 0,
@@ -1452,7 +1463,23 @@ function PanelBridge.readJSON(filename)
     if not content or content == "" then
         return nil
     end
-    return json.decode(content)
+    -- pcall-protect json.decode so a malformed/torn file can't throw here --
+    -- same precedent as processQueuedCommands' inline decode below, applied
+    -- to every readJSON caller instead of just the one that already had it.
+    -- All four current callers (readQueueState, tryResyncInboxCursor, the
+    -- legacy commands.json intake x2) already treat a nil return as "no
+    -- data yet" and fall back to their own defaults, so returning nil here
+    -- on a decode failure is "absent", not "empty" -- it re-derives state
+    -- from scratch rather than proceeding as if the file said nothing.
+    local decodeOk, decoded = pcall(json.decode, content)
+    if not decodeOk then
+        PanelBridge.warn("Failed to decode JSON file, treating as absent", {
+            file = filename,
+            parseError = tostring(decoded)
+        })
+        return nil
+    end
+    return decoded
 end
 
 function PanelBridge.writeJSON(filename, data)
