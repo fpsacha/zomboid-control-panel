@@ -337,6 +337,25 @@ class AuthService {
         return Number.isNaN(expiresAt) || expiresAt > now;
       })
       .slice(-MAX_REFRESH_SESSIONS);
+
+    // sweep-round4 (2026-09-07): tombstones for sessions dropped by
+    // createRefreshSession() to stay under MAX_REFRESH_SESSIONS -- see that
+    // method's own comment for why this exists and why it records only
+    // "capacity", never the security reasons. Bounded and expired the same
+    // way refreshSessions itself is, immediately above: a tombstone that
+    // outlives the token it describes is a leak, not a record, so it is
+    // capped at MAX_REFRESH_SESSIONS entries and pruned the instant the
+    // session it describes would itself have expired -- never later.
+    if (!Array.isArray(user.evictedRefreshSessions)) {
+      user.evictedRefreshSessions = [];
+    }
+    user.evictedRefreshSessions = user.evictedRefreshSessions
+      .filter((tombstone) => tombstone && typeof tombstone.id === "string")
+      .filter((tombstone) => {
+        const expiresAt = Date.parse(tombstone.expiresAt || "");
+        return Number.isNaN(expiresAt) || expiresAt > now;
+      })
+      .slice(-MAX_REFRESH_SESSIONS);
   }
 
   createRefreshSession(user) {
@@ -352,7 +371,26 @@ class AuthService {
 
     user.refreshSessions.push(session);
     if (user.refreshSessions.length > MAX_REFRESH_SESSIONS) {
-      user.refreshSessions = user.refreshSessions.slice(-MAX_REFRESH_SESSIONS);
+      // A capacity eviction is the one case where the thing doing the
+      // dropping (here) is also the only thing that will ever know *why* --
+      // findRefreshSession() later sees nothing but a missing id, same as it
+      // would for an expired, revoked, or forged one. Record the reason at
+      // this single site rather than let a caller downstream guess it: a
+      // guess can be wrong, and a false "just capacity" told to a genuinely
+      // compromised user is strictly worse than today's silence.
+      const overflow = user.refreshSessions.length - MAX_REFRESH_SESSIONS;
+      const evicted = user.refreshSessions.splice(0, overflow);
+      user.evictedRefreshSessions.push(
+        ...evicted.map((evictedSession) => ({
+          id: evictedSession.id,
+          reason: "capacity",
+          expiresAt: evictedSession.expiresAt,
+        })),
+      );
+      if (user.evictedRefreshSessions.length > MAX_REFRESH_SESSIONS) {
+        user.evictedRefreshSessions =
+          user.evictedRefreshSessions.slice(-MAX_REFRESH_SESSIONS);
+      }
     }
 
     return session;
@@ -363,6 +401,21 @@ class AuthService {
     return (
       user.refreshSessions.find((session) => session.id === sessionId) || null
     );
+  }
+
+  // Returns "capacity" if `sessionId` is missing from refreshSessions
+  // *because* it was evicted to enforce MAX_REFRESH_SESSIONS, or null for
+  // every other reason a session can be missing (expired, revoked by a
+  // security action, or simply never existed / forged). Callers must treat
+  // null as "say nothing more than usual" -- it is the only response that
+  // does not tell a forged-token holder whether the id it guessed was ever
+  // real.
+  findCapacityEvictionReason(user, sessionId) {
+    this.ensureUserAuthState(user);
+    const tombstone = user.evictedRefreshSessions.find(
+      (entry) => entry.id === sessionId,
+    );
+    return tombstone && tombstone.reason === "capacity" ? "capacity" : null;
   }
 
   revokeRefreshSession(user, sessionId) {
@@ -962,6 +1015,16 @@ class AuthService {
       }
 
       if (!this.findRefreshSession(user, payload.sessionId)) {
+        // sweep-round4: distinguish "kicked for capacity" from every other
+        // reason this id could be missing (expired / revoked / forged) --
+        // see findCapacityEvictionReason()'s own comment for why those three
+        // stay indistinguishable from each other on purpose.
+        const reason = this.findCapacityEvictionReason(user, payload.sessionId);
+        if (reason === "capacity") {
+          const capacityError = new Error("Refresh token session was evicted for capacity");
+          capacityError.refreshFailureReason = "capacity";
+          throw capacityError;
+        }
         throw new Error("Refresh token session is no longer active");
       }
 
@@ -979,6 +1042,14 @@ class AuthService {
         refreshToken: newRefreshToken,
       };
     } catch (error) {
+      // Every failure returns null (the pre-existing, deliberately
+      // uninformative contract for the security cases) EXCEPT a capacity
+      // eviction, which is a product fact, not a security one -- see
+      // createRefreshSession()'s tombstone comment. Only that one reason is
+      // allowed to leave this method distinguishable from the rest.
+      if (error.refreshFailureReason === "capacity") {
+        return { refreshFailureReason: "capacity" };
+      }
       return null;
     }
   }

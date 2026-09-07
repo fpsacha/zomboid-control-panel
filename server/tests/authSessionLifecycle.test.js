@@ -173,3 +173,100 @@ describe("logout() and the session-revocation bus (onSessionRevoked)", () => {
     expect(afterLogout).toBeNull();
   });
 });
+
+// sweep-round4 (2026-09-07, dwight): god's ruling on the MAX_REFRESH_SESSIONS
+// silent-eviction observation -- build a tombstone, not a heuristic, because
+// findRefreshSession() returning null carries no reason and guessing one is
+// worse than the silence we have today: a false "just capacity" told to a
+// genuinely compromised user is a false all-clear. createRefreshSession() is
+// the ONLY site that knows *why* it dropped a session, so it's the only site
+// that records a reason -- and only "capacity", never the security ones
+// (expired/revoked/forged), which must stay identical to each other on
+// purpose (telling a forged-token holder "that one was real once" is a gift).
+//
+// PRE-FIX BREAK-VERIFY: before this fix, `refreshAccessToken` returned a bare
+// `null` for a capacity-evicted session's token, byte-identical to what it
+// returns for a forged one -- the first test below would have received
+// `null` instead of `{ refreshFailureReason: "capacity" }` and failed.
+describe("MAX_REFRESH_SESSIONS capacity eviction: a tombstone, not a guess", () => {
+  beforeEach(() => {
+    resetWith({
+      roles: [TECHNICIAN_ROLE],
+      users: [
+        { id: "u-tech", username: "tech", role: "technician", roleId: "role-technician", tokenGen: 0 },
+      ],
+    });
+    authService.jwtSecret = "test-capacity-secret";
+  });
+
+  it("the refresh token of a session evicted purely for capacity gets a distinct reason, not the generic null", async () => {
+    const user = db.data.users[0];
+
+    // MAX_REFRESH_SESSIONS is 5 (services/auth.js) -- the oldest survives
+    // exactly 5 concurrent sessions and is evicted by the 6th.
+    const oldestSession = authService.createRefreshSession(user);
+    const oldestRefreshToken = authService.generateRefreshToken(user, oldestSession.id);
+    for (let i = 0; i < 4; i += 1) {
+      authService.createRefreshSession(user);
+    }
+    expect(user.refreshSessions).toHaveLength(5);
+    expect(user.refreshSessions.some((s) => s.id === oldestSession.id)).toBe(true);
+
+    // The 6th session pushes the oldest out.
+    authService.createRefreshSession(user);
+    expect(user.refreshSessions).toHaveLength(5);
+    expect(user.refreshSessions.some((s) => s.id === oldestSession.id)).toBe(false);
+
+    const result = await authService.refreshAccessToken(oldestRefreshToken);
+    expect(result).toEqual({ refreshFailureReason: "capacity" });
+  });
+
+  it("a genuinely forged token (never a real session) still gets the plain, uninformative null -- the half that matters", async () => {
+    const user = db.data.users[0];
+    // Same shape as a real refresh token, but for a sessionId that was never
+    // created -- indistinguishable, from the outside, from a stolen and
+    // guessed id.
+    const forgedToken = authService.generateRefreshToken(user, "session-that-never-existed");
+
+    const result = await authService.refreshAccessToken(forgedToken);
+    expect(result).toBeNull();
+  });
+
+  it("a session revoked by logout (a security reason) still gets the plain null, not the capacity reason -- the two must not be confusable", async () => {
+    const user = db.data.users[0];
+    const session = authService.createRefreshSession(user);
+    const refreshToken = authService.generateRefreshToken(user, session.id);
+
+    await authService.logout(refreshToken);
+
+    const result = await authService.refreshAccessToken(refreshToken);
+    expect(result).toBeNull();
+  });
+
+  it("tombstone storage is bounded -- churning sessions well past MAX_REFRESH_SESSIONS does not grow evictedRefreshSessions without limit", async () => {
+    const user = db.data.users[0];
+    for (let i = 0; i < 20; i += 1) {
+      authService.createRefreshSession(user);
+    }
+    expect(user.evictedRefreshSessions.length).toBeLessThanOrEqual(5);
+  });
+
+  it("a tombstone does not outlive the token it describes -- it is pruned once that token's own expiresAt has passed", async () => {
+    const user = db.data.users[0];
+    authService.createRefreshSession(user);
+    for (let i = 0; i < 5; i += 1) {
+      authService.createRefreshSession(user);
+    }
+    expect(user.evictedRefreshSessions).toHaveLength(1);
+    const [tombstone] = user.evictedRefreshSessions;
+
+    // Simulate that tombstone's own describes-a-token expiry having already
+    // passed, the same way an already-expired refreshSessions entry would be
+    // pruned by ensureUserAuthState.
+    tombstone.expiresAt = new Date(Date.now() - 1000).toISOString();
+
+    const reason = authService.findCapacityEvictionReason(user, tombstone.id);
+    expect(reason).toBeNull();
+    expect(user.evictedRefreshSessions).toHaveLength(0);
+  });
+});

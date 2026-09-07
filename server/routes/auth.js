@@ -343,7 +343,21 @@ router.post("/refresh", async (req, res) => {
     }
 
     const result = await authService.refreshAccessToken(refreshToken);
-    if (!result) {
+    // sweep-round4: services/auth.js's refreshAccessToken() now distinguishes
+    // a session dropped only to enforce MAX_REFRESH_SESSIONS (a product
+    // fact, `{ refreshFailureReason: "capacity" }`, no accessToken) from
+    // every other reason a session can be missing (a security fact, plain
+    // `null`) -- see createRefreshSession()'s tombstone comment. Wiring the
+    // capacity case into its OWN distinct HTTP response needs a new wire
+    // code, which is a nine-file change (errorCodes.js + one entry per
+    // locale); parked pending a go/no-go per god's "no new ErrorCode
+    // without telling me first" ruling, rather than landing it as an
+    // unregistered literal that errorCodeRegistry.test.js would rightly
+    // flag. Until that lands this still has to be treated as a failure
+    // here -- `!result.accessToken` catches BOTH shapes, so a
+    // capacity-evicted refresh gets today's generic 401 rather than a
+    // broken 200 with an undefined accessToken.
+    if (!result || !result.accessToken) {
       // Clear invalid cookie
       res.clearCookie("refreshToken", getRefreshCookieOptions(req, false));
       return res
