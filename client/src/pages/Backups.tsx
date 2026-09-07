@@ -93,6 +93,17 @@ export default function Backups() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [creatingBackup, setCreatingBackup] = useState(false)
+  // bug-hunt-2026-09-06: fetchBackupStatus below only ever sets this TRUE
+  // (see its own comment) when it detects a backup already running
+  // elsewhere at mount/refresh -- if that backup's terminal backup:progress
+  // event never reaches THIS session, nothing else was polling
+  // backupInProgress to correct it, so creatingBackup could stay stuck true
+  // indefinitely (Create/Restore disabled, no error, page still navigable
+  // but silently wrong). ownBackupInFlightRef distinguishes that path from
+  // THIS session's own handleCreateBackup call, which already has its own
+  // finally clearing creatingBackup regardless of the socket -- the
+  // watchdog below must never interfere with that one.
+  const ownBackupInFlightRef = useRef(false)
   const [restoringBackup, setRestoringBackup] = useState<string | null>(null)
   const [deletingBackups, setDeletingBackups] = useState(false)
   const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(null)
@@ -267,6 +278,30 @@ export default function Backups() {
     }
   }, [socket, fetchBackups, fetchBackupStatus])
 
+  // Watchdog for the externally-started-backup case ownBackupInFlightRef
+  // documents above: independently re-checks the server's actual
+  // backupInProgress state rather than trusting the socket event to
+  // eventually arrive. Never runs while THIS session's own
+  // handleCreateBackup is in flight -- that path already self-corrects via
+  // its own finally regardless of this effect.
+  useEffect(() => {
+    if (!creatingBackup || ownBackupInFlightRef.current) return
+    const interval = setInterval(async () => {
+      if (ownBackupInFlightRef.current) return
+      try {
+        const status = await backupApi.getStatus()
+        if (!status.backupInProgress) {
+          setCreatingBackup(false)
+          setBackupProgress(null)
+          fetchBackups()
+        }
+      } catch {
+        // Transient -- next tick tries again.
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [creatingBackup, fetchBackups])
+
   // See serverChangedSinceLoad's own comment above for why this exists.
   useEffect(() => {
     if (!socket) return
@@ -311,6 +346,7 @@ export default function Backups() {
       clearTimeout(progressTimeoutRef.current)
       progressTimeoutRef.current = null
     }
+    ownBackupInFlightRef.current = true
     setCreatingBackup(true)
     setBackupProgress({ phase: 'preparing', percent: 0, message: t('progress.startingFallback') })
     try {
@@ -344,6 +380,7 @@ export default function Backups() {
       progressTimeoutRef.current = setTimeout(() => setBackupProgress(null), 3000)
     } finally {
       setCreatingBackup(false)
+      ownBackupInFlightRef.current = false
     }
   }
 
