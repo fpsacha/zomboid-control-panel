@@ -45,7 +45,13 @@ describe("POST /api/server/delete-files safety guards", () => {
     fs.writeFileSync(path.join(installDir, "ProjectZomboid64.json"), "{}");
     serverManager = {
       loadConfig: async () => {},
-      getServerProcessDetails: async () => ({ running: false, scanFailed: false }),
+      // split-derivation sweep, 2026-09-07: the route no longer trusts a
+      // flat `running` field (that was serverManager's own ambient
+      // active-server state, not necessarily the server being deleted) --
+      // it matches the TARGET server's installPath against `matched`, the
+      // same system-wide process list servers.js's per-server-status route
+      // already keys off of. Default: no processes found at all.
+      getServerProcessDetails: async () => ({ scanFailed: false, matched: [] }),
     };
     // bug-hunt-2026-08-27: deletePath must now also match a configured
     // server's own installPath -- the marker-file check alone was
@@ -85,8 +91,8 @@ describe("POST /api/server/delete-files safety guards", () => {
 
   it("refuses while the server is running", async () => {
     serverManager.getServerProcessDetails = async () => ({
-      running: true,
       scanFailed: false,
+      matched: [{ cmd: installDir, pid: 111 }],
     });
     const handler = getDeleteFilesHandler();
     const response = createResponse();
@@ -101,9 +107,44 @@ describe("POST /api/server/delete-files safety guards", () => {
     expect(fs.existsSync(installDir)).toBe(true);
   });
 
+  // split-derivation sweep, 2026-09-07 (the actual bug this route had):
+  // before the fix, "is it running" was answered from serverManager's own
+  // ambient state -- whichever server the panel currently has
+  // active/loaded, NOT necessarily installDir's owner. This simulates the
+  // exact wrong-pairing scenario: the ACTIVE server (id 2, a different
+  // install path, tracked by serverManager) is stopped, while the TARGET
+  // of this delete (id 1, installDir, not active) is actually running.
+  // Pre-fix, this would have sailed through -- serverManager.running would
+  // have reported the ACTIVE server's (stopped) state, not installDir's.
+  it("refuses to delete a NON-active configured server's files while THAT server is running, even though the active server (tracked by serverManager) is stopped", async () => {
+    const otherInstallDir = path.join(os.tmpdir(), "pz-other-active-server");
+    getServers.mockResolvedValue([
+      { id: 1, installPath: installDir },
+      { id: 2, installPath: otherInstallDir },
+    ]);
+    // serverManager's own process-detection reports the ACTIVE server
+    // (id 2) is stopped -- but the scan itself is system-wide, so its
+    // `matched` list still surfaces installDir's (id 1's) real process.
+    serverManager.getServerProcessDetails = async () => ({
+      scanFailed: false,
+      matched: [{ cmd: installDir, pid: 222 }],
+    });
+
+    const handler = getDeleteFilesHandler();
+    const response = createResponse();
+
+    await handler(buildRequest({ confirm: true }), response);
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "WIPE_SERVER_RUNNING" }),
+    );
+    expect(fs.existsSync(installDir)).toBe(true);
+  });
+
   it("refuses when it cannot be determined whether the server is running (fails closed)", async () => {
     serverManager.getServerProcessDetails = async () => ({
-      running: false,
+      matched: [],
       scanFailed: true,
     });
     const handler = getDeleteFilesHandler();
@@ -201,57 +242,35 @@ describe("POST /api/server/delete-files safety guards", () => {
     });
   });
 
-  // 2026-08-26 bug hunt round 2, Pam's finding 2: the entry check happens
-  // once, but everything after it (path/marker validation) is synchronous --
-  // getServerProcessDetails() itself is the only part of this route that
-  // yields, so a server that starts DURING that scan (a second admin
-  // session, a scheduler task, a supervisor auto-restart) would previously
-  // sail through undetected. These simulate exactly that: the first check
-  // (at route entry) sees a stopped server, but the server has started by
-  // the time the SECOND check (immediately before the actual delete) runs.
-  describe("re-checks immediately before the delete, not just at entry", () => {
-    it("refuses when the server starts between the entry check and the delete", async () => {
-      let calls = 0;
-      serverManager.getServerProcessDetails = async () => {
-        calls += 1;
-        return calls === 1
-          ? { running: false, scanFailed: false }
-          : { running: true, scanFailed: false };
-      };
-      const handler = getDeleteFilesHandler();
-      const response = createResponse();
+  // 2026-08-26 bug hunt round 2, Pam's finding 2 (original shape): the
+  // entry check happened once, then everything after it (path/marker
+  // validation) was synchronous, so a server that started DURING that
+  // first scan would sail through the second check undetected -- fixed by
+  // re-checking immediately before the delete too.
+  //
+  // split-derivation sweep, 2026-09-07: that "first" check is GONE now, not
+  // just fixed -- it ran before deletePath was even parsed, so it was
+  // structurally checking the wrong server's state by construction (see
+  // server.js's comment on checkSpecificServerStopped). There is only one
+  // check left, and it is positioned exactly where the old "second" check
+  // was: immediately before the delete. This test now guards against that
+  // redundant premature check ever coming back, rather than simulating a
+  // race between two checks that no longer both exist.
+  it("checks the target server's process state exactly once, immediately before the delete -- not a stale entry check", async () => {
+    let calls = 0;
+    serverManager.getServerProcessDetails = async () => {
+      calls += 1;
+      return { scanFailed: false, matched: [] };
+    };
+    const handler = getDeleteFilesHandler();
+    const response = createResponse();
 
-      await handler(buildRequest({ confirm: true }), response);
+    await handler(buildRequest({ confirm: true }), response);
 
-      expect(calls).toBeGreaterThanOrEqual(2);
-      expect(response.status).toHaveBeenCalledWith(400);
-      expect(response.json).toHaveBeenCalledWith(
-        expect.objectContaining({ code: "WIPE_SERVER_RUNNING" }),
-      );
-      // The whole point: refusal must be real, the install must survive.
-      expect(fs.existsSync(installDir)).toBe(true);
-    });
-
-    it("fails closed when the second scan itself can't tell, even though the first scan could", async () => {
-      let calls = 0;
-      serverManager.getServerProcessDetails = async () => {
-        calls += 1;
-        return calls === 1
-          ? { running: false, scanFailed: false }
-          : { running: false, scanFailed: true };
-      };
-      const handler = getDeleteFilesHandler();
-      const response = createResponse();
-
-      await handler(buildRequest({ confirm: true }), response);
-
-      expect(calls).toBeGreaterThanOrEqual(2);
-      expect(response.status).toHaveBeenCalledWith(503);
-      expect(response.json).toHaveBeenCalledWith(
-        expect.objectContaining({ code: "SERVER_STATE_UNKNOWN" }),
-      );
-      expect(fs.existsSync(installDir)).toBe(true);
-    });
+    expect(calls).toBe(1);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true }),
+    );
   });
 
   // 2026-08-26 bug hunt round 2 follow-up, Michelle's UX audit: "Delete
@@ -263,11 +282,19 @@ describe("POST /api/server/delete-files safety guards", () => {
   // install folder, in which case this same one-click delete also destroys
   // the world save with no separate copy -- the actual "delete that doesn't
   // look like one." These simulate that configuration directly.
-  describe("refuses when the active server's Zomboid data folder is inside the folder being deleted", () => {
+  describe("refuses when the TARGET server's Zomboid data folder is inside the folder being deleted", () => {
+    // split-derivation sweep, 2026-09-07: this check now reads
+    // targetServer.zomboidDataPath (the matched getServers() record) instead
+    // of serverManager.savePath -- the latter reflects whichever server is
+    // currently active/loaded, not necessarily the server whose files are
+    // being deleted (see the delete-files-targets-a-non-active-server test
+    // above for the same class of bug on the stopped-check).
     it("refuses when zomboidDataPath is a subfolder of the install path being deleted", async () => {
       const dataDir = path.join(installDir, "ZomboidData");
       fs.mkdirSync(dataDir, { recursive: true });
-      serverManager.savePath = dataDir;
+      getServers.mockResolvedValue([
+        { id: 1, installPath: installDir, zomboidDataPath: dataDir },
+      ]);
 
       const handler = getDeleteFilesHandler();
       const response = createResponse();
@@ -282,7 +309,9 @@ describe("POST /api/server/delete-files safety guards", () => {
     });
 
     it("refuses when zomboidDataPath equals the install path being deleted", async () => {
-      serverManager.savePath = installDir;
+      getServers.mockResolvedValue([
+        { id: 1, installPath: installDir, zomboidDataPath: installDir },
+      ]);
 
       const handler = getDeleteFilesHandler();
       const response = createResponse();
@@ -299,7 +328,9 @@ describe("POST /api/server/delete-files safety guards", () => {
     it("still deletes when zomboidDataPath is a sibling, not nested (the default layout)", async () => {
       const siblingDataDir = `${installDir}_Data`;
       fs.mkdirSync(siblingDataDir, { recursive: true });
-      serverManager.savePath = siblingDataDir;
+      getServers.mockResolvedValue([
+        { id: 1, installPath: installDir, zomboidDataPath: siblingDataDir },
+      ]);
 
       const handler = getDeleteFilesHandler();
       const response = createResponse();
@@ -317,8 +348,10 @@ describe("POST /api/server/delete-files safety guards", () => {
       }
     });
 
-    it("still deletes when the active server has no savePath configured at all", async () => {
-      serverManager.savePath = null;
+    it("still deletes when the target server has no zomboidDataPath configured at all", async () => {
+      getServers.mockResolvedValue([
+        { id: 1, installPath: installDir, zomboidDataPath: null },
+      ]);
 
       const handler = getDeleteFilesHandler();
       const response = createResponse();

@@ -41,6 +41,10 @@ import { autoInstallBridgeIfNeeded } from "../services/panelBridgeInstaller.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
 import { confineToRoots } from "../utils/browseRoots.js";
 import { isContainerized } from "../utils/dockerDetect.js";
+import {
+  createLinuxServiceLifecycle,
+  isManagedLifecycleProvider,
+} from "../services/linuxServiceLifecycle.js";
 
 const router = express.Router();
 
@@ -4462,21 +4466,65 @@ router.get("/steamcmd/check", requirePermission("server.install"), async (req, r
   }
 });
 
-// Fail-closed "is the server confirmed stopped" check, shared by both call
-// sites in /delete-files below -- factored out instead of a second
-// copy-pasted copy of the same ~15-line getServerProcessDetails/scanFailed
-// block. Returns null when confirmed stopped and safe to proceed; otherwise
-// the {status, body} to send back verbatim. checkServerRunning() would
-// collapse a failed scan into a bare `false` (see d85fd42) and let a
-// destructive action proceed against a server we simply failed to see was
-// running -- getServerProcessDetails() exposes scanFailed so that case can
-// be refused instead.
+// Fail-closed "is THIS SPECIFIC configured server confirmed stopped" check.
 //
-// NOT wired into /wipe, which has its own identical inline copy: that route
-// is out of scope for this pass (2026-08-26 bug hunt round 2, Pam's
-// asset-destruction hunt finding 2 -- TOCTOU on /delete-files specifically).
-// A natural follow-up for whoever next touches /wipe.
-async function checkServerConfirmedStopped(serverManager, actionLabel) {
+// split-derivation sweep, 2026-09-07 (same class as /wipe's pre-fix bug,
+// 5c2e73e9): the original version of this check took a `serverManager`
+// instance and trusted ITS cached running-state -- but `serverManager` is a
+// single global instance (server/index.js's one `new ServerManager()`)
+// that only ever reflects whichever server is currently active/loaded, not
+// necessarily the server /delete-files is about to act on. /delete-files
+// accepts ANY configured server's installPath (Servers.tsx's "Clear Install
+// Folder"/"Delete Everything" can target a server that isn't active), so
+// the old check answered "is the ACTIVE server stopped?" while the route
+// deleted a DIFFERENT server's files entirely -- reachable without even a
+// race, just by acting on a non-active server. Fixed by checking the
+// TARGET server's own installPath against a live, targeted scan instead of
+// serverManager's ambient cache -- same {status,body}-or-null fail-closed
+// contract as before. Mirrors servers.js's own per-server-status route
+// (GET /api/servers/status, ~line 632), which already had to solve
+// "is this arbitrary (possibly non-active) configured server running" and
+// branches the same way: a managed-lifecycle server (Docker/systemd) has
+// its own independent status() call with no shared process list to scan;
+// a direct/native server is matched by installPath substring against
+// getServerProcessDetails()'s system-wide `matched` process list.
+async function checkSpecificServerStopped(serverManager, targetServer, actionLabel) {
+  if (isManagedLifecycleProvider(targetServer.lifecycleProvider)) {
+    try {
+      const status = await createLinuxServiceLifecycle(
+        targetServer,
+        targetServer.lifecycleProvider,
+      ).status();
+      if (status.scanFailed) {
+        return {
+          status: 503,
+          body: {
+            error: "Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server. Check the panel's log for the error. If this keeps happening, something on this host (antivirus, a full disk, or a missing system tool) may be blocking detection.",
+            code: ErrorCode.SERVER_STATE_UNKNOWN,
+          },
+        };
+      }
+      if (status.running) {
+        return {
+          status: 400,
+          body: {
+            error: `Server must be stopped before ${actionLabel}. Stop the server first.`,
+            code: ErrorCode.WIPE_SERVER_RUNNING,
+          },
+        };
+      }
+      return null;
+    } catch (error) {
+      return {
+        status: 503,
+        body: {
+          error: `Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server (${error.message}).`,
+          code: ErrorCode.SERVER_STATE_UNKNOWN,
+        },
+      };
+    }
+  }
+
   const processDetails = await serverManager.getServerProcessDetails();
   if (processDetails.scanFailed) {
     return {
@@ -4487,7 +4535,16 @@ async function checkServerConfirmedStopped(serverManager, actionLabel) {
       },
     };
   }
-  if (processDetails.running) {
+  const norm = (p) =>
+    String(p || "")
+      .toLowerCase()
+      .replace(/\\/g, "/")
+      .trim();
+  const installPathNorm = norm(targetServer.installPath);
+  const matched = Array.isArray(processDetails.matched) ? processDetails.matched : [];
+  const isRunning =
+    Boolean(installPathNorm) && matched.some((m) => norm(m.cmd).includes(installPathNorm));
+  if (isRunning) {
     return {
       status: 400,
       body: {
@@ -4503,17 +4560,7 @@ async function checkServerConfirmedStopped(serverManager, actionLabel) {
 // Delete server files (used when removing a server from panel with file deletion)
 router.post("/delete-files", requirePermission("server.wipe"), async (req, res) => {
   try {
-    // Same rails POST /wipe already has: refuse without confirm, refuse
-    // while the server is running, and fail CLOSED (not open) when
-    // detection itself can't tell. Mirrors /wipe's exact order: state check,
-    // then confirm, then this route's own path/PZ-install validation below.
     const serverManager = req.app.get("serverManager");
-    await serverManager.loadConfig();
-
-    const notStoppedError = await checkServerConfirmedStopped(serverManager, "deleting its files");
-    if (notStoppedError) {
-      return res.status(notStoppedError.status).json(notStoppedError.body);
-    }
 
     const { path: deletePath, confirm } = req.body || {};
     if (confirm !== true) {
@@ -4566,10 +4613,13 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
     // replacement for it.
     const resolvedDeletePath = path.resolve(deletePath);
     const configuredServers = await getServers();
-    const matchesConfiguredServer = configuredServers.some(
+    // .find(), not .some() -- the matched record's own zomboidDataPath and
+    // lifecycleProvider are needed below for the nesting and stopped
+    // checks, not just a yes/no membership test.
+    const targetServer = configuredServers.find(
       (s) => s.installPath && path.resolve(s.installPath) === resolvedDeletePath,
     );
-    if (!matchesConfiguredServer) {
+    if (!targetServer) {
       return res.status(400).json({
         error:
           "This path doesn't match a server the panel has on record. Refusing to delete for safety.",
@@ -4591,9 +4641,13 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
     // <zomboidDataPath>/backups, which would be inside the doomed tree
     // too, so a same-tree backup would just get deleted right alongside
     // everything else it was meant to protect.
-    const zomboidDataPath = serverManager.savePath;
+    //
+    // targetServer.zomboidDataPath, not serverManager.savePath -- same
+    // split-derivation fix as the stopped-check below: serverManager's
+    // cache reflects whichever server is currently active/loaded, which is
+    // not necessarily targetServer.
+    const zomboidDataPath = targetServer.zomboidDataPath;
     if (zomboidDataPath) {
-      const resolvedDeletePath = path.resolve(deletePath);
       if (confineToRoots(zomboidDataPath, [resolvedDeletePath])) {
         return res.status(400).json({
           error: `Refusing to delete: this server's Zomboid data folder (${zomboidDataPath}) is inside the folder you're about to delete, so this would also permanently destroy the world save. Move the data path outside the install folder in Settings, or back it up yourself first, before deleting.`,
@@ -4602,22 +4656,24 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
       }
     }
 
-    // Re-check immediately before the irreversible delete (2026-08-26 bug
-    // hunt round 2, Pam's finding 2): the FIRST check above is stale by the
-    // time we get here -- getServerProcessDetails() takes real wall-clock
-    // time (OS process enumeration), and everything between that await
-    // resolving and this point is synchronous path/marker validation with
-    // no further awaits, so a second admin session, a scheduler task, or a
-    // supervisor auto-restart starting the server DURING that first scan
-    // would sail through undetected. This doesn't make the check-then-act
-    // atomic in a formal sense -- true atomicity would need the /start path
-    // to participate in a shared lock too, out of scope here -- but it
-    // narrows the exploitable window from "however long the first scan
-    // took" down to just this second scan's own duration, immediately
-    // before the act it guards, using the exact same fail-closed check.
-    const stillNotStoppedError = await checkServerConfirmedStopped(serverManager, "deleting its files");
-    if (stillNotStoppedError) {
-      return res.status(stillNotStoppedError.status).json(stillNotStoppedError.body);
+    // Confirmed-stopped check, positioned immediately before the
+    // irreversible delete (2026-08-26 bug hunt round 2, Pam's finding 2:
+    // narrows the check-then-act TOCTOU window as far as it can go without
+    // a shared lock with /start, which is out of scope here) -- now against
+    // targetServer specifically rather than serverManager's cache. This
+    // used to run TWICE: once before deletePath was even parsed (checking
+    // whatever server happened to be active/loaded, which is not the
+    // server-identity question this route needs answered at all) and once
+    // here. The first copy is gone -- it was answering the wrong question,
+    // not just answering it from a stale source -- leaving this single,
+    // correctly-targeted check right before the delete it guards.
+    const notStoppedError = await checkSpecificServerStopped(
+      serverManager,
+      targetServer,
+      "deleting its files",
+    );
+    if (notStoppedError) {
+      return res.status(notStoppedError.status).json(notStoppedError.body);
     }
 
     log.warn(`Deleting server files at: ${deletePath}`);
