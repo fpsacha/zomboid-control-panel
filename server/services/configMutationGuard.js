@@ -82,6 +82,24 @@ export async function requireStoppedForLocalConfigMutation(req, res, next) {
       });
     }
 
+    // split-derivation sweep, 2026-09-07 (same class as /wipe's pre-fix
+    // bug, 5c2e73e9): getServerProcessDetails() internally calls the
+    // GUARDED loadConfig(), a no-op once serverManager has loaded any
+    // server's config -- so without an explicit reloadConfig() here, this
+    // check can silently examine a DIFFERENT, stale server than the
+    // `activeServer` this function just read fresh above. Force a real
+    // reload and fail closed (matching this function's own posture
+    // everywhere else) if it can't be trusted, rather than letting a
+    // wholesale overwrite proceed against the wrong server's process state.
+    try {
+      await serverManager.reloadConfig();
+    } catch (error) {
+      return res.status(503).json({
+        code: "SERVER_STATE_UNKNOWN",
+        error: `Can't verify whether the server is actually stopped — reloading its configuration failed (${error.message}). Check the panel's log for the error.`,
+      });
+    }
+
     const processDetails = await serverManager.getServerProcessDetails();
     if (processDetails.scanFailed) {
       return res.status(503).json({
@@ -153,6 +171,18 @@ export async function warnRunningForLocalConfigEdit(req, res, next) {
     // in the 2026-08-26 bug hunt: two functions in this one file, one
     // hardened to getServerProcessDetails() and one never migrated.
     if (typeof serverManager?.getServerProcessDetails !== "function") {
+      req.configEditRestartWarning = true;
+      return next();
+    }
+
+    // split-derivation sweep, 2026-09-07: same reload-before-trust fix as
+    // this file's sibling guard above, adapted to this function's own
+    // never-block policy -- a reload failure here means "can't verify",
+    // which per this function's documented policy is treated as "warn",
+    // not refused.
+    try {
+      await serverManager.reloadConfig();
+    } catch {
       req.configEditRestartWarning = true;
       return next();
     }

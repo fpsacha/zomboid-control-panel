@@ -41,6 +41,12 @@ function createRequest(method, path, running = false) {
       get: () => ({
         checkServerRunning: vi.fn(async () => running),
         getServerProcessDetails: vi.fn(async () => ({ running, scanFailed: false })),
+        // split-derivation sweep, 2026-09-07: both guards now force a real
+        // reload before trusting getServerProcessDetails() -- see
+        // configMutationGuardReloadBeforeTrust.test.js for the fix's own
+        // dedicated regression coverage. A no-op stub here keeps every
+        // OTHER test in this file exercising what it always exercised.
+        reloadConfig: vi.fn(async () => {}),
       }),
     },
   };
@@ -147,6 +153,7 @@ describe("local config mutation safety", () => {
             // reason instead of genuinely fixing the scanFailed blindness.
             checkServerRunning: vi.fn(async () => false),
             getServerProcessDetails: vi.fn(async () => ({ running: false, scanFailed: true })),
+            reloadConfig: vi.fn(async () => {}),
           }),
         },
       };
@@ -245,6 +252,7 @@ describe("local config mutation safety", () => {
         path: "/ini",
         app: {
           get: () => ({
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => {
               throw new Error("boom");
             }),
@@ -276,6 +284,7 @@ describe("local config mutation safety", () => {
         app: {
           get: () => ({
             checkServerRunning: vi.fn(async () => false),
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => ({
               running: false,
               scanFailed: true,

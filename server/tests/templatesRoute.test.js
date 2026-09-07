@@ -82,6 +82,9 @@ describe("template mutation routes", () => {
         user: { role: "admin" },
         app: {
           get: () => ({
+            // split-derivation sweep, 2026-09-07: the route now forces a
+            // real reloadConfig() before trusting getServerProcessDetails().
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => ({ running: true, scanFailed: false })),
           }),
         },
@@ -106,6 +109,7 @@ describe("template mutation routes", () => {
         user: { role: "admin" },
         app: {
           get: () => ({
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => {
               throw new Error("scan failed");
             }),
@@ -144,6 +148,7 @@ describe("template mutation routes", () => {
             // present alongside getServerProcessDetails so unfixed code
             // (which calls checkServerRunning) proceeds instead of refusing.
             checkServerRunning: vi.fn(async () => false),
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => ({ running: false, scanFailed: true })),
           }),
         },
@@ -220,6 +225,7 @@ describe("template mutation routes", () => {
         user: { role: "admin" },
         app: {
           get: () => ({
+            reloadConfig: vi.fn(async () => {}),
             getServerProcessDetails: vi.fn(async () => ({ running: false, scanFailed: false })),
           }),
         },

@@ -130,6 +130,17 @@ router.post("/:id/apply", requirePermission("templates.manage"), async (req, res
         });
       }
       try {
+        // split-derivation sweep, 2026-09-07 (same class as /wipe's
+        // pre-fix bug, 5c2e73e9): the ID-equality check above reads
+        // activeServer fresh, but serverManager.getServerProcessDetails()
+        // internally calls the GUARDED loadConfig() -- a no-op once
+        // serverManager has loaded ANY server's config -- so passing the
+        // equality check does not guarantee serverManager's own cached
+        // identity actually matches activeServer yet (e.g. immediately
+        // after a /activate switch). Force a real reload first so the
+        // running-check below examines the same server the ID check just
+        // verified, not whatever serverManager was last pointed at.
+        await serverManager.reloadConfig();
         // getServerProcessDetails(), not checkServerRunning() -- the latter
         // discards the scan's own scanFailed flag and returns a plain
         // boolean, so a scan that completed but couldn't determine the

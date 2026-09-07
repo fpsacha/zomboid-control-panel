@@ -146,7 +146,15 @@ describe("serverFiles.js router.use layers beyond the requirePermission gate", (
   describe("layer[3] (line 238): wholesale-overwrite vs ordinary-edit routing -- 238's requireStoppedForLocalConfigMutation branch has fail-open history (92d2772)", () => {
     function stubManager(details) {
       return {
-        get: (key) => (key === "serverManager" ? { getServerProcessDetails: async () => details } : undefined),
+        get: (key) =>
+          key === "serverManager"
+            ? {
+                // split-derivation sweep, 2026-09-07: both guards now force
+                // a real reload before trusting getServerProcessDetails().
+                reloadConfig: async () => {},
+                getServerProcessDetails: async () => details,
+              }
+            : undefined,
       };
     }
     // getServerProcessDetails(), not checkServerRunning() -- matching the
@@ -159,7 +167,10 @@ describe("serverFiles.js router.use layers beyond the requirePermission gate", (
       return {
         get: (key) =>
           key === "serverManager"
-            ? { getServerProcessDetails: async () => ({ running, scanFailed: false }) }
+            ? {
+                reloadConfig: async () => {},
+                getServerProcessDetails: async () => ({ running, scanFailed: false }),
+              }
             : undefined,
       };
     }
