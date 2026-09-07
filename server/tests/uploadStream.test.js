@@ -107,6 +107,49 @@ describe("streamUploadToFile", () => {
     expect(totalBytes).toBe(0);
   });
 
+  it("does not crash the process when a stream emits 'error' after the promise has already settled", async () => {
+    // bug hunt 2026-09-07 (CI run 34054550097): cleanupListeners() used to
+    // REMOVE the write stream's (and req's) "error" listener outright once
+    // settled. An EventEmitter that emits "error" with zero listeners
+    // throws synchronously out of whatever called .emit() -- for a
+    // stream's internal fs callback (a lazily-opened fd erroring once its
+    // directory is gone, a flush failing after "finish" already fired),
+    // that is an uncaught exception that takes the whole process down, not
+    // a rejected promise. Reproduces by capturing the real write stream
+    // fs.createWriteStream hands back, driving a body too short to reach
+    // 4 bytes (settles via onFinish's reject path, the one god's report
+    // named as never destroying the stream), then firing "error" on it
+    // ourselves -- simulating exactly that kind of post-settle failure.
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "upload-stream-"));
+    tmpPath = path.join(root, "out.zip.tmp");
+
+    const realCreateWriteStream = fs.createWriteStream.bind(fs);
+    let capturedStream;
+    vi.spyOn(fs, "createWriteStream").mockImplementation((...args) => {
+      capturedStream = realCreateWriteStream(...args);
+      return capturedStream;
+    });
+
+    try {
+      const req = fakeRequest([Buffer.from([0x50, 0x4b])]);
+      await expect(
+        streamUploadToFile(req, tmpPath, 10 * 1024 * 1024),
+      ).rejects.toMatchObject({ code: UPLOAD_BAD_SIGNATURE_CODE });
+
+      expect(capturedStream).toBeDefined();
+
+      let thrown = null;
+      try {
+        capturedStream.emit("error", new Error("simulated post-settle fd error"));
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("aborts once the configured size limit is exceeded, without ever buffering the full oversized body", async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "upload-stream-"));
     tmpPath = path.join(root, "out.zip.tmp");

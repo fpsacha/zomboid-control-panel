@@ -47,12 +47,28 @@ export function streamUploadToFile(req, tmpPath, maxBytes) {
       if (shouldCleanupTmp) fs.unlink(tmpPath, () => {});
     });
 
+    // Once settled, the real "error" handlers below come off -- but both
+    // streams can still legitimately emit "error" AFTER that point (a
+    // lazily-opened fd erroring once the directory disappears out from
+    // under it, a flush failing after "finish" already fired, ...). An
+    // EventEmitter that emits "error" with zero listeners throws
+    // synchronously out of whatever called .emit(), which for a stream's
+    // internal fs callback means an uncaught exception that takes the
+    // whole process down (CI run 34054550097, ENOENT on a post-settle
+    // open()). Swap to a no-op listener instead of removing outright so
+    // a late error is discarded deliberately, not left unlistened.
+    const absorbPostSettleErrors = () => {
+      writeStream.removeListener("error", onWriteError);
+      writeStream.on("error", () => {});
+      req.removeListener("error", onReqError);
+      req.on("error", () => {});
+    };
+
     const cleanupListeners = () => {
       req.removeListener("data", onData);
-      req.removeListener("error", onReqError);
       req.removeListener("aborted", onReqAborted);
-      writeStream.removeListener("error", onWriteError);
       writeStream.removeListener("finish", onFinish);
+      absorbPostSettleErrors();
     };
 
     const settle = (err, value) => {
@@ -121,6 +137,10 @@ export function streamUploadToFile(req, tmpPath, maxBytes) {
       // caller's job to report) or too short to possibly be a zip.
       if (totalBytes > 0 && !sigChecked) {
         shouldCleanupTmp = true;
+        // Mirror abort()'s destroy() here: this is a rejection like any
+        // other violation, it just wasn't caught mid-stream. Without
+        // this, the fd is left open and unlistened after settle() runs.
+        writeStream.destroy();
         settle(
           Object.assign(
             new Error("File does not look like a valid .zip archive."),
