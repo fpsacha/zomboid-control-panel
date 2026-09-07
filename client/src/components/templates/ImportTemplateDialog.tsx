@@ -31,7 +31,16 @@ export function ImportTemplateDialog({ open, onClose, onImported }: ImportTempla
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFile = async (file: File) => {
-    setText(await file.text())
+    // bug-hunt-2026-09-06 (client silent-failure lane): fired from the file
+    // input's onChange with no .catch() at the call site -- file.text() can
+    // reject (e.g. a removable/network drive going away between selection
+    // and read), and an uncaught rejection here left the dialog sitting
+    // open with an empty textarea and zero indication anything went wrong.
+    try {
+      setText(await file.text())
+    } catch (err) {
+      setError(getUserErrorMessage(err, t('failedToReadFile')))
+    }
   }
 
   const handleImport = async () => {

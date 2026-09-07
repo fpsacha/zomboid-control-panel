@@ -9,5 +9,6 @@
   "pastePlaceholder": "Pega aquí el JSON de la plantilla",
   "importFailedTitle": "Error al importar",
   "cancel": "Cancelar",
-  "import": "Importar"
+  "import": "Importar",
+  "failedToReadFile": "Couldn't read that file."
 }

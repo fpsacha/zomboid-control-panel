@@ -9,5 +9,6 @@
   "pastePlaceholder": "Vorlagen-JSON hier einfügen",
   "importFailedTitle": "Import fehlgeschlagen",
   "cancel": "Abbrechen",
-  "import": "Importieren"
+  "import": "Importieren",
+  "failedToReadFile": "Couldn't read that file."
 }

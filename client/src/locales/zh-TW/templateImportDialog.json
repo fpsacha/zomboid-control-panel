@@ -9,5 +9,6 @@
   "pastePlaceholder": "在此貼上模板 JSON",
   "importFailedTitle": "匯入失敗",
   "cancel": "取消",
-  "import": "匯入"
+  "import": "匯入",
+  "failedToReadFile": "Couldn't read that file."
 }

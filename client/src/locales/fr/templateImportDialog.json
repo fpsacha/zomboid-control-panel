@@ -9,5 +9,6 @@
   "pastePlaceholder": "Collez le JSON du modèle ici",
   "importFailedTitle": "Échec de l'importation",
   "cancel": "Annuler",
-  "import": "Importer"
+  "import": "Importer",
+  "failedToReadFile": "Couldn't read that file."
 }

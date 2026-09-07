@@ -9,5 +9,6 @@
   "pastePlaceholder": "الصق JSON القالب هنا",
   "importFailedTitle": "فشل الاستيراد",
   "cancel": "إلغاء",
-  "import": "استيراد"
+  "import": "استيراد",
+  "failedToReadFile": "Couldn't read that file."
 }

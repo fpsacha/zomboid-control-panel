@@ -9,5 +9,6 @@
   "pastePlaceholder": "Вставте JSON шаблону сюди",
   "importFailedTitle": "Помилка імпорту",
   "cancel": "Скасувати",
-  "import": "Імпортувати"
+  "import": "Імпортувати",
+  "failedToReadFile": "Couldn't read that file."
 }

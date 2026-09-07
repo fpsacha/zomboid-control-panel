@@ -9,5 +9,6 @@
   "pastePlaceholder": "Paste template JSON here",
   "importFailedTitle": "Import Failed",
   "cancel": "Cancel",
-  "import": "Import"
+  "import": "Import",
+  "failedToReadFile": "Couldn't read that file."
 }

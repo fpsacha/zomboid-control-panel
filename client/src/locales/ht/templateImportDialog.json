@@ -9,5 +9,6 @@
   "pastePlaceholder": "Kole JSON modèl la la a",
   "importFailedTitle": "Enpòtasyon echwe",
   "cancel": "Anile",
-  "import": "Enpòte"
+  "import": "Enpòte",
+  "failedToReadFile": "Couldn't read that file."
 }
