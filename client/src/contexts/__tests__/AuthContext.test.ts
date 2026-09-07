@@ -47,6 +47,23 @@ describe('getLoginErrorMessage', () => {
     expect(getLoginErrorMessage(error)).toContain("n'était pas attendu")
   })
 
+  // bug-hunt-2026-09-07: RATE_LIMIT_LOGIN used to be swallowed into
+  // LOGIN_FAILED_MESSAGE ("check your username and password") right along
+  // with a real wrong-password 401 -- actively wrong, not merely generic,
+  // since a rate-limited user is told to recheck credentials that were
+  // never the problem. Telling the truth about rate-limiting reveals
+  // nothing about whether the account exists, so it doesn't need the
+  // enumeration-safe collapse the 401/400 cases above still correctly get.
+  it('does NOT collapse a 429 rate-limit into the generic auth-failed text -- shows its own registered message instead', () => {
+    const error = new ApiError('Too many login attempts. Please try again later.', {
+      status: 429,
+      code: 'RATE_LIMIT_LOGIN',
+    })
+    const message = getLoginErrorMessage(error)
+    expect(message).not.toBe(LOGIN_FAILED_MESSAGE)
+    expect(message).toContain('Too many login attempts')
+  })
+
   it('falls back to the generic text for a non-ApiError, non-network error', () => {
     expect(getLoginErrorMessage(new Error('something else'))).toBe(LOGIN_FAILED_MESSAGE)
   })

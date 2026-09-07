@@ -75,6 +75,21 @@ export function getLoginErrorMessage(error: unknown): string {
   if (error instanceof ApiError && typeof error.status === 'number' && error.status >= 500) {
     return getUserErrorMessage(error, LOGIN_FAILED_MESSAGE)
   }
+  // bug-hunt-2026-09-07 (client silent-failure lane, error-code coverage
+  // pass): a 429 from loginLimiter (server/routes/auth.js) used to fall
+  // through this function's final `return LOGIN_FAILED_MESSAGE` right
+  // alongside an actual wrong-password 401 -- the two are handled by the
+  // same generic branch below, but that branch's text ("check your username
+  // and password") is actively wrong for a rate-limited attempt, not merely
+  // unspecific. The enumeration ruling this function exists to enforce is
+  // about NOT revealing why an auth attempt failed; RATE_LIMIT_LOGIN doesn't
+  // touch that at all -- "too many attempts" is identical regardless of
+  // whether the account exists, so it can safely use its own already-
+  // registered, already-translated text (errors.json) instead of being
+  // swallowed into the credentials hint.
+  if (error instanceof ApiError && error.status === 429) {
+    return getUserErrorMessage(error, LOGIN_FAILED_MESSAGE)
+  }
   return LOGIN_FAILED_MESSAGE
 }
 
