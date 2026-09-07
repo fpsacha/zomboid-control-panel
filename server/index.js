@@ -1674,6 +1674,19 @@ app.post("/api/panel/restart", requireRole("admin"), async (req, res) => {
           applyingUpdate: true,
           supervisor: true,
         });
+        // Same gap gracefulShutdown() (SIGTERM/SIGINT) already closes for a
+        // signal-triggered shutdown: this handler exits the process directly
+        // and never went through that path, so every currently-connected
+        // player's session (panelBridge.trackPlayerActivity's previousPlayers,
+        // and the DB row it accumulates playtime into) was left open. The
+        // next status poll after relaunch then reads the SAME still-connected
+        // players as brand-new joins and silently overwrites their still-open
+        // prior session -- the identical bug already fixed for "mod offline"
+        // and "bridge stop" (2026-09-04), reachable here via a third,
+        // previously-uncovered trigger: a plain panel restart/update-apply
+        // with anyone online. Stop the bridge before exiting so the session
+        // actually closes first.
+        if (panelBridge?.isRunning) panelBridge.stop();
         // Exit code 75 tells Start.bat to apply the marker and relaunch.
         setTimeout(() => process.exit(75), 500);
         return;
@@ -1780,6 +1793,14 @@ app.post("/api/panel/restart", requireRole("admin"), async (req, res) => {
 
   // Short delay so the response can be sent before exit
   setTimeout(async () => {
+    // Same reasoning as the Windows supervisor-handoff branch above: this is
+    // every OTHER restart (a plain manual restart with no staged update, and
+    // the Linux staged-update-applied case), and it exits the process
+    // directly without ever going through gracefulShutdown() -- so it never
+    // closed out an in-flight player session either. Stop the bridge first
+    // so the session record actually closes instead of silently getting
+    // overwritten by a phantom "connect" once polling resumes post-restart.
+    if (panelBridge?.isRunning) panelBridge.stop();
     try {
       await flushWrites();
     } catch {
