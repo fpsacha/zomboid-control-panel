@@ -41,12 +41,25 @@ describe("POST /api/server/wipe concurrency guard", () => {
   it("rejects a second wipe that arrives while the first is still validating", async () => {
     let releaseRunningCheck;
     let checkCalls = 0;
+    // Signal, don't poll (f30b7558's fix for the sibling
+    // wipeVsStartLifecycleLock.test.js, same class): a `while` loop here
+    // would spin the microtask queue forever and hang the whole suite if a
+    // future await ever lands ahead of this suspension point without
+    // incrementing checkCalls -- with no indication in the trace of where it
+    // got stuck. An unresolved `await checkEntered` instead fails at the
+    // suite's timeout with `checkEntered` named, pointing straight at the
+    // precondition that stopped holding.
+    let checkEnteredResolve;
+    const checkEntered = new Promise((r) => {
+      checkEnteredResolve = r;
+    });
 
     const serverManager = {
       loadConfig: async () => {},
       reloadConfig: async () => {},
       getServerProcessDetails: () => {
         checkCalls += 1;
+        checkEnteredResolve();
         // Suspend the first request inside its validation phase.
         if (checkCalls === 1) {
           return new Promise((resolve) => {
@@ -71,15 +84,8 @@ describe("POST /api/server/wipe concurrency guard", () => {
 
     const firstCall = handler(buildRequest(), firstResponse);
     // Let the first request reach its suspension point inside
-    // getServerProcessDetails(). A single microtask tick isn't reliably
-    // enough any more (path-resolution sweep, 2026-09-06: /wipe now awaits
-    // getActiveServer() and reloadConfig() first) -- poll until the
-    // synchronous checkCalls increment inside getServerProcessDetails()
-    // has actually happened, rather than guessing a fixed tick count that
-    // breaks again the next time a new await lands ahead of it.
-    while (checkCalls === 0) {
-      await Promise.resolve();
-    }
+    // getServerProcessDetails() before firing the second.
+    await checkEntered;
 
     await handler(buildRequest(), secondResponse);
 
