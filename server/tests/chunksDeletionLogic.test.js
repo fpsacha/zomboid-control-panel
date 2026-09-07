@@ -1062,3 +1062,89 @@ describe("delete-chunks/delete-region: CHUNKS_STALE_SERVER_SCAN refuses a delete
     expect(fs.existsSync(chunk)).toBe(false);
   });
 });
+
+// bug hunt 2026-09-07 (uniqueness-generator sweep): backupPath used to be
+// `${sanitizedSaveName}_chunks_${Date.now()}` / `${sanitizedSaveName}_region_
+// ${Date.now()}` with no collision guard -- no lock serializes these two
+// routes the way /wipe and restoreBackup() are (see server.js's
+// wipeInProgress / backupService.js's restoreInProgress), so two concurrent
+// requests for the SAME save landing in the same millisecond (a
+// double-submit, or two operators acting on the same save at once) computed
+// the IDENTICAL backup directory. mkdirSync's recursive:true does not throw
+// EEXIST, so both would silently share one directory instead of getting
+// their own -- the exact "two different code paths generate the same name
+// for different content" shape. Forces the collision deterministically by
+// freezing Date.now() (real timing would only occasionally land in the same
+// millisecond) rather than hoping two real concurrent requests happen to
+// race into it.
+describe("backup directory naming: concurrent same-millisecond requests must not collide", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function listBackupDirsMatching(pattern) {
+    const backupsRoot = path.join(dataRoot, "backups");
+    if (!fs.existsSync(backupsRoot)) return [];
+    return fs.readdirSync(backupsRoot).filter((name) => pattern.test(name));
+  }
+
+  it("delete-chunks: two concurrent createBackup requests for the same save get two distinct backup directories", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+
+    writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
+    writeFileDeep(path.join(savePath, "map", "1", "1.bin"), "b");
+
+    const [res1, res2] = await Promise.all([
+      postAs("/delete-chunks", {
+        saveName: SAVE_NAME,
+        chunks: [{ file: "0/0.bin", x: 0, y: 0 }],
+        createBackup: true,
+      }),
+      postAs("/delete-chunks", {
+        saveName: SAVE_NAME,
+        chunks: [{ file: "1/1.bin", x: 1, y: 1 }],
+        createBackup: true,
+      }),
+    ]);
+
+    expect(res1.getStatusCode()).toBe(200);
+    expect(res2.getStatusCode()).toBe(200);
+    expect(res1.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
+    expect(res2.getBody()).toEqual(expect.objectContaining({ success: true, backupCreated: true }));
+
+    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_chunks_1700000000000`));
+    expect(backupDirs).toHaveLength(2);
+  });
+
+  it("delete-region: two concurrent createBackup requests for the same save get two distinct backup directories", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+
+    writeFileDeep(path.join(savePath, "map", "0", "0.bin"), "a");
+    writeFileDeep(path.join(savePath, "map", "5", "5.bin"), "b");
+
+    const [res1, res2] = await Promise.all([
+      postAs("/delete-region", {
+        saveName: SAVE_NAME,
+        minX: 0,
+        maxX: 0,
+        minY: 0,
+        maxY: 0,
+        createBackup: true,
+      }),
+      postAs("/delete-region", {
+        saveName: SAVE_NAME,
+        minX: 5,
+        maxX: 5,
+        minY: 5,
+        maxY: 5,
+        createBackup: true,
+      }),
+    ]);
+
+    expect(res1.getStatusCode()).toBe(200);
+    expect(res2.getStatusCode()).toBe(200);
+
+    const backupDirs = listBackupDirsMatching(new RegExp(`^${SAVE_NAME}_region_1700000000000`));
+    expect(backupDirs).toHaveLength(2);
+  });
+});

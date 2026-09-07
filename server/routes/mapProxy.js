@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { createLogger } from "../utils/logger.js";
@@ -72,10 +73,24 @@ async function readDiskCache(relPath) {
 
 // Fire-and-forget: a disk cache write failing (permissions, full disk) just
 // means we re-fetch from upstream next time — never block the response on it.
-function writeDiskCacheAsync(relPath, buffer) {
+// No coalescing here (unlike mods.js's thumbnail cache, which dedupes
+// concurrent fetches for the same id) -- two overlapping requests for the
+// SAME missing tile (a viewport redraw racing itself, or two clients
+// panning to the same area) can both reach this function for the same
+// `dest`. pid+Date.now() gave no real protection against that: pid is
+// constant for the life of this one process, so two such calls landing in
+// the same millisecond produced the IDENTICAL tmp path and could interleave
+// their writes to it. A random component means concurrent writers always
+// get their own private tmp file; whichever rename() lands last just wins,
+// which is fine for a cache of content that's the same tile either way.
+// Exported (and returns its promise chain) so tests can await completion
+// directly -- see server/tests/mapProxyDiskCacheCollision.test.js. The
+// production call site still calls this fire-and-forget and never awaits
+// the return value, so this changes nothing about request latency.
+export function writeDiskCacheAsync(relPath, buffer) {
   const dest = diskPathFor(relPath);
-  const tmp = `${dest}.${process.pid}.${Date.now()}.tmp`;
-  fs.promises
+  const tmp = `${dest}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`;
+  return fs.promises
     .mkdir(path.dirname(dest), { recursive: true })
     .then(() => fs.promises.writeFile(tmp, buffer))
     .then(() => fs.promises.rename(tmp, dest))

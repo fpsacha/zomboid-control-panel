@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { createLogger } from "../utils/logger.js";
 const log = createLogger("API:Chunks");
 import {
@@ -1468,10 +1469,22 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
     // vehicles are being deleted) so the operation is fully reversible.
     let backupPath = null;
     if (createBackup) {
+      // No lock guards this route the way /wipe and restoreBackup() are
+      // guarded (see server.js's wipeInProgress / backupService.js's
+      // restoreInProgress) -- two concurrent delete-chunks requests for the
+      // SAME save (a double-submit, or two operators acting at once) reach
+      // here with nothing serializing them. Date.now() alone would give
+      // both the IDENTICAL backup directory; mkdirSync's recursive:true
+      // does not throw EEXIST, so both would silently share one directory
+      // and interleave/overwrite each other's chunk backups -- exactly the
+      // deletion this backup exists to make reversible would then have no
+      // reliable backup for whichever operation's files got overwritten.
+      // A random suffix, not a check-then-retry loop, closes this: two
+      // concurrent calls simply land in two different directories.
       backupPath = path.join(
         zomboidDataPath,
         "backups",
-        `${sanitizedSaveName}_chunks_${Date.now()}`,
+        `${sanitizedSaveName}_chunks_${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
       );
       await fs.promises.mkdir(backupPath, { recursive: true });
 
@@ -2035,13 +2048,15 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
       });
     }
 
-    // Create backup if requested
+    // Create backup if requested. Same unguarded-double-submit risk as
+    // /delete-chunks' backup dir above -- see that one's comment; the fix
+    // is identical.
     let backupPath = null;
     if (createBackup) {
       backupPath = path.join(
         zomboidDataPath,
         "backups",
-        `${sanitizedSaveName}_region_${Date.now()}`,
+        `${sanitizedSaveName}_region_${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
       );
       await fs.promises.mkdir(backupPath, { recursive: true });
 
