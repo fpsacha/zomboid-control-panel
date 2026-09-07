@@ -427,6 +427,71 @@ export async function getServerName() {
   return safe;
 }
 
+// split-derivation sweep, 2026-09-07 (same class as /wipe's pre-fix bug,
+// 5c2e73e9): getServerConfigPath() and getServerName() above are kept
+// BYTE-IDENTICAL -- getServerConfigPath()'s own remote branch calls
+// getServerName() internally (line 357), and a naive combined helper that
+// eagerly derived both for every caller would change the router.use() gate's
+// behavior: a LOCAL server with a fine configPath but no configured name
+// would newly 404 at the gate instead of only failing later, inside a
+// handler that actually needs the name. This is a NEW function used only by
+// the ~17 call sites below that already call BOTH functions together --
+// replicating both originals' exact fallback/throw behavior from a SINGLE
+// getActiveServer() read instead of two, so a concurrent active-server
+// switch between what used to be two separate calls can no longer produce
+// e.g. serverConfigPath from server A + serverName from server B.
+export async function getActiveServerPaths() {
+  const activeServer = await getActiveServer();
+
+  // serverName first -- getServerConfigPath()'s own remote branch needs it
+  // to build the local SFTP mirror path, and every consolidated call site
+  // needs both values together anyway.
+  let serverName;
+  if (activeServer?.serverName) {
+    serverName = activeServer.serverName;
+  } else {
+    const settings = await getAllSettings();
+    serverName = settings.serverName;
+  }
+  if (!serverName) {
+    throw new ServerNotConfiguredError();
+  }
+  const safeServerName = path.basename(serverName);
+  if (safeServerName !== serverName || !safeServerName) {
+    throw new Error("Configured server name contains invalid path characters");
+  }
+
+  let serverConfigPath;
+  if (activeServer?.isRemote) {
+    const transport = await resolveRemoteConfigTransport();
+    if (transport) {
+      serverConfigPath = getMirrorPath(transport, safeServerName);
+    }
+  }
+  if (!serverConfigPath && activeServer?.serverConfigPath) {
+    serverConfigPath = activeServer.serverConfigPath;
+  }
+  if (!serverConfigPath && activeServer?.zomboidDataPath) {
+    serverConfigPath = path.join(activeServer.zomboidDataPath, "Server");
+  }
+  if (!serverConfigPath) {
+    const settings = await getAllSettings();
+    if (settings.serverConfigPath) {
+      serverConfigPath = settings.serverConfigPath;
+    } else if (settings.zomboidDataPath) {
+      serverConfigPath = path.join(settings.zomboidDataPath, "Server");
+    }
+  }
+  if (!serverConfigPath) {
+    if (activeServer?.isRemote) {
+      throw new RemoteConfigNotConfiguredError();
+    }
+    throw new ServerNotConfiguredError();
+  }
+
+  return { serverConfigPath, serverName: safeServerName };
+}
+
 // getBackupPath/createBackup/backupWarningFor moved to
 // ../utils/configBackup.js (parameterized on configPath instead of calling
 // getServerConfigPath() internally) so server/routes/mods.js's ini-rewriting
@@ -1256,8 +1321,7 @@ function toSpawnRegions(regions, serverName) {
 router.get("/paths", async (req, res) => {
   try {
     log.info("GET /paths");
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
 
     const files = {
       ini: path.join(configPath, `${serverName}.ini`),
@@ -1283,8 +1347,7 @@ router.get("/paths", async (req, res) => {
 // Get INI file (parsed)
 router.get("/ini", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}.ini`);
 
     if (!fs.existsSync(filePath)) {
@@ -1327,8 +1390,7 @@ router.get("/ini", async (req, res) => {
 // Save INI file
 router.put("/ini", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? req.body
       : {};
@@ -1477,8 +1539,7 @@ router.put("/ini", async (req, res) => {
 // Get SandboxVars (parsed)
 router.get("/sandbox", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1502,8 +1563,7 @@ router.get("/sandbox", async (req, res) => {
 router.put("/sandbox", async (req, res) => {
   try {
     log.info("PUT /sandbox");
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
     const { sandbox } = req.body || {};
 
@@ -1630,8 +1690,7 @@ router.put("/sandbox-option", async (req, res) => {
     const block = parts.length === 2 ? parts[0] : null;
     const key = parts.length === 2 ? parts[1] : parts[0];
 
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1701,11 +1760,8 @@ export async function persistSandboxValues(values) {
   }
 
   try {
-    return await writeSandboxValues(
-      entries,
-      await getServerConfigPath(),
-      await getServerName(),
-    );
+    const { serverConfigPath, serverName } = await getActiveServerPaths();
+    return await writeSandboxValues(entries, serverConfigPath, serverName);
   } catch (err) {
     if (err instanceof ServerNotConfiguredError) {
       return { persisted: false, reason: "no server configured" };
@@ -1763,8 +1819,7 @@ async function writeSandboxValues(entries, configPath, serverName) {
 // cause of "server won't boot, no obvious reason" reports.
 router.get("/sandbox/validate", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1795,8 +1850,7 @@ router.get("/sandbox/validate", async (req, res) => {
 router.post("/sandbox/repair", async (req, res) => {
   try {
     log.info("POST /sandbox/repair");
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1879,8 +1933,7 @@ router.post("/sandbox/repair", async (req, res) => {
 // Get spawn points
 router.get("/spawnpoints", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_spawnpoints.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1905,8 +1958,7 @@ router.get("/spawnpoints", async (req, res) => {
 router.put("/spawnpoints", async (req, res) => {
   try {
     log.info("PUT /spawnpoints");
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_spawnpoints.lua`);
     const { spawnpoints } = req.body || {};
 
@@ -1945,8 +1997,7 @@ router.put("/spawnpoints", async (req, res) => {
 // Get spawn regions
 router.get("/spawnregions", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_spawnregions.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1970,8 +2021,7 @@ router.get("/spawnregions", async (req, res) => {
 // Save spawn regions
 router.put("/spawnregions", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const filePath = path.join(configPath, `${serverName}_spawnregions.lua`);
     const { spawnregions } = req.body || {};
 
@@ -2011,8 +2061,7 @@ router.put("/spawnregions", async (req, res) => {
 router.get("/raw/:type", async (req, res) => {
   log.info(`GET /raw/${req.params.type}`);
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const type = req.params.type;
 
     const fileMap = {
@@ -2052,8 +2101,7 @@ router.get("/raw/:type", async (req, res) => {
 // Save raw file content
 router.put("/raw/:type", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
     const type = req.params.type;
     const { content } = req.body || {};
     log.info(`PUT /raw/${type}: contentLength=${content?.length || 0}`);
@@ -2425,8 +2473,7 @@ router.post("/templates", async (req, res) => {
     }
 
     const templatesPath = await ensureTemplatesDir();
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
 
     // Generate safe filename from name with uniqueness check
     const baseId = name
@@ -2531,8 +2578,7 @@ router.post("/templates/:id/apply", async (req, res) => {
     }
 
     const template = JSON.parse(fs.readFileSync(templateFile, "utf-8"));
-    const configPath = await getServerConfigPath();
-    const serverName = await getServerName();
+    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
 
     const backupWarnings = [];
 
