@@ -151,7 +151,23 @@ export function createUpdateDataBackup(dataPaths, version, fsModule = fs) {
 export function restorePreUpdateDataBackup(dataPaths, backupPath, fsModule = fs) {
   const dbPath = dataPaths?.dbPath;
   if (!dbPath || !backupPath || !fsModule.existsSync(backupPath)) return false;
-  fsModule.copyFileSync(backupPath, dbPath);
+  // Same shape as createUpdateDataBackup() above: copy to a temp name first,
+  // then rename into place, instead of overwriting dbPath directly. A direct
+  // copyFileSync(backupPath, dbPath) has no atomicity -- a crash or kill
+  // partway through leaves dbPath half-written, and the OLD binary this
+  // restore exists to hand back to (see server/index.js's version-mismatch
+  // catch, which calls this right before its own process exits) would find
+  // an unparsable database on its very next startup. The rename makes dbPath
+  // always either the pre-restore content or the fully-restored snapshot,
+  // never a partial file.
+  const tempPath = `${dbPath}.restoring-${process.pid}`;
+  fsModule.copyFileSync(backupPath, tempPath);
+  try {
+    fsModule.renameSync(tempPath, dbPath);
+  } catch (error) {
+    try { fsModule.unlinkSync(tempPath); } catch { /* best effort */ }
+    throw error;
+  }
   return true;
 }
 

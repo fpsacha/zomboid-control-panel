@@ -214,4 +214,38 @@ describe("restorePreUpdateDataBackup() -- edge cases", () => {
     expect(restorePreUpdateDataBackup({ dbPath }, goneBackupPath)).toBe(false);
     expect(fs.readFileSync(dbPath, "utf8")).toBe("live-content");
   });
+
+  // Same shape as createUpdateDataBackup()'s own temp-then-rename: a direct
+  // copyFileSync(backupPath, dbPath) has no atomicity, so a crash or kill
+  // partway through the copy would leave dbPath half-written for the very
+  // next process (the old binary this restore hands control back to) to
+  // trip over. Proves the live file is untouched, not merely "not fully
+  // overwritten", when the final rename step fails.
+  it("leaves the live database untouched and cleans up its temp file when the rename step fails", () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-restore-renamefail-"));
+    const dbPath = path.join(dir, "db.json");
+    fs.writeFileSync(dbPath, "live-content");
+    const backupPath = path.join(dir, "db.json.pre-update-1.0.0-123");
+    fs.writeFileSync(backupPath, "backed-up-content");
+
+    const tempPathsSeen = [];
+    const fakeFs = {
+      existsSync: fs.existsSync,
+      copyFileSync: fs.copyFileSync,
+      unlinkSync: fs.unlinkSync,
+      renameSync: (source) => {
+        tempPathsSeen.push(source);
+        throw Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
+      },
+    };
+
+    expect(() => restorePreUpdateDataBackup({ dbPath }, backupPath, fakeFs)).toThrowError(
+      expect.objectContaining({ code: "EBUSY" }),
+    );
+    // The live file was never touched by the failed rename.
+    expect(fs.readFileSync(dbPath, "utf8")).toBe("live-content");
+    // The temp file the copy staged is cleaned up, not left behind as debris.
+    expect(tempPathsSeen).toHaveLength(1);
+    expect(fs.existsSync(tempPathsSeen[0])).toBe(false);
+  });
 });
