@@ -26,9 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Updating to v1.2.16 could leave the panel unable to start again at all, failing every subsequent
   launch with `Update startup validation failed [invalid_bundle]` (exit code 76) and no indication of
-  what to do about it.** v1.2.16 itself caused this. If your panel is stuck this way: delete
-  `update-bundle.json` and `.update-applying` from the folder containing the panel executable, then
-  start it again - this release closes the underlying bug so it won't recur.
+  what to do about it.** v1.2.16 itself caused this. **This is most likely to happen if you moved your
+  install folder, reinstalled the panel to a new location, or restored it from a backup or zip while an
+  update was staged but not yet applied** - the leftover update record no longer matched where the
+  panel actually lived, and a startup check that used to give up permanently on exactly that mismatch is
+  what caused the stuck state. **If your panel is stuck this way right now**: delete `update-bundle.json`
+  and `.update-applying` from the folder containing the panel executable, then start it again - that
+  fix works whether or not you're already on this release. Going forward, the panel recovers from this
+  on its own: a stale or corrupted update record is now rolled back automatically at startup instead of
+  blocking every future launch, and if the record itself is unreadable, the panel restores from its own
+  backup copy and quarantines the bad record so it can't cause the problem again.
 - **A backward step in the system clock - an NTP correction, a daylight-saving change, or a manual
   clock adjustment - could permanently disable four separate self-healing safety checks**, each going
   quiet exactly when it was needed most: the mod-update auto-restart grace period, the player-count
