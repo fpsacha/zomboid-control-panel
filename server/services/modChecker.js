@@ -668,7 +668,18 @@ export class ModChecker extends EventEmitter {
       clearTimeout(this.initialCheckTimeout);
     }
 
-    if (resetGracePeriod || !this.startedAt) this.startedAt = Date.now();
+    // performance.now(), not Date.now(): startedAt only ever feeds the
+    // elapsed-time grace-period check below, never displayed or crossing a
+    // process boundary. A wall-clock step BACKWARD between this line and a
+    // later runScheduledCheck() (NTP correction, DST, manual clock change)
+    // would make `Date.now() - this.startedAt` stay small/negative forever,
+    // wedging inGracePeriod true permanently -- auto-restart-on-mod-update
+    // would silently never fire again until real wall-clock time closed
+    // whatever gap the jump introduced. performance.now() is monotonic and
+    // cannot step backward. bug hunt 2026-09-07 (round 6, files-nobody-
+    // opened sweep), same fix as services/panelBridge.js's
+    // tryResyncOutboxCursor and routes/mods.js's acquireScanLock.
+    if (resetGracePeriod || !this.startedAt) this.startedAt = performance.now();
     this.intervalId = setInterval(
       () => this.runScheduledCheck(),
       this.checkInterval,
@@ -851,12 +862,22 @@ export class ModChecker extends EventEmitter {
     }
 
     this.pendingRestart = true;
-    const startTime = Date.now();
+    // performance.now(), not Date.now(): this is purely an in-process
+    // elapsed-time marker (never displayed, never crosses a process
+    // boundary) feeding a MAX-WAIT SAFETY NET -- the whole point of
+    // maxWaitMs is "restart forcibly no matter what, don't wait for
+    // players forever." A wall-clock step backward between this line and
+    // a later tick would keep `elapsed` small/negative forever, wedging
+    // the safety net open exactly when a populated server (players never
+    // hit 0) needs it most. performance.now() is monotonic and cannot
+    // step backward. bug hunt 2026-09-07 (round 6, files-nobody-opened
+    // sweep) -- same class as the startup grace-period gate above.
+    const startTime = performance.now();
     const maxWaitMs = this.maxDelayMinutes * 60 * 1000;
 
     this.playerCheckInterval = setInterval(async () => {
       try {
-        const elapsed = Date.now() - startTime;
+        const elapsed = performance.now() - startTime;
 
         // Check if max delay exceeded
         if (elapsed >= maxWaitMs) {
@@ -1546,10 +1567,11 @@ export class ModChecker extends EventEmitter {
 
         // Check startup grace period — don't trigger auto-restart too soon after startup
         const inGracePeriod =
-          this.startedAt && Date.now() - this.startedAt < this.startupGraceMs;
+          this.startedAt &&
+          performance.now() - this.startedAt < this.startupGraceMs;
         if (inGracePeriod && newUpdates.length > 0) {
           const remaining = Math.round(
-            (this.startupGraceMs - (Date.now() - this.startedAt)) / 1000,
+            (this.startupGraceMs - (performance.now() - this.startedAt)) / 1000,
           );
           log.info(
             `Startup grace period active (${remaining}s remaining) — skipping auto-restart for ${newUpdates.length} update(s)`,
