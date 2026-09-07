@@ -110,6 +110,11 @@
     "description": "存在待处理的编辑。保存更改以将其应用到正在运行的面板。",
     "saveButton": "保存更改"
   },
+  "restartWait": {
+    "failedTitle": "The panel hasn't come back",
+    "failedDescription": "It's been a few minutes since the restart and the panel still isn't responding. It may still be starting (this can take longer than usual right after an update), or it may have failed to start. Check the panel's console/log output for errors before trying again.",
+    "checkAgain": "Check Again"
+  },
   "saveButton": {
     "saving": "正在保存…",
     "save": "保存设置",

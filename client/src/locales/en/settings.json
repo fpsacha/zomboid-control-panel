@@ -58,6 +58,11 @@
     "description": "You have pending edits. Save changes to apply them to the live panel.",
     "saveButton": "Save Changes"
   },
+  "restartWait": {
+    "failedTitle": "The panel hasn't come back",
+    "failedDescription": "It's been a few minutes since the restart and the panel still isn't responding. It may still be starting (this can take longer than usual right after an update), or it may have failed to start. Check the panel's console/log output for errors before trying again.",
+    "checkAgain": "Check Again"
+  },
   "saveButton": {
     "saving": "Saving...",
     "save": "Save Settings",

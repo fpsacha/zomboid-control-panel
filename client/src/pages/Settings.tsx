@@ -216,6 +216,19 @@ interface CorsDiagnostics {
 const MAX_CORS_ALLOWED_ORIGINS = 100;
 const MAX_CORS_ORIGIN_LENGTH = 256;
 
+// How long to keep polling for the panel to come back after a restart before
+// giving up and saying so. Matches this codebase's STALL_MS convention for
+// "may still be running" watchdogs elsewhere (Servers.tsx/uploadBackup)
+// rather than inventing a new number -- a Windows binary swap can
+// legitimately take a while (AV scanning the new .exe, see index.js's own
+// comments on that), so this must read as "hasn't come back yet," not
+// "failed," until it genuinely gives up.
+const RESTART_RECONNECT_TIMEOUT_MS = 3 * 60 * 1000;
+const RESTART_RECONNECT_POLL_INTERVAL_MS = 2000;
+// Give the OLD process a moment to actually exit before the first poll --
+// otherwise the first request or two just race a socket that's mid-close.
+const RESTART_RECONNECT_INITIAL_DELAY_MS = 3000;
+
 // Settings written by other pages are persisted as raw strings, so a stored
 // "false" would otherwise read as truthy here.
 function toSettingBoolean(value: unknown, fallback: boolean): boolean {
@@ -346,6 +359,13 @@ export default function Settings() {
   const [testingRcon, setTestingRcon] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const restartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // bug-hunt-2026-09-07 (client silent-failure lane, update-failure-states
+  // pass): set only when the reconnect poll below gives up -- distinct from
+  // `restarting` (which just drives the button spinner) so the page can show
+  // a persistent, actionable message instead of leaving the user staring at
+  // a spinner tied to a navigation that already silently gave up.
+  const [restartWaitFailed, setRestartWaitFailed] = useState(false);
   const [panelUpdateStatus, setPanelUpdateStatus] =
     useState<PanelUpdateStatus | null>(null);
   const [panelUpdateStatusError, setPanelUpdateStatusError] = useState<
@@ -679,10 +699,11 @@ export default function Settings() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Clean up restart redirect timer on unmount
+  // Clean up restart redirect timer/poll on unmount
   useEffect(
     () => () => {
       if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+      if (restartPollRef.current) clearInterval(restartPollRef.current);
     },
     [],
   );
@@ -1064,9 +1085,72 @@ export default function Settings() {
     }
   };
 
+  // Shared by the initial post-restart wait and the manual "Check again"
+  // retry below -- kept as one implementation so the two can't drift the way
+  // a second hand-copied poll loop always eventually does.
+  //
+  // bug-hunt-2026-09-07 (client silent-failure lane, update-failure-states
+  // pass -- this is the exact incident this was written for, Charon/Discord,
+  // v1.2.16, invalid_bundle/exit 76): triggering the restart only confirms
+  // the OLD process accepted the request -- server/index.js sends that
+  // response and THEN exits (Windows: exit 75 for the Start.bat v2
+  // supervisor; Linux: overwrite-in-place then respawn). Whether the NEW
+  // process actually comes back up, as opposed to crash-looping on a bad
+  // bundle, used to be unknown to this code: it just navigated after a flat
+  // 3s delay regardless. When the new process never came back, that sent the
+  // browser straight into a connection-refused wall with zero indication
+  // anything was wrong -- the panel's own UI was gone, replaced by the
+  // browser's native error page, at the exact moment the user most needed to
+  // know what happened. Polling first means "it didn't come back" is
+  // something this page can tell the user, in-app, instead of something
+  // they're left to discover by staring at a dead tab.
+  const pollForPanelReconnect = useCallback(
+    // expectedVersion: only meaningful for the update-apply caller. Passing
+    // it means "don't treat the OLD process still answering during the
+    // handoff window as success" -- without it, any 200 from /api/health is
+    // enough (the plain "Restart Panel" button has no version to compare
+    // against, and doesn't need one).
+    (expectedVersion?: string | null) => {
+      const newPort = normalizePort(settings.panelPort);
+      const origin = `${window.location.protocol}//${window.location.hostname}:${newPort}`;
+      const newUrl = `${origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const deadline = Date.now() + RESTART_RECONNECT_TIMEOUT_MS;
+
+      if (restartPollRef.current) clearInterval(restartPollRef.current);
+      const poll = async () => {
+        if (Date.now() > deadline) {
+          if (restartPollRef.current) clearInterval(restartPollRef.current);
+          restartPollRef.current = null;
+          setRestarting(false);
+          setRestartWaitFailed(true);
+          return;
+        }
+        try {
+          const res = await fetch(`${origin}/api/health`, { cache: "no-store" });
+          if (!res.ok) return;
+          const data = await res.json().catch(() => null);
+          if (expectedVersion && data?.version !== expectedVersion) return;
+          if (restartPollRef.current) clearInterval(restartPollRef.current);
+          restartPollRef.current = null;
+          window.location.href = newUrl;
+        } catch {
+          // Not up yet (or, if the panel port genuinely changed, possibly
+          // blocked by CORS from the old origin) -- keep polling either way.
+          // Worst case this degrades to the same honest "hasn't come back"
+          // message at the deadline; it never regresses to the old
+          // blind-navigate behavior.
+        }
+      };
+      restartPollRef.current = setInterval(poll, RESTART_RECONNECT_POLL_INTERVAL_MS);
+      poll();
+    },
+    [settings.panelPort],
+  );
+
   const restartPanelWithReconnect = useCallback(
-    async (description: string) => {
+    async (description: string, expectedVersion?: string | null) => {
       setRestarting(true);
+      setRestartWaitFailed(false);
       try {
         await serverApi.restartPanel();
         toast({
@@ -1075,11 +1159,10 @@ export default function Settings() {
         });
 
         if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
-        restartTimeoutRef.current = setTimeout(() => {
-          const newPort = normalizePort(settings.panelPort);
-          const newUrl = `${window.location.protocol}//${window.location.hostname}:${newPort}${window.location.pathname}${window.location.search}${window.location.hash}`;
-          window.location.href = newUrl;
-        }, 3000);
+        restartTimeoutRef.current = setTimeout(
+          () => pollForPanelReconnect(expectedVersion),
+          RESTART_RECONNECT_INITIAL_DELAY_MS,
+        );
       } catch (err) {
         setRestarting(false);
         // Apply-in-progress (409): another tab/client already triggered the
@@ -1099,8 +1182,21 @@ export default function Settings() {
         });
       }
     },
-    [settings.panelPort, toast, t],
+    [toast, t, pollForPanelReconnect],
   );
+
+  // "Check again" on the hasn't-come-back message: does NOT re-POST
+  // /api/panel/restart (that would trigger a second, redundant restart) --
+  // it just resumes waiting with a fresh deadline. `expectedVersion` is
+  // intentionally not re-threaded here (there is no staged-update state left
+  // to compare against once the message is showing -- the page doesn't know
+  // which flow led here); a plain "did anything answer" check is the right
+  // relaxation for a manual, user-initiated retry.
+  const retryRestartReconnectWait = useCallback(() => {
+    setRestartWaitFailed(false);
+    setRestarting(true);
+    pollForPanelReconnect();
+  }, [pollForPanelReconnect]);
 
   const handleCheckPanelUpdate = async () => {
     setCheckingPanelUpdate(true);
@@ -2361,6 +2457,36 @@ export default function Settings() {
         </div>
       )}
 
+      {/* bug-hunt-2026-09-07 (client silent-failure lane, update-failure-
+          states pass): the one thing this whole lane exists to prevent --
+          restarting the panel and it never coming back, with nothing in-app
+          to show for it. Placed at the top of the page, independent of which
+          section is active, since a dead-panel wait isn't scoped to the
+          Updates card -- the plain "Restart Panel" button in General can
+          trigger this exact state too. */}
+      {restartWaitFailed && (
+        /* aria-live only -- Alert itself already sets role="alert" below; a
+           second role="alert" here just makes the two ambiguous to any
+           role-based query (assistive tech and tests alike). */
+        <div aria-live="assertive" className="mb-5">
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t("restartWait.failedTitle")}</AlertTitle>
+            <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <span className="break-words">{t("restartWait.failedDescription")}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retryRestartReconnectWait}
+                className="self-start"
+              >
+                {t("restartWait.checkAgain")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
       <PageHeader
         title={t("pageHeader.title")}
         description={
@@ -3429,6 +3555,7 @@ export default function Settings() {
                             onClick={() =>
                               restartPanelWithReconnect(
                                 t("updates.applyingDownloadedToast"),
+                                panelUpdateStatus?.stagedUpdate?.version,
                               )
                             }
                           >

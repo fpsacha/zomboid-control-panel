@@ -110,6 +110,11 @@
     "description": "У вас є незастосовані зміни. Збережіть їх, щоб застосувати до активної панелі.",
     "saveButton": "Зберегти зміни"
   },
+  "restartWait": {
+    "failedTitle": "The panel hasn't come back",
+    "failedDescription": "It's been a few minutes since the restart and the panel still isn't responding. It may still be starting (this can take longer than usual right after an update), or it may have failed to start. Check the panel's console/log output for errors before trying again.",
+    "checkAgain": "Check Again"
+  },
   "saveButton": {
     "saving": "Збереження...",
     "save": "Зберегти налаштування",
