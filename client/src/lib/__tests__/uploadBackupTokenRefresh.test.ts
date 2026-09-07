@@ -26,6 +26,7 @@ class FakeXhr {
   method = ''
   url = ''
   sentBody: any = null
+  aborted = false
 
   open(method: string, url: string) {
     this.method = method
@@ -43,6 +44,11 @@ class FakeXhr {
     this.status = status
     this.responseText = JSON.stringify(body)
     this.onload?.()
+  }
+
+  abort() {
+    this.aborted = true
+    this.onabort?.()
   }
 }
 
@@ -105,5 +111,78 @@ describe('uploadBackup: TOKEN_EXPIRED triggers exactly one refresh-and-replay', 
     await expect(uploadPromise).rejects.toThrow('too large')
     expect(fetchMock).not.toHaveBeenCalled()
     expect(FakeXhr.instances).toHaveLength(1)
+  })
+})
+
+// bug-hunt-2026-09-06 (client silent-failure lane, lib/ pass): sendOnce had
+// no timeout at all -- if the connection was accepted but the server (or a
+// proxy) never responded, none of onload/onerror/onabort would ever fire and
+// the returned Promise would hang forever, same shape as the Servers.tsx/
+// ServerSetup.tsx socket watchdogs but on a raw XHR instead of a socket.
+describe('uploadBackup: a connection that stalls with no response gets aborted and reported, not left hanging', () => {
+  beforeEach(() => {
+    FakeXhr.instances = []
+    vi.stubGlobal('XMLHttpRequest', FakeXhr as unknown as typeof XMLHttpRequest)
+    setAccessToken('valid-token')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    clearAccessToken()
+    vi.useRealTimers()
+  })
+
+  it('aborts and rejects with an honest stall message after 3 minutes of zero upload progress', async () => {
+    // Installed before the upload call: the stall-check setInterval is
+    // created synchronously inside sendOnce's Promise executor, so fake
+    // timers must already be active when that runs (see
+    // Servers.steamStallRecovery.test.tsx for the same lesson).
+    // shouldAdvanceTime keeps the two microtask-flush awaits below usable.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+
+    const file = new File(['zip-bytes'], 'save.zip')
+    const uploadPromise = backupApi.uploadBackup(file)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(FakeXhr.instances).toHaveLength(1)
+
+    // Attach the rejection assertion BEFORE advancing into the abort --
+    // .rejects attaches its own handler synchronously, so there is no
+    // window where the eventual rejection is briefly unhandled (which
+    // vitest reports as a real "Unhandled Error", the exact false-positive
+    // noise this whole sweep exists to eliminate).
+    const assertion = expect(uploadPromise).rejects.toThrow(/stalled/i)
+
+    // No .respond() and no upload progress ever fires -- exactly the
+    // "connection accepted, server never answers" case.
+    await vi.advanceTimersByTimeAsync(3 * 60 * 1000 - 1000)
+    expect(FakeXhr.instances[0].aborted).toBe(false)
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(FakeXhr.instances[0].aborted).toBe(true)
+    await assertion
+  })
+
+  it('a normal upload with regular progress events never gets aborted, even past the 3-minute mark', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+
+    const file = new File(['zip-bytes'], 'save.zip')
+    const uploadPromise = backupApi.uploadBackup(file, () => {})
+    await Promise.resolve()
+    await Promise.resolve()
+    const xhr = FakeXhr.instances[0]
+
+    // A slow but genuinely-progressing upload: a progress event every 2
+    // minutes keeps resetting the stall clock, well past the 3-minute
+    // threshold in total elapsed time.
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(2 * 60 * 1000)
+      xhr.upload.onprogress?.({ lengthComputable: true, loaded: (i + 1) * 100, total: 400 })
+    }
+    expect(xhr.aborted).toBe(false)
+
+    xhr.respond(200, { success: true, name: 'save.zip', size: 400, message: 'uploaded' })
+    const result = await uploadPromise
+    expect(result.success).toBe(true)
   })
 })

@@ -3127,6 +3127,24 @@ export const backupApi = {
     // server/services/auth.js's own comment on why 15m), and a user
     // returning after being idle that long would otherwise see a raw 401
     // instead of a transparent refresh-and-retry like everywhere else.
+    // bug-hunt-2026-09-06 (client silent-failure lane, lib/ pass): raw XHR
+    // gets none of fetchWithRetry's protections for free, and this one was
+    // missing one more than the 401-replay above -- no timeout at all. If
+    // the connection is accepted but the server (or a proxy) never
+    // responds, none of onload/onerror/onabort ever fires, this Promise
+    // never settles, and the caller's await hangs forever: upload button
+    // stuck disabled, percent frozen, zero error, indefinitely. Same
+    // "nobody's listening for the outcome" shape as the Servers.tsx/
+    // ServerSetup.tsx socket watchdogs, on a raw XHR instead of a socket.
+    //
+    // Unlike those cases, an aborted upload here is safe to report as a
+    // genuine failure rather than an honest "may still be running": the
+    // server streams straight to a .tmp file in lockstep with the request
+    // body (server/routes/backup.js's streamUploadToFile) with no
+    // decoupled background job, so an aborted connection means the
+    // server-side write stops too and cleans up -- there is no SteamCMD-
+    // style child process still working after the client walks away.
+    const STALL_MS = 3 * 60 * 1000;
     const sendOnce = (
       token: string | null,
     ): Promise<{ status: number; payload: any }> =>
@@ -3136,13 +3154,21 @@ export const backupApi = {
         if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
         xhr.setRequestHeader("Content-Type", "application/zip");
         xhr.setRequestHeader("X-Backup-Filename", file.name);
-        if (onProgress) {
-          xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable)
-              onProgress(Math.round((e.loaded / e.total) * 100));
-          };
-        }
+        let lastActivity = Date.now();
+        let timedOut = false;
+        xhr.upload.onprogress = (e) => {
+          lastActivity = Date.now();
+          if (onProgress && e.lengthComputable)
+            onProgress(Math.round((e.loaded / e.total) * 100));
+        };
+        const stallCheck = setInterval(() => {
+          if (Date.now() - lastActivity >= STALL_MS) {
+            timedOut = true;
+            xhr.abort();
+          }
+        }, 15000);
         xhr.onload = () => {
+          clearInterval(stallCheck);
           let payload: any = null;
           try {
             payload = JSON.parse(xhr.responseText);
@@ -3151,8 +3177,20 @@ export const backupApi = {
           }
           resolve({ status: xhr.status, payload });
         };
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-        xhr.onabort = () => reject(new Error("Upload aborted"));
+        xhr.onerror = () => {
+          clearInterval(stallCheck);
+          reject(new Error("Network error during upload"));
+        };
+        xhr.onabort = () => {
+          clearInterval(stallCheck);
+          reject(
+            timedOut
+              ? new Error(
+                  "The upload stalled with no response from the server and was cancelled. Check your connection and try again.",
+                )
+              : new Error("Upload aborted"),
+          );
+        };
         xhr.send(file);
       });
 
