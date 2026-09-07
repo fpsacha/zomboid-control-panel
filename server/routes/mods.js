@@ -5930,24 +5930,42 @@ let scanLockToken = 0;
 const SCAN_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // Returns a token identifying this scan, or null when a scan is already running.
-function acquireScanLock() {
+//
+// conflictScanStartedAt uses performance.now() (monotonic), not Date.now()
+// (wall clock) -- bug hunt 2026-09-07 (Date.now()-for-elapsed-time sweep):
+// the old Date.now()-based version's stuck-mutex auto-reset is a stuck-
+// state auto-recovery that can silently stop being able to run -- a wall-
+// clock step BACKWARD (NTP correction, DST, a manual clock change) landing
+// between conflictScanStartedAt being recorded and a later acquireScanLock()
+// call means `Date.now() - conflictScanStartedAt` may never exceed
+// SCAN_MUTEX_TIMEOUT_MS again. A genuinely crashed/stuck scan's mutex would
+// then never auto-release -- every subsequent scan request gets rejected as
+// "already running" until real wall-clock time closes whatever gap the step
+// introduced, which for a large correction could be hours. Monotonic time
+// cannot step backward, so this comparison can only ever be false because
+// not enough real time has actually passed -- matching what the auto-reset
+// was written to measure.
+// Exported so tests can drive the mutex directly against real
+// timers/clocks without needing a full conflict-scan route call -- see
+// server/tests/modsScanMutexClockJump.test.js.
+export function acquireScanLock() {
   // Auto-reset if stuck for more than 5 minutes (e.g. crash mid-scan)
   if (
     conflictScanInFlight &&
-    Date.now() - conflictScanStartedAt > SCAN_MUTEX_TIMEOUT_MS
+    performance.now() - conflictScanStartedAt > SCAN_MUTEX_TIMEOUT_MS
   ) {
     log.warn("Conflict scan mutex was stuck for >5 min — auto-resetting");
     conflictScanInFlight = false;
   }
   if (conflictScanInFlight) return null;
   conflictScanInFlight = true;
-  conflictScanStartedAt = Date.now();
+  conflictScanStartedAt = performance.now();
   return ++scanLockToken;
 }
 
 // Tokens stop a scan that overran the stuck-mutex timeout from releasing the
 // lock out from under the newer scan that replaced it.
-function releaseScanLock(token) {
+export function releaseScanLock(token) {
   if (token !== scanLockToken) return;
   conflictScanInFlight = false;
   conflictScanStartedAt = 0;
