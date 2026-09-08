@@ -821,19 +821,44 @@ rem ============================================================
     goto :eof
   )
 
-  if exist "%BIN_BACKUP%" del /f /q "%BIN_BACKUP%" >nul 2>&1
-  if exist "%CLIENT_BACKUP%" rmdir /s /q "%CLIENT_BACKUP%" >nul 2>&1
+  rem 2026-09-08, god-dispatched fix for the most serious finding of the
+  rem night: this cleanup used to run UNCONDITIONALLY, before ever checking
+  rem whether %BASE_EXE% currently exists. A stale backup is only safe to
+  rem discard when the CURRENT live exe already exists -- that is what
+  rem proves the backup is orphaned from a fully-resolved PRIOR cycle, not
+  rem the only surviving copy from an attempt (this run's own earlier
+  rem try, or an interrupted prior supervisor invocation) that hasn't
+  rem finished yet. When %BASE_EXE% is missing, the backup is
+  rem presumptively the only copy: if the supervisor is killed (reboot,
+  rem AV, task manager) right after the ren of %BASE_EXE% to %BIN_BACKUP%
+  rem succeeds below but before the rest of the swap completes, %BASE_EXE% is gone
+  rem and %BIN_BACKUP% holds the only working copy of the old binary --
+  rem the very next automatic retry (triggered by the still-present
+  rem .update-pending marker) used to delete that backup here as routine
+  rem cleanup, before this attempt's own EXE_BACKUP_MADE was even set, so
+  rem a LATER unrelated failure on that same retry then had :rollback_update
+  rem claim (see :rollback_binary_skip below) that the executable was
+  rem "untouched" -- false, with nothing left to recover from. Gating the
+  rem whole block (cleanup AND the backup-rename attempt) on %BASE_EXE%
+  rem existing closes this: either it exists and this attempt safely
+  rem clears any stale backup before making its own, or it doesn't and
+  rem NEITHER the cleanup nor a fresh backup attempt runs, leaving whatever
+  rem is already on disk (a survivor from an earlier attempt, most likely)
+  rem untouched for :rollback_update to actually find. Same reasoning for
+  rem the client-dist line.
+  if exist "%BASE_EXE%" (
+    if exist "%BIN_BACKUP%" del /f /q "%BIN_BACKUP%" >nul 2>&1
+    if exist "%CLIENT_BACKUP%" rmdir /s /q "%CLIENT_BACKUP%" >nul 2>&1
 
-  if not exist "%BASE_EXE%" goto :do_rename
-
-  call :stamp "Apply: backing up %BASE_EXE% to %BIN_BACKUP%"
-  ren "%BASE_EXE%" "%BIN_BACKUP%" >nul 2>&1
-  if errorlevel 1 (
-    call :stamp "Apply: could not back up running executable [binary_swap_failed]"
-    echo ERROR: could not rename %BASE_EXE% — is the panel still running?
-    goto :eof
+    call :stamp "Apply: backing up %BASE_EXE% to %BIN_BACKUP%"
+    ren "%BASE_EXE%" "%BIN_BACKUP%" >nul 2>&1
+    if errorlevel 1 (
+      call :stamp "Apply: could not back up running executable [binary_swap_failed]"
+      echo ERROR: could not rename %BASE_EXE% — is the panel still running?
+      goto :eof
+    )
+    set "EXE_BACKUP_MADE=1"
   )
-  set "EXE_BACKUP_MADE=1"
 
 :do_rename
   if exist "%CLIENT_LIVE%" (
@@ -913,7 +938,33 @@ goto :eof
   goto :rollback_binary_done
 
 :rollback_binary_skip
-  call :stamp "Apply: binary restore skipped; backup step never ran, executable untouched"
+  rem 2026-09-08, god-dispatched: EXE_BACKUP_MADE=0 only proves THIS
+  rem attempt's own backup step never ran -- it does NOT prove the
+  rem executable is still there. Before the cleanup-ordering fix above, a
+  rem PRIOR interrupted attempt could leave %BASE_EXE% genuinely missing
+  rem with nothing left to restore from, and this branch claimed
+  rem "untouched" unconditionally anyway -- the worst instance of tonight's
+  rem through-line (the panel telling the user something untrue), because
+  rem it is the exact sentence that stops an operator from looking for the
+  rem staged .exe.new that might still be sitting there. Check reality
+  rem before claiming anything about it.
+  if exist "%BASE_EXE%" (
+    call :stamp "Apply: binary restore skipped; backup step never ran, executable untouched"
+  ) else (
+    call :stamp "Apply: binary restore skipped, but %BASE_EXE% does not exist [rollback_failed]"
+    echo ERROR: no working %BASE_EXE% was found in this folder.
+    if exist "%BIN_BACKUP%" (
+      echo A previous backup exists at %BIN_BACKUP% -- rename it to
+      echo %BASE_EXE% by hand to recover.
+    ) else if exist "!STAGED_NAME!" (
+      echo A staged update binary is still present at !STAGED_NAME! -- you
+      echo may be able to recover by renaming it to %BASE_EXE% by hand.
+    ) else (
+      echo No backup or staged update binary remains to recover from
+      echo either. A manual reinstall may be required.
+    )
+    set "BINARY_RESTORE_OK=0"
+  )
 
 :rollback_binary_done
   if "!BINARY_RESTORE_OK!"=="0" set "ROLLBACK_FAILED=1"
@@ -951,7 +1002,18 @@ goto :eof
 
   if "!ROLLBACK_FAILED!"=="1" (
     call :stamp "Apply: rollback incomplete; journal retained for recovery [rollback_failed]"
+    rem 2026-09-08, god-dispatched: this used to stop at one bare sentence
+    rem while :rollback_retry_exhausted (below) gives the exact same
+    rem "operator must intervene manually" situation a full recipe naming
+    rem all three files. Two messages for one situation, one of them
+    rem useless, was a bug in its own right -- give them the same recipe.
     echo ERROR: update rollback was incomplete. Recovery files were retained.
+    echo.
+    echo To recover manually, delete these files from this folder, then run
+    echo Start.bat again:
+    echo   .update-pending
+    echo   .update-applying
+    echo   update-bundle.json
     goto :eof
   )
 

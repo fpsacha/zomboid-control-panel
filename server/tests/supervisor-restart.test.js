@@ -1288,6 +1288,102 @@ describe.skipIf(!!skipReason)(
     );
 
     it(
+      "does not delete the old exe's only surviving backup on a retry after being killed mid-swap, and tells the truth when the binary is genuinely missing",
+      async () => {
+        // 2026-09-08, god-dispatched: the most serious finding of the
+        // night. Reproduces the exact compound sequence the pre-fix code
+        // got wrong -- a PRIOR supervisor invocation already renamed the
+        // running exe into the backup slot (the very first file operation
+        // :apply_update performs) and was then killed (reboot/AV/task
+        // manager) before completing the rest of the swap. .update-pending
+        // is still present, so the NEXT invocation retries :apply_update
+        // from scratch -- this is that retry. Before the fix, the
+        // unconditional cleanup at the top of :apply_update deleted the
+        // backup here as routine "clean slate" housekeeping, and then a
+        // SECOND, unrelated failure later in the same retry (forced below)
+        // reached :rollback_binary_skip, which claimed the executable was
+        // "untouched" -- false, with nothing left to recover from.
+        const dir = freshScenarioDir("killed-mid-swap-then-second-failure");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir);
+
+        const exePath = path.join(dir, "ZomboidControlPanel.exe");
+        const backupPath = path.join(
+          dir,
+          "ZomboidControlPanel.exe.bundle-previous",
+        );
+
+        // Simulate the interrupted prior attempt: the exe-backup rename
+        // already succeeded and nothing since then has touched it.
+        fs.renameSync(exePath, backupPath);
+
+        // Force the SECOND, independent failure this retry hits: hold a
+        // file open inside the LIVE client\dist directory without
+        // FILE_SHARE_DELETE (same technique the "does not report a
+        // rollback failure when the frontend backup step itself never
+        // ran" test above already proved reliable -- a pre-existing
+        // directory at the destination does NOT make this move fail,
+        // confirmed separately: Windows merges the source INTO an
+        // existing destination directory instead of erroring). Lands in
+        // :rollback_update with the binary side already unresolved from
+        // the interrupted first attempt.
+        const liveClientPath = path.join(dir, "client", "dist");
+        const lockedFilePath = path.join(liveClientPath, "index.html");
+        const holder = holdFileOpenWithoutDelete(lockedFilePath, 25);
+        const supervisor = runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          60000,
+        );
+        let result;
+        try {
+          await waitForCondition(
+            () =>
+              /could not back up live frontend/i.test(readSupervisorLog(dir)),
+            30000,
+            "the supervisor to report the client backup failure",
+            () => readSupervisorLogWithJournalDiagnostic(dir),
+          );
+        } finally {
+          holder.kill();
+          result = await supervisor;
+        }
+
+        // The exe is still missing -- this fix is message-honesty, not an
+        // automatic restore from a stray backup -- but the ordering fix
+        // means the one thing that COULD restore it by hand is still
+        // there, not destroyed as "cleanup" on the way to this failure.
+        expect(fs.existsSync(exePath)).toBe(false);
+        expect(fs.existsSync(backupPath)).toBe(true);
+
+        const log = readSupervisorLog(dir);
+        // The lie this fix exists to remove must never appear when the
+        // executable is genuinely missing.
+        expect(log).not.toMatch(/executable untouched/i);
+        expect(log).toMatch(
+          /binary restore skipped, but .*does not exist/i,
+        );
+        expect(result.stdout).toMatch(
+          /no working ZomboidControlPanel\.exe was found/i,
+        );
+        expect(result.stdout).toMatch(/a previous backup exists at/i);
+        expect(result.stdout).toMatch(/rename it to/i);
+        // Same generic recovery recipe :rollback_retry_exhausted already
+        // gave, now aligned rather than a bare, useless sentence.
+        expect(result.stdout).toMatch(/\.update-pending/);
+        expect(result.stdout).toMatch(/\.update-applying/);
+        expect(result.stdout).toMatch(/update-bundle\.json/);
+
+        // No exe anywhere -- run_loop's own pre-existing safety net halts
+        // rather than looping or attempting to launch nothing.
+        expect(result.status).toBe(1);
+        expect(countLaunches(result.stdout)).toBe(0);
+      },
+      75000,
+    );
+
+    it(
       "resets the crash counter after a run that stays up long enough, so the cap never trips",
       async () => {
         const dir = freshScenarioDir("resets-after-stable-run");
