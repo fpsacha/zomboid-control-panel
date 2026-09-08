@@ -138,4 +138,93 @@ describe("acquireLock / releaseLock", () => {
     expect(fs.existsSync(result.lockPath)).toBe(true);
     expect(fs.readFileSync(result.lockPath, "utf8")).toBe("999999");
   });
+
+  // god's dispatch, 2026-09-08: the catch block below (lock file cannot be
+  // WRITTEN at all) predates bughunt-2026-08-31-c above and was never
+  // revisited by it -- confirmed via git history (that fix's own commit
+  // message scopes itself to the ambiguous-liveness-signal branch, and its
+  // test file above covers every OTHER branch but not this one). It
+  // unconditionally proceeded without a lock on ANY write failure, the
+  // opposite direction from the ruling three lines above it in source.
+  // These test the fix: the specific, empirically-verified codes
+  // (EXPECTED_UNWRITABLE_CODES in pidLock.js -- verified against real
+  // environments, not derived: a real Linux read-only bind mount, a real
+  // Linux chmod-000 directory, a real Windows ACL-deny) still proceed
+  // (refusing would turn a supported read-only-mount deployment into its
+  // own outage), but anything NOT on that list now refuses, matching the
+  // ruling instead of silently bypassing it.
+  describe("lock file cannot be written at all (data directory unwritable)", () => {
+    let writeSpy;
+
+    afterEach(() => {
+      writeSpy?.mockRestore();
+    });
+
+    function mockWriteFailure(code, message) {
+      writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(() => {
+        const err = new Error(message || `${code}: mocked failure`);
+        err.code = code;
+        throw err;
+      });
+    }
+
+    it.each(["EROFS", "EACCES", "EPERM", "EBUSY"])(
+      "proceeds without a lock on %s (the documented, accepted read-only/access-restricted case) and records why",
+      (code) => {
+        mockWriteFailure(code);
+
+        const result = acquireLock(dataDir);
+
+        expect(result.acquired).toBe(true);
+        expect(result.lockPath).toBeNull();
+      },
+    );
+
+    it.each(["ENOSPC", "EIO", "EMFILE"])(
+      "REFUSES to start on %s -- an unexpected write failure, never a considered exception to the fail-toward-refuse ruling",
+      (code) => {
+        mockWriteFailure(code);
+
+        const result = acquireLock(dataDir);
+
+        expect(result.acquired).toBe(false);
+        expect(result.reason).toContain(code);
+      },
+    );
+
+    it("isLockProtectionDisabled() reflects the accepted-code case persistently, for a diagnostics check to read later", async () => {
+      const { isLockProtectionDisabled } = await import("../utils/pidLock.js");
+      expect(isLockProtectionDisabled()).toBeFalsy();
+
+      mockWriteFailure("EROFS", "read-only file system, open 'panel.lock'");
+      acquireLock(dataDir);
+
+      const disabled = isLockProtectionDisabled();
+      expect(disabled).toBeTruthy();
+      expect(disabled.code).toBe("EROFS");
+    });
+
+    it("isLockProtectionDisabled() is null again after a SUBSEQUENT successful real acquisition", async () => {
+      const { isLockProtectionDisabled } = await import("../utils/pidLock.js");
+
+      mockWriteFailure("EROFS");
+      acquireLock(dataDir);
+      expect(isLockProtectionDisabled()).toBeTruthy();
+
+      writeSpy.mockRestore();
+      acquireLock(dataDir);
+
+      expect(isLockProtectionDisabled()).toBeFalsy();
+    });
+
+    it("does not refuse on an unexpected code just because a live-lock refusal would also refuse -- reason text distinguishes the two", () => {
+      mockWriteFailure("ENOSPC", "no space left on device");
+
+      const result = acquireLock(dataDir);
+
+      expect(result.acquired).toBe(false);
+      expect(result.reason).not.toMatch(/already running/i);
+      expect(result.existingPid).toBeUndefined();
+    });
+  });
 });
