@@ -114,6 +114,42 @@ while :; do sleep 1; done
     expect(output).not.toContain("bundle-previous");
   }, 15_000);
 
+  // Self-directed sibling check of the Q6 fix (2026-09-08): Start.bat
+  // already special-cases exit code 78 (utils/pidLock.js's cross-platform
+  // application-level single-instance lock refusing to start because
+  // another live instance already holds it) -- it stops immediately
+  // instead of entering its crash-loop backoff, because retrying a
+  // guaranteed-identical refusal would misrepresent a working refusal as a
+  // string of crashes. generateStartSh() had no equivalent. This exercises
+  // the fix: a single exit-78 run must stop immediately (propagate 78, zero
+  // relaunch attempts logged), not be treated like an ordinary crash.
+  it("stops immediately on exit code 78 (single-instance lock refusal) instead of crash-looping", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-lockrefusal-"));
+    roots.push(root);
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel"), "#!/bin/sh\nexit 78\n", { mode: 0o755 });
+
+    let output;
+    let exitCode = 0;
+    try {
+      output = execFileSync("bash", ["start.sh"], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, PANEL_SUPERVISOR_MAX_CRASHES: "2", PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+        timeout: 10_000,
+      });
+    } catch (error) {
+      output = `${error.stdout || ""}${error.stderr || ""}`;
+      exitCode = error.status;
+    }
+
+    expect(exitCode).toBe(78);
+    expect(output).toContain("Another panel instance already holds the lock");
+    expect(output).not.toContain("relaunch attempt");
+    expect(output).not.toContain("giving up");
+  }, 15_000);
+
   // Q6/Q4 gap found in the same read (2026-09-08): KillMode=process is
   // deliberate and correct (it's what the FIRST test above proves), but a
   // shutdown slow enough to hit systemd's TimeoutStopSec escalates to

@@ -1268,6 +1268,26 @@ while true; do
     continue
   fi
 
+  # Exit code 78 = the panel's own application-level single-instance lock
+  # (utils/pidLock.js's acquireLock(), cross-platform, checked before it
+  # ever binds the HTTP port) refused to start because another live
+  # instance already holds it -- the panel already logged exactly which PID
+  # and what to do about it. Same reasoning as Start.bat's identical check
+  # for the same exit code: retrying is guaranteed to fail identically
+  # every time (the lock will still be held), so this stops here instead of
+  # entering the crash-loop backoff below -- looping it would misrepresent
+  # a working refusal as a string of crashes, and eventually "giving up"
+  # would name the wrong problem entirely. Does not attempt to reclaim
+  # anything here -- that already happened, if it was going to, at this
+  # invocation's own startup (see reclaim_or_refuse_if_already_running()
+  # above); if the lock is STILL held after that, retrying inside this same
+  # run cannot help. Exiting lets Restart=on-failure decide the next step,
+  # and that next invocation's guard gets another chance.
+  if [ "$EXIT_CODE" = "78" ]; then
+    echo "Another panel instance already holds the lock; not retrying (see the panel's own log for which PID)."
+    exit 78
+  fi
+
   if [ "$PANEL_RUNTIME" -ge "$MIN_STABLE_SECONDS" ]; then
     CRASH_COUNT=0
   fi
