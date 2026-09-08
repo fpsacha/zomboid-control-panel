@@ -281,6 +281,16 @@ export class PanelUpdateChecker {
       log.debug(`Orphan partial cleanup failed: ${err.message}`);
     }
 
+    // Sweep orphaned client-staging directories a rollback left behind on
+    // either platform (see cleanupOrphanStagedClientDirs()'s own comment).
+    // Runs after reconcilePendingUpdate() above, so any journal state that
+    // reconciliation itself changes on this same boot is what gets read.
+    try {
+      this.cleanupOrphanStagedClientDirs();
+    } catch (err) {
+      log.debug(`Orphan staged client-dir cleanup failed: ${err.message}`);
+    }
+
     // Initial check after 30 seconds
     this.initialTimeout = setTimeout(() => this.checkForUpdate(), 30000);
 
@@ -3045,6 +3055,77 @@ public static extern bool CloseHandle(System.IntPtr hObject);
         log.info(`Removed orphan download partial: ${name}`);
       } catch (err) {
         log.debug(`Could not remove orphan partial ${fp}: ${err.message}`);
+      }
+    }
+  }
+
+  /**
+   * god-dispatched, 2026-09-08 (harden-updater-fileops #1 follow-up):
+   * stageUpdateBundle() (updateBundle.js) copies the verified client bundle
+   * into `client/dist.new-<version>` -- a fresh, version-named directory
+   * every time, never reusing a prior one. Neither rollback() (Linux) nor
+   * build.js's :rollback_update (Windows) ever cleans this up on a failed
+   * apply -- both only restore the LIVE binary/client from their backups.
+   * Confirmed unreachable-by-construction before writing this: downloadUpdate()
+   * always starts a fresh download+stage cycle (its own comment: "Clear any
+   * prior staged file so we always download fresh"), and getStagedUpdate()
+   * -- the ONLY gate anything uses to find a stageable update -- requires a
+   * valid, currently-referencing journal. Once rollback deletes the journal
+   * (or a crash happens before one was ever written), nothing in this
+   * codebase can discover or re-apply the orphaned directory again; it is
+   * pure wasted disk, not a retry path being thrown away. Unlike the staged
+   * BINARY (a fixed .new/.new2 slot that self-recycles on the very next
+   * download attempt regardless of version -- see getStageSlotPath()), this
+   * is namespaced by version and therefore unbounded: a different future
+   * release's dist.new-<version> never touches a stale one.
+   *
+   * Reads the CURRENT journal's paths.stagedClient (if any, whatever its
+   * phase) and never removes that exact directory, matching
+   * cleanupOrphanPartials()'s "an inconclusive signal never authorises a
+   * destructive action" philosophy: an unreadable/missing journal means
+   * sweep nothing conditioned on it existing at all is impossible to prove,
+   * so a corrupt journal fails toward keeping everything rather than
+   * guessing which directory it might still be protecting.
+   */
+  cleanupOrphanStagedClientDirs() {
+    if (typeof process.pkg === "undefined") return;
+    const exeDir = path.dirname(this.getExeBasePath());
+    const clientDir = path.join(exeDir, "client");
+    let entries;
+    try {
+      entries = fs.readdirSync(clientDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const journalPath = path.join(exeDir, "update-bundle.json");
+    let keepPath = null;
+    if (fs.existsSync(journalPath)) {
+      try {
+        const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+        if (journal?.paths?.stagedClient) {
+          keepPath = path.resolve(journal.paths.stagedClient);
+        }
+      } catch (err) {
+        log.debug(
+          `Could not read update-bundle.json for orphan client-dir sweep, skipping this pass: ${err.message}`,
+        );
+        return;
+      }
+    }
+    const stagedClientDirPattern = /^dist\.new-.+$/;
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !stagedClientDirPattern.test(entry.name)) {
+        continue;
+      }
+      const fullPath = path.join(clientDir, entry.name);
+      if (keepPath && path.resolve(fullPath) === keepPath) continue;
+      try {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+        log.info(`Removed orphaned staged client bundle: ${entry.name}`);
+      } catch (err) {
+        log.debug(
+          `Could not remove orphaned staged client bundle ${fullPath}: ${err.message}`,
+        );
       }
     }
   }
