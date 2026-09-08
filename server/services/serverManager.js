@@ -1,7 +1,6 @@
 import { spawn, exec, execFile } from "child_process";
 import path from "path";
 import fs from "fs";
-import os from "os";
 import net from "net";
 import { createLogger } from "../utils/logger.js";
 const log = createLogger("Server");
@@ -22,6 +21,7 @@ import {
   isManagedLifecycleProvider,
 } from "./linuxServiceLifecycle.js";
 import { hasActiveSteamOperation } from "./activeSteamOperations.js";
+import { listNonInternalIPv4Interfaces } from "../utils/networkInterfaces.js";
 
 const isWindows = process.platform === "win32";
 // How long a live-looked-up public IP is trusted before re-checking.
@@ -2502,18 +2502,12 @@ export class ServerManager {
 
   // All non-internal IPv4 addresses currently present on the host, e.g. one
   // per VPN mesh (Tailscale, ZeroTier) plus the real LAN adapter — so the
-  // Settings UI can offer a choice instead of the panel guessing.
+  // Settings UI can offer a choice instead of the panel guessing. Delegates
+  // to the shared utils/networkInterfaces.js implementation (2026-09-08)
+  // so server/utils/certs.js's SubjectAltName generation reuses this exact
+  // enumeration instead of a second one.
   listNetworkInterfaces() {
-    const interfaces = os.networkInterfaces();
-    const result = [];
-    for (const name of Object.keys(interfaces)) {
-      for (const iface of interfaces[name]) {
-        if (iface.family === "IPv4" && !iface.internal) {
-          result.push({ name, address: iface.address });
-        }
-      }
-    }
-    return result;
+    return listNonInternalIPv4Interfaces();
   }
 
   async getLocalIp() {

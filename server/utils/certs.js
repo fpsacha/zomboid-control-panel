@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { createLogger } from '../utils/logger.js';
 import { getDataPaths } from '../utils/paths.js';
+import { listNonInternalIPv4Interfaces } from '../utils/networkInterfaces.js';
 
 const log = createLogger('HTTPS');
 
@@ -39,6 +40,48 @@ function generateSelfSignedCert() {
   const cert = createSelfSignedCertPEM(privateKey, publicKey);
 
   return { key: privateKey, cert };
+}
+
+// 2026-09-08, god-dispatched fix (GH#149 Tailscale investigation): the
+// certificate previously carried NO SubjectAltName extension at all -- CN
+// only. Chrome/Firefox both ignore CN and require SAN since ~2017, so
+// hostname validation failed identically for EVERY host (localhost, LAN,
+// tailnet alike) -- not a Tailscale-specific gap, but a universal one that
+// happened to surface while chasing that theory. Fixed here rather than
+// left as the UX-only issue it was first filed as, because god's follow-up
+// question ("is there a non-browser client with no Advanced->Proceed")
+// matters even though this investigation found none in this codebase today:
+// a future caller would hit ERR_TLS_CERT_ALTNAME_INVALID with no bypass.
+//
+// Reuses ServerManager.listNetworkInterfaces()'s exact enumeration (now
+// shared via utils/networkInterfaces.js) rather than a second one -- that
+// function's own comment already names "one per VPN mesh (Tailscale,
+// ZeroTier) plus the real LAN adapter" as its expected shape, so a tailnet
+// address is covered for free, with no Tailscale-specific line here.
+function buildSubjectAltNameExtension() {
+  const generalNames = [
+    derTag(0x82, Buffer.from('localhost', 'ascii')), // dNSName [2]
+    derTag(0x87, Buffer.from([127, 0, 0, 1])), // iPAddress [7] 127.0.0.1
+    derTag(0x87, Buffer.from(new Array(15).fill(0).concat(1))), // ::1
+  ];
+
+  for (const { address } of listNonInternalIPv4Interfaces()) {
+    const octets = address.split('.').map(Number);
+    const isValidIPv4 =
+      octets.length === 4 &&
+      octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255);
+    if (isValidIPv4) {
+      generalNames.push(derTag(0x87, Buffer.from(octets)));
+    }
+  }
+
+  const extnValue = derOctetString(derSequence(generalNames));
+  const subjectAltNameExtension = derSequence([
+    derOID([2, 5, 29, 17]), // subjectAltName
+    extnValue,
+  ]);
+  // [3] EXPLICIT Extensions ::= SEQUENCE OF Extension
+  return derExplicit(3, derSequence([subjectAltNameExtension]));
 }
 
 /**
@@ -87,6 +130,7 @@ function createSelfSignedCertPEM(privateKeyPem, publicKeyPem) {
     validity,
     subject, // subject
     pubKeyDer, // subjectPublicKeyInfo (already DER-encoded)
+    buildSubjectAltNameExtension(), // [3] extensions -- SAN (2026-09-08)
   ]);
 
   // Sign the TBS with SHA-256 + RSA
@@ -188,6 +232,10 @@ function derNull() {
   return Buffer.from([0x05, 0x00]);
 }
 
+function derOctetString(content) {
+  return derTag(0x04, content);
+}
+
 function derUTF8String(str) {
   return derTag(0x0c, Buffer.from(str, 'utf8'));
 }
@@ -254,11 +302,33 @@ export function loadOrCreateCerts(customKeyPath, customCertPath) {
 
   // Check for existing self-signed certs
   if (fs.existsSync(KEY_FILE) && fs.existsSync(CERT_FILE)) {
-    log.info('Using existing self-signed certificate');
-    return {
-      key: fs.readFileSync(KEY_FILE),
-      cert: fs.readFileSync(CERT_FILE),
-    };
+    const existingCert = fs.readFileSync(CERT_FILE);
+    // 2026-09-08, god-dispatched: a cached cert generated before this fix
+    // has no SubjectAltName at all (see buildSubjectAltNameExtension()'s
+    // comment above) -- without this check, loadOrCreateCerts() would keep
+    // reusing that broken cert on every restart FOREVER for any install
+    // that had already generated one, and the fix would reach nobody who
+    // needed it. Detected by parsing the actual bytes back (X509Certificate
+    // exposes subjectAltName directly), not by a version/date heuristic --
+    // a cert this function itself wrote, before or after this fix, is the
+    // only thing that decides this, and a directly-read property beats
+    // inferring it. A cert that fails to parse at all is treated the same
+    // way (missing SAN) so a corrupt file also self-heals instead of
+    // wedging HTTPS forever.
+    let hasSubjectAltName = false;
+    try {
+      hasSubjectAltName = Boolean(new crypto.X509Certificate(existingCert).subjectAltName);
+    } catch (error) {
+      log.warn(`Existing self-signed certificate could not be parsed (${error.message}) — regenerating`);
+    }
+    if (hasSubjectAltName) {
+      log.info('Using existing self-signed certificate');
+      return {
+        key: fs.readFileSync(KEY_FILE),
+        cert: existingCert,
+      };
+    }
+    log.warn('Existing self-signed certificate predates SubjectAltName support (would fail strict hostname validation) — regenerating');
   }
 
   // Generate new self-signed cert
