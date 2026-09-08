@@ -242,6 +242,7 @@
       "folderNotWritableWindows": "此程序無法寫入面板資料夾：{{detail}}。請嘗試以管理員身分執行，或將面板移出受保護的資料夾。",
       "folderNotWritableLinux": "此程序無法寫入面板資料夾：{{detail}}。請確認面板服務使用者擁有安裝資料夾，並且可以寫入。",
       "folderNotWritableOther": "此程序無法寫入面板資料夾：{{detail}}。請檢查執行面板的帳號對安裝資料夾的寫入權限。",
+      "exeNotRenameable": "Windows 不允許此程序重新命名它自己的程式檔。請嘗試以管理員身分執行，或將面板移出受保護的資料夾。",
       "diskSpace": "可用磁碟空間不足。大約需要 {{neededMb}} MB，目前有 {{freeMb}} MB。",
       "oneDrive": "面板位於 OneDrive 同步資料夾中。替換執行檔時，同步可能會短暫鎖定檔案。請在點擊「重新啟動並套用」前暫停 OneDrive，或將面板移到不同步的位置（例如 C:\\ZomboidPanel）。",
       "syncSuspect": "面板位於桌面或文件資料夾中。如果你使用 OneDrive 備份或 Known Folder Move，該資料夾會被同步，並可能在套用更新時鎖定執行檔。建議將面板移到不同步的位置。",

@@ -242,6 +242,7 @@
       "folderNotWritableWindows": "Der Panel-Ordner ist für diesen Prozess nicht beschreibbar: {{detail}}. Starte das Panel als Administrator oder verschiebe es aus einem geschützten Ordner.",
       "folderNotWritableLinux": "Der Panel-Ordner ist für diesen Prozess nicht beschreibbar: {{detail}}. Überprüfe, dass der Panel-Dienstbenutzer den Installationsordner besitzt und darin schreiben darf.",
       "folderNotWritableOther": "Der Panel-Ordner ist für diesen Prozess nicht beschreibbar: {{detail}}. Überprüfe die Berechtigungen des Installationsordners für das Konto, unter dem das Panel läuft.",
+      "exeNotRenameable": "Windows lässt diesen Prozess seine eigene Programmdatei nicht umbenennen. Starte das Panel als Administrator oder verschiebe es aus einem geschützten Ordner.",
       "diskSpace": "Nicht genügend freier Speicherplatz. Benötigt werden etwa {{neededMb}} MB, verfügbar sind {{freeMb}} MB.",
       "oneDrive": "Das Panel befindet sich in einem mit OneDrive synchronisierten Ordner. Die Synchronisierung kann die ausführbare Datei beim Ersetzen kurzzeitig sperren. Pausiere OneDrive vor dem Anwenden oder verschiebe das Panel an einen nicht synchronisierten Ort (zum Beispiel C:\\ZomboidPanel).",
       "syncSuspect": "Das Panel befindet sich auf dem Desktop oder in Dokumente. Wenn du OneDrive-Backup oder Known Folder Move verwendest, wird dieser Ordner synchronisiert und kann die ausführbare Datei beim Anwenden sperren. Verschiebe das Panel an einen nicht synchronisierten Ort.",

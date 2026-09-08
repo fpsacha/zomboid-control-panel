@@ -12,7 +12,7 @@ import os from "os";
 import path from "path";
 import https from "https";
 import crypto from "crypto";
-import { spawn } from "child_process";
+import { spawn, execFile } from "child_process";
 import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
 import { getDataPaths } from "../utils/paths.js";
@@ -29,6 +29,11 @@ const GITHUB_API_TIMEOUT_MS = 15000;
 const DOWNLOAD_TIMEOUT_MS = 60000;
 const MAX_GITHUB_RETRIES = 3;
 const MAX_DOWNLOAD_REDIRECTS = 5;
+// Add-Type compiles the P/Invoke shim fresh in every new powershell.exe
+// process (no cross-process cache) -- generous on purpose. This only runs
+// from preflight(), never a hot path, and already sits next to a GitHub
+// network round-trip that takes longer than this on a bad connection.
+const EXE_DELETE_PROBE_TIMEOUT_MS = 8000;
 
 export function getPanelFolderPermissionGuidance(platform, detail) {
   const prefix = `Panel folder is not writable by this process: ${detail}.`;
@@ -1969,7 +1974,31 @@ export class PanelUpdateChecker {
       }
 
       const inProgramFiles = /^c:\\program files/i.test(exeDir);
-      if (inProgramFiles) {
+
+      // Precise version of the path-string heuristic below: does DELETE
+      // actually resolve against the live exe's own ACL, rather than
+      // guessing from where it happens to be installed. See
+      // probeExeDeleteAccess()'s own comment for why this checks DELETE,
+      // not WRITE, and why it can never mutate the file.
+      info.exeDeleteAccess = await this.probeExeDeleteAccess(exePath);
+
+      if (info.exeDeleteAccess === false) {
+        // A verified denial is a strictly stronger signal than the path
+        // guess below -- and fires regardless of path, catching a per-file
+        // AV/ACL block anywhere, not only under Program Files.
+        addPreflightMessage(
+          blockers,
+          blockerDetails,
+          "updates.preflight.exeNotRenameable",
+          {},
+          "Windows will not let this process rename its own program file. Try running as Administrator, or move the panel out of a protected folder.",
+        );
+      } else if (inProgramFiles && info.exeDeleteAccess !== true) {
+        // Fall back to the original heads-up ONLY when the probe couldn't
+        // give a real verdict (blocked/unavailable) -- unchanged behavior
+        // for that case. A verified `true` means we KNOW this install is
+        // fine despite the path, so keeping the generic "might need admin"
+        // warning would be actively wrong information, not caution.
         addPreflightMessage(
           warnings,
           warningDetails,
@@ -2028,6 +2057,106 @@ export class PanelUpdateChecker {
     }
 
     return { ok: blockers.length === 0, blockers, warnings, blockerDetails, warningDetails, info };
+  }
+
+  /**
+   * Windows-only. Answers "can this process rename its own binary" WITHOUT
+   * mutating it -- deliberately not a write-open, and deliberately not a
+   * rename-there-and-back dance.
+   *
+   * Not a write-open: exePath is process.execPath, the CURRENTLY EXECUTING
+   * binary. Windows refuses to open any mapped-for-execution .exe for WRITE
+   * no matter the ACL or elevation -- an image-section lock, not a
+   * permission check -- so an fs.open(path, 'r+') probe here would report
+   * "denied" on every install, healthy or not. That would be worse than not
+   * checking at all: a diagnostic that always fires trains the operator to
+   * ignore it. build.js's generateStartBat() renames the live exe
+   * successfully every day without ever opening it for write, because
+   * rename doesn't need WRITE -- it needs DELETE (Windows rename = remove-
+   * directory-entry, gated by the DELETE right on the source file), and
+   * DELETE is enforced independently of the execution lock. So this probes
+   * exactly that: open a handle requesting ONLY DELETE, then close it
+   * immediately. Succeeds -> the right is granted, and nothing was ever
+   * renamed, deleted, or written -- the handle is just closed. Fails ->
+   * confirmed denied, same non-effect. Dies between the two calls -> the OS
+   * releases the handle on process exit; the file's name and content were
+   * never touched in either branch.
+   *
+   * Node's fs module has no delete-only open, so this shells to PowerShell
+   * (same execFile('powershell.exe', ...) pattern as diskSpace.js/
+   * swapInfo.js, not a new native dependency) for a small inline C#
+   * CreateFile/CloseHandle P/Invoke.
+   *
+   * Returns:
+   *   true  -- DELETE granted (renameable).
+   *   false -- DELETE explicitly denied by the OS (ERROR_ACCESS_DENIED,
+   *            code 5). The only value that may become a preflight BLOCKER.
+   *   null  -- inconclusive: wrong platform, powershell.exe missing/
+   *            blocked/timed out, the probe script itself threw, or any
+   *            other error code. This is the environments-with-AV-and-
+   *            policy case the probe exists to help diagnose ALSO restrict
+   *            the tool used to ask -- so "could not ask" must read as
+   *            unknown, never as a confident false. Never treated as a
+   *            blocker or a warning (same "checksPerformed:false" posture
+   *            as the Docker preflight branch above: a signal nothing can
+   *            act on must stay silent, not become furniture the operator
+   *            learns to ignore).
+   *
+   * An instance method (not a bare export) so tests can vi.spyOn(checker,
+   * "probeExeDeleteAccess") the way every other preflight()-called probe in
+   * this class already is (see getFreeDiskSpace below) -- preflight() calls
+   * it unconditionally on Windows, and this repo's own test machine IS
+   * Windows, so an unmocked run would really shell out to powershell.exe on
+   * every single preflight() test.
+   */
+  async probeExeDeleteAccess(exePath) {
+    if (process.platform !== "win32") return null;
+    const escaped = String(exePath).replace(/'/g, "''");
+    const script = `
+$ErrorActionPreference = 'Stop'
+try {
+  Add-Type -Namespace DwightExeProbe -Name Native -MemberDefinition @'
+[DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+public static extern System.IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, System.IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, System.IntPtr hTemplateFile);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool CloseHandle(System.IntPtr hObject);
+'@
+  $DELETE = 0x00010000
+  $shareAll = 0x1 -bor 0x2 -bor 0x4
+  $handle = [DwightExeProbe.Native]::CreateFile('${escaped}', $DELETE, $shareAll, [System.IntPtr]::Zero, 3, 0, [System.IntPtr]::Zero)
+  if ($handle.ToInt64() -eq -1) {
+    $errCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    Write-Output "DENIED:$errCode"
+  } else {
+    [DwightExeProbe.Native]::CloseHandle($handle) | Out-Null
+    Write-Output "GRANTED"
+  }
+} catch {
+  Write-Output "PROBE_ERROR"
+}
+`;
+    const result = await new Promise((resolve) => {
+      try {
+        execFile(
+          "powershell.exe",
+          ["-NoProfile", "-NonInteractive", "-Command", script],
+          { timeout: EXE_DELETE_PROBE_TIMEOUT_MS, windowsHide: true },
+          (err, stdout) => resolve({ ok: !err, stdout: stdout || "" }),
+        );
+      } catch {
+        resolve({ ok: false, stdout: "" });
+      }
+    });
+    const out = result.stdout.trim();
+    if (!result.ok || !out) return null;
+    if (out === "GRANTED") return true;
+    if (out.startsWith("DENIED:")) {
+      // ERROR_ACCESS_DENIED = 5. Anything else (file vanished mid-probe =
+      // 2, a sharing violation = 32, etc.) isn't a permission verdict.
+      const code = parseInt(out.slice("DENIED:".length), 10);
+      return code === 5 ? false : null;
+    }
+    return null;
   }
 
   /**

@@ -189,6 +189,7 @@
       "folderNotWritableWindows": "Panel folder is not writable by this process: {{detail}}. Try running as Administrator, or move the panel out of a protected folder.",
       "folderNotWritableLinux": "Panel folder is not writable by this process: {{detail}}. Check that the panel service user owns the installation directory and can write to it.",
       "folderNotWritableOther": "Panel folder is not writable by this process: {{detail}}. Check the installation directory permissions for the account running the panel.",
+      "exeNotRenameable": "Windows will not let this process rename its own program file. Try running as Administrator, or move the panel out of a protected folder.",
       "diskSpace": "Not enough free disk space. Need about {{neededMb}} MB, have {{freeMb}} MB.",
       "oneDrive": "Panel lives inside a OneDrive-synced folder. Sync can briefly lock the executable while it is being replaced. Pause OneDrive before clicking Restart and Apply, or move the panel to a non-synced location (for example, C:\\ZomboidPanel).",
       "syncSuspect": "Panel lives on the Desktop or in Documents. If you use OneDrive Backup or Known Folder Move, that folder is sync-backed and may lock the executable during apply. Consider moving the panel to a non-synced location.",

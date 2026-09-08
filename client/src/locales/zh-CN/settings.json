@@ -242,6 +242,7 @@
       "folderNotWritableWindows": "此进程无法写入面板文件夹：{{detail}}。请尝试以管理员身份运行，或将面板移出受保护的文件夹。",
       "folderNotWritableLinux": "此进程无法写入面板文件夹：{{detail}}。请确认面板服务用户拥有安装文件夹，并且可以写入。",
       "folderNotWritableOther": "此进程无法写入面板文件夹：{{detail}}。请检查运行面板的账户对安装文件夹的写入权限。",
+      "exeNotRenameable": "Windows 不允许此进程重命名它自己的程序文件。请尝试以管理员身份运行，或将面板移出受保护的文件夹。",
       "diskSpace": "可用磁盘空间不足。大约需要 {{neededMb}} MB，目前有 {{freeMb}} MB。",
       "oneDrive": "面板位于 OneDrive 同步文件夹中。替换可执行文件时，同步可能会短暂锁定文件。请在点击“重启并应用”前暂停 OneDrive，或将面板移到不同步的位置（例如 C:\\ZomboidPanel）。",
       "syncSuspect": "面板位于桌面或文档文件夹中。如果你使用 OneDrive 备份或 Known Folder Move，该文件夹会被同步，并可能在应用更新时锁定可执行文件。建议将面板移到不同步的位置。",

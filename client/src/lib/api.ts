@@ -3499,6 +3499,10 @@ export interface PanelUpdatePreflight {
     exeDir?: string;
     asset?: { name: string; size: number };
     writable?: boolean;
+    // true = confirmed renameable, false = confirmed denied (blocks the
+    // update), null = could not verify (probe unavailable/blocked -- never
+    // treated as a denial). Windows-only; always undefined/null elsewhere.
+    exeDeleteAccess?: boolean | null;
     freeBytes?: number | null;
     oneDrive?: boolean;
     syncSuspect?: boolean;

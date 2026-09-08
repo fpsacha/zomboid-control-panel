@@ -242,6 +242,7 @@
       "folderNotWritableWindows": "Este proceso no puede escribir en la carpeta del panel: {{detail}}. Intenta ejecutar el panel como administrador o muévelo fuera de una carpeta protegida.",
       "folderNotWritableLinux": "Este proceso no puede escribir en la carpeta del panel: {{detail}}. Comprueba que el usuario del servicio sea propietario de la carpeta de instalación y pueda escribir en ella.",
       "folderNotWritableOther": "Este proceso no puede escribir en la carpeta del panel: {{detail}}. Comprueba los permisos de la carpeta de instalación para la cuenta que ejecuta el panel.",
+      "exeNotRenameable": "Windows no permite que este proceso renombre su propio archivo de programa. Intenta ejecutar el panel como administrador o muévelo fuera de una carpeta protegida.",
       "diskSpace": "No hay suficiente espacio libre. Se necesitan unos {{neededMb}} MB y hay {{freeMb}} MB disponibles.",
       "oneDrive": "El panel está en una carpeta sincronizada con OneDrive. La sincronización puede bloquear brevemente el ejecutable al reemplazarlo. Pausa OneDrive antes de aplicar la actualización o mueve el panel a una ubicación no sincronizada (por ejemplo, C:\\ZomboidPanel).",
       "syncSuspect": "El panel está en el Escritorio o en Documentos. Si usas la copia de seguridad de OneDrive o Known Folder Move, esa carpeta está sincronizada y puede bloquear el ejecutable durante la aplicación. Considera mover el panel a una ubicación no sincronizada.",
