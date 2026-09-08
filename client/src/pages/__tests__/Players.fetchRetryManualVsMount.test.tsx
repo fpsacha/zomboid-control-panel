@@ -22,7 +22,7 @@ import { playersApi, panelBridgeApi, configApi } from '@/lib/api'
 // an unrelated reason -- it's polled every 15s, same shape as Dashboard.tsx)
 // and everything else the page needs are mocked away.
 
-let mockCan = (_capability: string) => true
+const mockCan = (_capability: string) => true
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
