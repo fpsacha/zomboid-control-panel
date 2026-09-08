@@ -89,6 +89,13 @@ vi.mock('@/lib/api', async () => {
       ...actual.serverApi,
       detectSteamCmd: vi.fn(),
       getBranches: vi.fn(),
+      // bug-hunt-2026-09-08 (gate-not-destination sweep): only mocked here so
+      // the granted-path test below can prove handleInlineStart's real
+      // serverApi.start() call, not just that the button looks enabled --
+      // every other test in this file only ever hits the DENIED branch,
+      // where `if (!canInlineStartStop) return` exits before this is ever
+      // reached, so mocking it changes nothing for them.
+      start: vi.fn(),
     },
   }
 })
@@ -119,6 +126,7 @@ const updateAppSettings = vi.mocked(configApi.updateAppSettings)
 const updateGetStatus = vi.mocked(updateApi.getStatus)
 const detectSteamCmd = vi.mocked(serverApi.detectSteamCmd)
 const getBranches = vi.mocked(serverApi.getBranches)
+const start = vi.mocked(serverApi.start)
 
 // Non-docker, non-remote -- exercises servers.manage (activate/save/delete),
 // server.control (inline start), servers.discover (scan/detect/auto-scan),
@@ -200,6 +208,7 @@ async function setUpFixtures() {
   deleteFiles.mockResolvedValue({} as never)
   detectSteamCmd.mockResolvedValue({ found: false, path: null } as never)
   getBranches.mockResolvedValue({ branches: [] } as never)
+  start.mockResolvedValue({} as never)
 }
 
 // Radix's DropdownMenuTrigger opens on pointerdown, not click (see
@@ -393,6 +402,44 @@ describe('Servers.tsx: capability gating', () => {
     fireEvent.click(screen.getByRole('button', { name: en.steamDialog.startUpdate }))
     await waitFor(() => expect(steamUpdate).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(deleteFiles).toHaveBeenCalledTimes(1))
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the "enables every
+  // gated trigger" test above only asserted switchToThisServer/Start were
+  // not.toBeDisabled() and never clicked either -- every OTHER control in
+  // that same test clicks through to its real mock call, these two didn't.
+  // A regression that broke handleActivateServer/handleInlineStart's actual
+  // body (as opposed to the canServersManage/canInlineStartStop disabled
+  // expressions) would have sat green.
+  it('switchToThisServer reaches serversApi.activate, and Start reaches activate then serverApi.start, when the role holds the matching capabilities', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    // Without a real per-server status entry, Start renders its OTHER
+    // disabled branch ("Unavailable" / statusUnavailable, stateUnknown) --
+    // unrelated to capability, but it still leaves the button disabled and
+    // would mask this test's own assertion. Same fixture shape as "enables
+    // every gated trigger" above.
+    getStatus.mockResolvedValue({
+      servers: [{ id: '1', name: 'server-a', running: false, pid: null, isActive: false, stateUnknown: false }],
+    } as never)
+    renderServers()
+    await screen.findByText('server-a')
+
+    // Both server-a and server-b are inactive in this fixture, so both show
+    // switchToThisServer -- click server-a's (index 0, matching getAll's
+    // [SERVER_A, SERVER_B] order) and prove it targets id 1, not just "some"
+    // server.
+    const switchButtons = screen.getAllByRole('button', { name: en.card.switchToThisServer })
+    fireEvent.click(switchButtons[0])
+    await waitFor(() => expect(activate).toHaveBeenCalledWith(SERVER_A.id))
+
+    // server-b is docker-managed, which suppresses its inline Start button
+    // (Docker's own controls take over) -- only server-a's should exist.
+    const startButtons = screen.getAllByRole('button', { name: en.card.start })
+    expect(startButtons).toHaveLength(1)
+    expect(startButtons[0]).not.toBeDisabled()
+    fireEvent.click(startButtons[0])
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
   })
 
   it('ruling 1: inline Start/Stop stays unreachable holding only servers.manage, without server.control (partial-execution risk)', async () => {
