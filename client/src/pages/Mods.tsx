@@ -4654,6 +4654,19 @@ export default function Mods() {
                                           <div className="flex flex-wrap gap-1">
                                             {(() => {
                                               const groupSiblings = siblingConflictsMap.get(g.wsId)
+                                              // bug-hunt-2026-09-08 (three-state collapse residual sweep): `conflicts`
+                                              // is null until a scan has ever run (fresh install, or a cleared
+                                              // server-side cache) -- siblingConflictsMap is then empty for every
+                                              // group, and every mod fell through to the SAME bg-success/bg-muted
+                                              // pair a genuinely scanned-and-cleared mod gets. No text ever claimed
+                                              // "clean" (the pill only ever showed mod.id), but the color did --
+                                              // an operator who never opens the Conflicts tab could not tell "nobody
+                                              // has scanned this" from "this is fine". Reusing the file's own
+                                              // existing neutral-for-unverified language (WorkshopThumb's
+                                              // !mod.last_checked tone, the dashed/muted "Unchecked" badge a few
+                                              // hundred lines up) rather than inventing a new one -- this is the
+                                              // removal of a false claim, not a new claim, so it needed no new copy.
+                                              const scanned = conflicts !== null
                                               const enabledSet = new Set(g.mods.filter(m => m.enabled).map(m => m.id))
                                               const scanClashing = new Set<string>()
                                               if (groupSiblings) {
@@ -4684,15 +4697,24 @@ export default function Mods() {
                                                 ].filter(Boolean).join('\n')
                                                 // Colour priority: confirmed clash > known overlap > duplicate > normal.
                                                 // Heuristics alone never earn red — many multi-ID mods are legit bundles.
+                                                // The final fallback only reads as "clean" once a scan has actually
+                                                // run (`scanned`) -- unscanned gets the file's existing dashed/muted
+                                                // "unverified" treatment instead, still varying by enabled state
+                                                // (same intensity trick the clean branch already uses) so the
+                                                // toggle's on/off signal isn't lost, just no longer painted green.
                                                 const styleClass = isScanClashing
                                                   ? (mod.enabled ? 'bg-destructive/20 text-destructive hover:bg-destructive/30 ring-1 ring-destructive/50' : 'bg-destructive/5 text-destructive/60 hover:bg-destructive/10 ring-1 ring-destructive/20')
                                                   : hasScanOverlap
                                                     ? (mod.enabled ? 'bg-success/15 text-success hover:bg-success/25 ring-1 ring-warning/30' : 'bg-muted/15 text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/25 ring-1 ring-warning/20')
                                                     : isDupe
                                                       ? (mod.enabled ? 'bg-warning/15 text-warning hover:bg-warning/25 ring-1 ring-warning/30' : 'bg-warning/5 text-warning/50 hover:bg-warning/10 ring-1 ring-warning/20')
-                                                      : (mod.enabled
-                                                        ? 'bg-success/15 text-success hover:bg-success/25'
-                                                        : 'bg-muted/15 text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/25')
+                                                      : !scanned
+                                                        ? (mod.enabled
+                                                          ? 'border border-dashed border-muted-foreground/40 bg-transparent text-muted-foreground/70 hover:bg-muted/15'
+                                                          : 'border border-dashed border-muted-foreground/25 bg-transparent text-muted-foreground/40 hover:bg-muted/10')
+                                                        : (mod.enabled
+                                                          ? 'bg-success/15 text-success hover:bg-success/25'
+                                                          : 'bg-muted/15 text-muted-foreground/75 hover:text-muted-foreground hover:bg-muted/25')
                                                 return (
                                                   <DisabledReason key={mod.id} reason={!canManageMods ? t('permissions.noModsManage') : null}>
                                                   <button
