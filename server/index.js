@@ -1954,6 +1954,12 @@ export async function handlePanelUpdateDownload(req, res) {
           .status(500)
           .json({ error: "Panel update checker not available" });
 
+      // Set only once this request has actually stopped a running server
+      // (below) -- used to tell the truth about it if downloadUpdate()
+      // itself then fails, rather than leaving that consequential, already-
+      // happened side effect unmentioned in an error about something else.
+      let stoppedServerForThisRequest = false;
+
       if (checker.dockerUpdateProxy?.enabled) {
         if (req.body?.confirm !== true) {
           return res.status(400).json({
@@ -2008,11 +2014,27 @@ export async function handlePanelUpdateDownload(req, res) {
             "server_stop",
             "Server stopped before Docker panel update",
           );
+          stoppedServerForThisRequest = true;
         }
       }
 
       const result = await checker.downloadUpdate();
       if (!result.success) {
+        // god's ruling, 2026-09-08: do NOT auto-restart the server here on a
+        // failed apply -- a failed apply can leave a half-written install,
+        // and launching the game server's JVM over that is exactly the
+        // corruption activeSteamOperations' own crash-survival work exists
+        // to prevent. Auto-restarting would also override an operator who
+        // may have wanted the server down. Say so instead: the world was
+        // already saved and the server already stopped (a real,
+        // consequential action) as part of this request, and the download/
+        // apply failure below is otherwise silent about that -- a user
+        // reading only "update failed" has no way to know their server
+        // needs a manual restart.
+        if (stoppedServerForThisRequest) {
+          result.error = `${result.error} Your game server was stopped to prepare for this update and was NOT restarted -- restart it manually.`;
+          result.serverStoppedNotRestarted = true;
+        }
         if (result.code === "already_downloading")
           return res.status(409).json(result);
         if (result.code === "no_update") return res.status(400).json(result);
