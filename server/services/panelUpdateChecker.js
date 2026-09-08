@@ -34,6 +34,10 @@ const MAX_DOWNLOAD_REDIRECTS = 5;
 // from preflight(), never a hot path, and already sits next to a GitHub
 // network round-trip that takes longer than this on a bad connection.
 const EXE_DELETE_PROBE_TIMEOUT_MS = 8000;
+// Short on purpose: this is a HEAD reachability check, not a real download
+// wait. A slow-but-working connection should time out into "inconclusive"
+// (null) well before an operator would call the panel itself hung.
+const DOWNLOAD_HOST_PROBE_TIMEOUT_MS = 8000;
 
 export function getPanelFolderPermissionGuidance(platform, detail) {
   const prefix = `Panel folder is not writable by this process: ${detail}.`;
@@ -1863,6 +1867,39 @@ export class PanelUpdateChecker {
       );
     } else {
       info.asset = { name: asset.name, size: asset.size };
+
+      // Gap #2 (god-dispatched, 2026-09-08): the GitHub API round-trip that
+      // populated this.latestRelease only proves api.github.com was
+      // reachable -- it says nothing about asset.downloadUrl, which
+      // resolves to a different host. See probeDownloadHostReachable's own
+      // comment for the tri-state discipline; only a DEFINITIVE DNS/connect
+      // failure becomes a warning, and it can never block.
+      if (asset.downloadUrl) {
+        try {
+          info.downloadHostReachable = await this.probeDownloadHostReachable(
+            asset.downloadUrl,
+          );
+        } catch (err) {
+          info.downloadHostReachable = null;
+          log.debug(`Download-host reachability probe failed: ${err.message}`);
+        }
+        if (info.downloadHostReachable === false) {
+          const downloadHost = (() => {
+            try {
+              return new URL(asset.downloadUrl).hostname;
+            } catch {
+              return "the download host";
+            }
+          })();
+          addPreflightMessage(
+            warnings,
+            warningDetails,
+            "updates.preflight.downloadHostUnreachable",
+            { host: downloadHost },
+            `Could not reach ${downloadHost}, the host the update binary downloads from. A firewall or proxy that allows checking for updates but blocks this host will cause the download to fail even though this check passed.`,
+          );
+        }
+      }
     }
 
     // Write permission probe — try to create + remove a test file next to the exe.
@@ -2157,6 +2194,84 @@ public static extern bool CloseHandle(System.IntPtr hObject);
       return code === 5 ? false : null;
     }
     return null;
+  }
+
+  /**
+   * Preflight already proves api.github.com was reachable, at the LAST
+   * check-for-updates call -- it never proves the actual binary download
+   * host is. GitHub serves release assets from a different host
+   * (objects.githubusercontent.com, or another *.githubusercontent.com),
+   * and a firewall/proxy that allowlists the API host but not the CDN
+   * passes preflight clean and only fails once Restart and Apply actually
+   * tries to fetch the binary -- the worst possible place to discover it.
+   *
+   * Same tri-state discipline as probeExeDeleteAccess above, and for the
+   * same reason: a connectivity probe that can misfire on a slow proxy or
+   * a captive portal trains the operator to ignore it, so this can only
+   * ever become a WARNING, never a blocker, and only on a truly definitive
+   * failure -- everything else, including a timeout, must read as unknown.
+   *
+   * Returns:
+   *   true  -- the host accepted a TCP connection and returned an HTTP
+   *            response (any status). This only asks "is the host
+   *            reachable," not "does it serve this exact file."
+   *   false -- DNS resolution or the connection was definitively refused
+   *            (ENOTFOUND, ECONNREFUSED). The only value that may become a
+   *            preflight warning.
+   *   null  -- inconclusive: untrusted/non-HTTPS URL, timeout, reset, or
+   *            any other error code. Never surfaced.
+   *
+   * An instance method (not a bare export) so tests can vi.spyOn(checker,
+   * "probeDownloadHostReachable") the same way every other network-hitting
+   * preflight() probe in this class already is -- an unmocked run would
+   * really hit the network on every preflight() test otherwise.
+   */
+  async probeDownloadHostReachable(downloadUrl) {
+    let parsed;
+    try {
+      parsed = new URL(downloadUrl);
+    } catch {
+      return null;
+    }
+    if (parsed.protocol !== "https:") return null;
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      let req;
+      try {
+        req = https.request(
+          downloadUrl,
+          {
+            method: "HEAD",
+            headers: { "User-Agent": `ZomboidControlPanel/${this.currentVersion}` },
+          },
+          (res) => {
+            res.resume();
+            finish(true);
+          },
+        );
+      } catch {
+        finish(null);
+        return;
+      }
+      req.on("error", (err) => {
+        if (err && (err.code === "ENOTFOUND" || err.code === "ECONNREFUSED")) {
+          finish(false);
+        } else {
+          finish(null);
+        }
+      });
+      req.setTimeout(DOWNLOAD_HOST_PROBE_TIMEOUT_MS, () => {
+        req.destroy();
+        finish(null);
+      });
+      req.end();
+    });
   }
 
   /**

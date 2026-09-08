@@ -248,7 +248,8 @@
       "syncSuspect": "Das Panel befindet sich auf dem Desktop oder in Dokumente. Wenn du OneDrive-Backup oder Known Folder Move verwendest, wird dieser Ordner synchronisiert und kann die ausführbare Datei beim Anwenden sperren. Verschiebe das Panel an einen nicht synchronisierten Ort.",
       "programFiles": "Das Panel ist unter Programme installiert. Windows benötigt Administratorrechte, um Dateien dort zu ersetzen. Wenn das Anwenden fehlschlägt, starte das Panel als Administrator neu.",
       "previousUpdateStaged": "Ein vorheriges Update (v{{version}}) ist bereits bereitgestellt und kann beim nächsten Neustart angewendet werden.",
-      "previousBackup": "Neben der ausführbaren Datei befindet sich noch eine vorherige Sicherung (.old). Sie wird nach dem nächsten erfolgreichen Anwenden gelöscht."
+      "previousBackup": "Neben der ausführbaren Datei befindet sich noch eine vorherige Sicherung (.old). Sie wird nach dem nächsten erfolgreichen Anwenden gelöscht.",
+      "downloadHostUnreachable": "{{host}}, der Host, von dem die Update-Binärdatei heruntergeladen wird, konnte nicht erreicht werden. Eine Firewall oder ein Proxy, der die Update-Prüfung zulässt, aber diesen Host blockiert, führt dazu, dass der Download fehlschlägt, obwohl diese Prüfung bestanden wurde."
     },
     "checkForUpdates": "Nach Updates suchen",
     "applyingDockerUpdate": "Docker-Update wird angewendet...",

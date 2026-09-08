@@ -193,7 +193,8 @@
       "syncSuspect": "Panel la sou Bureau oswa nan Documents. Si w ap itilize OneDrive Backup oswa Known Folder Move, dosye sa a senkronize epi li ka bloke binè a pandan aplikasyon an. Konsidere deplase panel la nan yon kote ki pa senkronize.",
       "programFiles": "Panel la enstale nan Program Files. Windows bezwen dwa administratè pou ranplase fichye la yo. Si aplikasyon an echwe, relanse panel la kòm administratè.",
       "previousUpdateStaged": "Yon mizajou anvan (v{{version}}) deja pare pou aplike nan pwochen redemaraj la.",
-      "previousBackup": "Gen yon ansyen sovgad (.old) bò kote binè a. Y ap efase l apre pwochen aplikasyon ki reyisi a."
+      "previousBackup": "Gen yon ansyen sovgad (.old) bò kote binè a. Y ap efase l apre pwochen aplikasyon ki reyisi a.",
+      "downloadHostUnreachable": "Pa t kapab jwenn {{host}}, sèvè kote binè mizajou a telechaje. Yon firewall oswa pwoksi ki pèmèt tcheke mizajou men ki bloke sèvè sa a ap fè telechajman an echwe menmsi tès sa a te pase."
     },
     "checkForUpdates": "Tcheke Mizajou",
     "applyingDockerUpdate": "N ap aplike Mizajou Docker...",

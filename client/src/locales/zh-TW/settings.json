@@ -248,7 +248,8 @@
       "syncSuspect": "面板位於桌面或文件資料夾中。如果你使用 OneDrive 備份或 Known Folder Move，該資料夾會被同步，並可能在套用更新時鎖定執行檔。建議將面板移到不同步的位置。",
       "programFiles": "面板安裝在 Program Files 下。Windows 需要管理員權限才能替換其中的檔案。如果套用失敗，請以管理員身分重新啟動面板。",
       "previousUpdateStaged": "上一個更新（v{{version}}）已經準備好，將在下次重新啟動時套用。",
-      "previousBackup": "執行檔旁存在上一次更新的備份（.old）。下次成功套用更新後會清理它。"
+      "previousBackup": "執行檔旁存在上一次更新的備份（.old）。下次成功套用更新後會清理它。",
+      "downloadHostUnreachable": "無法連線到 {{host}}（更新執行檔的下載來源主機）。允許檢查更新但封鎖該主機的防火牆或代理伺服器，會導致即使此項檢查通過，下載仍會失敗。"
     },
     "checkForUpdates": "檢查更新",
     "applyingDockerUpdate": "正在套用 Docker 更新…",

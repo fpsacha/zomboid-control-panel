@@ -248,7 +248,8 @@
       "syncSuspect": "面板位于桌面或文档文件夹中。如果你使用 OneDrive 备份或 Known Folder Move，该文件夹会被同步，并可能在应用更新时锁定可执行文件。建议将面板移到不同步的位置。",
       "programFiles": "面板安装在 Program Files 下。Windows 需要管理员权限才能替换其中的文件。如果应用失败，请以管理员身份重新启动面板。",
       "previousUpdateStaged": "上一个更新（v{{version}}）已经准备好，将在下次重启时应用。",
-      "previousBackup": "可执行文件旁存在上一次更新的备份（.old）。下次成功应用更新后会清理它。"
+      "previousBackup": "可执行文件旁存在上一次更新的备份（.old）。下次成功应用更新后会清理它。",
+      "downloadHostUnreachable": "无法连接到 {{host}}（更新二进制文件的下载来源主机）。允许检查更新但阻止该主机的防火墙或代理，会导致即使此项检查通过，下载仍会失败。"
     },
     "checkForUpdates": "检查更新",
     "applyingDockerUpdate": "正在应用 Docker 更新…",

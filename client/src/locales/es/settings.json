@@ -248,7 +248,8 @@
       "syncSuspect": "El panel está en el Escritorio o en Documentos. Si usas la copia de seguridad de OneDrive o Known Folder Move, esa carpeta está sincronizada y puede bloquear el ejecutable durante la aplicación. Considera mover el panel a una ubicación no sincronizada.",
       "programFiles": "El panel está instalado en Program Files. Windows necesita permisos de administrador para reemplazar archivos allí. Si la aplicación falla, vuelve a iniciar el panel como administrador.",
       "previousUpdateStaged": "Ya hay una actualización anterior (v{{version}}) preparada y lista para aplicarse en el próximo reinicio.",
-      "previousBackup": "Hay una copia de seguridad anterior (.old) junto al ejecutable. Se eliminará después de la próxima aplicación correcta."
+      "previousBackup": "Hay una copia de seguridad anterior (.old) junto al ejecutable. Se eliminará después de la próxima aplicación correcta.",
+      "downloadHostUnreachable": "No se pudo contactar con {{host}}, el host desde el que se descarga el binario de la actualización. Un firewall o proxy que permita comprobar actualizaciones pero bloquee este host provocará que la descarga falle aunque esta comprobación se haya superado."
     },
     "checkForUpdates": "Buscar actualizaciones",
     "applyingDockerUpdate": "Aplicando actualización de Docker…",

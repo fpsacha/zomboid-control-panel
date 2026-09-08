@@ -196,7 +196,8 @@
       "syncSuspect": "Panel lives on the Desktop or in Documents. If you use OneDrive Backup or Known Folder Move, that folder is sync-backed and may lock the executable during apply. Consider moving the panel to a non-synced location.",
       "programFiles": "Panel is installed under Program Files. Windows requires Administrator rights to replace files there. If apply fails, relaunch the panel as Administrator.",
       "previousUpdateStaged": "A previous update (v{{version}}) is already staged and ready to apply on the next restart.",
-      "previousBackup": "A previous backup (.old) is present next to the executable. It will be cleaned up on the next successful apply."
+      "previousBackup": "A previous backup (.old) is present next to the executable. It will be cleaned up on the next successful apply.",
+      "downloadHostUnreachable": "Could not reach {{host}}, the host the update binary downloads from. A firewall or proxy that allows checking for updates but blocks this host will cause the download to fail even though this check passed."
     },
     "checkForUpdates": "Check for Updates",
     "applyingDockerUpdate": "Applying Docker Update...",
