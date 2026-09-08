@@ -58,22 +58,43 @@ function generateSelfSignedCert() {
 // function's own comment already names "one per VPN mesh (Tailscale,
 // ZeroTier) plus the real LAN adapter" as its expected shape, so a tailnet
 // address is covered for free, with no Tailscale-specific line here.
-function buildSubjectAltNameExtension() {
-  const generalNames = [
-    derTag(0x82, Buffer.from('localhost', 'ascii')), // dNSName [2]
-    derTag(0x87, Buffer.from([127, 0, 0, 1])), // iPAddress [7] 127.0.0.1
-    derTag(0x87, Buffer.from(new Array(15).fill(0).concat(1))), // ::1
+//
+// getCurrentSanTargets() is the SINGLE source of truth for "what addresses
+// should be in the SAN right now" -- both buildSubjectAltNameExtension()
+// (encodes it into DER for a freshly-generated cert) and
+// certCoversCurrentAddresses() (checks whether an EXISTING cached cert
+// still covers it) call this same function, so the two can never drift
+// apart into checking a different list than the one actually generated.
+function getCurrentSanTargets() {
+  const targets = [
+    { kind: 'dns', value: 'localhost' },
+    { kind: 'ip', value: '127.0.0.1' },
+    { kind: 'ip', value: '::1' },
   ];
-
   for (const { address } of listNonInternalIPv4Interfaces()) {
     const octets = address.split('.').map(Number);
     const isValidIPv4 =
       octets.length === 4 &&
       octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255);
     if (isValidIPv4) {
-      generalNames.push(derTag(0x87, Buffer.from(octets)));
+      targets.push({ kind: 'ip', value: address });
     }
   }
+  return targets;
+}
+
+function buildSubjectAltNameExtension() {
+  const generalNames = getCurrentSanTargets().map(({ kind, value }) => {
+    if (kind === 'dns') {
+      return derTag(0x82, Buffer.from(value, 'ascii')); // dNSName [2]
+    }
+    // iPAddress [7]. '::1' is the only IPv6 value this function ever
+    // produces (listNonInternalIPv4Interfaces() only returns IPv4), so a
+    // hardcoded 16-byte loopback stands in for a general IPv6 parser this
+    // codebase has no other use for.
+    const bytes = value === '::1' ? new Array(15).fill(0).concat(1) : value.split('.').map(Number);
+    return derTag(0x87, Buffer.from(bytes));
+  });
 
   const extnValue = derOctetString(derSequence(generalNames));
   const subjectAltNameExtension = derSequence([
@@ -82,6 +103,35 @@ function buildSubjectAltNameExtension() {
   ]);
   // [3] EXPLICIT Extensions ::= SEQUENCE OF Extension
   return derExplicit(3, derSequence([subjectAltNameExtension]));
+}
+
+// 2026-09-08, god-dispatched follow-up: checking merely that a SAN EXISTS
+// let a self-heal miss the actual failure mode -- a SAN is a snapshot of
+// interfaces at generation time, so a cert generated before Tailscale (or
+// any VPN mesh) came up would have a real, present SAN that still lacks the
+// address the operator is now browsing to, and the self-heal would never
+// fire because "has a SAN" was already true. Fixed by checking COVERAGE of
+// every currently-present address, not just presence of the extension.
+//
+// Deliberately asymmetric, per god's explicit ruling: regenerate if ANY
+// currently-present address is MISSING from the SAN (the panel would be
+// unreachable at that address); do NOT regenerate merely because the SAN
+// contains an address that is no longer present (a stale entry is inert --
+// nobody is browsing to it). Regenerating on any difference at all would
+// mean a VPN adapter that comes and goes regenerates the cert on every
+// toggle, which invalidates the browser exception the operator already
+// clicked through -- repeatedly retraining them to click through a scary
+// warning is worse than the stale-SAN gap this fixes.
+function certCoversCurrentAddresses(subjectAltName) {
+  if (!subjectAltName) return false;
+  return getCurrentSanTargets().every(({ kind, value }) => {
+    if (kind === 'dns') return subjectAltName.includes(`DNS:${value}`);
+    // node:crypto renders '::1' in its expanded form, not the compressed
+    // literal -- this codebase's only IPv6 SAN entry, so hardcoded rather
+    // than writing a general IPv6 canonicalizer for a single fixed value.
+    const rendered = value === '::1' ? '0:0:0:0:0:0:0:1' : value;
+    return subjectAltName.includes(`IP Address:${rendered}`);
+  });
 }
 
 /**
@@ -308,27 +358,49 @@ export function loadOrCreateCerts(customKeyPath, customCertPath) {
     // comment above) -- without this check, loadOrCreateCerts() would keep
     // reusing that broken cert on every restart FOREVER for any install
     // that had already generated one, and the fix would reach nobody who
-    // needed it. Detected by parsing the actual bytes back (X509Certificate
-    // exposes subjectAltName directly), not by a version/date heuristic --
-    // a cert this function itself wrote, before or after this fix, is the
-    // only thing that decides this, and a directly-read property beats
-    // inferring it. A cert that fails to parse at all is treated the same
-    // way (missing SAN) so a corrupt file also self-heals instead of
+    // needed it.
+    //
+    // 2026-09-08, follow-up in the SAME dispatch: checking mere PRESENCE of
+    // a SAN is not enough. A SAN is a snapshot of the interfaces present at
+    // GENERATION time -- a cert generated before Tailscale (or any VPN
+    // mesh) came up would have a real, present SAN that still lacks the
+    // address the operator is now browsing to, and this self-heal would
+    // never fire because "has a SAN" was already true. That is precisely
+    // the Tailscale-shaped failure this whole investigation was chasing,
+    // manufactured freshly by an incomplete self-heal. Fixed by checking
+    // COVERAGE (certCoversCurrentAddresses(), above) instead of presence.
+    //
+    // Deliberately asymmetric: regenerates only when a CURRENTLY-PRESENT
+    // address is missing, never merely because the SAN contains a STALE
+    // address that is no longer present -- see certCoversCurrentAddresses()'s
+    // comment for why the other direction (regenerate on any difference)
+    // would be actively worse than this gap (a VPN that comes and goes
+    // would regenerate the cert, and therefore invalidate the operator's
+    // already-clicked-through browser exception, on every toggle).
+    //
+    // Detected by parsing the actual bytes back (X509Certificate exposes
+    // subjectAltName directly), not by a version/date heuristic -- a cert
+    // this function itself wrote, before or after this fix, is the only
+    // thing that decides this, and a directly-read property beats inferring
+    // it. A cert that fails to parse at all is treated the same way
+    // (does not cover) so a corrupt file also self-heals instead of
     // wedging HTTPS forever.
-    let hasSubjectAltName = false;
+    let coversCurrentAddresses = false;
     try {
-      hasSubjectAltName = Boolean(new crypto.X509Certificate(existingCert).subjectAltName);
+      coversCurrentAddresses = certCoversCurrentAddresses(
+        new crypto.X509Certificate(existingCert).subjectAltName,
+      );
     } catch (error) {
       log.warn(`Existing self-signed certificate could not be parsed (${error.message}) — regenerating`);
     }
-    if (hasSubjectAltName) {
+    if (coversCurrentAddresses) {
       log.info('Using existing self-signed certificate');
       return {
         key: fs.readFileSync(KEY_FILE),
         cert: existingCert,
       };
     }
-    log.warn('Existing self-signed certificate predates SubjectAltName support (would fail strict hostname validation) — regenerating');
+    log.warn('Existing self-signed certificate is missing SubjectAltName coverage for a currently-present network address (e.g. a VPN mesh connected after the cert was generated) — regenerating');
   }
 
   // Generate new self-signed cert
