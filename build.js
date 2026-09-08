@@ -1185,6 +1185,27 @@ while true; do
   CRASH_COUNT=$((CRASH_COUNT + 1))
   if [ "$CRASH_COUNT" -gt "$MAX_RAPID_CRASHES" ]; then
     echo "ERROR: Panel exited $CRASH_COUNT times; giving up (last exit $EXIT_CODE)."
+    # A crash here can happen for any reason and this loop has no way to
+    # know which -- but if a pending update journal AND its pre-update
+    # binary backup are BOTH still on disk, that is worth surfacing
+    # regardless of whether the update actually caused this crash-loop:
+    # applyUpdateBundle() only deletes update-bundle.json on a fully
+    # successful rollback or a confirmed-good startup handshake
+    # (acknowledgeUpdateBundle()), so seeing both files together here means
+    # this specific binary was never confirmed working since it was staged.
+    # File-existence only, deliberately, matching restore_interrupted_update()
+    # above -- this loop has no JSON parser and does not need one to say
+    # "a backup exists," only to know both files are present.
+    if [ -f "./update-bundle.json" ] && [ -f "./ZomboidControlPanel.bundle-previous" ]; then
+      echo "NOTE: A pending update journal (update-bundle.json) and a pre-update"
+      echo "binary backup (ZomboidControlPanel.bundle-previous) are both still"
+      echo "present. This build was never confirmed to start successfully since"
+      echo "it was staged. If this crash-loop started after an update, you can"
+      echo "manually restore the previous build:"
+      echo "  mv ZomboidControlPanel.bundle-previous ZomboidControlPanel"
+      echo "  rm -f update-bundle.json"
+      echo "then run Start.sh again."
+    fi
     exit "$EXIT_CODE"
   fi
 
