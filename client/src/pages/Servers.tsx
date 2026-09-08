@@ -407,14 +407,12 @@ export default function Servers() {
   const [confirmClearInstall, setConfirmClearInstall] = useState(false)
   const [steamcmdPath, setSteamcmdPath] = useState('')
   const [updateInfo, setUpdateInfo] = useState<UpdateStatus | null>(null)
-  // 2026-09-08: does the game-update checker have ANY real answer on record,
-  // as opposed to updateInfo simply being null because there is no update
-  // (or none has been reported over a socket event yet)? Derived from
-  // getStatus()'s own updateAvailable field being non-null -- see api.ts's
-  // UpdateCheckerStatus comment for why that field, not lastCheck, is the
-  // one that's success-only. Deliberately NOT read off updateInfo itself:
-  // the socket handlers below already null updateInfo out on a clean
-  // "checked, no update" result, which must not read as "never checked."
+  // 2026-09-08: does the game-update checker have ANY real answer on record?
+  // Derived from getStatus()'s own updateAvailable field being non-null --
+  // see api.ts's UpdateCheckerStatus comment for why that field, not
+  // lastCheck, is the one that's success-only. Kept as its own state rather
+  // than derived from updateInfo at render time so it can't accidentally
+  // regress if updateInfo's own null-vs-populated rules ever change again.
   const [updateCheckEverSucceeded, setUpdateCheckEverSucceeded] = useState(false)
   const [updateCheckLastError, setUpdateCheckLastError] = useState<string | null>(null)
   const [gameVersion, setGameVersion] = useState<string | null>(null)
@@ -609,7 +607,18 @@ export default function Servers() {
     }).catch(e => reportClientWarning('Failed to load settings.', e))
     // Load update status
     updateApi.getStatus().then(status => {
-      if (status.updateAvailable?.updateAvailable) {
+      // 2026-09-08 (widening the badge's third-state fix to a sibling
+      // collapse): a REAL "checked, no update" result is just as much a
+      // confirmed answer as a REAL "yes, update available" one -- both carry
+      // the same installed/latest branch+build data the panel below renders.
+      // Gating this on the inner updateAvailable boolean threw away that
+      // data whenever the confirmed answer happened to be "no," so a clean,
+      // successful mount-time check on an up-to-date server rendered
+      // identically to "we have no idea" (no Branch & Build Info panel
+      // either way). Store the object whenever one exists, regardless of
+      // which way its own updateAvailable reads -- hasUpdate below already
+      // reads that inner boolean correctly either way.
+      if (status.updateAvailable) {
         setUpdateInfo(status.updateAvailable)
       }
       setUpdateCheckEverSucceeded(status.updateAvailable != null)
@@ -707,14 +716,20 @@ export default function Servers() {
     // Both events are only ever emitted from checkForUpdates()'s success
     // path (server/services/updateChecker.js) -- receiving either one here
     // is itself proof a check just succeeded, independent of whether THIS
-    // particular result says an update is available.
+    // particular result says an update is available. Store the payload
+    // as-is rather than nulling it out on a false updateAvailable: a clean
+    // "checked, no update" result is a real confirmed answer carrying the
+    // same installed/latest branch+build data the Branch & Build Info panel
+    // renders, not the absence of one -- same sibling collapse as the mount
+    // fetch above, fixed the same way. hasUpdate's own read of
+    // updateInfo?.updateAvailable is unaffected either way.
     const handleUpdateAvailable = (data: UpdateStatus) => {
-      setUpdateInfo(data.updateAvailable ? data : null)
+      setUpdateInfo(data)
       setUpdateCheckEverSucceeded(true)
       setUpdateCheckLastError(null)
     }
     const handleUpdateCheck = (data: UpdateStatus) => {
-      setUpdateInfo(data.updateAvailable ? data : null)
+      setUpdateInfo(data)
       setUpdateCheckEverSucceeded(true)
       setUpdateCheckLastError(null)
     }

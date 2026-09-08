@@ -235,3 +235,79 @@ describe('Servers.tsx: the active server card distinguishes never-succeeded from
     expect(card.textContent).not.toMatch(/update available/i)
   })
 })
+
+// 2026-09-08, widening this same card by one domain per god's dispatch:
+// Pam's three-state sweep behind 4da160bd came back empty on the four
+// domains she checked, but named panel-update-checker states as one of the
+// three she ran out of scope before reaching. This is that adjacent check --
+// does any OTHER updateChecker.js-derived state collapse a real answer down
+// to the same pixels as "we don't know"? Found one: the mount fetch and both
+// socket handlers only stored updateInfo when its own updateAvailable
+// boolean was true, discarding a perfectly real "checked, no update" result
+// (branch/build info included) and rendering it identically to "never
+// checked" -- the Branch & Build Info panel (gated on `updateInfo`) simply
+// never appeared either way. Fixed on sight: no new component, no new
+// copy, just storing the object whenever one exists. These two tests prove
+// the retention; break-verified below.
+describe('Servers.tsx: a clean "checked, no update" result is a real answer, not treated as no answer', () => {
+  it('mount-time getStatus() with updateAvailable:false still renders the Branch & Build Info panel', async () => {
+    getAll.mockResolvedValue({ servers: [ACTIVE_SERVER] } as never)
+    mockCommonServerFetches()
+    updateGetStatus.mockResolvedValue({
+      updateAvailable: {
+        updateAvailable: false,
+        installed: { buildId: '200', branch: 'public', lastUpdated: null },
+        latest: { buildId: '200', branch: 'public', timeUpdated: null, description: null },
+        lastCheck: new Date(0).toISOString(),
+      },
+      gameVersion: null,
+      lastCheck: new Date(0).toISOString(),
+      lastError: null,
+      intervalMinutes: 60,
+      isChecking: false,
+      lastAutoUpdateResult: null,
+    } as never)
+
+    renderServers(null)
+
+    await screen.findByText(ACTIVE_SERVER.name)
+    const card = cardFor(ACTIVE_SERVER.name)
+    expect(card.textContent).toMatch(/public/)
+    expect(card.textContent).toMatch(/200/)
+    expect(card.textContent).not.toMatch(/update available/i)
+    expect(card.textContent).not.toMatch(/update status unknown/i)
+  })
+
+  it('a live server:updateCheck event with updateAvailable:false also renders the panel, not nothing', async () => {
+    getAll.mockResolvedValue({ servers: [ACTIVE_SERVER] } as never)
+    mockCommonServerFetches()
+    updateGetStatus.mockResolvedValue({
+      updateAvailable: null,
+      gameVersion: null,
+      lastCheck: null,
+      lastError: null,
+      intervalMinutes: 60,
+      isChecking: false,
+      lastAutoUpdateResult: null,
+    } as never)
+
+    const { socket, handlers } = fakeSocket()
+    renderServers(socket)
+
+    await screen.findByText(ACTIVE_SERVER.name)
+    expect(await screen.findByText(/update status unknown/i)).toBeInTheDocument()
+
+    act(() => {
+      handlers['server:updateCheck']({
+        updateAvailable: false,
+        installed: { buildId: '200', branch: 'public', lastUpdated: null },
+        latest: { buildId: '200', branch: 'public', timeUpdated: null, description: null },
+        lastCheck: new Date().toISOString(),
+      })
+    })
+
+    const card = cardFor(ACTIVE_SERVER.name)
+    expect(card.textContent).toMatch(/public/)
+    expect(card.textContent).toMatch(/200/)
+  })
+})
