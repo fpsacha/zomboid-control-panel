@@ -97,12 +97,19 @@ function createResponse() {
   return response;
 }
 
+// 2026-09-08 quadruple-read sweep: serverFiles.js's handlers now read
+// req.activeServerContext instead of re-deriving it, populated once by that
+// router's own gate (a non-route layer this function's own route-lookup
+// never reaches) -- mods.js has no such gate/context, so only run it when
+// present (i.e. only for a serverFiles.js router passed in).
 async function invokeLastHandler(router, routePath, method, req) {
   const layer = router.stack.find(
     (entry) => entry.route?.path === routePath && entry.route.methods[method],
   );
   if (!layer) throw new Error(`No ${method.toUpperCase()} ${routePath} route registered`);
   const res = createResponse();
+  const gate = router.stack.filter((entry) => !entry.route)[1]?.handle;
+  if (gate) await gate(req, res, () => {});
   await layer.route.stack[layer.route.stack.length - 1].handle(req, res);
   return res;
 }

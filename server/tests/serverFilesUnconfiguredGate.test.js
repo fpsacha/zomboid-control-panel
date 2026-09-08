@@ -76,14 +76,31 @@ describe("server-files router: unconfigured-server gate", () => {
   });
 
   it("calls next() with no error when a server is genuinely configured", async () => {
-    getActiveServer.mockResolvedValue({ serverConfigPath: "/srv/pz/Server" });
+    // 2026-09-08 quadruple-read sweep: this gate now derives via
+    // getActiveServerPaths() (needs serverName too, not just serverConfigPath)
+    // since it hangs the FULL context every downstream handler uses on req --
+    // every real handler in this router already needed both, so a row with a
+    // configPath but no name could never have succeeded past THIS gate's old,
+    // narrower check either, just later and less clearly. A real configured
+    // server row always has both.
+    getActiveServer.mockResolvedValue({
+      serverName: "RealServer",
+      serverConfigPath: "/srv/pz/Server",
+    });
     const response = createResponse();
+    const req = { path: "/paths", method: "GET" };
     const next = vi.fn();
 
-    await getGateMiddleware()({ path: "/paths", method: "GET" }, response, next);
+    await getGateMiddleware()(req, response, next);
 
     expect(next).toHaveBeenCalledWith();
     expect(response.status).not.toHaveBeenCalled();
+    expect(req.activeServerContext).toEqual(
+      expect.objectContaining({
+        serverConfigPath: "/srv/pz/Server",
+        serverName: "RealServer",
+      }),
+    );
   });
 
   it("the gate never even reaches the file the route handler would read — GET /paths itself would invent nothing anyway, but the gate stops it first", async () => {
@@ -120,7 +137,13 @@ describe("server-files router: a configured server still resolves and reads real
 
   it("GET /paths reports the real configured server's real paths, not an invented one", async () => {
     const response = createResponse();
-    await getRouteHandler("get", "/paths")({}, response);
+    // 2026-09-08 quadruple-read sweep: every handler now reads
+    // req.activeServerContext instead of re-deriving it -- run the real gate
+    // first, on the same req, exactly as Express's own middleware chain
+    // would, rather than hand-building the context here.
+    const req = { path: "/paths", method: "GET" };
+    await getGateMiddleware()(req, response, () => {});
+    await getRouteHandler("get", "/paths")(req, response);
 
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({

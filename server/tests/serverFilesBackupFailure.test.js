@@ -57,8 +57,19 @@ function getHandler(routePath, method) {
   return layer.route.stack[layer.route.stack.length - 1].handle;
 }
 
+// 2026-09-08 quadruple-read sweep: every handler now reads
+// req.activeServerContext instead of re-deriving it, populated once by the
+// router's own gate -- one of the middleware layers this file's getHandler()
+// deliberately skips. Run that ONE gate first, on the same req, since every
+// handler below now depends on it; still skip everything else ahead of the
+// handler, matching this file's own stated scope.
+function getGateMiddleware() {
+  return router.stack.filter((entry) => !entry.route)[1].handle;
+}
+
 async function runHandler(routePath, method, req) {
   const res = createResponse();
+  await getGateMiddleware()(req, res, () => {});
   await getHandler(routePath, method)(req, res, () => {});
   return res;
 }

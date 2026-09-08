@@ -115,13 +115,41 @@ async function resolveRemoteConfigTransport() {
 }
 
 // Every route below resolves a specific server's config directory (directly,
-// or via /templates living under it). Gate on that up front so an unconfigured
-// panel says so once, here, instead of each of the 25 handlers below silently
-// falling through to a fabricated default and reporting invented data as real.
-// Matches the sibling GET /api/servers/active's 404 shape/message.
+// or via /templates living under it) -- and used to do it AGAIN, separately,
+// several more times per request: this gate, the remote-mirror middleware
+// below, and each of the ~20 handlers all called their own
+// getActiveServer()-deriving helper independently. Each individual call was
+// internally consistent (3f300f2a, 2026-09-07, already closed the WITHIN-
+// one-call-site version of this -- getServerConfigPath()+getServerName()
+// used to be two separate getActiveServer() reads, so "configPath from
+// server A + name from server B" inside one handler was possible before that
+// fix), but nothing made the SEPARATE call sites agree with EACH OTHER
+// across one request's lifetime. getActiveServer() reads live, unlocked,
+// mutable state; POST /:id/activate (routes/servers.js) mutates it under
+// acquireLifecycleLock('server-profile-change', ...) -- a lock this router
+// never acquires -- so a concurrent /activate is free to land in the real
+// await points this file already has (this next() dispatch, the remote
+// middleware's own getAllSettings() call, configMutationGuard's process
+// scan). Concrete failure shape: the remote-mirror middleware below mirrors
+// down server A's remote Server/ folder, a concurrent /activate lands, and a
+// handler further down resolves server B's local path -- content prepared
+// and validated against one server's shape gets written into a different
+// server's actual files.
+//
+// Fixed by deriving ONCE, here, in the router's EARLIEST middleware (nothing
+// registered above this one derives its own -- requirePermission() at the
+// top of the file doesn't touch getActiveServer() at all), and hanging the
+// result on req.activeServerContext for every downstream reader -- the
+// remote-mirror middleware right below, and all handlers -- to share instead
+// of re-deriving. This isn't blocking a concurrent /activate (the lifecycle
+// lock already does that job for what IT protects, and grabbing it here
+// would serialise every config read against every profile change for no
+// reason, without even guaranteeing agreement if released mid-request); it's
+// making every reader inside ONE request agree on which server they mean,
+// which closes the window to zero regardless of what races it.
 router.use(async (req, res, next) => {
   try {
-    await getServerConfigPath();
+    req.activeServerContext = await getActiveServerPaths();
   } catch (err) {
     if (err instanceof ServerNotConfiguredError) {
       return res.status(404).json({ error: err.message, code: err.code });
@@ -139,12 +167,7 @@ router.use(async (req, res, next) => {
 // handler runs and push back whatever the handler changed, so every existing
 // local-filesystem handler below works unmodified.
 router.use(async (req, res, next) => {
-  let activeServer;
-  try {
-    activeServer = await getActiveServer();
-  } catch (err) {
-    return next(err);
-  }
+  const { activeServer, serverName } = req.activeServerContext;
   if (!activeServer?.isRemote) return next();
 
   if (LOCAL_ONLY_PATHS.has(req.path)) {
@@ -169,7 +192,6 @@ router.use(async (req, res, next) => {
     });
   }
 
-  const serverName = await getServerName();
   const release = await acquireMirrorLock();
   let session;
   try {
@@ -345,8 +367,11 @@ function unescapeLuaString(value) {
     );
 }
 
-// Get the server config directory path
-export async function getServerConfigPath() {
+// Get the server config directory path. Not exported -- see
+// getActiveServerPaths()'s own comment below; this exists only for that
+// function (and its own remote branch's internal call to getServerName()
+// below) to compose from, never for a handler to call directly.
+async function getServerConfigPath() {
   const activeServer = await getActiveServer();
 
   // A remote server's Server/ folder lives on the host; the handlers below
@@ -403,7 +428,8 @@ export async function getServerConfigPath() {
 // directory. path.basename() strips any directory component; if that
 // changes the value at all, reject it outright rather than silently using
 // a mangled name.
-export async function getServerName() {
+// Not exported -- same rule as getServerConfigPath() just above.
+async function getServerName() {
   const activeServer = await getActiveServer();
   let raw;
   if (activeServer?.serverName) {
@@ -440,7 +466,15 @@ export async function getServerName() {
 // getActiveServer() read instead of two, so a concurrent active-server
 // switch between what used to be two separate calls can no longer produce
 // e.g. serverConfigPath from server A + serverName from server B.
-export async function getActiveServerPaths() {
+// Not exported (deliberately, 2026-09-08 quadruple-read sweep -- see the
+// req.activeServerContext comment on the router.use() gate above): the only
+// caller allowed to invoke this is that ONE gate middleware, which runs it
+// once per request and hangs the result on req for everything downstream to
+// share. Nothing outside this file ever imported it (checked before making
+// this change), so removing `export` here makes a second, independent
+// derivation elsewhere in this router a build-time ReferenceError instead of
+// a silent, working-until-it-races bug the 26th call site quietly reopens.
+async function getActiveServerPaths() {
   const activeServer = await getActiveServer();
 
   // serverName first -- getServerConfigPath()'s own remote branch needs it
@@ -489,8 +523,23 @@ export async function getActiveServerPaths() {
     throw new ServerNotConfiguredError();
   }
 
-  return { serverConfigPath, serverName: safeServerName };
+  return { activeServer, serverConfigPath, serverName: safeServerName };
 }
+
+// Exposed ONLY so the existing unit tests that already verify these three
+// functions' own fallback/error behavior in isolation
+// (serverFilesGetServerName.test.js, serverFilesGetActiveServerPathsSingleRead.test.js)
+// can keep doing so directly, without re-deriving that coverage through a
+// full router request. A normal `import { getServerConfigPath } from
+// "./serverFiles.js"` still fails -- that's the actual guarantee the
+// removed `export` keywords above protect -- only a caller reaching in
+// through this explicit, clearly-test-shaped name can still call them
+// directly. Do not import this from a route handler.
+export const __testOnlyDirectReads = {
+  getServerConfigPath,
+  getServerName,
+  getActiveServerPaths,
+};
 
 // getBackupPath/createBackup/backupWarningFor moved to
 // ../utils/configBackup.js (parameterized on configPath instead of calling
@@ -1321,7 +1370,7 @@ function toSpawnRegions(regions, serverName) {
 router.get("/paths", async (req, res) => {
   try {
     log.info("GET /paths");
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
 
     const files = {
       ini: path.join(configPath, `${serverName}.ini`),
@@ -1347,7 +1396,7 @@ router.get("/paths", async (req, res) => {
 // Get INI file (parsed)
 router.get("/ini", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}.ini`);
 
     if (!fs.existsSync(filePath)) {
@@ -1390,7 +1439,7 @@ router.get("/ini", async (req, res) => {
 // Save INI file
 router.put("/ini", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
       ? req.body
       : {};
@@ -1539,7 +1588,7 @@ router.put("/ini", async (req, res) => {
 // Get SandboxVars (parsed)
 router.get("/sandbox", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1563,7 +1612,7 @@ router.get("/sandbox", async (req, res) => {
 router.put("/sandbox", async (req, res) => {
   try {
     log.info("PUT /sandbox");
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
     const { sandbox } = req.body || {};
 
@@ -1690,7 +1739,7 @@ router.put("/sandbox-option", async (req, res) => {
     const block = parts.length === 2 ? parts[0] : null;
     const key = parts.length === 2 ? parts[1] : parts[0];
 
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1729,6 +1778,13 @@ router.put("/sandbox-option", async (req, res) => {
 // Write top-level sandbox keys straight to disk. The in-game bridge can only
 // change SandboxOptions in memory, so without this every change is lost on the
 // next server start.
+// Called from routes/panelBridge.js, not from this router's own request
+// pipeline -- there is no single HTTP request here for req.activeServerContext
+// to belong to, so this deliberately keeps its own independent
+// getActiveServer()-deriving reads (getServerName()/getActiveServerPaths()
+// below) rather than reading from req like every handler in this file now
+// does. Not an exception to the quadruple-read fix; outside its scope
+// entirely -- there's nothing else in the same request to disagree with.
 export async function persistSandboxValues(values) {
   const entries = Object.entries(values || {});
   if (entries.length === 0) return { persisted: false, reason: "nothing to do" };
@@ -1819,7 +1875,7 @@ async function writeSandboxValues(entries, configPath, serverName) {
 // cause of "server won't boot, no obvious reason" reports.
 router.get("/sandbox/validate", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1850,7 +1906,7 @@ router.get("/sandbox/validate", async (req, res) => {
 router.post("/sandbox/repair", async (req, res) => {
   try {
     log.info("POST /sandbox/repair");
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_SandboxVars.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1933,7 +1989,7 @@ router.post("/sandbox/repair", async (req, res) => {
 // Get spawn points
 router.get("/spawnpoints", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_spawnpoints.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -1958,7 +2014,7 @@ router.get("/spawnpoints", async (req, res) => {
 router.put("/spawnpoints", async (req, res) => {
   try {
     log.info("PUT /spawnpoints");
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_spawnpoints.lua`);
     const { spawnpoints } = req.body || {};
 
@@ -1997,7 +2053,7 @@ router.put("/spawnpoints", async (req, res) => {
 // Get spawn regions
 router.get("/spawnregions", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_spawnregions.lua`);
 
     if (!fs.existsSync(filePath)) {
@@ -2021,7 +2077,7 @@ router.get("/spawnregions", async (req, res) => {
 // Save spawn regions
 router.put("/spawnregions", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const filePath = path.join(configPath, `${serverName}_spawnregions.lua`);
     const { spawnregions } = req.body || {};
 
@@ -2061,7 +2117,7 @@ router.put("/spawnregions", async (req, res) => {
 router.get("/raw/:type", async (req, res) => {
   log.info(`GET /raw/${req.params.type}`);
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const type = req.params.type;
 
     const fileMap = {
@@ -2101,7 +2157,7 @@ router.get("/raw/:type", async (req, res) => {
 // Save raw file content
 router.put("/raw/:type", async (req, res) => {
   try {
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
     const type = req.params.type;
     const { content } = req.body || {};
     log.info(`PUT /raw/${type}: contentLength=${content?.length || 0}`);
@@ -2195,7 +2251,7 @@ router.put("/raw/:type", async (req, res) => {
 // List backups
 router.get("/backups", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
+    const { serverConfigPath: configPath } = req.activeServerContext;
     const backupDir = await getBackupPath(configPath);
 
     if (!fs.existsSync(backupDir)) {
@@ -2246,7 +2302,7 @@ router.get("/backups", async (req, res) => {
 // Restore from backup
 router.post("/restore/:filename", async (req, res) => {
   try {
-    const configPath = await getServerConfigPath();
+    const { serverConfigPath: configPath } = req.activeServerContext;
     const backupDir = await getBackupPath(configPath);
 
     // Sanitize filename to prevent path traversal
@@ -2371,15 +2427,18 @@ router.post("/save-and-reload", async (req, res) => {
 
 // ===== CONFIG TEMPLATES =====
 
-// Get templates directory
-async function getTemplatesPath() {
-  const configPath = await getServerConfigPath();
+// Get templates directory. Takes req explicitly (not implicit like the
+// handlers below) since this is a plain helper, not a route handler itself --
+// reads the SAME req.activeServerContext every caller below already has,
+// never re-derives.
+async function getTemplatesPath(req) {
+  const { serverConfigPath: configPath } = req.activeServerContext;
   return path.join(configPath, "templates");
 }
 
 // Ensure templates directory exists
-async function ensureTemplatesDir() {
-  const templatesPath = await getTemplatesPath();
+async function ensureTemplatesDir(req) {
+  const templatesPath = await getTemplatesPath(req);
   if (!fs.existsSync(templatesPath)) {
     fs.mkdirSync(templatesPath, { recursive: true });
   }
@@ -2389,7 +2448,7 @@ async function ensureTemplatesDir() {
 // GET /templates - List all saved templates
 router.get("/templates", async (req, res) => {
   try {
-    const templatesPath = await ensureTemplatesDir();
+    const templatesPath = await ensureTemplatesDir(req);
 
     const files = fs
       .readdirSync(templatesPath)
@@ -2436,7 +2495,7 @@ router.get("/templates/:id", async (req, res) => {
       });
     }
 
-    const templatesPath = await getTemplatesPath();
+    const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
     if (!fs.existsSync(templateFile)) {
@@ -2472,8 +2531,8 @@ router.post("/templates", async (req, res) => {
       });
     }
 
-    const templatesPath = await ensureTemplatesDir();
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const templatesPath = await ensureTemplatesDir(req);
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
 
     // Generate safe filename from name with uniqueness check
     const baseId = name
@@ -2567,7 +2626,7 @@ router.post("/templates/:id/apply", async (req, res) => {
 
     const { applyIni = true, applySandbox = true } = req.body || {};
 
-    const templatesPath = await getTemplatesPath();
+    const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
     if (!fs.existsSync(templateFile)) {
@@ -2578,7 +2637,7 @@ router.post("/templates/:id/apply", async (req, res) => {
     }
 
     const template = JSON.parse(fs.readFileSync(templateFile, "utf-8"));
-    const { serverConfigPath: configPath, serverName } = await getActiveServerPaths();
+    const { serverConfigPath: configPath, serverName } = req.activeServerContext;
 
     const backupWarnings = [];
 
@@ -2662,7 +2721,7 @@ router.put("/templates/:id", async (req, res) => {
 
     const { name, description } = req.body || {};
 
-    const templatesPath = await getTemplatesPath();
+    const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
     if (!fs.existsSync(templateFile)) {
@@ -2700,7 +2759,7 @@ router.delete("/templates/:id", async (req, res) => {
       });
     }
 
-    const templatesPath = await getTemplatesPath();
+    const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
     if (!fs.existsSync(templateFile)) {
@@ -2735,10 +2794,18 @@ const IMAGE_EXTENSIONS = new Set([
  * Build the list of directories the file browser is allowed to access.
  * Restricts browsing to the server config path, server install path,
  * and Zomboid data path — prevents arbitrary filesystem traversal.
+ *
+ * Takes req (2026-09-08 quadruple-read sweep): used to independently
+ * re-derive the active server via its own getActiveServer() call, which is
+ * exactly the bug this sweep fixed everywhere else in this file -- the
+ * security boundary these roots exist to enforce could be computed against
+ * a DIFFERENT server than the one the calling handler's own path resolution
+ * already agreed on via req.activeServerContext, if /activate landed between
+ * the two. Reads the same single per-request snapshot instead.
  */
-async function getAllowedBrowseRoots() {
+async function getAllowedBrowseRoots(req) {
   const roots = [];
-  const activeServer = await getActiveServer();
+  const { activeServer } = req.activeServerContext;
   if (activeServer?.serverConfigPath)
     roots.push(path.resolve(activeServer.serverConfigPath));
   if (activeServer?.zomboidDataPath)
@@ -2767,7 +2834,7 @@ router.get("/browse-files", async (req, res) => {
           .map((e) => e.toLowerCase().trim())
       : null;
 
-    const allowedRoots = await getAllowedBrowseRoots();
+    const allowedRoots = await getAllowedBrowseRoots(req);
     let targetPath;
     if (browsePath) {
       targetPath = confineToRoots(browsePath, allowedRoots);
@@ -2779,7 +2846,7 @@ router.get("/browse-files", async (req, res) => {
       }
     } else {
       // Default to the server config directory
-      const configPath = await getServerConfigPath();
+      const { serverConfigPath: configPath } = req.activeServerContext;
       targetPath = configPath || "";
     }
 
@@ -2870,7 +2937,7 @@ router.get("/image-preview", async (req, res) => {
       });
     }
 
-    const allowedRoots = await getAllowedBrowseRoots();
+    const allowedRoots = await getAllowedBrowseRoots(req);
     const resolved = confineToRoots(filePath, allowedRoots);
     if (!resolved) {
       return res.status(403).json({

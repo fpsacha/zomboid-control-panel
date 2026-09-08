@@ -54,9 +54,18 @@ function getRouteHandlers(routePath, method) {
   return layer.route.stack.map((s) => s.handle);
 }
 
+// 2026-09-08 quadruple-read sweep: every handler now reads
+// req.activeServerContext instead of re-deriving it, populated once by the
+// router's own gate (a non-route layer getRouteHandlers() above never
+// reaches). Run it first, on the same req.
+function getGateMiddleware() {
+  return router.stack.filter((entry) => !entry.route)[1].handle;
+}
+
 async function runRoute(routePath, method, req) {
-  const handlers = getRouteHandlers(routePath, method);
   const res = createResponse();
+  await getGateMiddleware()(req, res, () => {});
+  const handlers = getRouteHandlers(routePath, method);
   let idx = -1;
   const next = async (err) => {
     idx++;

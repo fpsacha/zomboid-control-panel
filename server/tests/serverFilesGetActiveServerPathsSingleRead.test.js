@@ -38,7 +38,14 @@ vi.mock("../services/remoteConfigFiles.js", () => ({
   validateRemoteConfigTransport: vi.fn(),
 }));
 
-const { getActiveServerPaths } = await import("../routes/serverFiles.js");
+// getActiveServerPaths() is no longer exported directly (2026-09-08
+// quadruple-read sweep -- every real caller now reads req.activeServerContext,
+// populated once per request by the router's own gate); __testOnlyDirectReads
+// is the explicit, test-only back door that keeps this file's existing
+// single-read coverage working without re-deriving it through a full router
+// request.
+const { __testOnlyDirectReads } = await import("../routes/serverFiles.js");
+const { getActiveServerPaths } = __testOnlyDirectReads;
 const { getActiveServer } = await import("../database/init.js");
 
 const SERVER_A = {

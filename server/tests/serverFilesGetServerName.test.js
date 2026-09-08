@@ -22,13 +22,19 @@ vi.mock("../services/remoteConfigFiles.js", () => ({
 }));
 
 const {
-  getServerName,
-  getServerConfigPath,
+  __testOnlyDirectReads,
   ServerNotConfiguredError,
   RemoteConfigNotConfiguredError,
   parseIni,
   toIni,
 } = await import("../routes/serverFiles.js");
+// getServerName()/getServerConfigPath() are no longer exported directly
+// (2026-09-08 quadruple-read sweep -- every real caller now reads
+// req.activeServerContext, populated once per request by the router's own
+// gate) -- __testOnlyDirectReads is the explicit, test-only back door that
+// keeps this file's existing isolated-fallback-chain coverage working
+// without re-deriving it through a full router request.
+const { getServerName, getServerConfigPath } = __testOnlyDirectReads;
 
 // Finding 2: serverName is interpolated straight into filesystem paths
 // (`${serverName}.ini`, `${serverName}_SandboxVars.lua`, ...) throughout
