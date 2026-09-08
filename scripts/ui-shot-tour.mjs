@@ -22,7 +22,7 @@
 //   the name wrong (or leave it off with --list) and this prints the full
 //   list instead of guessing -- see VIEWS below for the source of truth.
 //
-//   node scripts/ui-shot-tour.mjs [<name>] [--root <repoPath>] [--out <dir>] [--port <n>] [--keep-server]
+//   node scripts/ui-shot-tour.mjs [<name>] [--root <repoPath>] [--out <dir>] [--port <n>] [--keep-server] [--lang <code>]
 //
 //   --root   Repo to build/serve (must contain client/ and server/index.js).
 //            Defaults to this script's own repo. Point this at a detached
@@ -35,6 +35,10 @@
 //            <this repo>/.ui-tour/output (gitignored) -- NOT Screenshots/,
 //            which is the tracked, hand-curated README gallery.
 //   --port   Port for the throwaway server. Default 34917.
+//   --lang   Locale code (e.g. `ar`) to force every captured page into,
+//            via the same localStorage key client/src/i18n/index.ts reads
+//            on boot (LANGUAGE_STORAGE_KEY = 'zcp-language'). Omit for the
+//            default English sweep -- existing behavior, unaffected.
 //   --keep-server   Don't kill the throwaway server on exit (debugging).
 //            Spawned detached so it survives this script's own process
 //            exiting, not just surviving the finally block's own
@@ -205,13 +209,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_ROOT = path.resolve(__dirname, '..')
 
 function parseArgs(argv) {
-  const out = { root: DEFAULT_ROOT, out: null, port: 34917, keepServer: false, view: null }
+  const out = { root: DEFAULT_ROOT, out: null, port: 34917, keepServer: false, view: null, lang: null }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--root') out.root = path.resolve(argv[++i])
     else if (a === '--out') out.out = path.resolve(argv[++i])
     else if (a === '--port') out.port = Number(argv[++i])
     else if (a === '--keep-server') out.keepServer = true
+    else if (a === '--lang') out.lang = argv[++i]
     else if (a === '--list' || a === '--help' || a === '-h') out.list = true
     else if (!a.startsWith('--')) out.view = a
   }
@@ -497,6 +502,23 @@ function json(body) {
 // the page's own real error-handling branch (not this tool's) runs.
 function errorJson(status, message) {
   return { status, contentType: 'application/json', body: JSON.stringify({ error: message }) }
+}
+
+// bug-hunt-2026-09-08 (operator screenshot, Arabic UI RTL bidi sweep):
+// --lang <code> forces every page in this context to boot already reading
+// as that locale, by pre-seeding the exact key client/src/i18n/index.ts
+// reads on startup (LANGUAGE_STORAGE_KEY = 'zcp-language') before any of
+// the app's own scripts run. addInitScript (not page.evaluate after
+// goto) is required here: it re-runs on every document this context
+// creates, including reloads (setTheme's own reload-per-theme included),
+// so the language sticks for the whole capture run rather than reverting
+// on the first navigation after it's set. No effect at all when --lang is
+// omitted -- every existing caller of this tool is unaffected.
+async function installLanguageOverride(context, lang) {
+  if (!lang) return
+  await context.addInitScript((code) => {
+    try { localStorage.setItem('zcp-language', code) } catch { /* storage unavailable */ }
+  }, lang)
 }
 
 async function installFixtureRoutes(context) {
@@ -1083,6 +1105,18 @@ const VIEWPORTS = [
 ]
 const THEMES = ['survival', 'light']
 
+// bug-hunt-2026-09-08 (--lang support): a bare chromium.launch() crashed the
+// renderer ("Page crashed" / "Target crashed", not a timeout -- confirmed
+// intermittent across three otherwise-identical runs, so this is not a
+// --lang-specific bug) on this run's own execution environment. --no-sandbox
+// + --disable-dev-shm-usage + --disable-gpu is the standard, well-precedented
+// fix for exactly this crash class in a constrained/headless/CI-shaped
+// environment, and costs nothing for a normal desktop run -- this launches a
+// throwaway browser against a throwaway localhost server with no untrusted
+// content, so the isolation --no-sandbox gives up is not protecting anything
+// here anyway.
+const CHROMIUM_LAUNCH_OPTIONS = { args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'] }
+
 async function login(page) {
   await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
   await page.getByLabel(/username/i).fill(ADMIN_USER).catch(async () => {
@@ -1091,7 +1125,18 @@ async function login(page) {
   await page.getByLabel(/password/i).fill(ADMIN_PASS).catch(async () => {
     await page.locator('input[name="password"], input#password, input[type="password"]').first().fill(ADMIN_PASS)
   })
-  await page.getByRole('button', { name: /sign in|log in|login/i }).click()
+  // bug-hunt-2026-09-08 (--lang support): the English-name role match below
+  // has no fallback, unlike the two fields above -- under --lang ar this
+  // button's accessible name is the Arabic translation of "Sign In", so the
+  // match (and the whole capture run) timed out here, first confirmed the
+  // hard way. Login.tsx's login form (`id="login-form"`) has exactly one
+  // `button[type="submit"]` (its sibling reset-password form has its own,
+  // never both mounted at once -- confirmed by reading the file, resetMode
+  // ? (...) : (...) are mutually exclusive branches) -- a stable,
+  // locale-independent fallback, same shape as the two fields above.
+  await page.getByRole('button', { name: /sign in|log in|login/i }).click().catch(async () => {
+    await page.locator('#login-form button[type="submit"]').click()
+  })
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15000 }).catch(() => {})
   await page.waitForTimeout(500)
 }
@@ -1508,6 +1553,7 @@ async function setTheme(page, theme) {
 // existing summary code needs no changes to include these.
 async function capturePreAuthViews(browser, views, manifest) {
   const context = await browser.newContext({ viewport: VIEWPORTS[0] })
+  await installLanguageOverride(context, args.lang)
   const page = await context.newPage()
   // setTheme's localStorage.setItem throws SecurityError on the page's
   // initial about:blank (an opaque origin, no localStorage access at all --
@@ -1612,15 +1658,16 @@ async function main() {
       // permanently false the instant that account exists, and there is no
       // going back within this process's lifetime -- see PRE_AUTH_VIEWS'
       // own comment.
-      browser = await chromium.launch()
+      browser = await chromium.launch(CHROMIUM_LAUNCH_OPTIONS)
       await capturePreAuthViews(browser, targetPreAuthViews, manifest)
     }
 
     await bootstrapAccount(dataRoot)
 
     if (targetViews.length) {
-      if (!browser) browser = await chromium.launch()
+      if (!browser) browser = await chromium.launch(CHROMIUM_LAUNCH_OPTIONS)
       const context = await browser.newContext({ viewport: VIEWPORTS[0] })
+      await installLanguageOverride(context, args.lang)
       await installFixtureRoutes(context)
       context.on('response', trackRateLimitHeaders)
       const page = await context.newPage()
