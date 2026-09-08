@@ -152,16 +152,29 @@ describe('Events -- Severe Weather snow toggle reflects real state (three states
     sw.click()
     await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'true')) // optimistic
     await waitFor(() => expect(setSnow).toHaveBeenCalledWith(true))
-    // Baseline AFTER the optimistic flip, not before render -- mount's own
-    // poll already calls getWeather at least once, so an absolute count
-    // would be coupled to unrelated polling timing. What matters is that a
-    // NEW read happens once the command settles.
-    const callsBeforeReconcile = getWeather.mock.calls.length
 
-    // The reconcile read fired after setSnow resolved still says off --
-    // must overwrite the optimistic "on".
-    await waitFor(() => expect(getWeather.mock.calls.length).toBeGreaterThan(callsBeforeReconcile))
-    await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'))
+    // sweep-2026-09-08 (unbounded-waitFor-on-a-polling-page class):
+    // Events.tsx's own bridgeInterval also calls getWeather every 10000ms
+    // (checkBridgeStatus's poll tick, independent of this toggle), so an
+    // open-ended wait here can't tell refetchWeather()'s deliberate
+    // immediate reconcile apart from just outlasting that unrelated tick.
+    // Confirmed by break-verify: commenting out the snow toggle's own
+    // `await refetchWeather()` call left the switch still correcting to
+    // 'false' eventually, just ~10s later via the periodic poll instead of
+    // near-instantly -- the 10.1s duration this test used to have was the
+    // tell, not a slow machine. Bounding well under 10000ms makes this
+    // assertion actually prove the immediate path exists.
+    //
+    // An earlier version of this fix tried to additionally assert on
+    // getWeather's call COUNT growing past a baseline captured right after
+    // "setSnow was called" -- that raced the same async chain it was
+    // measuring (refetchWeather can already have run, in the same
+    // microtask window, by the time waitFor's own polling notices setSnow
+    // was called), and flaked with "N is not greater than N". The switch's
+    // own final state is the real, user-visible signal that matters here;
+    // bounding ONLY that assertion is enough to discriminate the fix
+    // without needing a second, racier measurement alongside it.
+    await waitFor(() => expect(sw).toHaveAttribute('aria-checked', 'false'), { timeout: 3000 })
   })
 
   it('OFF: renders unchecked when liveWeather.isSnowing is false, and clicking enables snow', async () => {
