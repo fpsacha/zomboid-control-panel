@@ -725,6 +725,13 @@
         }
       },
       "storage": {
+        "lockProtection": {
+          "warn": {
+            "label": "Duplicate-instance protection is disabled",
+            "message": "The panel could not create its startup lock file ({{code}}) and is running without protection against a second instance starting against the same data directory.",
+            "hint": "This is expected on a deliberately read-only or access-restricted data directory. If that wasn't intentional, check permissions on the data directory; otherwise make sure your deployment only ever runs one panel instance at a time."
+          }
+        },
         "saveSize": {
           "warn": {
             "label": "Тека збереження дуже велика",
