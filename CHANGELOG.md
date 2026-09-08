@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.19] - 2026-09-08
+
+**TL;DR:**
+
+- *[PENDING -- Jim's supervisor fix, headline item: the Windows updater could delete the only surviving copy of the working server executable and still report "executable untouched." Awaiting his one-line wording before this ships.]*
+- Applying a server config template could show no warning and stay clickable even while the target server was actually still running (Docker-managed or remote installs) - that safety check now works correctly there too.
+- On a host running more than one server, several places could get a Docker-managed or remote server's running state wrong the same way - Manual Restart and Quick Broadcasts, the live performance chart, and checking a server before applying a template to it - all now share one correct check.
+- SteamCMD reliability on Linux: a fresh install could fail on a sandboxing setting that has nothing to do with the game folder's own permissions (#147), and a panel crash mid-install could let the very next Start launch straight over a half-written install - both fixed.
+- The panel updater could get stuck saying "an update is already in progress" forever after one failed restart, and clicking Download twice fast enough could corrupt the staged update file - both fixed, plus two smaller update-route reliability fixes.
+- Automatic server updates warn connected players again right before the restart even if the original warning was missed, and the Dashboard now shows a live notice as one is scheduled and when it finishes, instead of nothing until you refresh.
+
+### Fixed
+
+**Panel updater**
+
+- *[Jim's fix slots in here once it lands]*
+- **A failed Windows Supervisor restart could leave the panel thinking an update was still in progress, forever** - every later restart attempt was wrongly rejected with "an update apply is already in progress," with no way back short of killing the process externally.
+- **Clicking Download twice in quick succession could corrupt the staged update file** - both clicks could get past a guard that didn't actually take effect until after an async permissions check had already started.
+- **A failure reading the panel's own update status could occasionally surface as a generic server error** instead of the same structured error every other update check already gives.
+- **A Docker-managed server that got stopped to apply an update, which then failed, gave no indication the server had already been stopped** - it no longer tries to auto-restart on a failed apply (that risks launching over a corrupted install), and now says plainly that the server needs a manual restart.
+
+**Server status & actions**
+
+- **The "Apply Config Template" button could stay enabled with no warning even while the target server was actually running, on Docker-managed or remote installs** - applying a template overwrites the live server config, and this safety check is now correct for those providers too.
+- **Manual Restart and Quick Broadcasts on the Scheduler page could stay wrongly disabled on a Docker-managed or remote server that was genuinely running.**
+- **The live performance chart's running/stopped signal, and checking whether a non-active server is running before applying a template to it, could get a Docker-managed or remote server's state wrong the same way** - all of these now share one correct, provider-aware check.
+- **Confirming a Start or a Stop from the Servers page could read a stale cached flag instead of the server's real, current state** on a host running more than one server - a Stop could time out after 30 seconds reporting "not confirmed" on a server that had actually already stopped, and a Start could report success before the process had truly been observed running.
+
+**SteamCMD & Steam installs**
+
+- **A fresh Linux install could fail with "Missing file permissions" or "Missing configuration" no matter how the install folder's own permissions were set** - the real block was a sandboxing setting on SteamCMD's own separate config/cache folder, unrelated to the game install path; fixed with no new configuration needed (#147).
+- **A panel crash while a Steam install or update was running could let the very next Start launch the game server directly over a half-written, still-in-progress install** - the panel now remembers an in-progress Steam operation even after a crash, not only while it was still running as a live process.
+
+**Automatic server updates**
+
+- **Connected players could go un-warned before an automatic update's restart if the original warning happened to be sent during a brief RCON disconnect** - the server now sends a second, immediate warning right before the actual restart regardless of what happened minutes earlier.
+- **Leaving the Dashboard open through an entire automatic update gave no live signal at all** - no "restarting in N minutes," no notice when it finished, nothing until you navigated away and back. The panel now shows both live.
+
+**Localization**
+
+- **Arabic dashboard numbers could render in the wrong order** (e.g. "23.8/31.3 GB" shown as "31.3/23.8") for disk, memory, and swap usage - a right-to-left text-direction quirk, now isolated correctly.
+- **Arabic, Ukrainian, Spanish, and French pages could show raw English words mixed into otherwise-translated, count-based text** (singular/plural minute and item counts) - the missing grammatical forms those languages need have been filled in.
+
 ## [1.2.18] - 2026-09-07
 
 **TL;DR:**
