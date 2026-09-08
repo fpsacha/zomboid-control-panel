@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getActiveServer = vi.fn();
+const getServer = vi.fn();
 const saveTemplate = vi.fn();
 const applyTemplate = vi.fn();
 const listHiddenBuiltinTemplates = vi.fn();
@@ -8,7 +9,27 @@ const unhideTemplate = vi.fn();
 
 import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 
-vi.mock("../database/init.js", () => ({ getActiveServer, getRoleByName: mockGetRoleByName }));
+vi.mock("../database/init.js", () => ({
+  getActiveServer,
+  getServer,
+  getRoleByName: mockGetRoleByName,
+}));
+
+// checkSpecificServerStopped() (routes/server.js, now imported by
+// routes/templates.js's non-active-server branch) does a real host-wide
+// process scan via ServerManager.scanHostForServerProcesses() -- mocked the
+// same way serversStatusListProcessAttribution.test.js mocks it.
+const scanHostForServerProcesses = vi.fn().mockResolvedValue({ matched: [] });
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
+
 vi.mock("../services/templateService.js", () => ({
   listTemplates: vi.fn(),
   listHiddenBuiltinTemplates,
@@ -49,10 +70,12 @@ async function runRoute(routePath, method, request, response) {
 describe("template mutation routes", () => {
   beforeEach(() => {
     getActiveServer.mockReset();
+    getServer.mockReset();
     saveTemplate.mockReset();
     applyTemplate.mockReset();
     listHiddenBuiltinTemplates.mockReset();
     unhideTemplate.mockReset();
+    scanHostForServerProcesses.mockReset().mockResolvedValue({ matched: [] });
   });
 
   it("rejects template creation by a non-admin user", async () => {
@@ -160,15 +183,26 @@ describe("template mutation routes", () => {
     expect(applyTemplate).not.toHaveBeenCalled();
   });
 
-  // 2026-08-24 conv-template-privesc: the running-state guard above only
-  // ever ran inside the "target IS the active server" branch, so applying a
-  // template to any OTHER configured server skipped it entirely -- no
-  // check ran at all, and the apply proceeded unconditionally. serverManager
-  // can only probe the active server's process, so there's no check to run
-  // for a non-active target; the fix is to fail closed (refuse) rather than
-  // silently treat "can't check" as "must be fine."
-  it("refuses to apply a template to a server that isn't the active one -- the panel can't check its running state", async () => {
+  // is-running-enumeration sweep, 2026-09-08: the running-state guard above
+  // used to only ever run inside the "target IS the active server" branch
+  // (2026-08-24 conv-template-privesc) -- applying to any OTHER configured
+  // server skipped it entirely, refusing unconditionally because no
+  // cross-server detection existed yet. checkSpecificServerStopped()
+  // (routes/server.js) now provides exactly that -- a host-wide scan
+  // attributed to a SPECIFIC target via scoreServerProcessOwnership(), the
+  // same convention already used for /delete-files' identical gap -- so
+  // this now runs a real check instead of refusing outright.
+  it("refuses to apply a template to a non-active server the check confirms is running", async () => {
     getActiveServer.mockResolvedValue({ id: "server-1" });
+    getServer.mockResolvedValue({
+      id: "server-2",
+      serverName: "Server2",
+      zomboidDataPath: "C:\\Zomboid\\Server2",
+      serverPath: "C:\\Servers\\Server2",
+    });
+    scanHostForServerProcesses.mockResolvedValue({
+      matched: [{ pid: "1", cmd: '"C:\\Servers\\Server2\\java.exe" -servername "Server2"' }],
+    });
     const response = createResponse();
 
     await runRoute(
@@ -178,11 +212,7 @@ describe("template mutation routes", () => {
         params: { id: "template-1" },
         body: { serverId: "server-2" },
         user: { role: "admin" },
-        app: {
-          get: () => ({
-            getServerProcessDetails: vi.fn(async () => ({ running: false, scanFailed: false })),
-          }),
-        },
+        app: { get: () => ({}) },
       },
       response,
     );
@@ -191,8 +221,37 @@ describe("template mutation routes", () => {
     expect(applyTemplate).not.toHaveBeenCalled();
   });
 
-  it("still applies normally when no server is active at all and the request targets a specific server -- refused, not silently allowed", async () => {
+  it("applies to a non-active server the check confirms is stopped -- no longer refused just for being non-active", async () => {
+    getActiveServer.mockResolvedValue({ id: "server-1" });
+    getServer.mockResolvedValue({
+      id: "server-2",
+      serverName: "Server2",
+      zomboidDataPath: "C:\\Zomboid\\Server2",
+      serverPath: "C:\\Servers\\Server2",
+    });
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    applyTemplate.mockResolvedValue({ success: true });
+    const response = createResponse();
+
+    await runRoute(
+      "/:id/apply",
+      "post",
+      {
+        params: { id: "template-1" },
+        body: { serverId: "server-2" },
+        user: { role: "admin" },
+        app: { get: () => ({}) },
+      },
+      response,
+    );
+
+    expect(applyTemplate).toHaveBeenCalledWith("template-1", "server-2", {});
+    expect(response.status).not.toHaveBeenCalledWith(409);
+  });
+
+  it("refuses (fails closed) when no server is active, the request targets a specific server, and that target isn't found", async () => {
     getActiveServer.mockResolvedValue(null);
+    getServer.mockResolvedValue(null);
     const response = createResponse();
 
     await runRoute(
@@ -207,7 +266,7 @@ describe("template mutation routes", () => {
       response,
     );
 
-    expect(response.status).toHaveBeenCalledWith(409);
+    expect(response.status).toHaveBeenCalledWith(404);
     expect(applyTemplate).not.toHaveBeenCalled();
   });
 

@@ -8,11 +8,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // process-wide lifecycleCoordinator lock for the whole handler.
 
 const getActiveServer = vi.fn();
+const getServer = vi.fn();
 const applyTemplate = vi.fn();
 
 import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 
-vi.mock("../database/init.js", () => ({ getActiveServer, getRoleByName: mockGetRoleByName }));
+vi.mock("../database/init.js", () => ({
+  getActiveServer,
+  getServer,
+  getRoleByName: mockGetRoleByName,
+}));
+
+// checkSpecificServerStopped() (routes/server.js, now imported by
+// routes/templates.js for the non-active-server branch below) does a
+// real host-wide process scan via ServerManager.scanHostForServerProcesses()
+// -- mocked here the same way serversStatusListProcessAttribution.test.js
+// mocks it, so these lock-focused tests don't touch a real OS process list.
+const scanHostForServerProcesses = vi.fn().mockResolvedValue({ matched: [] });
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
+
 vi.mock("../services/templateService.js", () => ({
   listTemplates: vi.fn(),
   listHiddenBuiltinTemplates: vi.fn(),
@@ -62,7 +84,9 @@ function buildRequest(body) {
 describe("POST /api/templates/:id/apply holds the shared lifecycle lock across its stopped-check + apply window", () => {
   beforeEach(() => {
     getActiveServer.mockReset().mockResolvedValue({ id: "server-1" });
+    getServer.mockReset();
     applyTemplate.mockReset();
+    scanHostForServerProcesses.mockReset().mockResolvedValue({ matched: [] });
   });
 
   afterEach(() => {
@@ -137,7 +161,21 @@ describe("POST /api/templates/:id/apply holds the shared lifecycle lock across i
     expect(isLifecycleLocked()).toBe(false);
   });
 
-  it("releases the lock on the non-active-server branch's unconditional refusal too", async () => {
+  // is-running-enumeration sweep, 2026-09-08: the non-active-server branch
+  // used to refuse unconditionally (no cross-server detection existed yet);
+  // it now runs checkSpecificServerStopped() for real, so lock release must
+  // hold under BOTH outcomes that branch can now reach, not just the one
+  // refusal path that used to be the only option.
+  it("releases the lock on the non-active-server branch when the check confirms it's running", async () => {
+    getServer.mockResolvedValue({
+      id: "server-2",
+      serverName: "Server2",
+      zomboidDataPath: "C:\\Zomboid\\Server2",
+      serverPath: "C:\\Servers\\Server2",
+    });
+    scanHostForServerProcesses.mockResolvedValue({
+      matched: [{ pid: "1", cmd: '"C:\\Servers\\Server2\\java.exe" -servername "Server2"' }],
+    });
     const handler = getApplyHandler();
     const response = createResponse();
 
@@ -145,6 +183,24 @@ describe("POST /api/templates/:id/apply holds the shared lifecycle lock across i
 
     expect(response.status).toHaveBeenCalledWith(409);
     expect(applyTemplate).not.toHaveBeenCalled();
+    expect(isLifecycleLocked()).toBe(false);
+  });
+
+  it("releases the lock on the non-active-server branch when the check confirms it's stopped, and proceeds to apply", async () => {
+    getServer.mockResolvedValue({
+      id: "server-2",
+      serverName: "Server2",
+      zomboidDataPath: "C:\\Zomboid\\Server2",
+      serverPath: "C:\\Servers\\Server2",
+    });
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    applyTemplate.mockResolvedValue({ success: true });
+    const handler = getApplyHandler();
+    const response = createResponse();
+
+    await handler(buildRequest({ serverId: "server-2" }), response);
+
+    expect(applyTemplate).toHaveBeenCalled();
     expect(isLifecycleLocked()).toBe(false);
   });
 });

@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "Server ID is required",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "Unable to verify server state",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "Stop the server before applying a template",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "Can't verify this server's running state — the panel can only check the currently active server. Switch to this server first, then apply the template.",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "Applying templates to remote servers is not supported yet.",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "Server INI file not found — start the server once to generate it, or apply Sandbox settings only.",
   "WRITABILITY_TARGET_UNSUPPORTED": "Unknown or unsupported writability target",

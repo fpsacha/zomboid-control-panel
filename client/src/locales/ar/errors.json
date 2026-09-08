@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "معرّف الخادم مطلوب",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "تعذّر التحقق من حالة الخادم",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "أوقف الخادم قبل تطبيق قالب",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "تعذّر التحقق من حالة تشغيل هذا الخادم — فاللوحة لا تستطيع فحص سوى الخادم النشط حاليًا. بدّل إلى هذا الخادم أولًا، ثم طبّق القالب.",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "تطبيق القوالب على الخوادم البعيدة غير مدعوم بعد.",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "لم يُعثر على ملف INI الخاص بالخادم — شغّل الخادم مرة واحدة لتوليده، أو طبّق إعدادات Sandbox فقط.",
   "WRITABILITY_TARGET_UNSUPPORTED": "هدف قابلية كتابة غير معروف أو غير مدعوم",

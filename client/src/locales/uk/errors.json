@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "Потрібно вказати ID сервера",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "Не вдається перевірити стан сервера",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "Зупиніть сервер перед застосуванням шаблону",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "Не вдається перевірити, чи запущено цей сервер — панель може перевірити лише активний зараз сервер. Спершу перемкніться на цей сервер, потім застосуйте шаблон.",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "Застосування шаблонів до віддалених серверів поки не підтримується.",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "Файл INI сервера не знайдено — запустіть сервер один раз, щоб його створити, або застосуйте лише налаштування Sandbox.",
   "WRITABILITY_TARGET_UNSUPPORTED": "Невідома або непідтримувана ціль перевірки запису",

@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "Server-ID ist erforderlich",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "Serverstatus konnte nicht überprüft werden",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "Server vor dem Anwenden einer Vorlage stoppen",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "Der Laufzeitstatus dieses Servers kann nicht überprüft werden -- das Panel kann nur den aktuell aktiven Server prüfen. Wechseln Sie zuerst zu diesem Server und wenden Sie die Vorlage dann an.",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "Das Anwenden von Vorlagen auf Remote-Server wird noch nicht unterstützt.",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "Server-INI-Datei nicht gefunden -- starten Sie den Server einmal, um sie zu erzeugen, oder wenden Sie nur die Sandbox-Einstellungen an.",
   "WRITABILITY_TARGET_UNSUPPORTED": "Unbekanntes oder nicht unterstütztes Ziel",

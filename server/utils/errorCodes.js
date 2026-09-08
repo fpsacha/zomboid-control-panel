@@ -2053,13 +2053,6 @@ export const ErrorCode = Object.freeze({
   /** server/routes/templates.js -- POST /:id/apply, the target is the
    * active server and it's confirmed running. */
   SIM_TEMPLATE_APPLY_SERVER_RUNNING: "SIM_TEMPLATE_APPLY_SERVER_RUNNING",
-  /** server/routes/templates.js -- POST /:id/apply, the target is a
-   * configured-but-not-active server. serverManager only tracks the active
-   * server's process, so there's no way to check a different server's
-   * running state -- refused rather than assumed stopped. See 2026-08-24
-   * conv-template-privesc. */
-  SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE:
-    "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE",
   /** server/services/templateService.js -- applyTemplate(), the target
    * server has `isRemote: true`. */
   SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED: "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED",

@@ -3,11 +3,12 @@ import { createLogger } from "../utils/logger.js";
 import { sanitizeError } from "../utils/sanitize.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { requirePermission } from "../services/permissions.js";
-import { getActiveServer } from "../database/init.js";
+import { getActiveServer, getServer } from "../database/init.js";
 import {
   acquireLifecycleLock,
   lifecycleInProgressResponse,
 } from "../services/lifecycleCoordinator.js";
+import { checkSpecificServerStopped } from "./server.js";
 import {
   listTemplates,
   listHiddenBuiltinTemplates,
@@ -187,24 +188,42 @@ router.post("/:id/apply", requirePermission("templates.manage"), async (req, res
         });
       }
     } else {
-      // Fail closed, not open. This branch used to be nothing -- the whole
-      // running-state guard above only exists inside the "target IS the
-      // active server" arm, so applying to any OTHER configured server
-      // skipped it entirely. serverManager is bound to one server by name
-      // and has no way to probe a different, non-active server's process
-      // state, so there's no check to run here -- but "can't check" must
-      // fail the same way it does everywhere else in this codebase, not be
-      // read as "must be stopped." A normal two-profile workflow (server A
+      // is-running-enumeration sweep, 2026-09-08: this branch used to refuse
+      // outright for any non-active server (2026-08-24, conv-template-privesc)
+      // because no cross-server process detection existed yet -- serverManager
+      // is bound to one server by name and has no way to probe a different,
+      // non-active server's process state on its own. That capability now
+      // exists: checkSpecificServerStopped() (routes/server.js) does a
+      // host-wide scan and attributes it to a SPECIFIC target server via
+      // scoreServerProcessOwnership(), exactly the same convention already
+      // used to fix /delete-files' identical cross-server gap. Reuses it
+      // here rather than duplicating it -- and still fails closed exactly
+      // like before on anything it can't confirm (SERVER_STATE_UNKNOWN),
+      // just no longer refuses a normal two-profile workflow (server A
       // running and active, template applied to configured-but-inactive
-      // server B) would otherwise silently overwrite B's live .ini while
-      // its own process holds the file open. Real cross-server process
-      // detection is a separate feature; refusing is the fix for tonight.
-      // See 2026-08-24 conv-template-privesc.
-      return res.status(409).json({
-        error:
-          "Can't verify this server's running state — the panel can only check the currently active server. Switch to this server first, then apply the template.",
-        code: ErrorCode.SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE,
-      });
+      // server B) that IS safe to verify.
+      const targetServer = await getServer(serverId);
+      if (!targetServer) {
+        return res.status(404).json({
+          error: "Server not found",
+          code: ErrorCode.SIM_TEMPLATE_SERVER_NOT_FOUND,
+        });
+      }
+      const notStoppedError = await checkSpecificServerStopped(
+        targetServer,
+        "applying a template to it",
+      );
+      if (notStoppedError) {
+        const isRunningConflict = notStoppedError.body?.code === ErrorCode.WIPE_SERVER_RUNNING;
+        return res.status(isRunningConflict ? 409 : notStoppedError.status).json({
+          error: isRunningConflict
+            ? "Stop the server before applying a template"
+            : notStoppedError.body.error,
+          code: isRunningConflict
+            ? ErrorCode.SIM_TEMPLATE_APPLY_SERVER_RUNNING
+            : ErrorCode.SIM_TEMPLATE_APPLY_STATE_UNKNOWN,
+        });
+      }
     }
 
     const result = await applyTemplate(req.params.id, serverId, options || {});

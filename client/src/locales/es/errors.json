@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "Se requiere el ID del servidor",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "No se pudo verificar el estado del servidor",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "Detén el servidor antes de aplicar una plantilla",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "No se puede verificar el estado de este servidor -- el panel solo puede comprobar el servidor actualmente activo. Cambia primero a este servidor y luego aplica la plantilla.",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "Aplicar plantillas a servidores remotos todavía no es compatible.",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "No se encontró el archivo INI del servidor -- inicia el servidor una vez para generarlo, o aplica solo los ajustes de Sandbox.",
   "WRITABILITY_TARGET_UNSUPPORTED": "Destino desconocido o no compatible",

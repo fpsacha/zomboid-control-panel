@@ -495,7 +495,6 @@
   "SIM_TEMPLATE_SERVER_ID_REQUIRED": "需要伺服器 ID",
   "SIM_TEMPLATE_APPLY_STATE_UNKNOWN": "無法驗證伺服器狀態",
   "SIM_TEMPLATE_APPLY_SERVER_RUNNING": "套用模板前請先停止伺服器",
-  "SIM_TEMPLATE_APPLY_INACTIVE_SERVER_UNVERIFIABLE": "無法驗證該伺服器的執行狀態——面板只能檢查當前活動的伺服器。請先切換到該伺服器,然後再套用模板。",
   "SIM_TEMPLATE_APPLY_REMOTE_UNSUPPORTED": "暫不支援將模板套用到遠端伺服器。",
   "SIM_TEMPLATE_APPLY_INI_MISSING": "未找到伺服器 INI 檔案——請先啟動一次伺服器以生成該檔案,或僅套用 Sandbox 設定。",
   "WRITABILITY_TARGET_UNSUPPORTED": "未知或不支援的目標",

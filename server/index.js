@@ -2759,8 +2759,19 @@ async function startPerfPolling() {
         memoryUsed: panelMem.heapUsed,
         memoryTotal: panelMem.heapTotal,
         // Status
+        //
+        // is-running-enumeration sweep, 2026-09-08: was serverManager.isRunning
+        // -- a local-scan-only cached field, always false for a docker-local/
+        // docker-managed/remote active server no matter what RCON or the
+        // bridge report, the exact GH#114 shape already fixed at every other
+        // "is the active server running" site (see getObservedServerRunning()
+        // below, which discordBot.js and the watchdog already use). This was
+        // the one remaining unswept site -- display-only (feeds the
+        // performance-history chart's running/stopped annotation, nothing
+        // gates on it), but it perpetuated the same wrong answer those other
+        // sites were fixed to stop giving.
         playerCount: lastPlayerList.length,
-        serverRunning: serverManager.isRunning,
+        serverRunning: Boolean(await getObservedServerRunning()),
       };
 
       await recordPerformanceSnapshot(snapshot);

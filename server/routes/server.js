@@ -4671,7 +4671,7 @@ router.get("/steamcmd/check", requirePermission("server.install"), async (req, r
 // this one" must refuse exactly like a failed scan does, not read as "safe
 // to delete." Only zero owned AND zero unattributable candidates counts as
 // confirmed stopped.
-async function checkSpecificServerStopped(targetServer, actionLabel) {
+export async function checkSpecificServerStopped(targetServer, actionLabel) {
   if (isManagedLifecycleProvider(targetServer.lifecycleProvider)) {
     try {
       const status = await createLinuxServiceLifecycle(
