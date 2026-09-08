@@ -255,6 +255,15 @@ describe('Dashboard.tsx: Start is gated on server.control at BOTH of its entry p
     // the header's. waitFor to the final, stable count instead.
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(2))
     for (const button of screen.getAllByRole('button', { name: 'Start' })) expect(button).not.toBeDisabled()
+
+    // bug-hunt-2026-09-08 (gate-not-destination sweep): this test used to
+    // stop at not.toBeDisabled() for both buttons -- neither was ever
+    // clicked, so a regression that broke the header button's own onClick
+    // wiring (as opposed to its disabled expression) would have sat green.
+    // Start has no confirm dialog (unlike Stop/Force Stop/Restart), so a
+    // click reaches serverApi.start() directly.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Start' })[0])
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1))
   })
 })
 
