@@ -26,7 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A failed Windows Supervisor restart could leave the panel thinking an update was still in progress, forever** - every later restart attempt was wrongly rejected with "an update apply is already in progress," with no way back short of killing the process externally.
 - **Clicking Download twice in quick succession could corrupt the staged update file** - both clicks could get past a guard that didn't actually take effect until after an async permissions check had already started.
 - **A failure reading the panel's own update status could occasionally surface as a generic server error** instead of the same structured error every other update check already gives.
-- **A Docker-managed server that got stopped to apply an update, which then failed, gave no indication the server had already been stopped** - it no longer tries to auto-restart on a failed apply (that risks launching over a corrupted install), and now says plainly that the server needs a manual restart.
+- **A Docker-managed server that got stopped to apply an update, which then failed, gave no indication the server had already been stopped** - it no longer tries to auto-restart on a failed apply (that risks launching over a corrupted install), and now says plainly that the server needs a manual restart. *(This specific message is covered by unit tests only - no Docker daemon was available to exercise it against a real container during this release's testing.)*
+
+*This release's updater fixes were verified end-to-end against a real GitHub release: a real ~87MB asset download, a real apply, a real respawn, with the on-disk binary hash confirmed changed - not just unit-tested in isolation.*
 
 **Server status & actions**
 
