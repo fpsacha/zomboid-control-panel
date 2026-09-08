@@ -24,7 +24,7 @@ import {
   panelUpdateApi, modsApi, schedulerApi, ServerInstance, PanelUpdateStatus, ComposedServerStatus,
 } from '@/lib/api'
 import { formatUptime } from '@/lib/utils'
-import { resolveClientProvider, deriveDashboardStatus } from '@/lib/serverStatus'
+import { resolveClientProvider, deriveDashboardStatus, waitForServerState } from '@/lib/serverStatus'
 import { useSocket } from '@/contexts/SocketContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -292,8 +292,16 @@ export default function Dashboard() {
     scheduledTasksCount: 0, nextRun: null, errorCount: null, schedulerLoaded: false,
   })
 
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialLoadingRef = useRef(true)
+  // dashboard-loading-clears-on-acceptance-not-confirmation: handleAction's
+  // Start/Stop/Force-stop branches now await a real confirmation poll
+  // (waitForServerState, up to 30s) before clearing `loading` -- an operator
+  // can navigate away from Dashboard entirely while that poll is still
+  // running. Checked before every setState the poll's resolution leads to
+  // (fetchStatus's own setStatus, and handleAction's finally clearing
+  // `loading`), never inside waitForServerState itself, which stays a plain
+  // shared primitive with no knowledge of any one caller's mount lifecycle.
+  const mountedRef = useRef(true)
 
   const [confirmAction, setConfirmAction] = useState<{
     // actionId is the stable, untranslated key getDashboardSuccessCopy()
@@ -561,7 +569,7 @@ export default function Dashboard() {
       clearTimeout(loadingTimeout)
       clearInterval(interval)
       clearInterval(maintenanceInterval)
-      if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
+      mountedRef.current = false
     }
   }, [fetchStatus, fetchComposedStatus, fetchPlayers, fetchBridgeStatus, fetchPlayerActivity,
       fetchAutoStartSetting, fetchActiveServer, fetchMaintenance, t])
@@ -741,13 +749,12 @@ export default function Dashboard() {
       // 2026-08-26 bug hunt: POST /stop used to report success:true (and this
       // toast used to say "Server stopped") the instant rconService.quit()
       // returned -- which only proves PZ accepted the quit command, not that
-      // its save-and-exit has actually finished. Now the server marks this
-      // response confirmed:false for exactly that case, so the toast can
-      // stop claiming completion it doesn't have; the real "stopped" state
-      // still arrives over the socket (Layout.tsx's status listener) once
-      // the watchdog genuinely observes the process gone.
-      const stopUnconfirmed = action === 'Stop server' && result && typeof result === 'object'
-        && (result as { confirmed?: boolean }).confirmed === false
+      // its save-and-exit has actually finished. The server marking that
+      // response confirmed:false for exactly that case is what stopped the
+      // toast claiming completion it doesn't have -- but a REAL confirmation
+      // is strictly better than a same-tick guess either way, so this is
+      // now folded into the poll-driven `confirmed` check below rather than
+      // read directly off this one response.
       // 2026-08-26 bug hunt: Force Stop now attempts a bounded, fail-open save
       // before killing the server (server.js's attemptBoundedSaveBeforeForceStop)
       // and reports the outcome as saveOutcome -- but the generic success toast
@@ -761,41 +768,70 @@ export default function Dashboard() {
         ? (result as { saveOutcome?: string }).saveOutcome
         : undefined
       const forceStopOutcomeCopy = getForceStopSaveOutcomeCopy(t, forceStopSaveOutcome)
+      // honest-unknown class (dashboard-loading-clears-on-acceptance-not-
+      // confirmation, medium): fn() resolving only proves Start/Stop/Force-
+      // stop's request was ACCEPTED -- POST /stop in particular already
+      // marks this confirmed:false when rconService.quit() merely returned
+      // (see stopUnconfirmed's own history above), and even a confirmed:true
+      // response only proves the command landed, not that the process has
+      // actually reached the expected state yet. `loading` (which disables
+      // every action button on this page, not just the one clicked -- see
+      // the `loading !== null` checks below) used to clear the instant this
+      // promise resolved regardless, so the operator could click Start again
+      // before Stop had actually finished. Reuses Servers.tsx's own
+      // waitForActionState()/waitForServerState() bound (30s timeout, 1s
+      // poll, scanFailed/stateUnknown excluded from a match) rather than a
+      // second polling primitive or an invented timeout number.
+      const isLifecycleAction = action === 'Start server' || action === 'Stop server' || action === 'Force stop server'
+      let confirmed: boolean | null = null
+      if (isLifecycleAction && activeServer?.id != null) {
+        confirmed = await waitForServerState(
+          () => serversApi.getStatus({ retries: 0 }),
+          activeServer.id,
+          action === 'Start server',
+        )
+      }
+      // A stuck disabled button is worse than a premature success claim --
+      // an operator can recover from a wrong label by clicking again, not
+      // from a dead control without a reload. On timeout (confirmed===false)
+      // this still falls through to the SAME toasts already below, not a
+      // silent no-op: Stop reuses stopServerRequested (already written for
+      // exactly this "requested, not yet confirmed" case) and Start reuses
+      // its own success copy, which was already honest -- "Server starting
+      // -- watch the dashboard for live status" never claimed completion --
+      // just with the variant downgraded from success to the same neutral
+      // 'default' Servers.tsx uses for its own unconfirmed case, instead of
+      // inventing new copy. Force-stop's copy is NOT varied here: there is
+      // no existing "force-stop requested, unconfirmed" string anywhere in
+      // this codebase to reuse (Servers.tsx has no inline force-stop at
+      // all), so its toast stays exactly as it was before this fix -- only
+      // its button re-enable timing is fixed, same as the other two. Flagged
+      // to god rather than invented.
       if (scriptWarnings && scriptWarnings.length > 0) {
         toast({
           title: t('successCopy.startServerScriptBackup.title'),
           description: `${t('successCopy.startServerScriptBackup.description')} ${scriptWarnings.join(' ')}`,
           variant: 'success' as const,
         })
-      } else if (stopUnconfirmed) {
+      } else if (action === 'Stop server' && confirmed === false) {
         toast({
           title: t('successCopy.stopServerRequested.title'),
           description: t('successCopy.stopServerRequested.description'),
-          variant: 'success' as const,
+          variant: 'default' as const,
         })
       } else if (forceStopOutcomeCopy) {
         toast({ title: forceStopOutcomeCopy.title, description: forceStopOutcomeCopy.description, variant: 'warning' as const })
       } else {
-        toast({ title: copy.title, description: copy.description, variant: 'success' as const })
+        const honestlyUnconfirmed = action === 'Start server' && confirmed === false
+        toast({ title: copy.title, description: copy.description, variant: honestlyUnconfirmed ? 'default' as const : 'success' as const })
       }
-      if (action === 'Start server') {
-        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
-        let attempts = 0
-        pollIntervalRef.current = setInterval(async () => {
-          attempts++
-          try {
-            const data = await serverApi.getStatus({ retries: 0 })
-            setStatus(data)
-            if (data?.running || attempts >= 15) {
-              if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
-            }
-          } catch {
-            if (attempts >= 15 && pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current); pollIntervalRef.current = null
-            }
-          }
-        }, 2000)
-      } else { fetchStatus() }
+      // waitForServerState's own onStatus callback writes into the bulk
+      // list's shape (id/running/pid/stateUnknown), not this page's richer
+      // singular ServerStatus (uptime, memory, ...) -- fetchStatus() here
+      // (unchanged from every non-lifecycle action's existing call) refreshes
+      // the real display state once, after the wait, instead of live-writing
+      // a shape mismatch during it.
+      if (mountedRef.current) fetchStatus()
     } catch (error) {
       toast({
         title: t('toasts.errorTitle'),
@@ -803,7 +839,15 @@ export default function Dashboard() {
         variant: 'destructive',
         action: options?.errorAction?.(error),
       })
-    } finally { setLoading(null) }
+    } finally {
+      // Guards specifically the new await above: a component that unmounted
+      // mid-poll (operator navigated away while Stop was still confirming)
+      // must not setState on the way out. Every other caller of handleAction
+      // still clears synchronously on the same tick as before -- this only
+      // changes WHETHER it's safe to clear, never WHEN, for anything that
+      // isn't one of the three lifecycle actions above.
+      if (mountedRef.current) setLoading(null)
+    }
   }
   // Two of the six server.control triggers on this page (this Start button,
   // and the verdict band's shortcut for the same action below) call
