@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SteamCMD reliability on Linux: a fresh install could fail on a sandboxing setting that has nothing to do with the game folder's own permissions (#147), and a panel crash mid-install could let the very next Start launch straight over a half-written install - both fixed.
 - The panel updater could get stuck saying "an update is already in progress" forever after one failed restart, and clicking Download twice fast enough could corrupt the staged update file - both fixed, plus two smaller update-route reliability fixes.
 - Automatic server updates warn connected players again right before the restart even if the original warning was missed, and the Dashboard now shows a live notice as one is scheduled and when it finishes, instead of nothing until you refresh.
+- The panel's self-signed HTTPS certificate had no address information in it at all (Common Name only), and a cached one never regenerated even after the machine's own addresses changed (joining a VPN or Tailscale, for example) - both fixed, so a strict HTTPS client gets a certificate that actually covers the address it's connecting to.
+- Linux: a single-instance lock refusal was misread as an ordinary crash and retried until giving up with the wrong explanation, an OpenRC Stop/Start could report success without ever issuing the command, and a hard-killed panel could leave an orphaned copy running underneath a freshly-started second one - all fixed, plus update rollback now triggers on any crash right after an update instead of only two narrow cases.
+- A background cleanup step that runs on every panel start could delete a same-looking file it never created, and a rollback could abandon a staged update folder with nothing ever cleaning it up - both now scoped strictly to what the updater itself staged.
+- On a host running more than one server, installing, quick-setting-up, Steam-updating, wiping, or deleting files could check or act on the wrong server, or race an in-progress SteamCMD operation - closed across all of those routes; the in-game PanelBridge companion mod could also stay silently pointed at the previous server after a switch.
+- Manually clicking Retry (or a Refresh button) while a background auto-retry was already pending could silently stack a second attempt underneath it, across Servers, Mods, Players, Scheduler, and Server Config - fixed at all five sites.
+- Calling the panel's internal "stop server" step with no arguments returned a confident success without checking or stopping anything, the same shape as the OpenRC bug above - the unused default that made this possible has been removed.
 
 ### Fixed
 
@@ -27,8 +33,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clicking Download twice in quick succession could corrupt the staged update file** - both clicks could get past a guard that didn't actually take effect until after an async permissions check had already started.
 - **A failure reading the panel's own update status could occasionally surface as a generic server error** instead of the same structured error every other update check already gives.
 - **A Docker-managed server that got stopped to apply an update, which then failed, gave no indication the server had already been stopped** - it no longer tries to auto-restart on a failed apply (that risks launching over a corrupted install), and now says plainly that the server needs a manual restart. *(This specific message is covered by unit tests only - no Docker daemon was available to exercise it against a real container during this release's testing.)*
+- **The updater's own startup cleanup could delete a file it never created**, if that file simply happened to share the naming pattern of an in-progress download - proven with a real example file before fixing it; the cleanup now only ever touches files this process staged itself.
+- **A rollback could abandon a staged update folder on disk with nothing ever cleaning it up** - it's now swept automatically on the next panel start.
+- **A hash-verification step that failed with no output at all was misdiagnosed as antivirus quarantine** - the two now report distinctly; a related preflight gap (whether the actual binary download host, not just the API host, is reachable) is now checked too, as is a silently-failed log-folder creation that used to leave a whole failed apply attempt with zero diagnostic trail.
+- **Preflight only proved the install folder was writable, not that the live program file itself could be renamed** - a per-file restriction (matching what real antivirus-blocked installs look like) used to pass preflight cleanly and only surface mid-update, at the worst possible moment; it's now checked directly.
+- **A database read failure blocking an update gave a raw technical error with no next step** - it now says plainly that restarting the panel will attempt its built-in recovery.
+- **Windows update failures now log the real underlying error text for the remaining swap steps**, and an Access-Denied case no longer collapses into the generic "file in use" troubleshooting message.
+- Update status now stays live end-to-end: a failed background check reaches the screen immediately instead of waiting for the next page load, a clean "no update available" result is no longer discarded as if nothing had been checked, and game-server (not just panel) update checks now remember why the last one failed.
 
 *This release's updater fixes were verified end-to-end against a real GitHub release: a real ~87MB asset download, a real apply, a real respawn, with the on-disk binary hash confirmed changed - not just unit-tested in isolation.*
+
+**HTTPS & certificates**
+
+- **The panel's self-signed HTTPS certificate had no address information in it at all** - only a Common Name, which modern browsers ignore for hostname validation, so every connection showed the harsher "certificate not valid for this address" warning instead of the milder self-signed one, on every address including plain localhost.
+- **A cached certificate was reused forever without checking it still covered the address actually being used** - one generated before an operator joined a VPN or Tailscale kept failing indefinitely even after the fix above shipped once. The panel now regenerates when a currently-used address is missing from the certificate, without regenerating (and invalidating an already-trusted certificate in the browser) just because an old address is no longer in use.
+
+**Linux panel supervisor**
+
+- **A single-instance lock refusal (another panel instance already running) was misread as an ordinary crash and retried until giving up, describing the wrong problem** - it's now recognized immediately and stopped cleanly, matching how Windows has always handled it.
+- **OpenRC's Stop/Start shortcuts could report success and skip the actual command entirely if the underlying status check itself failed** (a missing binary, a permissions issue, a timeout) - a transient probe failure could tell an operator "Server is already stopped" without a stop ever being attempted.
+- **A panel killed hard enough (SIGKILL, or a shutdown slow enough to time out) could leave its detached process running, and the next launch would start a second panel against the same data folder** - the panel now detects a still-alive previous instance on startup and reclaims it before proceeding, refusing to start (rather than running two at once) if the old process won't stop.
+- **An update rollback on Linux only triggered for two specific error codes** - any other crash right after an update (an actual bug in the new release, for instance) exhausted the crash-loop retry budget against the same broken binary instead of rolling back to the known-good backup sitting right there; it's now presence-based, matching Windows.
+- **A Linux crash-loop giving up after an update had no idea an update was even in progress** - it now names the exact backup files and manual recovery commands when one is still staged, instead of a generic failure message.
 
 **Server status & actions**
 
@@ -36,6 +62,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Manual Restart and Quick Broadcasts on the Scheduler page could stay wrongly disabled on a Docker-managed or remote server that was genuinely running.**
 - **The live performance chart's running/stopped signal, and checking whether a non-active server is running before applying a template to it, could get a Docker-managed or remote server's state wrong the same way** - all of these now share one correct, provider-aware check.
 - **Confirming a Start or a Stop from the Servers page could read a stale cached flag instead of the server's real, current state** on a host running more than one server - a Stop could time out after 30 seconds reporting "not confirmed" on a server that had actually already stopped, and a Start could report success before the process had truly been observed running.
+- **Installing, quick-setting-up, or Steam-updating a server could check whether a completely different server was running instead of the actual target** - all three routes now correctly resolve and check the server the operation is actually about.
+- **Wiping a server's world or deleting its files did not check whether a SteamCMD install/update was still active for that install path** - could race a fresh install/update and touch files mid-write; both now refuse while one is active.
+- **A failed Start, Stop, or Docker container action didn't refresh the panel's view of the server's real state**, sometimes leaving the status looking stale until the next manual refresh - it now refetches immediately.
+- **A Docker container action route reported "Container is not managed by this panel" even when the real problem was Docker itself being unreachable** - the two are now told apart, so a transient Docker daemon hiccup doesn't send an operator to re-map a mapping that was never broken.
+- **A stopped, still-in-progress, or unknown-state server could show as confidently "Stopped" or "Running" in three more places** - a non-active server's status badge, the moment right after clicking Start/Stop, and the sidebar's Active Server dot on every page - all three now correctly show "Unknown" instead of guessing.
+- **Calling the panel's internal "stop server" step with no arguments returned a confident success without checking or stopping anything at all** - the unused default that made this possible has been removed; every real call site already passed the correct value explicitly.
+- **The in-game PanelBridge companion mod's link could stay pointed at the previous server after switching the active server**, silently routing in-game commands (weather, player actions, world stats, safehouses, vehicles) to the wrong server - it now repoints itself on every switch, not only when the newly active server happens to have RCON configured.
+- **A hard panel crash while players were online could leave their sessions dangling** instead of being closed properly - the third and last such exit path, after the two already covered.
+- **An unscanned mod's conflict indicator could look visually identical to a confirmed-clean one** - it now only shows "clean" once a conflict scan has actually run for that mod.
+- Manually clicking Retry (or a Refresh button) while a background auto-retry was already pending could silently stack a second attempt underneath it - fixed across Servers, Mods, Players, Scheduler, and Server Config (five sites total).
+- 429 (rate-limited) responses now say when to try again instead of a generic "try again later" with no number.
+- Login, account setup, and password reset now report errors through the same consistent path as the rest of the panel.
+
+**Scheduler**
+
+- **Re-enabling a previously-disabled scheduled task didn't re-check whether the caller still holds the permission its stored command needs** - editing a task's command, and manually running one, were already checked; toggling one back on was the one remaining way to arm a stored command without holding the right permission. Disabling a task, or editing it without touching enabled, remain unaffected.
+- **Sub-hourly schedules in DST-observing timezones now show a warning** explaining the one occurrence a year that scheduling gap silently drops, instead of no warning at all.
+- Manual reload/retry on the Scheduler page no longer stacks a duplicate attempt under an in-flight automatic one.
 
 **SteamCMD & Steam installs**
 
@@ -51,6 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Arabic dashboard numbers could render in the wrong order** (e.g. "23.8/31.3 GB" shown as "31.3/23.8") for disk, memory, and swap usage - a right-to-left text-direction quirk, now isolated correctly.
 - **Arabic, Ukrainian, Spanish, and French pages could show raw English words mixed into otherwise-translated, count-based text** (singular/plural minute and item counts) - the missing grammatical forms those languages need have been filled in.
+- **The same Arabic number-order quirk also affected the Debug page's memory figures, server config's mod-settings group/option counts, and paired minimum/maximum and range hints throughout the panel** - all now isolated the same way as the dashboard fix above.
+- **The panel's rollback-recovery messages, and a handful of update-preflight and diagnostics strings, existed in English only and weren't visible to the translation check that is supposed to catch that** - backfilled into all 9 languages (English text as an interim placeholder where a native translation hasn't been authored yet).
 
 ## [1.2.18] - 2026-09-07
 
