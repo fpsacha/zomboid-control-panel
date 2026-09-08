@@ -10,6 +10,7 @@ import {
   acquireLifecycleLock,
   lifecycleInProgressResponse,
 } from "../services/lifecycleCoordinator.js";
+import { hasActiveSteamOperation } from "../services/activeSteamOperations.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import {
   isCronTooFrequent,
@@ -354,6 +355,30 @@ router.post("/restore/:name", requirePermission("backups.restore"), async (req, 
     const safeName = path.basename(req.params.name);
     if (!safeName.endsWith(".zip")) {
       return res.status(400).json({ error: "Invalid backup file", code: ErrorCode.BACKUP_INVALID_FILE });
+    }
+
+    // sweep6-lifecycle-lock-completeness: this route never checked for an
+    // in-progress SteamCMD operation before extracting an archive over
+    // zomboidDataPath. A default install keeps zomboidDataPath OUTSIDE
+    // installPath, so this is normally a non-issue -- but nothing stops an
+    // operator from nesting it inside installPath instead, and when that's
+    // the configuration, a restore running while POST /install or POST
+    // /steam-update is actively writing into that same tree extracts over
+    // files SteamCMD has open. Same guard /wipe already claims for the
+    // identical shape (2cb3ac75) and /install/steam-update claim before
+    // spawning, reused here rather than a new lock -- activeSteamOperations
+    // is already scoped per install path.
+    if (activeServer?.installPath) {
+      const normalizedRestoreTargetPath = path
+        .normalize(activeServer.installPath)
+        .toLowerCase();
+      if (hasActiveSteamOperation(normalizedRestoreTargetPath)) {
+        return res.status(409).json({
+          error:
+            "A Steam operation is already in progress for this path. Please wait for it to complete.",
+          code: ErrorCode.STEAM_OPERATION_IN_PROGRESS_PATH,
+        });
+      }
     }
 
     // Check if server is running. checkServerRunning() collapses a FAILED
