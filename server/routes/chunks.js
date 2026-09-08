@@ -1264,10 +1264,16 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
   // the stopped-check. Acquired unconditionally (not skipped by force=true)
   // -- force only overrides "is the server currently running", a different
   // question from "could a lifecycle op start while this one runs".
-  const lifecycleLock = acquireLifecycleLock(
-    "delete-chunks",
-    typeof req.body?.saveName === "string" ? req.body.saveName : null,
-  );
+  // Peeked here purely to give the lock a real server identity --
+  // req.body is already fully parsed by the time this handler runs, so this
+  // costs nothing extra and doesn't move the actual customPath/saveName
+  // handling below. null for a customPath delete: see getActiveServerId()'s
+  // own customPath bypass above -- no server identity applies to it, so
+  // normalize-lifecycle-lock-server-identifier leaves this one null rather
+  // than attributing the lock to whichever server merely happens to be
+  // active right now.
+  const lockServerId = req.body?.customPath ? null : await getActiveServerId();
+  const lifecycleLock = acquireLifecycleLock("delete-chunks", lockServerId);
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
   }
@@ -1744,10 +1750,10 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
 router.post("/delete-region", requirePermission("chunks.manage"), async (req, res) => {
   // lifecycle-lock-set sweep, 2026-09-07: same finding and fix as
   // delete-chunks above -- see its comment for the full rationale.
-  const lifecycleLock = acquireLifecycleLock(
-    "delete-region",
-    typeof req.body?.saveName === "string" ? req.body.saveName : null,
-  );
+  // See delete-chunks' matching comment above for why this is peeked before
+  // the lock and why customPath maps to null.
+  const lockServerId = req.body?.customPath ? null : await getActiveServerId();
+  const lifecycleLock = acquireLifecycleLock("delete-region", lockServerId);
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
   }

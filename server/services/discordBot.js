@@ -1070,7 +1070,7 @@ export class DiscordBot {
     const activeServerForLock = await getActiveServer();
     const lifecycleLock = acquireLifecycleLock(
       "discord-start",
-      activeServerForLock?.name || activeServerForLock?.serverName || null,
+      activeServerForLock?.id ?? null,
     );
     if (!lifecycleLock) {
       await interaction.editReply(lifecycleInProgressResponse().error);
@@ -1131,7 +1131,7 @@ export class DiscordBot {
     const activeServerForLock = await getActiveServer();
     const lifecycleLock = acquireLifecycleLock(
       "discord-stop",
-      activeServerForLock?.name || activeServerForLock?.serverName || null,
+      activeServerForLock?.id ?? null,
     );
     if (!lifecycleLock) {
       await interaction.editReply(lifecycleInProgressResponse().error);
@@ -1194,9 +1194,14 @@ export class DiscordBot {
 
   async handleRestart(interaction) {
     await interaction.deferReply();
+    // See handleStart's comment above for why this is fetched before the
+    // lock -- this.serverManager?.serverName was a display name (or a stale
+    // one, if serverManager hadn't loaded any config yet), not the server DB
+    // id normalize-lifecycle-lock-server-identifier standardized on.
+    const activeServerForLock = await getActiveServer();
     const lifecycleLock = acquireLifecycleLock(
       "discord-restart",
-      this.serverManager?.serverName || null,
+      activeServerForLock?.id ?? null,
     );
     if (!lifecycleLock) {
       await interaction.editReply(lifecycleInProgressResponse().error);

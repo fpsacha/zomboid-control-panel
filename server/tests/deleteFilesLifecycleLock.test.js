@@ -38,7 +38,7 @@ vi.mock("../services/serverManager.js", async () => {
 
 const { default: router } = await import("../routes/server.js");
 const { getServers } = await import("../database/init.js");
-const { acquireLifecycleLock, isLifecycleLocked } = await import(
+const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse } = await import(
   "../services/lifecycleCoordinator.js"
 );
 
@@ -118,6 +118,46 @@ describe("POST /api/server/delete-files holds the shared lifecycle lock across i
     const startAfterDelete = acquireLifecycleLock("start", "servertest");
     expect(startAfterDelete).not.toBeNull();
     startAfterDelete.release();
+  });
+
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: /delete-files is
+  // one of two sites that sweep found still passing no server id at all, and
+  // deliberately left that way (see the route's own comment on this exact
+  // line) -- the lock is acquired before deletePath is even parsed, and
+  // getServers()/the installPath match that WOULD resolve a real server DB
+  // id doesn't run until deep inside the try block, well after the lock is
+  // already held. Regression guard: proves the lock is still generic (no id)
+  // even though this exact test's own fixture (installDir matches a
+  // configured server, getServers() would resolve target.id === 1) COULD
+  // supply one if fetched early -- catches a future "fix" that resolves the
+  // id after the lock is acquired without actually closing the TOCTOU
+  // window the null is protecting.
+  it("still acquires the lock with no server id (generic refusal message), even though this fixture's server WOULD resolve one later in the handler", async () => {
+    let releaseCheck;
+    let checkEntered;
+    const checkReached = new Promise((r) => {
+      checkEntered = r;
+    });
+    scanHostForServerProcesses.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseCheck = () => resolve({ scanFailed: false, matched: [] });
+          checkEntered();
+        }),
+    );
+
+    const handler = getDeleteFilesHandler();
+    const response = createResponse();
+
+    const handlerCall = handler(buildRequest({}), response);
+
+    await checkReached;
+    expect(lifecycleInProgressResponse().error).toBe(
+      "A 'delete-files' operation is already in progress",
+    );
+
+    releaseCheck();
+    await handlerCall;
   });
 
   it("refuses with 409 when another lifecycle operation already holds the lock, before any validation or deletion", async () => {

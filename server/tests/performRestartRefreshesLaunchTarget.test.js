@@ -15,6 +15,9 @@ vi.mock("../database/init.js", () => ({
 }));
 
 const { Scheduler } = await import("../services/scheduler.js");
+const { acquireLifecycleLock, lifecycleInProgressResponse } = await import(
+  "../services/lifecycleCoordinator.js"
+);
 
 // 2026-08-27, root-cause completion (loonE, Discord config-revert report):
 // scheduler.performRestart() -> serverManager.startServer() used to call
@@ -44,6 +47,11 @@ describe("performRestart() refreshes the launch target before starting", () => {
     if (root) fs.rmSync(root, { recursive: true, force: true });
     getServer.mockReset();
     getActiveServer.mockReset();
+    // Best-effort: don't let a failed assertion mid-test leak a stuck lock
+    // into a later test in this file or another (real, unmocked
+    // lifecycleCoordinator).
+    const stray = acquireLifecycleLock("test-cleanup");
+    if (stray) stray.release();
   });
 
   it("a scheduled restart of an already-stopped server regenerates the launch script against CURRENT settings before starting", async () => {
@@ -83,6 +91,68 @@ describe("performRestart() refreshes the launch target before starting", () => {
       `-cachedir="${zomboidDataPath}"`,
     );
     expect(serverManager.startServer).toHaveBeenCalled();
+  });
+
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: this call used
+  // to acquire the lock with serverManager?.serverName (a display name,
+  // possibly stale if serverManager hadn't loaded any config yet) instead of
+  // a server DB id. Fixed to use serverManager._serverId directly -- the
+  // synchronous field a throwaway ServerManager the Scheduler pointed at a
+  // specific server already carries (see loadConfig()'s own comment) --
+  // rather than pinnedServerId's fuller async-fallback resolution, which
+  // deliberately stayed where it was to avoid inserting an await between the
+  // restartInProgress check and set (see the route's own comment on that
+  // race). Proven here by reading the held lock's own refusal message.
+  it("acquires the lock with serverManager._serverId (the server DB id), not serverManager.serverName", async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-perform-restart-lock-"));
+    const installPath = root;
+    const zomboidDataPath = path.join(root, "Zomboid");
+    fs.mkdirSync(zomboidDataPath, { recursive: true });
+
+    const server = {
+      id: 7,
+      serverName: "TestServer",
+      installPath,
+      zomboidDataPath,
+      rconPassword: "secret123",
+      rconPort: 27015,
+    };
+    getServer.mockResolvedValue(server);
+    getActiveServer.mockResolvedValue(server);
+
+    const scheduler = new Scheduler({}, {});
+    scheduler.sleep = async () => {};
+
+    const rconService = { connected: false, execute: vi.fn() };
+    let releaseStart;
+    let startEntered;
+    const startReached = new Promise((r) => {
+      startEntered = r;
+    });
+    const serverManager = {
+      _serverId: 7,
+      serverName: "TestServer", // must NOT be what the lock names -- see above
+      getServerProcessDetails: vi
+        .fn()
+        .mockResolvedValue({ running: false, scanFailed: false }),
+      startServer: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseStart = () => resolve({ success: true });
+            startEntered();
+          }),
+      ),
+    };
+
+    const restartCall = scheduler.performRestart(0, { rconService, serverManager });
+
+    await startReached;
+    const message = lifecycleInProgressResponse().error;
+    expect(message).toContain("7");
+    expect(message).not.toContain("TestServer");
+
+    releaseStart();
+    await restartCall;
   });
 
   // The "was running" branch (a full RCON verify -> countdown -> save ->

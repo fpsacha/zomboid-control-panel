@@ -34,9 +34,9 @@ vi.mock("../utils/zomboidPaths.js", () => ({
   inspectZomboidPath: () => ({ ok: true }),
 }));
 
-const { getServers } = await import("../database/init.js");
+const { getServers, getActiveServer } = await import("../database/init.js");
 const { default: router } = await import("../routes/chunks.js");
-const { acquireLifecycleLock, isLifecycleLocked } = await import(
+const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse } = await import(
   "../services/lifecycleCoordinator.js"
 );
 
@@ -64,6 +64,7 @@ beforeEach(() => {
   fs.mkdirSync(savePath, { recursive: true });
   fs.writeFileSync(path.join(savePath, "0_0.bin"), "chunk");
   getServers.mockResolvedValue([{ zomboidDataPath: root }]);
+  getActiveServer.mockReset().mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -155,6 +156,77 @@ describe("POST /api/chunks/delete-chunks holds the shared lifecycle lock across 
     expect(fs.existsSync(path.join(savePath, "0_0.bin"))).toBe(true);
 
     held.release();
+  });
+
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: this route used
+  // to acquire the lock with req.body.saveName -- a save name, not a server
+  // DB id, a distinct scheme from every other call site. Fixed to use the
+  // active server's DB id (getActiveServerId(), the same helper the
+  // stale-scan check just below already uses) when the delete is
+  // server-scoped, and null for a customPath delete (see that branch's own
+  // comment: no server identity applies to it). Proven here by reading the
+  // held lock's own refusal message.
+  it("acquires the lock with the active server's DB id, not the saveName, when the delete is server-scoped (no customPath)", async () => {
+    getActiveServer.mockResolvedValue({ id: "server-1", zomboidDataPath: root });
+
+    const realMkdir = fs.promises.mkdir.bind(fs.promises);
+    let releaseMkdir;
+    const mkdirGate = new Promise((resolve) => {
+      releaseMkdir = resolve;
+    });
+    const mkdirSpy = vi
+      .spyOn(fs.promises, "mkdir")
+      .mockImplementationOnce((...args) => mkdirGate.then(() => realMkdir(...args)));
+
+    const handler = getHandler("/delete-chunks");
+    const response = createResponse();
+    const request = buildRequest({
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0_0.bin", x: 0, y: 0 }],
+      createBackup: true,
+      expectedServerId: "server-1",
+    });
+
+    const handlerCall = handler(request, response);
+
+    await vi.waitFor(() => expect(mkdirSpy).toHaveBeenCalled());
+    const message = lifecycleInProgressResponse().error;
+    expect(message).toContain("server-1");
+    expect(message).not.toContain(SAVE_NAME);
+
+    releaseMkdir();
+    await handlerCall;
+  });
+
+  it("acquires the lock with no server id (not the saveName) when a customPath delete has no applicable server identity", async () => {
+    const realMkdir = fs.promises.mkdir.bind(fs.promises);
+    let releaseMkdir;
+    const mkdirGate = new Promise((resolve) => {
+      releaseMkdir = resolve;
+    });
+    const mkdirSpy = vi
+      .spyOn(fs.promises, "mkdir")
+      .mockImplementationOnce((...args) => mkdirGate.then(() => realMkdir(...args)));
+
+    const handler = getHandler("/delete-chunks");
+    const response = createResponse();
+    const request = buildRequest({
+      saveName: SAVE_NAME,
+      chunks: [{ file: "0_0.bin", x: 0, y: 0 }],
+      createBackup: true,
+      customPath: root,
+      expectedServerId: undefined,
+    });
+
+    const handlerCall = handler(request, response);
+
+    await vi.waitFor(() => expect(mkdirSpy).toHaveBeenCalled());
+    const message = lifecycleInProgressResponse().error;
+    expect(message).not.toContain(SAVE_NAME);
+    expect(message).toBe("A 'delete-chunks' operation is already in progress");
+
+    releaseMkdir();
+    await handlerCall;
   });
 });
 

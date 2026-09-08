@@ -126,7 +126,18 @@ router.post("/:id/apply", requirePermission("templates.manage"), async (req, res
   // The non-active-server branch below always fails closed unconditionally
   // regardless of this lock (it never reaches applyTemplate()), so holding
   // the lock for that branch too is harmless, just a brief no-op hold.
-  const lifecycleLock = acquireLifecycleLock("template-apply");
+  //
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: unlike
+  // /delete-files, this route's target server DB id (req.body.serverId) is
+  // already fully available the instant the handler starts -- Express has
+  // already parsed the body by then -- so read it directly rather than
+  // leaving this a third null site. Read here, not moved above alongside a
+  // restructure: the actual `!serverId` validation below is unchanged, this
+  // is purely an extra peek for the lock's own identity.
+  const lifecycleLock = acquireLifecycleLock(
+    "template-apply",
+    req.body?.serverId || null,
+  );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
   }

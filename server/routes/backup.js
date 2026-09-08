@@ -331,7 +331,7 @@ router.post("/restore/:name", requirePermission("backups.restore"), async (req, 
   // restore, not just the check.
   const lifecycleLock = acquireLifecycleLock(
     "restore",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());

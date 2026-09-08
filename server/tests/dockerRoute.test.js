@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getServer, connect, save, disconnect } = vi.hoisted(() => ({
   getServer: vi.fn(),
@@ -28,6 +28,9 @@ vi.mock("../services/rcon.js", () => ({
 }));
 
 const { default: router } = await import("../routes/docker.js");
+const { acquireLifecycleLock, lifecycleInProgressResponse } = await import(
+  "../services/lifecycleCoordinator.js"
+);
 
 beforeEach(() => {
   getServer.mockReset();
@@ -35,6 +38,15 @@ beforeEach(() => {
   save.mockReset();
   disconnect.mockReset();
   disconnect.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  // Best-effort: don't let a failed assertion mid-test leak a stuck lock
+  // into a later test in this file or another (real, unmocked
+  // lifecycleCoordinator -- same convention as the other *LifecycleLock
+  // test files).
+  const stray = acquireLifecycleLock("test-cleanup");
+  if (stray) stray.release();
 });
 
 function createResponse() {
@@ -180,6 +192,52 @@ describe("POST /api/docker/containers/:id/:action", () => {
     expect(connect).not.toHaveBeenCalled();
     expect(save).not.toHaveBeenCalled();
     expect(runManagedAction).toHaveBeenCalledWith("managed", "restart");
+  });
+
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: this route used
+  // to acquire the lock with req.params.id -- the Docker CONTAINER id
+  // ("managed" below), a third, unrelated namespace from the server DB id
+  // every other lock call site standardizes on. Fixed to use
+  // req.body.serverId (verified against this exact container a few lines
+  // above the lock's own guard, but read for the lock before that
+  // verification runs -- see the route's own comment). Proven here by
+  // reading the held lock's own refusal message: it must name the server id
+  // ("server-1"), never the container id ("managed").
+  it("acquires the lock with the request's server DB id (req.body.serverId), not the Docker container id (req.params.id)", async () => {
+    const response = createResponse();
+    let releaseAction;
+    let actionEntered;
+    const actionReached = new Promise((r) => {
+      actionEntered = r;
+    });
+    const runManagedAction = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          releaseAction = () => resolve({ success: true });
+          actionEntered();
+        }),
+    );
+    getServer.mockResolvedValue({ id: "server-1", dockerContainerName: "managed" });
+
+    const handlerCall = runRoute("/containers/:id/:action", "post", {
+      user: { role: "admin" },
+      params: { id: "managed", action: "restart" },
+      body: { serverId: "server-1" },
+      app: { get: () => ({
+        enabled: true,
+        available: true,
+        inspectManagedContainer: vi.fn(async () => ({ State: { Running: false } })),
+        runManagedAction,
+      }) },
+    }, response);
+
+    await actionReached;
+    const message = lifecycleInProgressResponse().error;
+    expect(message).toContain("server-1");
+    expect(message).not.toContain("managed");
+
+    releaseAction();
+    await handlerCall;
   });
 
   // wrapper-bypass class sweep, 2026-09-08: the route used to call

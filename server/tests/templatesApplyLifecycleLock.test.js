@@ -49,7 +49,7 @@ vi.mock("../services/templateService.js", () => ({
 }));
 
 const { default: router } = await import("../routes/templates.js");
-const { acquireLifecycleLock, isLifecycleLocked } = await import(
+const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse } = await import(
   "../services/lifecycleCoordinator.js"
 );
 
@@ -131,6 +131,39 @@ describe("POST /api/templates/:id/apply holds the shared lifecycle lock across i
     const startAfterApply = acquireLifecycleLock("start", "servertest");
     expect(startAfterApply).not.toBeNull();
     startAfterApply.release();
+  });
+
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: this route used
+  // to acquire the lock with no second argument at all (acquireLifecycleLock
+  // ("template-apply") -- see the lifecycleCoordinator sweep this fixed).
+  // req.body.serverId is fully available the instant the handler starts
+  // (Express has already parsed the body), so unlike /delete-files this
+  // route has no excuse to leave it null. Proven here by reading the held
+  // lock's own refusal message, not just that SOME lock exists.
+  it("acquires the lock with the request's own server DB id (req.body.serverId), not null", async () => {
+    let releaseApply;
+    let applyEntered;
+    const applyReached = new Promise((r) => {
+      applyEntered = r;
+    });
+    applyTemplate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseApply = () => resolve({ success: true });
+          applyEntered();
+        }),
+    );
+
+    const handler = getApplyHandler();
+    const response = createResponse();
+
+    const handlerCall = handler(buildRequest({ serverId: "server-1" }), response);
+
+    await applyReached;
+    expect(lifecycleInProgressResponse().error).toContain("server-1");
+
+    releaseApply();
+    await handlerCall;
   });
 
   it("refuses with 409 when another lifecycle operation already holds the lock, before any validation or apply", async () => {

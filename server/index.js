@@ -3458,7 +3458,7 @@ async function start() {
             } else {
               const lifecycleLock = acquireLifecycleLock(
                 "startup-auto-start",
-                activeServer?.name || activeServer?.serverName || null,
+                activeServer?.id ?? null,
               );
               if (!lifecycleLock) {
                 log.warn(

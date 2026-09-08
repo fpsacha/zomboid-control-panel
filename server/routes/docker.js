@@ -74,9 +74,20 @@ router.get("/stats", requirePermission("docker.manage"), async (req, res) => {
 });
 
 router.post("/containers/:id/:action", requirePermission("docker.manage"), async (req, res) => {
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: req.params.id is
+  // the Docker CONTAINER id, a third, unrelated namespace from the server DB
+  // id every other call site now standardizes on -- req.body.serverId (the
+  // actual server DB id, verified against this exact container a few lines
+  // below) is what belongs here instead. Read directly off the body rather
+  // than moving the verified `server` lookup above the lock: the top-level
+  // try/finally already releases this lock on every early return, including
+  // the "container is not mapped to this server" 403 below, so a request
+  // that lies about serverId just gets a lock briefly tagged with an id the
+  // 403 immediately rejects and releases -- never an id that ends up
+  // attached to a real operation it doesn't belong to.
   const lifecycleLock = acquireLifecycleLock(
     `docker-${req.params.action}`,
-    req.params.id || null,
+    req.body?.serverId || null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());

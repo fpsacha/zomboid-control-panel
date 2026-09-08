@@ -576,7 +576,19 @@ export class UpdateChecker {
   }
 
   async runAutoUpdate(updateInfo) {
-    const lifecycleLock = acquireLifecycleLock("automatic-update", this.serverManager?.serverName || null);
+    // normalize-lifecycle-lock-server-identifier, 2026-09-08: fetched before
+    // the lock (a pure DB read) rather than reading
+    // this.serverManager?.serverName -- a display name, and possibly a
+    // stale one if serverManager hadn't loaded any config yet. Safe to move
+    // ahead of the lock here (unlike scheduler.js's performRestart): this
+    // function is only ever invoked from a single setTimeout callback
+    // scheduleAutoUpdate() itself guards against double-scheduling
+    // (autoUpdateTimer/autoUpdateRunning, checked before the timer is even
+    // set), so there is no concurrent second call that an added await could
+    // let slip past a check-then-set guard the way performRestart's
+    // restartInProgress could.
+    const activeServer = await getActiveServer();
+    const lifecycleLock = acquireLifecycleLock("automatic-update", activeServer?.id ?? null);
     if (!lifecycleLock) {
       this.autoUpdateRunning = false;
       log.warn("Automatic update skipped because another lifecycle operation is in progress");
@@ -590,7 +602,7 @@ export class UpdateChecker {
     // thrown error can never leave a permanent claim, per the same
     // requirement as every other guarded spawn site.
     let normalizedInstallPath = null;
-    let targetServerId = null;
+    let targetServerId = activeServer?.id ?? null;
     // Tracks how far the job got, recorded on failure alongside a stable
     // reason key -- see the class doc comment on _recordAutoUpdateResult()
     // for why phase (not a per-reason serverUp guess) is the source of
@@ -621,8 +633,6 @@ export class UpdateChecker {
         log.info("Automatic server update cancelled because the setting was disabled");
         return;
       }
-      const activeServer = await getActiveServer();
-      targetServerId = activeServer?.id ?? null;
       const steamcmdPath = await getSetting("steamcmdPath");
       // Refuse a container-managed server outright. Its image owns the game
       // install, and the stop below would RCON-quit a process the container's
