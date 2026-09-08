@@ -142,6 +142,24 @@ function pidsWithCmdlineContaining(substring) {
   return matches;
 }
 
+// pidsWithCmdlineContaining() alone cannot tell the supervised launcher
+// apart from supervise-daemon's own monitor process: supervise-daemon's
+// argv is "supervise-daemon <name> --start ... -- /bin/bash <launcherPath>",
+// which itself contains launcherPath as a substring. A caller that expects
+// exactly one match (identify a specific pid, not just "is anything still
+// running") must filter to the process whose /proc/<pid>/comm is actually
+// "bash" -- otherwise it silently matches the monitor's pid instead of the
+// child it monitors.
+function bashPidsWithCmdlineContaining(substring) {
+  return pidsWithCmdlineContaining(substring).filter((pid) => {
+    try {
+      return fs.readFileSync(`/proc/${pid}/comm`, "utf8").trim() === "bash";
+    } catch {
+      return false;
+    }
+  });
+}
+
 function rcService(serviceName, action) {
   try {
     return {
@@ -277,7 +295,16 @@ describeRealOpenrc(
       const start = rcService(serviceName, "start");
       expect(start.code, `rc-service start failed: ${start.output}`).toBe(0);
 
-      const [firstPid] = pidsWithCmdlineContaining(launcherPath);
+      // Must use the bash-filtered lookup, not the raw one: supervise-daemon's
+      // own argv contains launcherPath too (it's the last thing on its command
+      // line), so the raw helper can return the MONITOR's pid ahead of the
+      // actual child's, depending on /proc readdir order. Killing that instead
+      // of the launcher would silently invalidate this entire test -- nothing
+      // would actually be killed-and-respawned, supervise-daemon would just be
+      // decapitated, leaving its already-running child to be misread as a
+      // "respawn" a moment later, and orphaned (reparented to PID 1) once
+      // `stop` fails to find a live monitor to ask.
+      const [firstPid] = bashPidsWithCmdlineContaining(launcherPath);
       expect(firstPid).toMatch(/^\d+$/);
 
       execFileSync("kill", ["-9", firstPid], { timeout: EXEC_TIMEOUT_MS });
@@ -289,7 +316,7 @@ describeRealOpenrc(
       let secondPid;
       const deadline = Date.now() + 12_000;
       while (Date.now() < deadline) {
-        const [candidate] = pidsWithCmdlineContaining(launcherPath);
+        const [candidate] = bashPidsWithCmdlineContaining(launcherPath);
         if (candidate && candidate !== firstPid) {
           secondPid = candidate;
           break;
@@ -302,6 +329,13 @@ describeRealOpenrc(
 
       const stop = rcService(serviceName, "stop");
       expect(stop.code, `rc-service stop failed: ${stop.output}`).toBe(0);
+
+      // The respawned child must actually be gone too, not just the
+      // supervisor -- this is the assertion the pre-fix version never made,
+      // which is exactly how the pid-identification bug above went unnoticed:
+      // the test could kill the wrong process, "stop" could leave the real
+      // child running, and nothing here would fail.
+      expect(bashPidsWithCmdlineContaining(launcherPath)).toEqual([]);
     }, 20_000);
 
     it("does not corrupt a description containing a literal $ with a spurious backslash", () => {
