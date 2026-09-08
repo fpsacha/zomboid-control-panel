@@ -904,7 +904,15 @@ rem ============================================================
     if exist "%CLIENT_BACKUP%" rmdir /s /q "%CLIENT_BACKUP%" >nul 2>&1
 
     call :stamp "Apply: backing up %BASE_EXE% to %BIN_BACKUP%"
-    ren "%BASE_EXE%" "%BIN_BACKUP%" >nul 2>&1
+    rem god-dispatched, 2026-09-08 (harden-updater-fileops #3): was >nul 2>&1,
+    rem discarding cmd.exe's own error text ("The process cannot access the
+    rem file because it is being used by another process" vs "Access is
+    rem denied" -- different operator actions, close the thing holding it or
+    rem fix permissions) so every failure here looked identical in
+    rem supervisor.log. Mirrors the client-activation move three lines below,
+    rem which already appends both streams to %LOG_FILE% -- that pattern
+    rem already proved itself in production tonight, not a new variant.
+    ren "%BASE_EXE%" "%BIN_BACKUP%" >>"%LOG_FILE%" 2>&1
     if errorlevel 1 (
       call :stamp "Apply: could not back up running executable [binary_swap_failed]"
       echo ERROR: could not rename %BASE_EXE% — is the panel still running?
@@ -915,7 +923,10 @@ rem ============================================================
 
 :do_rename
   if exist "%CLIENT_LIVE%" (
-    move "%CLIENT_LIVE%" "%CLIENT_BACKUP%" >nul 2>&1
+    rem god-dispatched, 2026-09-08 (harden-updater-fileops #3): same fix as
+    rem the exe backup above -- was >nul 2>&1, now mirrors the staged-client
+    rem activation move below.
+    move "%CLIENT_LIVE%" "%CLIENT_BACKUP%" >>"%LOG_FILE%" 2>&1
     if errorlevel 1 (
       call :stamp "Apply: could not back up live frontend [frontend_swap_failed]"
       call :rollback_update
@@ -931,7 +942,11 @@ rem ============================================================
   )
 
   call :stamp "Apply: renaming !STAGED_NAME! to %BASE_EXE%"
-  ren "!STAGED_NAME!" "%BASE_EXE%" >nul 2>&1
+  rem god-dispatched, 2026-09-08 (harden-updater-fileops #3): same fix as
+  rem the two backup-renames above -- was >nul 2>&1, now mirrors the
+  rem staged-client activation move above, the one site that already got
+  rem this right.
+  ren "!STAGED_NAME!" "%BASE_EXE%" >>"%LOG_FILE%" 2>&1
   if errorlevel 1 (
     call :stamp "Apply: executable activation failed [binary_swap_failed]"
     echo ERROR: could not rename !STAGED_NAME! to %BASE_EXE%.
