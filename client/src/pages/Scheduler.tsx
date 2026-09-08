@@ -62,6 +62,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
 import { schedulerApi, rconApi, serverApi, serversApi, ScheduleHistoryEntry, ServerInstance } from '@/lib/api'
+import { resolveServerRunning } from '@/lib/serverStatus'
 import { EmptyState } from '@/components/EmptyState'
 import { NumberInput } from '@/components/NumberInput'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -610,21 +611,33 @@ export default function Scheduler() {
 
   // Poll server status so Manual Restart / Quick Broadcasts stay accurate.
   // Skipped while the tab is hidden to avoid pointless work in background tabs.
+  //
+  // GH#114-shaped (2026-09-08, Angela's is-running enumeration): this used
+  // to trust serverApi.getStatus()'s raw local process scan unconditionally,
+  // which can only ever see a process on THIS host -- a docker-managed
+  // server's process runs in a different container the scan can't see at
+  // all, and a remote-sftp server isn't on this host to begin with. Either
+  // one would leave serverRunning permanently false, disabling Manual
+  // Restart and Quick Broadcasts on a server that is genuinely up -- a
+  // legitimate-action-blocked bug, the mirror image of the Stop-button
+  // version of this same defect. resolveServerRunning() shares
+  // ServerConfig.tsx's provider-aware fix; null (indeterminate) is treated
+  // as "may be running" (`!== false`, same collapse ServerConfig.tsx's own
+  // serverMayBeRunning uses) rather than disabling these non-destructive
+  // actions on an uncertain read -- restarting an already-stopped server or
+  // broadcasting to an unconnected RCON just fails cleanly server-side.
   useEffect(() => {
     let cancelled = false
     const pull = async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
-      try {
-        const s = await serverApi.getStatus()
-        if (!cancelled) setServerRunning(!!s?.running)
-      } catch {
-        if (!cancelled) setServerRunning(false)
-      }
+      const activeServer = servers.find((s) => s.isActive) ?? null
+      const running = await resolveServerRunning(activeServer, serverApi.getStatus, serversApi.getComposedStatus)
+      if (!cancelled) setServerRunning(running !== false)
     }
     pull()
     const id = setInterval(pull, 15000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  }, [servers])
 
   // Resolve a task's target server name for display — "Unknown server" if
   // it was deleted since the task was created, "This server" (no badge

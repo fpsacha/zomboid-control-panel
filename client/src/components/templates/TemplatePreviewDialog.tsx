@@ -20,6 +20,7 @@ import {
   SimTemplateApplyResult,
   ServerInstance,
 } from '@/lib/api'
+import { resolveServerRunning } from '@/lib/serverStatus'
 import { getUserErrorMessage } from '@/lib/errorMessage'
 import { TemplateDiffList } from './TemplateDiffList'
 import { TemplateApplyPanel } from './TemplateApplyPanel'
@@ -70,14 +71,24 @@ export function TemplatePreviewDialog({ template, canManage, onClose, onApplied 
     const { server: active } = await serversApi.getResolvedActive().catch(() => ({ server: null }))
     if (loadIdRef.current !== loadId) return
     setServer(active)
+    // GH#114-shaped (2026-09-08): TemplateApplyPanel disables Apply and
+    // shows a "stop the server first" warning unless `running` is
+    // CONFIRMED false -- deliberately fail-closed, same as
+    // ServerConfig.tsx's save-guard, because applying a template
+    // overwrites live INI/Sandbox config. The raw local scan
+    // (serverApi.getStatus()) used to be trusted directly here, which is
+    // blind to a docker-local server's containerized process: it reports
+    // a confident `running: false` for a server that is actually up, which
+    // would have silently defeated this exact guard (Apply enabled, no
+    // warning, on a running server) rather than merely showing a wrong
+    // badge. resolveServerRunning() shares the same provider-aware,
+    // fail-closed contract this dialog already needs -- it never resolves
+    // to `false` except when a signal source positively confirms stopped.
     if (active && !active.isRemote) {
-      serverApi.getStatus()
-        .then((status) => {
+      resolveServerRunning(active, serverApi.getStatus, serversApi.getComposedStatus)
+        .then((result) => {
           if (loadIdRef.current !== loadId) return
-          setRunning(!!(status as { running?: boolean })?.running)
-        })
-        .catch(() => {
-          if (loadIdRef.current === loadId) setRunning(null)
+          setRunning(result)
         })
     }
 
