@@ -17,6 +17,29 @@ async function waitForFile(file, timeoutMs = 5000) {
   throw new Error(`Timed out waiting for ${file}`);
 }
 
+// A relaunched panel runs via `setsid ./ZomboidControlPanel &`, its own
+// detached session -- it inherits the wrapper's stdout/stderr PIPE (setsid
+// does not redirect stdio, only detaches the process group) but is immune
+// to a plain kill() on the wrapper's PID alone. With stdio:"pipe", Node's
+// 'close' event waits for EOF on that pipe, which cannot happen while this
+// still-live grandchild holds its write end open -- killing only the
+// wrapper leaves 'close' waiting forever for a session it can't reach.
+// Reads the real panel PID from .supervisor.pid (written fresh every
+// relaunch) and kills its whole process group first, THEN the wrapper.
+function killPanelAndSupervisor(root, supervisor) {
+  try {
+    const pidFile = path.join(root, ".supervisor.pid");
+    if (fs.existsSync(pidFile)) {
+      const panelPid = Number(fs.readFileSync(pidFile, "utf8").trim());
+      if (panelPid) {
+        try { process.kill(-panelPid, "SIGKILL"); } catch { /* already gone, or not a group leader */ }
+        try { process.kill(panelPid, "SIGKILL"); } catch { /* already gone */ }
+      }
+    }
+  } catch { /* best effort */ }
+  supervisor.kill("SIGKILL");
+}
+
 afterEach(() => {
   for (const pid of gameGroups.splice(0)) {
     try { process.kill(-pid, "SIGKILL"); } catch { /* already stopped */ }
@@ -54,15 +77,6 @@ while :; do sleep 1; done
     expect(() => process.kill(gamePid, 0)).not.toThrow();
   }, 10_000);
 
-  // Q3/Q5 gap found reading generateStartSh() end to end (2026-09-08): the
-  // journal-driven auto-rollback only catches ONE failure shape (a staged
-  // bundle/version mismatch) -- a crash from any other cause exhausts the
-  // crash-loop with a generic give-up message that has zero awareness a
-  // pending update backup even exists. This exercises the fix: when the
-  // loop gives up, a note naming update-bundle.json and
-  // ZomboidControlPanel.bundle-previous appears IF AND ONLY IF both are
-  // still on disk -- deliberately just existence, no JSON parsing, matching
-  // restore_interrupted_update()'s own house style above.
   function writeCrashingPanel(root) {
     fs.writeFileSync(
       path.join(root, "ZomboidControlPanel"),
@@ -71,7 +85,7 @@ while :; do sleep 1; done
     );
   }
 
-  function runToExhaustion(root) {
+  function runToExhaustion(root, env = {}) {
     fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
     writeCrashingPanel(root);
     try {
@@ -79,7 +93,7 @@ while :; do sleep 1; done
         cwd: root,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, PANEL_SUPERVISOR_MAX_CRASHES: "2", PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+        env: { ...process.env, PANEL_SUPERVISOR_MAX_CRASHES: "2", PANEL_SUPERVISOR_BACKOFF_SECONDS: "0", ...env },
         timeout: 10_000,
       });
     } catch (error) {
@@ -88,20 +102,6 @@ while :; do sleep 1; done
       return `${error.stdout || ""}${error.stderr || ""}`;
     }
   }
-
-  it("names the pending update backup on give-up when one is still on disk", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-giveup-"));
-    roots.push(root);
-    fs.writeFileSync(path.join(root, "ZomboidControlPanel.bundle-previous"), "old-binary-bytes");
-    fs.writeFileSync(path.join(root, "update-bundle.json"), JSON.stringify({ phase: "awaiting_startup_ack" }));
-
-    const output = runToExhaustion(root);
-
-    expect(output).toContain("giving up");
-    expect(output).toContain("A pending update journal");
-    expect(output).toContain("mv ZomboidControlPanel.bundle-previous ZomboidControlPanel");
-    expect(output).toContain("rm -f update-bundle.json");
-  }, 15_000);
 
   it("says nothing about a backup on give-up when there is no pending update", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-giveup-clean-"));
@@ -112,7 +112,187 @@ while :; do sleep 1; done
     expect(output).toContain("giving up");
     expect(output).not.toContain("pending update journal");
     expect(output).not.toContain("bundle-previous");
+    expect(output).not.toContain("startup handshake");
   }, 15_000);
+
+  // Q3, taken for real this time (god's dispatch, 2026-09-08, "harden-updater"):
+  // the give-up NOTE above used to just print manual recovery steps when a
+  // crash-loop exhausted with an unacknowledged update still on disk --
+  // this replaces that with an ACTUAL rollback, mirroring Start.bat's own
+  // `.update-applying`-presence check, bounded by MAX_ROLLBACK_RETRIES
+  // (separate, tighter than MAX_RAPID_CRASHES) instead of the ordinary
+  // crash-loop budget. File-existence only, no JSON parser, same house
+  // style as restore_interrupted_update() above.
+  function writeGoodOldBinary(root) {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "ZomboidControlPanel.bundle-previous"),
+      "#!/bin/sh\necho old-build-running > old-build.marker\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n",
+      { mode: 0o755 },
+    );
+  }
+
+  function writeJournal(root, extra = {}) {
+    fs.writeFileSync(
+      path.join(root, "update-bundle.json"),
+      JSON.stringify({ version: "9.9.9", phase: "awaiting_startup_ack", ...extra }),
+    );
+  }
+
+  // exit==75 is the one genuinely load-bearing ordering fact: on Linux the
+  // swap runs IN-PROCESS inside the OLD binary's own restart handler
+  // (applyUpdateBundle() completes, THEN it exits 75), so at the moment 75
+  // is captured, update-bundle.json + bundle-previous already exist -- but
+  // the NEW binary has not launched yet. Checking presence before this
+  // branch (the way Start.bat orders it) would roll back every successful
+  // apply before the new binary got a chance to run.
+  it("does NOT roll back on exit code 75 even though the journal and backup already exist (the apply-then-exit race)", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-rollback-75-"));
+    roots.push(root);
+    writeGoodOldBinary(root);
+    writeJournal(root);
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    // Exits 75 exactly ONCE (a real update apply is a one-time decision,
+    // not something a binary keeps re-announcing) then behaves like an
+    // ordinary long-running process -- a binary that exited 75 forever
+    // would busy-loop the supervisor's zero-backoff handoff path for as
+    // long as the test kept it alive, which is unrealistic AND, in a
+    // resource-constrained CI runner, can starve whatever test runs next.
+    fs.writeFileSync(
+      path.join(root, "ZomboidControlPanel"),
+      "#!/bin/sh\nif [ ! -f already-ran ]; then\n  touch already-ran\n  exit 75\nfi\necho second-run > second-run.marker\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n",
+      { mode: 0o755 },
+    );
+
+    const supervisor = spawn("bash", ["start.sh"], {
+      cwd: root,
+      stdio: "pipe",
+      env: { ...process.env, PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+    });
+    let output = "";
+    supervisor.stdout.on("data", (d) => { output += d; });
+    supervisor.stderr.on("data", (d) => { output += d; });
+    await waitForFile(path.join(root, "second-run.marker"), 8000);
+    killPanelAndSupervisor(root, supervisor);
+    await new Promise((resolve) => supervisor.once("close", resolve));
+
+    expect(output).toContain("supervised restart");
+    expect(output).not.toContain("startup handshake");
+    expect(fs.existsSync(path.join(root, "update-bundle.json"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "ZomboidControlPanel.bundle-previous"))).toBe(true);
+  }, 12_000);
+
+  // exit==78 exclusion: a lock refusal says nothing about whether the new
+  // binary is broken -- rolling back a good build over an unrelated
+  // stale-lock collision would be the exact wrong-auto-rollback risk this
+  // feature exists to avoid.
+  it("does NOT roll back on exit code 78 even though the journal and backup exist, and still propagates 78 immediately", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-rollback-78-"));
+    roots.push(root);
+    writeGoodOldBinary(root);
+    writeJournal(root);
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel"), "#!/bin/sh\nexit 78\n", { mode: 0o755 });
+
+    let output;
+    let exitCode = 0;
+    try {
+      output = execFileSync("bash", ["start.sh"], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+        timeout: 10_000,
+      });
+    } catch (error) {
+      output = `${error.stdout || ""}${error.stderr || ""}`;
+      exitCode = error.status;
+    }
+
+    expect(exitCode).toBe(78);
+    expect(output).not.toContain("startup handshake");
+    expect(fs.existsSync(path.join(root, "update-bundle.json"))).toBe(true);
+  }, 10_000);
+
+  // The real gap this whole feature exists to close: a crash from any
+  // cause OTHER than version_mismatch/invalid_bundle (which
+  // inspectPendingPanelUpdate() already auto-rolls-back at Node startup)
+  // used to burn the entire MAX_RAPID_CRASHES budget against the same
+  // broken binary while a good backup sat unused. Now it rolls back within
+  // MAX_ROLLBACK_RETRIES, resumes the previous build, and leaves a durable
+  // notice (god's addition to Q3) for the Diagnostics page to surface.
+  it("rolls back an update that never completes its startup handshake, resumes the previous build, and leaves a durable notice", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-rollback-fix-"));
+    roots.push(root);
+    writeGoodOldBinary(root);
+    writeJournal(root, { appliedAt: "2026-09-08T09:00:00.000Z" });
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+
+    const supervisor = spawn("bash", ["start.sh"], {
+      cwd: root,
+      stdio: "pipe",
+      env: { ...process.env, PANEL_SUPERVISOR_MAX_CRASHES: "10", PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+    });
+    let output = "";
+    supervisor.stdout.on("data", (d) => { output += d; });
+    supervisor.stderr.on("data", (d) => { output += d; });
+    try {
+      await waitForFile(path.join(root, "old-build.marker"), 8000);
+    } catch (error) {
+      killPanelAndSupervisor(root, supervisor);
+      throw new Error(`${error.message}\n--- captured output ---\n${output}`);
+    }
+    killPanelAndSupervisor(root, supervisor);
+    await new Promise((resolve) => supervisor.once("close", resolve));
+
+    expect(output).toContain("never completed its startup handshake");
+    expect(output).toContain("Rollback complete");
+    expect(fs.existsSync(path.join(root, "update-bundle.json"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".update-rollback-notice.json"))).toBe(true);
+    const notice = JSON.parse(fs.readFileSync(path.join(root, ".update-rollback-notice.json"), "utf8"));
+    expect(notice.version).toBe("9.9.9");
+    expect(notice.appliedAt).toBe("2026-09-08T09:00:00.000Z");
+  }, 12_000);
+
+  // The failure mode people skip and the one that actually strands an
+  // operator: if the rollback itself cannot succeed, this must halt with a
+  // manual recovery recipe rather than repeat the same failing operation
+  // forever. PANEL_SUPERVISOR_MAX_ROLLBACK_RETRIES=0 exercises the bound
+  // deterministically (real mv/rm failures are exercised directly against
+  // rollback_failed_update() in isolation -- see
+  // linuxSupervisorRollbackNotice.test.js).
+  it("halts with a manual recovery recipe instead of looping when rollback retries are exhausted", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-rollback-exhausted-"));
+    roots.push(root);
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel.bundle-previous"), "old-binary-bytes");
+    writeJournal(root);
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    writeCrashingPanel(root);
+
+    let output;
+    let exitCode = 0;
+    try {
+      output = execFileSync("bash", ["start.sh"], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, PANEL_SUPERVISOR_MAX_ROLLBACK_RETRIES: "0", PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+        timeout: 10_000,
+      });
+    } catch (error) {
+      output = `${error.stdout || ""}${error.stderr || ""}`;
+      exitCode = error.status;
+    }
+
+    expect(exitCode).toBe(1);
+    expect(output).toContain("capped at 0 attempt");
+    expect(output).not.toContain("never completed its startup handshake");
+    expect(output).toContain("update-bundle.json");
+    expect(output).toContain("ZomboidControlPanel.bundle-previous");
+    expect(output).toContain("client/dist.previous");
+    expect(fs.existsSync(path.join(root, "update-bundle.json"))).toBe(true);
+  }, 10_000);
 
   // Self-directed sibling check of the Q6 fix (2026-09-08): Start.bat
   // already special-cases exit code 78 (utils/pidLock.js's cross-platform

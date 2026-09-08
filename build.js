@@ -1125,6 +1125,14 @@ BACKOFF_BASE_SECONDS="\${PANEL_SUPERVISOR_BACKOFF_BASE_SECONDS:-2}"
 BACKOFF_CAP_SECONDS="\${PANEL_SUPERVISOR_BACKOFF_CAP_SECONDS:-30}"
 RECLAIM_TIMEOUT_SECONDS="\${PANEL_SUPERVISOR_RECLAIM_TIMEOUT_SECONDS:-15}"
 
+# Presence-based update-rollback net (god's dispatch, 2026-09-08,
+# "harden-updater" Q3): mirrors Start.bat's \`.update-applying\`-presence
+# check, but with a genuinely different bound than the ordinary crash-loop
+# above -- see rollback_failed_update() and its call site below for the
+# full reasoning, including why this is NOT just MAX_RAPID_CRASHES reused.
+ROLLBACK_RETRY_COUNT=0
+MAX_ROLLBACK_RETRIES="\${PANEL_SUPERVISOR_MAX_ROLLBACK_RETRIES:-2}"
+
 stop_panel() {
   STOPPING=1
   if [ -n "$PANEL_PID" ] && kill -0 "$PANEL_PID" 2>/dev/null; then
@@ -1258,6 +1266,68 @@ restore_interrupted_update() {
     mv "./client/dist.previous" "./client/dist"
   fi
 }
+
+# Presence-based failed-update rollback (god's dispatch, 2026-09-08,
+# "harden-updater" Q3): mirrors Start.bat's .update-applying-presence check
+# -- ANY exit reason counts, not just the two specific journal error codes
+# (version_mismatch/invalid_bundle) inspectPendingPanelUpdate() already
+# auto-rolls-back at Node startup -- using the exact same fixed-path signal
+# restore_interrupted_update() above already trusts, deliberately without a
+# JSON parser: update-bundle.json only survives past a successful ack
+# (acknowledgeUpdateBundle(), shared Node code, deletes it after a real
+# listen()) or a successful rollback (this function or Node's own
+# recoverInterruptedUpdateBundle()); ZomboidControlPanel.bundle-previous is
+# created STRICTLY at apply time (stageUpdateBundle() only ever writes the
+# journal) -- so the two-file test cannot true-positive on a
+# downloaded-but-not-yet-applied update sitting idle during an unrelated
+# crash loop, and cannot re-fire after an update that already proved
+# itself once, no matter how much later an unrelated crash happens.
+#
+# See the call site (below, in the main loop) for why this runs AFTER the
+# exit==75/78 checks, not before them like Start.bat's equivalent -- that
+# ordering is load-bearing on Linux specifically, not a style choice.
+rollback_failed_update() {
+  echo "Update never completed its startup handshake; rolling back to the previous build."
+  local restore_ok=1
+  if [ -f "./ZomboidControlPanel.bundle-previous" ]; then
+    rm -f "./ZomboidControlPanel"
+    mv "./ZomboidControlPanel.bundle-previous" "./ZomboidControlPanel"
+    chmod +x "./ZomboidControlPanel" 2>/dev/null || true
+    if [ ! -f "./ZomboidControlPanel" ] || [ -f "./ZomboidControlPanel.bundle-previous" ]; then
+      restore_ok=0
+    fi
+  elif [ ! -f "./ZomboidControlPanel" ]; then
+    # No backup to restore from AND nothing currently runnable either --
+    # genuinely unrecoverable by this function; let the halt path below
+    # report it honestly instead of claiming success.
+    restore_ok=0
+  fi
+  if [ -d "./client/dist.previous" ]; then
+    rm -rf "./client/dist"
+    mv "./client/dist.previous" "./client/dist"
+    if [ ! -d "./client/dist" ] || [ -d "./client/dist.previous" ]; then
+      restore_ok=0
+    fi
+  fi
+  if [ "$restore_ok" = "1" ]; then
+    # Best-effort, durable operator-visible record of what just happened --
+    # god's addition to Q3: a SILENT successful rollback still leaves the
+    # operator running an older version than the one they installed with
+    # nothing telling them why -- they retry the same update and hit the
+    # same regression. cp (not mv) deliberately needs no JSON parsing
+    # here: it preserves every journal field (version, appliedAt, ...) for
+    # the Node-side diagnostics check (buildUpdateRollbackNoticeCheck(),
+    # server/routes/debug.js) to read and render on the Diagnostics page.
+    # A failed copy must never block the rollback itself from completing.
+    cp -f "./update-bundle.json" "./.update-rollback-notice.json" 2>/dev/null || true
+    rm -f "./update-bundle.json"
+    echo "Rollback complete; the previous build will be relaunched."
+    return 0
+  fi
+  echo "ERROR: automatic rollback did not fully complete. update-bundle.json retained for recovery."
+  return 1
+}
+
 restore_interrupted_update
 
 if [ ! -f "./ZomboidControlPanel" ]; then
@@ -1341,33 +1411,38 @@ while true; do
     exit 78
   fi
 
+  # Presence-based failed-update rollback -- see rollback_failed_update()
+  # above for the full reasoning (why file-existence-only is deliberate and
+  # safe, why exit==75/78 above must run first). ANY exit reason reaching
+  # this point (a real regression, not just the two journal error codes
+  # Node's own inspectPendingPanelUpdate() already auto-rolls-back) counts
+  # -- checked BEFORE the ordinary crash-loop counter below on purpose, so
+  # a broken update is reverted within MAX_ROLLBACK_RETRIES attempts
+  # instead of burning the full MAX_RAPID_CRASHES budget against a binary
+  # that can never succeed while a good backup sits unused.
+  if [ -f "./update-bundle.json" ] && [ -f "./ZomboidControlPanel.bundle-previous" ]; then
+    if [ "$ROLLBACK_RETRY_COUNT" -ge "$MAX_ROLLBACK_RETRIES" ]; then
+      echo "ERROR: automatic rollback is capped at $MAX_ROLLBACK_RETRIES attempt(s); refusing to retry the same failing operation further."
+      echo "To recover manually, delete these files from this folder, then run Start.sh again:"
+      echo "  update-bundle.json"
+      echo "  ZomboidControlPanel.bundle-previous"
+      echo "  client/dist.previous"
+      exit 1
+    fi
+    ROLLBACK_RETRY_COUNT=$((ROLLBACK_RETRY_COUNT + 1))
+    if rollback_failed_update; then
+      ROLLBACK_RETRY_COUNT=0
+      CRASH_COUNT=0
+    fi
+    continue
+  fi
+
   if [ "$PANEL_RUNTIME" -ge "$MIN_STABLE_SECONDS" ]; then
     CRASH_COUNT=0
   fi
   CRASH_COUNT=$((CRASH_COUNT + 1))
   if [ "$CRASH_COUNT" -gt "$MAX_RAPID_CRASHES" ]; then
     echo "ERROR: Panel exited $CRASH_COUNT times; giving up (last exit $EXIT_CODE)."
-    # A crash here can happen for any reason and this loop has no way to
-    # know which -- but if a pending update journal AND its pre-update
-    # binary backup are BOTH still on disk, that is worth surfacing
-    # regardless of whether the update actually caused this crash-loop:
-    # applyUpdateBundle() only deletes update-bundle.json on a fully
-    # successful rollback or a confirmed-good startup handshake
-    # (acknowledgeUpdateBundle()), so seeing both files together here means
-    # this specific binary was never confirmed working since it was staged.
-    # File-existence only, deliberately, matching restore_interrupted_update()
-    # above -- this loop has no JSON parser and does not need one to say
-    # "a backup exists," only to know both files are present.
-    if [ -f "./update-bundle.json" ] && [ -f "./ZomboidControlPanel.bundle-previous" ]; then
-      echo "NOTE: A pending update journal (update-bundle.json) and a pre-update"
-      echo "binary backup (ZomboidControlPanel.bundle-previous) are both still"
-      echo "present. This build was never confirmed to start successfully since"
-      echo "it was staged. If this crash-loop started after an update, you can"
-      echo "manually restore the previous build:"
-      echo "  mv ZomboidControlPanel.bundle-previous ZomboidControlPanel"
-      echo "  rm -f update-bundle.json"
-      echo "then run Start.sh again."
-    fi
     exit "$EXIT_CODE"
   fi
 
