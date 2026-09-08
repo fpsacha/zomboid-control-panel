@@ -1,6 +1,10 @@
 {
   "loading": "Встановлення зв'язку…",
   "autoUpdateResult": {
+    "scheduledTitle": "Автоматичне оновлення заплановано",
+    "scheduledDescription_one": "Сервер перезапуститься через {{count}} хвилину.",
+    "scheduledDescription_other": "Сервер перезапуститься через {{count}} хвилин.",
+    "scheduledDescriptionNow": "Сервер перезапускається зараз.",
     "successTitle": "Автоматичне оновлення завершено",
     "successDescription": "Автоматичне оновлення сервера успішно завершено.",
     "successDescriptionVersioned": "Автоматичне оновлення сервера успішно завершено (зараз працює {{version}}).",

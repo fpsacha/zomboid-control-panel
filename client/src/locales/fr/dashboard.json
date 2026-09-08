@@ -1,6 +1,10 @@
 {
   "loading": "Connexion en cours…",
   "autoUpdateResult": {
+    "scheduledTitle": "Mise à jour automatique planifiée",
+    "scheduledDescription_one": "Le serveur redémarrera dans {{count}} minute.",
+    "scheduledDescription_other": "Le serveur redémarrera dans {{count}} minutes.",
+    "scheduledDescriptionNow": "Le serveur redémarre maintenant.",
     "successTitle": "Mise à jour automatique terminée",
     "successDescription": "La mise à jour automatique du serveur s'est terminée avec succès.",
     "successDescriptionVersioned": "La mise à jour automatique du serveur s'est terminée avec succès (version {{version}} en cours d'exécution).",

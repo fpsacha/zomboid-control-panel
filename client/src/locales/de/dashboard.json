@@ -1,6 +1,10 @@
 {
   "loading": "Verbindung wird hergestellt…",
   "autoUpdateResult": {
+    "scheduledTitle": "Automatisches Update geplant",
+    "scheduledDescription_one": "Der Server wird in {{count}} Minute neu gestartet.",
+    "scheduledDescription_other": "Der Server wird in {{count}} Minuten neu gestartet.",
+    "scheduledDescriptionNow": "Der Server wird jetzt neu gestartet.",
     "successTitle": "Automatisches Update abgeschlossen",
     "successDescription": "Das automatische Server-Update wurde erfolgreich abgeschlossen.",
     "successDescriptionVersioned": "Das automatische Server-Update wurde erfolgreich abgeschlossen (läuft jetzt mit {{version}}).",

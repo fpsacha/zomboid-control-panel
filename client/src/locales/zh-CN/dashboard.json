@@ -1,6 +1,10 @@
 {
   "loading": "正在建立连接…",
   "autoUpdateResult": {
+    "scheduledTitle": "自动更新已排定",
+    "scheduledDescription_one": "服务器将在 {{count}} 分钟后重启。",
+    "scheduledDescription_other": "服务器将在 {{count}} 分钟后重启。",
+    "scheduledDescriptionNow": "服务器正在重启。",
     "successTitle": "自动更新已完成",
     "successDescription": "服务器自动更新已成功完成。",
     "successDescriptionVersioned": "服务器自动更新已成功完成（当前运行版本 {{version}}）。",

@@ -1,6 +1,10 @@
 {
   "loading": "N ap etabli koneksyon…",
   "autoUpdateResult": {
+    "scheduledTitle": "Mizajou otomatik pwograme",
+    "scheduledDescription_one": "Sèvè a pral rekòmanse nan {{count}} minit.",
+    "scheduledDescription_other": "Sèvè a pral rekòmanse nan {{count}} minit.",
+    "scheduledDescriptionNow": "Sèvè a ap rekòmanse kounye a.",
     "successTitle": "Mizajou otomatik fini",
     "successDescription": "Mizajou otomatik sèvè a fini avèk siksè.",
     "successDescriptionVersioned": "Mizajou otomatik sèvè a fini avèk siksè (kounye a l ap fè {{version}}).",

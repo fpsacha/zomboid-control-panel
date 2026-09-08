@@ -1,6 +1,10 @@
 {
   "loading": "Establishing link…",
   "autoUpdateResult": {
+    "scheduledTitle": "Automatic update scheduled",
+    "scheduledDescription_one": "The server will restart in {{count}} minute.",
+    "scheduledDescription_other": "The server will restart in {{count}} minutes.",
+    "scheduledDescriptionNow": "The server is restarting now.",
     "successTitle": "Automatic update completed",
     "successDescription": "The automatic server update completed successfully.",
     "successDescriptionVersioned": "The automatic server update completed successfully (now running {{version}}).",

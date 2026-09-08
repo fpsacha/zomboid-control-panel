@@ -1,6 +1,10 @@
 {
   "loading": "Estableciendo conexión…",
   "autoUpdateResult": {
+    "scheduledTitle": "Actualización automática programada",
+    "scheduledDescription_one": "El servidor se reiniciará en {{count}} minuto.",
+    "scheduledDescription_other": "El servidor se reiniciará en {{count}} minutos.",
+    "scheduledDescriptionNow": "El servidor se está reiniciando ahora.",
     "successTitle": "Actualización automática completada",
     "successDescription": "La actualización automática del servidor se completó correctamente.",
     "successDescriptionVersioned": "La actualización automática del servidor se completó correctamente (ahora ejecuta la versión {{version}}).",
