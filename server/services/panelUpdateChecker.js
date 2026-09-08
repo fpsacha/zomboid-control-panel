@@ -3007,6 +3007,20 @@ public static extern bool CloseHandle(System.IntPtr hObject);
    *     cleanup) left one of these behind on every exeDir readdirSync scan
    *     forever -- an accumulating, never-swept leak matching only the
    *     unlucky half of "interrupted download", not both halves.
+   *
+   * 2026-09-08, god-dispatched (harden-updater-fileops #2, destructive):
+   * the staged-binary pattern was `/\.partial\.\d+$/` with NO prefix
+   * requirement at all -- it matched ANY file in exeDir ending in
+   * ".partial.<digits>", not only ones this code created. exeDir is
+   * wherever the operator installed the panel (Desktop, a shared tools
+   * folder, anywhere), not a directory this process owns exclusively; any
+   * unrelated file sharing that suffix shape (another tool's own partial-
+   * write convention, or literally a file the operator happened to name
+   * that way) was silently deleted on every single start(). Anchored to
+   * require the panel's own exe basename + ".new"/".new2" prefix, matching
+   * exactly what downloadAndStageUpdate() actually names its own file and
+   * nothing else -- same fix shape as the client-archive pattern below,
+   * which was already correctly prefix-anchored.
    */
   cleanupOrphanPartials() {
     if (typeof process.pkg === "undefined") return;
@@ -3017,8 +3031,10 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     } catch {
       return;
     }
+    const exeBaseName = path.basename(this.getExeBasePath());
+    const escapedBaseName = exeBaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const partialPatterns = [
-      /\.partial\.\d+$/,
+      new RegExp(`^${escapedBaseName}\\.new2?\\.partial\\.\\d+$`),
       /^\.client-dist-.+\.partial\.\d+\.(?:zip|tar\.gz)$/,
     ];
     for (const name of entries) {

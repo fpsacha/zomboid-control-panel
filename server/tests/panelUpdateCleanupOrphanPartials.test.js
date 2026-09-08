@@ -56,6 +56,30 @@ describe("cleanupOrphanPartials() sweeps both partial-download naming shapes", (
     expect(fs.existsSync(exePath)).toBe(true);
   });
 
+  it("god-dispatched fix (harden-updater-fileops #2, destructive): leaves an UNRELATED file alone even when its name happens to end in .partial.<digits> -- the pattern must require the panel's own exe-basename prefix, not just the suffix shape", () => {
+    originalExecPath = process.execPath;
+    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "cleanup-partials-collision-"));
+    const exePath = path.join(scratchDir, "ZomboidControlPanel.exe");
+    fs.writeFileSync(exePath, "fake-exe");
+    setExecPath(exePath);
+
+    // Same suffix shape (`.partial.<digits>`) as a real staged-binary
+    // orphan, but a completely different prefix -- exactly what some other
+    // tool (or the operator's own file) sharing this folder could produce.
+    // exeDir is wherever the operator installed the panel, not a directory
+    // this process owns exclusively.
+    const foreignPartial = "quarterly-report.xlsx.partial.4242";
+    const realPartial = "ZomboidControlPanel.exe.new.partial.4242";
+    fs.writeFileSync(path.join(scratchDir, foreignPartial), "someone else's file");
+    fs.writeFileSync(path.join(scratchDir, realPartial), "leftover");
+
+    const checker = new PanelUpdateChecker();
+    checker.cleanupOrphanPartials();
+
+    expect(fs.existsSync(path.join(scratchDir, foreignPartial))).toBe(true);
+    expect(fs.existsSync(path.join(scratchDir, realPartial))).toBe(false);
+  });
+
   it("does nothing when not running packaged", () => {
     originalExecPath = process.execPath;
     scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "cleanup-partials-devmode-"));
