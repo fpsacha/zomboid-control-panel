@@ -549,10 +549,27 @@ export class PanelUpdateChecker {
       };
     }
 
+    // Claim the guard NOW, before the first `await` below, not after it.
+    // preflight() is async (real disk/permission checks), so the old code
+    // left a TOCTOU window open from here until whichever branch first set
+    // isDownloading further down: a second call arriving during that await
+    // sees isDownloading still false and passes this same guard too.
+    // Confirmed reachable, not theoretical: two near-simultaneous downloadUpdate()
+    // calls (e.g. a double-click) both got past the guard and both proceeded
+    // into asset lookup / the real download in a repro. With the SAME pid,
+    // a second binary download would target the identical
+    // `${stagedPath}.partial.${process.pid}` temp path as the first, so both
+    // writes interleave into one corrupted file. Every return below that
+    // does NOT go on to actually download resets isDownloading before
+    // returning, mirroring the finally-based reset the real download itself
+    // already used only for its own errors.
+    this.isDownloading = true;
+
     // Preflight gates the download — we refuse to stage anything if we already
     // know the apply step will fail (no write permission, no disk space, etc).
     const pre = await this.preflight();
     if (!pre.ok) {
+      this.isDownloading = false;
       return {
         success: false,
         error: pre.blockers[0] || "Preflight check failed",
@@ -562,7 +579,6 @@ export class PanelUpdateChecker {
 
     if (this.dockerUpdateProxy.enabled) {
       const version = this.latestRelease.version;
-      this.isDownloading = true;
       try {
         return await this.dockerUpdateProxy.apply(version);
       } catch (error) {
@@ -577,6 +593,7 @@ export class PanelUpdateChecker {
     const isPackaged = typeof process.pkg !== "undefined";
 
     if (!isPackaged) {
+      this.isDownloading = false;
       return {
         success: false,
         error: `Self-update is only available for standalone exe/binary builds. ${getDevModeUpgradeInstruction()}`,
@@ -608,6 +625,7 @@ export class PanelUpdateChecker {
     }
 
     if (!asset) {
+      this.isDownloading = false;
       return {
         success: false,
         error: `No ${isWindows ? "Windows" : "Linux"} binary found in release (looked for ${assetName})`,
@@ -621,13 +639,13 @@ export class PanelUpdateChecker {
       (candidate) => candidate.name === archiveName,
     );
     if (!clientArchive) {
+      this.isDownloading = false;
       return {
         success: false,
         error: `Release is missing ${archiveName}, required to update the web interface safely.`,
       };
     }
 
-    this.isDownloading = true;
     this.downloadProgress = 0;
     this.lastError = null;
 
