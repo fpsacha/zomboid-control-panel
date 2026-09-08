@@ -1056,6 +1056,7 @@ export PANEL_PRESERVE_GAME_SERVERS=1
 PANEL_PID=""
 STOPPING=0
 CRASH_COUNT=0
+SUPERVISOR_PIDFILE="./.supervisor.pid"
 MAX_RAPID_CRASHES="\${PANEL_SUPERVISOR_MAX_CRASHES:-5}"
 # 2026-09-04, Dwight's finding: this used to be a flat BACKOFF_SECONDS
 # (default 2, no escalation), while Start.bat's crash-loop protection has
@@ -1069,6 +1070,7 @@ MAX_RAPID_CRASHES="\${PANEL_SUPERVISOR_MAX_CRASHES:-5}"
 MIN_STABLE_SECONDS="\${PANEL_SUPERVISOR_MIN_STABLE_SECONDS:-60}"
 BACKOFF_BASE_SECONDS="\${PANEL_SUPERVISOR_BACKOFF_BASE_SECONDS:-2}"
 BACKOFF_CAP_SECONDS="\${PANEL_SUPERVISOR_BACKOFF_CAP_SECONDS:-30}"
+RECLAIM_TIMEOUT_SECONDS="\${PANEL_SUPERVISOR_RECLAIM_TIMEOUT_SECONDS:-15}"
 
 stop_panel() {
   STOPPING=1
@@ -1081,6 +1083,92 @@ stop_panel() {
 
 trap 'stop_panel TERM' TERM
 trap 'stop_panel INT' INT
+# Deliberately NOT trapping in reclaim_or_refuse_if_already_running() or the
+# main loop's own logic -- this fires on every ordinary exit (explicit
+# "exit N", or falling off the end), cleaning up SUPERVISOR_PIDFILE so a
+# later, unrelated invocation never finds a stale record. It does NOT fire
+# on SIGKILL (nothing can trap that) -- which is exactly what makes this
+# safe rather than self-defeating: if THIS wrapper is SIGKILLed mid-run
+# (the scenario the guard below exists for), the pidfile deliberately
+# survives, so the next invocation's guard can still find and reclaim the
+# orphaned child it left running. A trap that fired unconditionally would
+# erase the one piece of evidence that made reclaiming possible.
+trap 'rm -f "$SUPERVISOR_PIDFILE"' EXIT
+
+# 2026-09-08, god's dispatch (Q6, generateStartSh() enumeration): KillMode=process
+# in the bundled unit is deliberate and correct -- it exists so systemd's own
+# stop/restart signal never reaches the detached Project Zomboid child, which
+# must survive a panel restart. It works exactly as intended under SIGTERM:
+# the trap above forwards it to just the panel's own process group. But
+# SIGKILL can never be trapped by any process, by any process, ever -- and a
+# shutdown slow enough to hit systemd's TimeoutStopSec escalates to exactly
+# that. When it does, THIS wrapper dies instantly with no chance to signal
+# anything, the already-detached panel child (setsid, below) survives as an
+# orphan, and systemd's Restart=on-failure then launches a brand-new
+# wrapper+child pair a few seconds later -- two panel processes against one
+# data directory, each believing it is authoritative. Nothing about KillMode
+# needed to change to fix this (it isn't the defect); what was missing is
+# that nothing on a fresh launch ever checked whether a previous instance
+# was still alive. This does, once, before the main loop starts.
+reclaim_or_refuse_if_already_running() {
+  if [ ! -f "$SUPERVISOR_PIDFILE" ]; then
+    return 0
+  fi
+  local existing_pid
+  existing_pid=$(cat "$SUPERVISOR_PIDFILE" 2>/dev/null)
+  if [ -z "$existing_pid" ] || ! kill -0 "$existing_pid" 2>/dev/null; then
+    # No live process at that PID (already exited, or the file is stale/
+    # corrupt) -- nothing to reclaim.
+    rm -f "$SUPERVISOR_PIDFILE"
+    return 0
+  fi
+
+  # A live process exists at that PID number, but PIDs are recycled by the
+  # kernel -- a bare number match is not proof it's actually still the
+  # panel (same discipline as tonight's earlier OpenRC fix: never trust a
+  # PID alone). /proc/<pid>/comm truncates to 15 bytes, too short for
+  # "ZomboidControlPanel" (19) to survive intact, so this checks the full
+  # cmdline instead.
+  local cmdline
+  cmdline=$(tr '\\0' ' ' < "/proc/$existing_pid/cmdline" 2>/dev/null)
+  case "$cmdline" in
+    *ZomboidControlPanel*) ;;
+    *)
+      # Live PID, but not us -- the real panel already exited and something
+      # else now holds that number. Stale record, not a running instance.
+      rm -f "$SUPERVISOR_PIDFILE"
+      return 0
+      ;;
+  esac
+
+  echo "WARNING: a panel instance (PID $existing_pid) already appears to be running against this install; attempting to stop it before starting another."
+  # Same primitive stop_panel() already uses, tested safe against the
+  # detached game server -- reusing it rather than writing a second kill
+  # path that could disagree with the first.
+  kill -TERM -- "-$existing_pid" 2>/dev/null || kill -TERM "$existing_pid" 2>/dev/null || true
+
+  local waited=0
+  while kill -0 "$existing_pid" 2>/dev/null && [ "$waited" -lt "$RECLAIM_TIMEOUT_SECONDS" ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+
+  if kill -0 "$existing_pid" 2>/dev/null; then
+    # Refusing to start is the only safe option here: two live panels
+    # against one data directory is worse than zero, so this must fail
+    # loudly and stop -- not crash-loop silently retrying the same reclaim.
+    echo "ERROR: an existing panel instance (PID $existing_pid) is still running and did not stop within $RECLAIM_TIMEOUT_SECONDS seconds."
+    echo "Refusing to start a second instance against the same data directory -- running two at once would corrupt shared state."
+    echo "If PID $existing_pid is not actually the panel, delete $SUPERVISOR_PIDFILE and run Start.sh again."
+    echo "Otherwise, stop it manually first (for example: kill $existing_pid), then run Start.sh again."
+    exit 1
+  fi
+
+  echo "Previous instance (PID $existing_pid) stopped; continuing."
+  rm -f "$SUPERVISOR_PIDFILE"
+}
+
+reclaim_or_refuse_if_already_running
 
 echo "Starting Zomboid Control Panel..."
 echo ""
@@ -1158,6 +1246,7 @@ while true; do
   PANEL_STARTED_AT=$(date +%s)
   setsid ./ZomboidControlPanel &
   PANEL_PID=$!
+  echo "$PANEL_PID" > "$SUPERVISOR_PIDFILE"
   wait "$PANEL_PID"
   EXIT_CODE=$?
   PANEL_PID=""

@@ -113,4 +113,134 @@ while :; do sleep 1; done
     expect(output).not.toContain("pending update journal");
     expect(output).not.toContain("bundle-previous");
   }, 15_000);
+
+  // Q6/Q4 gap found in the same read (2026-09-08): KillMode=process is
+  // deliberate and correct (it's what the FIRST test above proves), but a
+  // shutdown slow enough to hit systemd's TimeoutStopSec escalates to
+  // SIGKILL, which no process can trap -- the wrapper dies instantly, its
+  // already-detached panel child survives as an orphan, and
+  // Restart=on-failure then launches a competing second instance against
+  // the same data directory. These exercise the fix: a startup guard that
+  // checks a pidfile for a still-live PREVIOUS instance, verified by
+  // /proc/<pid>/cmdline (not just the bare PID number, which the kernel can
+  // recycle) before ever signaling it.
+  const orphanPids = [];
+  afterEach(() => {
+    for (const pid of orphanPids.splice(0)) {
+      try { process.kill(-pid, "SIGKILL"); } catch { /* already stopped */ }
+      try { process.kill(pid, "SIGKILL"); } catch { /* already stopped */ }
+    }
+  });
+
+  function writeLauncherAndPanel(root, panelScript) {
+    fs.writeFileSync(path.join(root, "start.sh"), generateStartSh(), { mode: 0o755 });
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel"), panelScript, { mode: 0o755 });
+  }
+
+  async function spawnOrphan(root, panelScript, pidFile) {
+    fs.writeFileSync(path.join(root, "ZomboidControlPanel"), panelScript, { mode: 0o755 });
+    const child = spawn("setsid", ["./ZomboidControlPanel"], { cwd: root, stdio: "ignore" });
+    await waitForFile(path.join(root, pidFile));
+    const pid = Number(fs.readFileSync(path.join(root, pidFile), "utf8").trim());
+    orphanPids.push(pid);
+    return pid;
+  }
+
+  it("reclaims a live orphaned instance (responds to TERM) and starts cleanly", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-reclaim-"));
+    roots.push(root);
+    const orphanPid = await spawnOrphan(
+      root,
+      "#!/bin/sh\necho $$ > mark.pid\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n",
+      "mark.pid",
+    );
+    fs.writeFileSync(path.join(root, ".supervisor.pid"), String(orphanPid));
+    writeLauncherAndPanel(root, "#!/bin/sh\necho started > started.marker\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n");
+
+    const supervisor = spawn("bash", ["start.sh"], { cwd: root, stdio: "pipe" });
+    let output = "";
+    supervisor.stdout.on("data", (d) => { output += d; });
+    supervisor.stderr.on("data", (d) => { output += d; });
+    await waitForFile(path.join(root, "started.marker"));
+
+    expect(output).toContain(`WARNING: a panel instance (PID ${orphanPid})`);
+    expect(output).toContain(`Previous instance (PID ${orphanPid}) stopped`);
+    expect(() => process.kill(orphanPid, 0)).toThrow();
+
+    supervisor.kill("SIGTERM");
+    await new Promise((resolve) => supervisor.once("close", resolve));
+  }, 10_000);
+
+  it("refuses to start (once, no loop) when the orphaned instance ignores TERM, and never touches it", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-refuse-"));
+    roots.push(root);
+    const orphanPid = await spawnOrphan(
+      root,
+      "#!/bin/sh\necho $$ > mark.pid\ntrap '' TERM\nwhile :; do sleep 1; done\n",
+      "mark.pid",
+    );
+    fs.writeFileSync(path.join(root, ".supervisor.pid"), String(orphanPid));
+    writeLauncherAndPanel(root, "#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n");
+
+    let output;
+    let exitCode = 0;
+    try {
+      output = execFileSync("bash", ["start.sh"], {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, PANEL_SUPERVISOR_RECLAIM_TIMEOUT_SECONDS: "2" },
+        timeout: 10_000,
+      });
+    } catch (error) {
+      // Refusing to start is the expected outcome -- a nonzero exit.
+      output = `${error.stdout || ""}${error.stderr || ""}`;
+      exitCode = error.status;
+    }
+
+    expect(exitCode).toBe(1);
+    expect(output).toContain(`ERROR: an existing panel instance (PID ${orphanPid}) is still running`);
+    expect(output).toContain("Refusing to start a second instance");
+    // Still alive: the refusal path must never escalate to a signal the
+    // orphan didn't already ignore -- it backs off entirely instead.
+    expect(() => process.kill(orphanPid, 0)).not.toThrow();
+  }, 10_000);
+
+  it("says nothing about reclaiming when the pidfile's PID is live but not the panel (PID reuse), and never signals it", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-notus-"));
+    roots.push(root);
+    const unrelated = spawn("sleep", ["300"], { cwd: root, stdio: "ignore" });
+    orphanPids.push(unrelated.pid);
+    fs.writeFileSync(path.join(root, ".supervisor.pid"), String(unrelated.pid));
+    writeLauncherAndPanel(root, "#!/bin/sh\necho started > started.marker\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n");
+
+    const supervisor = spawn("bash", ["start.sh"], { cwd: root, stdio: "pipe" });
+    let output = "";
+    supervisor.stdout.on("data", (d) => { output += d; });
+    supervisor.stderr.on("data", (d) => { output += d; });
+    await waitForFile(path.join(root, "started.marker"));
+
+    expect(output).not.toContain("WARNING: a panel instance");
+    expect(() => process.kill(unrelated.pid, 0)).not.toThrow();
+
+    supervisor.kill("SIGTERM");
+    await new Promise((resolve) => supervisor.once("close", resolve));
+  }, 10_000);
+
+  it("the pidfile survives a SIGKILL to the wrapper (the evidence the next launch's guard needs)", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-supervisor-sigkill-"));
+    roots.push(root);
+    writeLauncherAndPanel(root, "#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n");
+
+    const supervisor = spawn("bash", ["start.sh"], { cwd: root, stdio: "ignore" });
+    await waitForFile(path.join(root, ".supervisor.pid"));
+    const panelPid = Number(fs.readFileSync(path.join(root, ".supervisor.pid"), "utf8").trim());
+    orphanPids.push(panelPid);
+
+    process.kill(supervisor.pid, "SIGKILL");
+    await new Promise((resolve) => supervisor.once("close", resolve));
+
+    expect(fs.existsSync(path.join(root, ".supervisor.pid"))).toBe(true);
+    expect(() => process.kill(panelPid, 0)).not.toThrow();
+  }, 10_000);
 });
