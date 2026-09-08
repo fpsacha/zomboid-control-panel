@@ -425,6 +425,7 @@ export class UpdateChecker {
       if (!steamcmdPath || !serverPath) {
         log.debug("UpdateChecker: steamcmdPath or serverPath not configured");
         this.lastError = "steamcmdPath or serverPath is not configured";
+        this.io.emit("server:updateCheckFailed", { lastError: this.lastError });
         this.isChecking = false;
         return null;
       }
@@ -434,6 +435,7 @@ export class UpdateChecker {
       if (!installed || !installed.buildId) {
         log.debug("UpdateChecker: Could not determine installed build");
         this.lastError = "Could not determine the installed build (missing or unreadable appmanifest)";
+        this.io.emit("server:updateCheckFailed", { lastError: this.lastError });
         this.isChecking = false;
         return null;
       }
@@ -450,6 +452,7 @@ export class UpdateChecker {
       if (!latest || !latest.buildId) {
         log.debug("UpdateChecker: Could not get latest build info from Steam");
         this.lastError = "Could not get the latest build info from Steam (steamcmd query failed)";
+        this.io.emit("server:updateCheckFailed", { lastError: this.lastError });
         this.isChecking = false;
         return null;
       }
@@ -465,6 +468,7 @@ export class UpdateChecker {
       if (isNaN(installedBuild) || isNaN(latestBuild)) {
         log.warn("UpdateChecker: Invalid build ID format");
         this.lastError = "Installed or latest build ID was not a valid number";
+        this.io.emit("server:updateCheckFailed", { lastError: this.lastError });
         this.isChecking = false;
         return null;
       }
@@ -529,6 +533,7 @@ export class UpdateChecker {
     } catch (err) {
       log.error(`Update check failed: ${err.message}`);
       this.lastError = err.message;
+      this.io.emit("server:updateCheckFailed", { lastError: this.lastError });
       this.isChecking = false;
       return null;
     } finally {
