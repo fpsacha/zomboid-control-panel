@@ -647,10 +647,21 @@ export default function Players() {
     }
   }, [])
 
-  const fetchActivityLogs = useCallback(async (playerFilter?: string) => {
+  // 2026-09-08 (retry-stacking sweep): `manual` covers the Retry button,
+  // the Enter-key filter search, and the filter button's own RefreshCw icon
+  // -- all three are a human explicitly asking for a fresh/filtered fetch
+  // right now. The Notes/Log tab's own first-open call (TabsTrigger's
+  // onClick) is left on the default: opening a tab for the first time is
+  // navigation loading its content, not a human retrying or refreshing
+  // something already on screen.
+  const fetchActivityLogs = useCallback(async (playerFilter?: string, opts?: { manual?: boolean }) => {
     setLogsLoading(true)
     try {
-      const data = await playersApi.getActivityLogs(playerFilter, ACTIVITY_LOG_FETCH_LIMIT)
+      const data = await playersApi.getActivityLogs(
+        playerFilter,
+        ACTIVITY_LOG_FETCH_LIMIT,
+        opts?.manual ? { retries: 0 } : undefined,
+      )
       if (data.logs) {
         setActivityLogs(data.logs)
       }
@@ -663,12 +674,16 @@ export default function Players() {
     }
   }, [t])
 
-  const fetchNotesAndStats = useCallback(async () => {
+  // 2026-09-08 (retry-stacking sweep): `manual` gates only the notes tab's
+  // own Retry button -- mount and the server-change handler keep the
+  // default automatic retry.
+  const fetchNotesAndStats = useCallback(async (opts?: { manual?: boolean }) => {
+    const retries = opts?.manual ? { retries: 0 } : undefined
     setNotesLoading(true)
     try {
       const [notesData, statsData] = await Promise.all([
-        playersApi.getNotes(),
-        playersApi.getStats()
+        playersApi.getNotes(retries),
+        playersApi.getStats(retries)
       ])
       // Convert arrays to lookup objects
       const notesMap: Record<string, PlayerNote> = {}
@@ -792,9 +807,12 @@ export default function Players() {
     return [...byCategory.entries()]
   }, [perks])
 
-  const fetchData = useCallback(async () => {
+  // 2026-09-08 (retry-stacking sweep): `manual` gates only the error
+  // banner's Retry button, the sole human-initiated caller -- mount is the
+  // only other one and keeps the default automatic retry.
+  const fetchData = useCallback(async (opts?: { manual?: boolean }) => {
     try {
-      const perksData = await playersApi.getPerks()
+      const perksData = await playersApi.getPerks(opts?.manual ? { retries: 0 } : undefined)
       // `catalog` carries the in-game skill names; older backends only send ids.
       setPerks(
         perksData.catalog ??
@@ -821,10 +839,14 @@ export default function Players() {
     }
   }, [])
 
-  const fetchWhitelist = useCallback(async () => {
+  // 2026-09-08 (retry-stacking sweep): `manual` distinguishes the page
+  // header's Refresh button (the only human-initiated caller of this
+  // function) from mount, server-change, and post-action refreshes -- see
+  // Servers.tsx's fetchServers() for the full reasoning.
+  const fetchWhitelist = useCallback(async (opts?: { manual?: boolean }) => {
     setWhitelistLoading(true)
     try {
-      const result = await playersApi.getWhitelist()
+      const result = await playersApi.getWhitelist(opts?.manual ? { retries: 0 } : undefined)
       setWhitelistAccounts(result.accounts || [])
       setAllowedSteamIds(result.allowedSteamIds || [])
       setWhitelistAvailable(result.available !== false)
@@ -1372,7 +1394,7 @@ export default function Players() {
                 {t('pageHeader.updated', { time: lastRefresh.toLocaleTimeString(i18n.language) })}
               </span>
             )}
-            <Button onClick={() => { fetchPlayers(); void fetchWhitelist() }} variant="outline" size="sm" className="gap-2">
+            <Button onClick={() => { fetchPlayers(); void fetchWhitelist({ manual: true }) }} variant="outline" size="sm" className="gap-2">
               <RefreshCw className="w-4 h-4" />
               {t('pageHeader.refresh')}
             </Button>
@@ -1393,7 +1415,7 @@ export default function Players() {
               size="sm"
               onClick={() => {
                 fetchPlayers()
-                fetchData()
+                fetchData({ manual: true })
               }}
               className="self-start"
             >
@@ -3281,7 +3303,7 @@ export default function Players() {
                           <AlertTitle>{t('notes.notesErrorTitle')}</AlertTitle>
                           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <span className="min-w-0 break-words">{notesError}</span>
-                            <Button variant="outline" size="sm" onClick={() => fetchNotesAndStats()} className="self-start">
+                            <Button variant="outline" size="sm" onClick={() => fetchNotesAndStats({ manual: true })} className="self-start">
                               <RefreshCw className="me-2 h-4 w-4" /> {t('notes.retry')}
                             </Button>
                           </AlertDescription>
@@ -3373,7 +3395,7 @@ export default function Players() {
                       <AlertTitle>{t('notes.logsErrorTitle')}</AlertTitle>
                       <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <span className="min-w-0 break-words">{logsError}</span>
-                        <Button variant="outline" size="sm" onClick={() => fetchActivityLogs(logPlayerFilter || undefined)} className="self-start">
+                        <Button variant="outline" size="sm" onClick={() => fetchActivityLogs(logPlayerFilter || undefined, { manual: true })} className="self-start">
                           <RefreshCw className="me-2 h-4 w-4" /> {t('notes.retry')}
                         </Button>
                       </AlertDescription>
@@ -3387,7 +3409,7 @@ export default function Players() {
                         value={logPlayerFilter}
                         onChange={(e) => setLogPlayerFilter(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') fetchActivityLogs(logPlayerFilter || undefined)
+                          if (e.key === 'Enter') fetchActivityLogs(logPlayerFilter || undefined, { manual: true })
                         }}
                         className="ps-9"
                         aria-label={t('notes.filterAria')}
@@ -3396,7 +3418,7 @@ export default function Players() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => fetchActivityLogs(logPlayerFilter || undefined)}
+                      onClick={() => fetchActivityLogs(logPlayerFilter || undefined, { manual: true })}
                       disabled={logsLoading}
                       className="w-full sm:w-auto"
                     >

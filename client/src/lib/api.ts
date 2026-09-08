@@ -792,7 +792,7 @@ export const serverApi = {
 export const playersApi = {
   getPlayers: (options?: { retries?: number }) =>
     apiGet("/players", undefined, options?.retries),
-  getWhitelist: () => apiGet<{
+  getWhitelist: (options?: { retries?: number }) => apiGet<{
     success: boolean
     available: boolean
     accounts: Array<{
@@ -808,7 +808,7 @@ export const playersApi = {
     allowedSteamIds: string[]
     reason?: string
     server?: { id: string | number; name: string }
-  }>("/players/whitelist"),
+  }>("/players/whitelist", undefined, options?.retries),
   kick: (username: string, reason?: string) =>
     apiPost("/players/kick", { username, reason }),
   ban: (username: string, banIp?: boolean, reason?: string) =>
@@ -857,7 +857,8 @@ export const playersApi = {
   setNoclip: (username: string | null, enabled: boolean) =>
     apiPost("/players/noclip", { username, enabled }),
   getVehicles: () => apiGet("/players/vehicles"),
-  getPerks: () => apiGet("/players/perks"),
+  getPerks: (options?: { retries?: number }) =>
+    apiGet("/players/perks", undefined, options?.retries),
   getAccessLevels: () => apiGet("/players/access-levels"),
   // Ban/unban by SteamID
   banSteamId: (steamId: string, reason?: string) =>
@@ -873,12 +874,15 @@ export const playersApi = {
   // Add all connected to whitelist
   addAllToWhitelist: () => apiPost("/players/whitelist/addall"),
   // Activity logs
-  getActivityLogs: (player?: string, limit?: number) =>
+  getActivityLogs: (player?: string, limit?: number, options?: { retries?: number }) =>
     apiGet(
       `/players/activity?${player ? `player=${encodeURIComponent(player)}&` : ""}limit=${limit || 100}`,
+      undefined,
+      options?.retries,
     ),
   // Player Notes
-  getNotes: () => apiGet("/players/notes"),
+  getNotes: (options?: { retries?: number }) =>
+    apiGet("/players/notes", undefined, options?.retries),
   getNote: (playerName: string) =>
     apiGet(`/players/notes/${encodeURIComponent(playerName)}`),
   saveNote: (playerName: string, note: string, tags: string[]) =>
@@ -886,7 +890,8 @@ export const playersApi = {
   deleteNote: (playerName: string) =>
     apiDelete(`/players/notes/${encodeURIComponent(playerName)}`),
   // Player Stats (playtime tracking)
-  getStats: () => apiGet("/players/stats"),
+  getStats: (options?: { retries?: number }) =>
+    apiGet("/players/stats", undefined, options?.retries),
   getStat: (playerName: string) =>
     apiGet(`/players/stats/${encodeURIComponent(playerName)}`),
   // Character export history
