@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Players from '../Players'
 import { playersApi, panelBridgeApi, configApi } from '@/lib/api'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { ConfirmProvider } from '@/contexts/ConfirmContext'
 
 // bug-hunt-2026-08-27: Players.tsx had zero client-side capability gating.
 // Every mutating action reaches one of TWO distinct server gates --
@@ -131,6 +132,21 @@ function renderPlayers() {
     <MemoryRouter>
       <TooltipProvider>
         <Players />
+      </TooltipProvider>
+    </MemoryRouter>,
+  )
+}
+
+// ConfirmContext's own default (no Provider) always resolves false, same
+// precedent as Mods.capabilityGating.test.tsx's renderModsWithConfirm --
+// only Kill needs a real confirm() dialog to click through.
+function renderPlayersWithConfirm() {
+  return render(
+    <MemoryRouter>
+      <TooltipProvider>
+        <ConfirmProvider>
+          <Players />
+        </ConfirmProvider>
       </TooltipProvider>
     </MemoryRouter>,
   )
@@ -373,6 +389,117 @@ describe('Players.tsx: capability gating', () => {
     screen.getAllByRole('button', { name: 'Enable' }).forEach(b => expect(b).not.toBeDisabled())
     expect(screen.getByRole('button', { name: 'Heal' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Kill' })).not.toBeDisabled()
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above stopped
+  // at not.toBeDisabled() for every one of these triggers -- none were ever
+  // clicked, so a regression in any one handler's own body (as opposed to
+  // the shared canModerate/canGmTools disabled expressions) would have sat
+  // green. Each opens its own real dialog (some two-step, per Ban) and is
+  // driven through to its own distinct mock, not just clicked and assumed.
+  //
+  // NAMED EXCLUSION: Access Level is NOT covered here. Its dialog's picker
+  // is a real Radix Select, and Players.tsx's own denied-path test above
+  // (search "Give XP") already established -- empirically, not by
+  // assumption -- that fireEvent.pointerDown+click on a Radix Select throws
+  // in jsdom (target.hasPointerCapture is not a function, then
+  // scrollIntoView is not a function). Building a workaround for one
+  // control here would be scaffolding out of proportion to what it proves;
+  // Access Level's granted-path gate is left unproven by this file, same as
+  // Give XP already is.
+  // Kick and Ban both clear selectedPlayer on success (handleKick/handleBan's
+  // own cleanup callbacks), which collapses the dossier panel -- kept as
+  // their own tests rather than folded into the sequence below, since
+  // running either one first would deselect the player out from under every
+  // trigger that follows it.
+  it('Kick reaches playersApi.kick when clicked through, holding players.moderate', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderPlayers()
+    await selectTestPlayer()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Kick\b/ })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Kick Player' }))
+    await waitFor(() => expect(kick).toHaveBeenCalledWith('TestPlayer', ''))
+  })
+
+  it('Ban reaches playersApi.ban through its two-step confirm, holding players.moderate', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderPlayers()
+    await selectTestPlayer()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /^Ban\b/ })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue to Ban' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Yes, Ban Player' }))
+    await waitFor(() => expect(ban).toHaveBeenCalledWith('TestPlayer', false, ''))
+  })
+
+  it('every remaining dialog-driven trigger reaches its own real API when clicked through, holding the matching capability', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderPlayers()
+    await selectTestPlayer()
+
+    // Voice Ban -- username pre-fills from selectedPlayer, nothing to type.
+    // voiceBanEnabled defaults true, so the submit button reads "Mute".
+    fireEvent.click(screen.getByRole('button', { name: 'Voice Ban' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Mute' }))
+    await waitFor(() => expect(voiceBan).toHaveBeenCalledWith('TestPlayer', true))
+
+    // Unban -- username field is NOT pre-filled here (this ActionTile isn't
+    // scoped to the selected player), type it.
+    fireEvent.click(screen.getByRole('button', { name: 'Unban' }))
+    fireEvent.change(await screen.findByPlaceholderText('Enter username to unban...'), { target: { value: 'TestPlayer' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Unban Player' }))
+    await waitFor(() => expect(unban).toHaveBeenCalledWith('TestPlayer'))
+
+    // Unban SteamID -- manual-entry fallback Input (not the Select list),
+    // same field this dialog offers "or enter manually" for.
+    fireEvent.click(screen.getByRole('button', { name: 'Unban SteamID' }))
+    const unbanSteamIdInput = await screen.findByPlaceholderText('Enter Steam ID to unban...')
+    fireEvent.change(unbanSteamIdInput, { target: { value: '76561198000000042' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Unban SteamID' }))
+    await waitFor(() => expect(unbanSteamId).toHaveBeenCalledWith('76561198000000042'))
+
+    // SteamID Ban -- exactly 17 digits required to enable submit.
+    fireEvent.click(screen.getByRole('button', { name: 'SteamID Ban' }))
+    fireEvent.change(await screen.findByPlaceholderText('76561198XXXXXXXXX'), { target: { value: '76561198000000099' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ban SteamID' }))
+    await waitFor(() => expect(banSteamId).toHaveBeenCalledWith('76561198000000099', ''))
+
+    // Add User -- username required, password optional.
+    fireEvent.click(screen.getByRole('button', { name: 'Add User' }))
+    fireEvent.change(await screen.findByPlaceholderText('Enter username...'), { target: { value: 'newmod' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add User' }))
+    await waitFor(() => expect(addUser).toHaveBeenCalledWith('newmod', ''))
+
+    // Teleport -- a quick-location preset fills x/y/z in one click, no
+    // manual numeric typing needed; target field is pre-filled too.
+    fireEvent.click(screen.getByRole('button', { name: /^Teleport\b/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Muldraugh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Teleport' }))
+    await waitFor(() => expect(teleport).toHaveBeenCalledWith('TestPlayer', { x: 10500, y: 9700, z: 0 }))
+  })
+
+  // Kill needs a real ConfirmProvider (typed-confirmation dialog), unlike
+  // every other trigger above -- kept as its own test rather than folding
+  // it into the one above, since it's the only one needing a different
+  // render setup.
+  it('Kill reaches panelBridgeApi.killPlayer once the target name is typed into the confirm dialog', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderPlayersWithConfirm()
+    await selectTestPlayer()
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Powers' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('button', { name: 'Kill' }))
+
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.change(within(dialog).getByLabelText(/type.*TestPlayer/i), { target: { value: 'TestPlayer' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kill player' }))
+
+    await waitFor(() => expect(killPlayer).toHaveBeenCalledWith('TestPlayer'))
   })
 
   // bug-hunt-2026-08-27, operator ruling (supersedes server commit c3083d5
