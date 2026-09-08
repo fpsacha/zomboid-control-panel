@@ -115,6 +115,19 @@ export const FileDiffViewer = memo(function FileDiffViewer({ file, modAId, modBI
         // below can translate this failure -- mods.js's conflicts/diff
         // route already ships registered codes (MODS_CONFLICTS_DIFF_*) that
         // a plain Error would have discarded before they ever reached it.
+        //
+        // 2026-09-08: deliberately NOT migrated to apiFetch()/handleResponse()
+        // like the auth-transport-parity sibling fix -- apiFetch's
+        // fetchWithRetry treats GET as retry-safe (3 automatic retries,
+        // exponential backoff up to ~7s total) with no way to opt out
+        // through its current public signature. This component already has
+        // its own manual "Retry" button for a user-initiated, on-demand
+        // fetch; stacking a silent multi-second auto-retry underneath it
+        // is a real UX regression (an error that used to surface instantly
+        // would sit for up to 7s first), not a straightforward win the way
+        // the auth-bootstrap migration was. Left as its own hand-rolled
+        // envelope; see the reported finding for whether apiFetch should
+        // grow a retries-override parameter instead.
         const body = await res.json().catch(() => ({} as { error?: string; code?: string }))
         throw new ApiError(body.error || `HTTP ${res.status}`, { status: res.status, code: body.code })
       }

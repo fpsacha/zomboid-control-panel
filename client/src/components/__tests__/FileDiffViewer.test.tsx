@@ -27,6 +27,21 @@ function textDiff(overrides: Partial<any> = {}) {
   }
 }
 
+// 2026-09-08 (auth-transport-parity sibling): FileDiffViewer now goes through
+// apiFetch()/handleResponse() instead of a raw fetch() -- handleResponse's
+// own parseResponseBody() reads response.headers.get('content-type') before
+// it ever calls .json(), so a mock lacking a real `headers` object (this
+// file's loose `{ ok, status, json }` shape, cast `as any`) throws before
+// reaching the behavior under test. Real Response objects instead of loose
+// fakes -- less to keep in sync with handleResponse's own expectations, and
+// it's what apiFetch actually receives from fetch() in production.
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  })
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
 })
@@ -38,7 +53,7 @@ describe('FileDiffViewer', () => {
   })
 
   it('fetches and renders the real added/removed counts on first expand', async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => textDiff() } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(textDiff()))
     render(<FileDiffViewer {...baseProps} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -50,7 +65,7 @@ describe('FileDiffViewer', () => {
   })
 
   it('does not re-fetch on a second click -- it just collapses/re-expands from cache', async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => textDiff() } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(textDiff()))
     render(<FileDiffViewer {...baseProps} />)
 
     const row = screen.getByRole('button', { name: /Recipes.lua/ })
@@ -71,7 +86,7 @@ describe('FileDiffViewer', () => {
     // detail, so the displayed text CONTAINS the server's message rather
     // than being byte-identical to it. Regex match, not exact, so this
     // doesn't need updating every time that wrapper's copy changes.
-    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'diff service unavailable' }) } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ error: 'diff service unavailable' }, 500))
     render(<FileDiffViewer {...baseProps} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -81,8 +96,8 @@ describe('FileDiffViewer', () => {
 
   it('Retry after a failure actually re-fetches, not a no-op button', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: 'boom' }) } as any)
-      .mockResolvedValueOnce({ ok: true, json: async () => textDiff() } as any)
+      .mockResolvedValueOnce(jsonResponse({ error: 'boom' }, 500))
+      .mockResolvedValueOnce(jsonResponse(textDiff()))
     render(<FileDiffViewer {...baseProps} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -107,14 +122,10 @@ describe('FileDiffViewer', () => {
 
     it('shows the French translation for a coded 4xx instead of the raw English text', async () => {
       void i18n.changeLanguage('fr')
-      vi.mocked(fetch).mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: async () => ({
-          error: 'Could not find both mod files on disk — they may have been removed or updated since the last scan',
-          code: 'MODS_CONFLICTS_DIFF_FILES_NOT_FOUND',
-        }),
-      } as any)
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({
+        error: 'Could not find both mod files on disk — they may have been removed or updated since the last scan',
+        code: 'MODS_CONFLICTS_DIFF_FILES_NOT_FOUND',
+      }, 404))
       render(<FileDiffViewer {...baseProps} />)
 
       fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -124,14 +135,11 @@ describe('FileDiffViewer', () => {
   })
 
   it('renders the real hash/size for a binary file instead of pretending it has a text diff', async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        type: 'binary', ext: '.png',
-        modA: { size: 2048, hash: 'aaaaaaaaaaaaaaaa' },
-        modB: { size: 4096, hash: 'bbbbbbbbbbbbbbbb' },
-      }),
-    } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({
+      type: 'binary', ext: '.png',
+      modA: { size: 2048, hash: 'aaaaaaaaaaaaaaaa' },
+      modB: { size: 4096, hash: 'bbbbbbbbbbbbbbbb' },
+    }))
     render(<FileDiffViewer {...baseProps} file="media/textures/icon.png" />)
 
     fireEvent.click(screen.getByRole('button', { name: /icon\.png/ }))
@@ -147,7 +155,7 @@ describe('FileDiffViewer', () => {
       startA: i, startB: i, countA: 1, countB: 1,
       lines: [{ type: 'context' as const, text: `hunk-${i}`, lineA: i, lineB: i }],
     }))
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => textDiff({ hunks, totalAdded: 0, totalRemoved: 0 }) } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(textDiff({ hunks, totalAdded: 0, totalRemoved: 0 })))
     render(<FileDiffViewer {...baseProps} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -161,7 +169,7 @@ describe('FileDiffViewer', () => {
   })
 
   it('renders an accented mod name in the diff header verbatim', async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => textDiff() } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(textDiff()))
     render(<FileDiffViewer {...baseProps} />)
 
     fireEvent.click(screen.getByRole('button', { name: /Recipes.lua/ }))
@@ -170,7 +178,7 @@ describe('FileDiffViewer', () => {
   })
 
   it('explains what "shadowed" means as real content when the row is expanded, not just in the badge\'s hover title', async () => {
-    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => textDiff() } as any)
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(textDiff()))
     render(<FileDiffViewer {...baseProps} overlap={{ kind: 'lua-shadow', items: [], total: 0 }} />)
 
     // Sighted on a mouse, the explanation is already reachable via the
