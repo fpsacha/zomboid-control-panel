@@ -799,7 +799,7 @@ function registerShutdownHandlers() {
  * Validate and repair the database structure.
  * Ensures all collections exist and have the correct type.
  */
-function validateData(data) {
+export function validateData(data) {
   const repaired = { ...defaultData };
   // Collections that existed but had the WRONG TYPE (not merely absent) get
   // silently replaced with an empty default below. Since db.json is
@@ -838,10 +838,26 @@ function validateData(data) {
       `DB validation found wrong-typed collection(s) and replaced them with empty defaults, discarding their contents: ${replacedKeys.join(", ")}`,
     );
     try {
-      const snapshotPath = path.join(
+      const baseSnapshotPath = path.join(
         backupDir,
         `pre-repair-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
       );
+      // This writer is currently unreachable twice in the same millisecond
+      // -- getDb()'s `if (!db)` guard means the whole init sequence this
+      // sits inside runs at most once per process, and nothing in this file
+      // ever resets `db` back to null to re-enter it. Defense-in-depth
+      // anyway, same counter-suffix convention as every other timestamped
+      // backup in this codebase: this snapshot is forensic evidence of the
+      // FIRST corruption, taken specifically because something already went
+      // wrong. A collision here would silently destroy the one thing a
+      // future repair path (a retry, an admin-triggered re-validation) or a
+      // careless refactor of the guard above could still make reachable --
+      // and unlike an ordinary backup, there is no other copy of what this
+      // one recorded.
+      let snapshotPath = baseSnapshotPath;
+      for (let collision = 2; fs.existsSync(snapshotPath); collision++) {
+        snapshotPath = baseSnapshotPath.replace(/\.json$/, `-${collision}.json`);
+      }
       fs.writeFileSync(snapshotPath, JSON.stringify(data, null, 2), {
         encoding: "utf-8",
         mode: 0o600,
@@ -1028,10 +1044,22 @@ export async function getDb() {
       // with zero forensic trace left anywhere (bug hunt 2026-09-05, sweep
       // item #4).
       try {
-        const corruptPath = path.join(
+        const baseCorruptPath = path.join(
           backupDir,
           `corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
         );
+        // Same defense-in-depth reasoning as validateData()'s pre-repair
+        // snapshot above: unreachable twice per process today (this whole
+        // block runs at most once, guarded by getDb()'s `if (!db)`), but
+        // this is the ONLY surviving evidence of the FIRST corruption -- a
+        // collision would silently destroy exactly the record a user asking
+        // "what happened to my database" needs, so it gets the same
+        // counter-suffix convention as every other timestamped backup here
+        // rather than relying on that guard never changing.
+        let corruptPath = baseCorruptPath;
+        for (let collision = 2; fs.existsSync(corruptPath); collision++) {
+          corruptPath = baseCorruptPath.replace(/\.json$/, `-${collision}.json`);
+        }
         fs.copyFileSync(dbPath, corruptPath);
         try {
           fs.chmodSync(corruptPath, 0o600);
