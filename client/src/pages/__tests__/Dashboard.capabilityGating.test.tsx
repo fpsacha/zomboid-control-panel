@@ -336,6 +336,36 @@ describe('Dashboard.tsx: Stop/Force Stop/Restart/Save share server.control, gate
     await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
   })
 
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above only
+  // proved Stop reaches the API -- Force Stop and Save were asserted
+  // not.toBeDisabled() and never clicked, so a regression that broke either
+  // one's actual handler (as opposed to its disabled expression) would sit
+  // green. Force Stop shares Stop's AlertDialogAction execution point (see
+  // that dialog's own comment) but is staged by a DIFFERENT button with a
+  // different confirmAction.action, so proving Stop reaches it does not
+  // prove Force Stop's own wiring is correct. Save has no confirm dialog at
+  // all (saveWorld() calls handleAction directly), a third distinct shape.
+  it('holding server.control: Force Stop reaches serverApi.forceStop through its own confirm dialog, and Save reaches serverApi.save directly', async () => {
+    mockCanControl = true
+    await setUpCommon()
+    await setUpOnlineServer()
+
+    renderDashboard()
+
+    const forceStopButton = await screen.findByRole('button', { name: /force stop/i })
+    expect(forceStopButton).not.toBeDisabled()
+    fireEvent.click(forceStopButton)
+    const forceStopDialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(forceStopDialog).getByRole('button', { name: /force stop server/i }))
+    await waitFor(() => expect(forceStop).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+
+    const saveButton = screen.getByRole('button', { name: 'Save' })
+    expect(saveButton).not.toBeDisabled()
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1))
+  })
+
   // bug-hunt-2026-08-27: Pam found DisabledReason-inside-Trigger-asChild
   // silently breaks the GRANTED case (not the disabled one) on Players.tsx,
   // and flagged that a suite which only asserts toBeDisabled()/
