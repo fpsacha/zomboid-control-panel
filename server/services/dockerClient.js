@@ -133,6 +133,15 @@ export class DockerClient {
     }
   }
 
+  // Sets `lastError` the same way listManagedContainers() already does --
+  // cleared on a call that actually reached the daemon (whether or not the
+  // container turned out to be labeled), set on one that didn't. A null
+  // return is otherwise ambiguous between "asked, and it's confirmed not
+  // ours" (unlabeled, or a genuine 404) and "couldn't ask" (socket
+  // unreachable, timeout, malformed response) -- callers that need to tell
+  // those apart (server/routes/docker.js's POST /containers/:id/:action)
+  // read this field immediately after, before any other await, to avoid
+  // another concurrent Docker call overwriting it first.
   async inspectManagedContainer(containerId) {
     if (!this.available) return null;
     if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(containerId)) return null;
@@ -141,8 +150,10 @@ export class DockerClient {
         "GET",
         `/containers/${encodeURIComponent(containerId)}/json`,
       );
+      this.lastError = null;
       return isManagedContainer(container) ? container : null;
-    } catch {
+    } catch (error) {
+      this.lastError = error.message;
       return null;
     }
   }

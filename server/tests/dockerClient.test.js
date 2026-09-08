@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -241,5 +241,87 @@ const MANAGED_TTY_CONTAINER = {
       await new Promise((resolve) => hangServer.close(resolve));
       fs.rmSync(hangDir, { recursive: true, force: true });
     }
+  });
+});
+
+// wrapper-bypass class sweep, 2026-09-08: inspectManagedContainer() used to
+// collapse "asked, and it's confirmed not ours" (unlabeled, or a real 404)
+// and "couldn't ask" (socket unreachable, timeout, malformed response) into
+// the exact same `null` -- callers had no way to tell a genuine "not
+// managed" apart from "the check itself failed", which is what let
+// docker.js's POST /containers/:id/:action report a transient Docker hiccup
+// as a confident "Container is not managed by this panel". Mirrors
+// listManagedContainers()'s existing lastError convention rather than
+// inventing a new one. Spies on the private _requestJson rather than
+// standing up a real socket -- portable to Windows, and exercises exactly
+// the boundary this fix touches (the catch block) without re-testing the
+// HTTP transport layer real-socket tests elsewhere already cover.
+describe("DockerClient.inspectManagedContainer -- lastError distinguishes 'confirmed not ours' from 'could not ask'", () => {
+  let tmpDir;
+  let socketPath;
+  let client;
+
+  function makeClient() {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-docker-lasterror-test-"));
+    socketPath = path.join(tmpDir, "docker.sock");
+    fs.writeFileSync(socketPath, "");
+    return new DockerClient({ socketPath, enabled: true });
+  }
+
+  afterEach(() => {
+    if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+    tmpDir = undefined;
+  });
+
+  it("clears lastError on a call that reached the daemon and got back an unlabeled container", async () => {
+    client = makeClient();
+    client.lastError = "stale error from a previous call";
+    vi.spyOn(client, "_requestJson").mockResolvedValue({ Id: "x", Labels: {} });
+
+    const result = await client.inspectManagedContainer("x");
+
+    expect(result).toBeNull();
+    expect(client.lastError).toBeNull();
+  });
+
+  it("clears lastError on a call that reached the daemon and got back a labeled container", async () => {
+    client = makeClient();
+    client.lastError = "stale error from a previous call";
+    vi.spyOn(client, "_requestJson").mockResolvedValue({
+      Id: "x",
+      Labels: { "zomboid-panel.managed": "true" },
+    });
+
+    const result = await client.inspectManagedContainer("x");
+
+    expect(result).not.toBeNull();
+    expect(client.lastError).toBeNull();
+  });
+
+  it("sets lastError when the request itself fails (socket/timeout/API error)", async () => {
+    client = makeClient();
+    vi.spyOn(client, "_requestJson").mockRejectedValue(new Error("Docker API returned 500"));
+
+    const result = await client.inspectManagedContainer("x");
+
+    expect(result).toBeNull();
+    expect(client.lastError).toBe("Docker API returned 500");
+  });
+
+  it("both failure shapes return the identical null -- lastError is the only signal that tells them apart", async () => {
+    client = makeClient();
+    vi.spyOn(client, "_requestJson").mockResolvedValueOnce({ Id: "x", Labels: {} });
+    const unlabeledResult = await client.inspectManagedContainer("x");
+    const unlabeledLastError = client.lastError;
+
+    vi.spyOn(client, "_requestJson").mockRejectedValueOnce(new Error("socket hang up"));
+    const failedResult = await client.inspectManagedContainer("x");
+    const failedLastError = client.lastError;
+
+    expect(unlabeledResult).toBeNull();
+    expect(failedResult).toBeNull();
+    expect(unlabeledResult).toEqual(failedResult);
+    expect(unlabeledLastError).toBeNull();
+    expect(failedLastError).toBe("socket hang up");
   });
 });

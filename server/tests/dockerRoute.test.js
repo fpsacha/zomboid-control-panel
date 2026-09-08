@@ -182,6 +182,71 @@ describe("POST /api/docker/containers/:id/:action", () => {
     expect(runManagedAction).toHaveBeenCalledWith("managed", "restart");
   });
 
+  // wrapper-bypass class sweep, 2026-09-08: the route used to call
+  // inspectManagedContainer() directly and treat ANY null as "not managed"
+  // -- a transient Docker API failure and a genuine unlabeled container both
+  // produced the identical response, so an operator hitting a daemon hiccup
+  // was told to fix a mapping that was never broken. dockerClient.lastError
+  // (set by inspectManagedContainer itself, mirroring listManagedContainers'
+  // existing convention) now distinguishes them.
+  it("reports 'could not verify' (503, retry-worthy) rather than 'not managed' when the inspect call itself failed", async () => {
+    const response = createResponse();
+    const runManagedAction = vi.fn();
+    getServer.mockResolvedValue({ id: "server-1", dockerContainerName: "managed" });
+    const dockerClient = {
+      enabled: true,
+      available: true,
+      lastError: null,
+      inspectManagedContainer: vi.fn(async () => {
+        dockerClient.lastError = "socket hang up";
+        return null;
+      }),
+      runManagedAction,
+    };
+
+    await runRoute("/containers/:id/:action", "post", {
+      user: { role: "admin" },
+      params: { id: "managed", action: "restart" },
+      body: { serverId: "server-1" },
+      app: { get: () => dockerClient },
+    }, response);
+
+    expect(response.status).toHaveBeenCalledWith(503);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "SERVER_STATE_UNKNOWN" }),
+    );
+    expect(runManagedAction).not.toHaveBeenCalled();
+  });
+
+  it("still reports 'not managed' (403) when the inspect call succeeds but the container isn't labeled", async () => {
+    const response = createResponse();
+    const runManagedAction = vi.fn();
+    getServer.mockResolvedValue({ id: "server-1", dockerContainerName: "managed" });
+    const dockerClient = {
+      enabled: true,
+      available: true,
+      lastError: null,
+      inspectManagedContainer: vi.fn(async () => {
+        dockerClient.lastError = null;
+        return null;
+      }),
+      runManagedAction,
+    };
+
+    await runRoute("/containers/:id/:action", "post", {
+      user: { role: "admin" },
+      params: { id: "managed", action: "restart" },
+      body: { serverId: "server-1" },
+      app: { get: () => dockerClient },
+    }, response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(response.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "CONTAINER_NOT_MANAGED" }),
+    );
+    expect(runManagedAction).not.toHaveBeenCalled();
+  });
+
   it("passes through the real Docker error instead of a generic message, with any path redacted", async () => {
     const response = createResponse();
     const runManagedAction = vi.fn(async () => ({
