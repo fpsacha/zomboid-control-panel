@@ -63,7 +63,12 @@ interface BackupProgress {
 }
 
 export default function Backups() {
-  const { t, i18n } = useTranslation('backups')
+  // 'settings' loaded alongside 'backups' only to reuse settings.json's
+  // existing backups.statusLoadFailed copy (see the badge/switch block
+  // below) -- Settings.tsx's own scheduled-backups toggle already shipped
+  // that exact "couldn't check, disabled until it loads" string in all 9
+  // locales; reusing it here needed no new translation.
+  const { t, i18n } = useTranslation(['backups', 'settings'])
   const { toast } = useToast()
   const socket = useSocket()
   const { can } = useAuth()
@@ -80,6 +85,14 @@ export default function Backups() {
 
   // State
   const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null)
+  // bug-hunt-2026-09-08 (honest-unknown class, GH#149 siblings sweep):
+  // backupStatus is null both before the first fetch resolves AND after one
+  // fails -- the status card's badge/switch below used to read
+  // `backupStatus?.enabled` as a bare boolean either way, so a slow or
+  // failed status fetch rendered a confident "Off, no scheduled backups"
+  // with the toggle still clickable. Same shape as Settings.tsx's own
+  // scheduled-backups toggle had before it was fixed with this exact flag.
+  const [backupStatusLoadError, setBackupStatusLoadError] = useState(false)
   const [backups, setBackups] = useState<ServerBackupArchive[]>([])
   // Set once fetchBackups() itself has settled (success or failure), distinct
   // from the shared `loading` flag below which only clears once ALL THREE of
@@ -168,6 +181,7 @@ export default function Backups() {
       setBackupSchedule(status.schedule)
       setBackupMaxCount(status.maxBackups)
       setLoadError(null)
+      setBackupStatusLoadError(false)
       // The server's own backupInProgress mutex (backupService.js) is the
       // one source of truth for whether a backup is actually running --
       // including one this browser session didn't start (the scheduler, a
@@ -183,6 +197,7 @@ export default function Backups() {
       if (status.backupInProgress) setCreatingBackup(true)
     } catch (error) {
       setLoadError(getUserErrorMessage(error, t('toasts.loadStatusFailed')))
+      setBackupStatusLoadError(true)
     }
   }, [t])
 
@@ -673,6 +688,12 @@ export default function Backups() {
   const lastScheduledAttemptFailed = Boolean(
     backupStatus?.enabled && backupStatus?.lastScheduledBackupAttempt && !backupStatus.lastScheduledBackupAttempt.success
   )
+  // bug-hunt-2026-09-08 (honest-unknown class): backupStatus is null both
+  // before the first fetch resolves and after a confirmed failure -- only
+  // the latter gets this treatment (matching Settings.tsx's own scheduled-
+  // backups toggle), so a fast, uneventful mount still shows the plain
+  // "on schedule" copy rather than flashing "couldn't check" for a moment.
+  const statusUnknown = !backupStatus && backupStatusLoadError
 
   // Translate the small set of cron presets we expose into a human label.
   // Falls back to the raw cron string for anything custom so the user
@@ -877,9 +898,16 @@ export default function Backups() {
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t('statusCards.autoBackup')}</p>
               <p className={cn('text-sm font-semibold leading-tight mt-0.5 truncate', backupStatus?.enabled ? 'text-foreground' : 'text-muted-foreground')}>
-                {backupStatus?.enabled ? t('statusCards.on') : t('statusCards.off')}
+                {/* Bare "-" placeholder, same convention Debug.tsx already
+                    uses for a value that hasn't resolved yet -- not On or
+                    Off, since we don't actually know which. */}
+                {statusUnknown ? '-' : backupStatus?.enabled ? t('statusCards.on') : t('statusCards.off')}
               </p>
-              {lastScheduledAttemptFailed ? (
+              {statusUnknown ? (
+                <p className="text-[11px] text-muted-foreground/80 truncate">
+                  {t('backups.statusLoadFailed', { ns: 'settings' })}
+                </p>
+              ) : lastScheduledAttemptFailed ? (
                 <p
                   className="text-[11px] text-amber-600 dark:text-amber-400 truncate"
                   title={backupStatus?.lastScheduledBackupAttempt?.message || ''}
@@ -897,11 +925,11 @@ export default function Backups() {
                 </p>
               )}
             </div>
-            <DisabledReason reason={!canManageBackups ? t('permissions.noManage') : null}>
+            <DisabledReason reason={!canManageBackups ? t('permissions.noManage') : statusUnknown ? t('backups.statusLoadFailed', { ns: 'settings' }) : null}>
               <Switch
                 checked={backupStatus?.enabled || false}
                 onCheckedChange={toggleBackupEnabled}
-                disabled={!canManageBackups}
+                disabled={!canManageBackups || statusUnknown}
                 aria-label={t('statusCards.toggleAria')}
               />
             </DisabledReason>
