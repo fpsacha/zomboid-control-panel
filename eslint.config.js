@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import requireResultHandling from "./eslint-rules/require-result-handling.js";
+import noFailOpenCheckServerRunning from "./eslint-rules/no-fail-open-check-server-running.js";
 
 export default [
   {
@@ -18,7 +19,12 @@ export default [
   {
     files: ["server/**/*.js", "eslint-rules/**/*.js", "*.js"],
     plugins: {
-      local: { rules: { "require-result-handling": requireResultHandling } },
+      local: {
+        rules: {
+          "require-result-handling": requireResultHandling,
+          "no-fail-open-check-server-running": noFailOpenCheckServerRunning,
+        },
+      },
     },
     languageOptions: {
       ecmaVersion: 2023,
@@ -39,6 +45,12 @@ export default [
       // Much of this codebase reports failure by returning { success: false }
       // rather than by throwing, so a discarded result is a swallowed error.
       "local/require-result-handling": "error",
+
+      // checkServerRunning() collapses a failed detection scan into `false`,
+      // indistinguishable from confirmed-stopped -- every destructive-op
+      // guard that used it was migrated to getServerProcessDetails() instead.
+      // See the rule file's own header for the three audited exceptions.
+      "local/no-fail-open-check-server-running": "error",
 
       // Control chars in regexes are deliberate input sanitization (RCON args,
       // player names, PanelBridge payloads).
@@ -82,6 +94,12 @@ export default [
     rules: {
       // A test calls these for their effect on a stub, not for the result.
       "local/require-result-handling": "off",
+      // Tests legitimately call checkServerRunning() to exercise the method
+      // itself (serverManager.test.js) or build a fake serverManager a
+      // route's own guard reads -- the fail-open risk this rule guards
+      // against only exists in production call sites that GATE on the
+      // result without checking scanFailed.
+      "local/no-fail-open-check-server-running": "off",
       "require-await": "off",
       // Test doubles often mirror a wider production interface than the
       // assertion needs, so unused parameters/imports are not useful here.
