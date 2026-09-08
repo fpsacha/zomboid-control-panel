@@ -7,6 +7,7 @@ import noRawErrorMessage from '../eslint-rules/no-raw-error-message.js'
 import noDuplicateInterfaceName from '../eslint-rules/no-duplicate-interface-name.js'
 import noDeadDisabledTitle from '../eslint-rules/no-dead-disabled-title.js'
 import noUnguardedCapabilityMenuItem from '../eslint-rules/no-unguarded-capability-menu-item.js'
+import noOrphanTranslationDefault from '../eslint-rules/no-orphan-translation-default.js'
 
 export default tseslint.config(
   {
@@ -28,6 +29,7 @@ export default tseslint.config(
           'no-duplicate-interface-name': noDuplicateInterfaceName,
           'no-dead-disabled-title': noDeadDisabledTitle,
           'no-unguarded-capability-menu-item': noUnguardedCapabilityMenuItem,
+          'no-orphan-translation-default': noOrphanTranslationDefault,
         },
       },
     },
@@ -78,6 +80,20 @@ export default tseslint.config(
       // and forcing every other page's owner to fix on this commit isn't
       // this rule's call to make.
       'local/no-unguarded-capability-menu-item': 'warn',
+
+      // 2026-09-08 rollbackFailed* incident (Settings.tsx, Kevin): a
+      // t(key, {defaultValue: '<hardcoded English sentence>'}) whose key
+      // exists in NO locale, en included, renders the same English prose
+      // for every locale and passes the parity suite clean (parity checks
+      // locales against EACH OTHER; a key missing from all nine is
+      // perfectly consistent). See eslint-rules/no-orphan-translation-default.js
+      // for the full shape and what it deliberately does not flag (dynamic
+      // keys, e.g. RolesPermissions.tsx's per-capability fallback pattern).
+      // `error`, not `warn`: the count at introduction was zero live
+      // instances (Kevin's fix removed the only five), so there is no
+      // grandfather population to triage -- same reasoning that kept
+      // no-raw-error-message and no-duplicate-interface-name at `error`.
+      'local/no-orphan-translation-default': 'error',
     },
   },
 )
