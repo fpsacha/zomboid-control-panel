@@ -1,5 +1,6 @@
 import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
+import { isPidAlive } from "../utils/pidLiveness.js";
 
 const log = createLogger("SteamOperations");
 
@@ -55,23 +56,27 @@ export function clearActiveSteamOperation(normalizedPath) {
 // happen, but this must not trust stale bookkeeping either way) is
 // verified with a signal-0 liveness probe and self-heals by clearing the
 // stale entry rather than reporting a false positive forever.
+//
+// wrapper-bypass class sweep, 2026-09-08: this used to reimplement the
+// signal-0 probe inline (process.kill(pid, 0), ESRCH-vs-other) instead of
+// calling pidLiveness.js's isPidAlive() -- the shared primitive that module
+// was built specifically because a THIRD undeduplicated copy (pidLock.js)
+// once had this exact ambiguous-direction backwards. Verified byte-identical
+// in behavior before swapping (both treat any non-ESRCH outcome as "still
+// alive"); this closes the drift risk of a future isPidAlive() refinement
+// silently not reaching this call site -- see pidLiveness.js's own header
+// comment for why that "the one place it lives now" claim matters here.
 export function hasActiveSteamOperation(normalizedPath) {
   const operation = activeSteamOperations.get(normalizedPath);
   if (!operation) return false;
 
   if (Number.isInteger(operation.pid)) {
-    try {
-      process.kill(operation.pid, 0);
-      return true;
-    } catch (error) {
-      if (error.code === "ESRCH") {
-        clearActiveSteamOperation(normalizedPath);
-        log.warn(
-          `Cleared stale Steam ${operation.type} operation for ${normalizedPath}`,
-        );
-        return false;
-      }
-    }
+    if (isPidAlive(operation.pid)) return true;
+    clearActiveSteamOperation(normalizedPath);
+    log.warn(
+      `Cleared stale Steam ${operation.type} operation for ${normalizedPath}`,
+    );
+    return false;
   }
 
   return true;
