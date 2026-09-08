@@ -562,3 +562,145 @@ describe("recoverFromUnreadableJournal: fixed-location recovery when the journal
     expect(fs.existsSync(backupBinaryPath)).toBe(true);
   });
 });
+
+// GH#149, 2026-09-08 (god-verified root cause, reported by a user named
+// Burnjack): f69c2f7f added journal.hashes.clientSha256 as a REQUIRED field
+// (main-is-red, 2026-09-05, client-bundle-integrity) without bumping
+// schemaVersion. Any journal staged by a pre-f69c2f7f binary -- confirmed
+// via `git show v1.2.15:server/services/updateBundle.js`, NOT from memory --
+// writes `hashes: { binarySha256 }` only, still under schemaVersion: 1. The
+// OLD binary writes the journal; the NEW binary reads it after the restart.
+// That made every v1.2.15-or-earlier install permanently, deterministically
+// unable to update in-app: the swap itself succeeds, the new binary boots,
+// calls inspectPendingPanelUpdate() -> validateJournal(), and throws
+// invalid_bundle on a perfectly valid legacy journal, every single time --
+// re-downloading can never help, since the OLD binary reproduces the
+// identical legacy-shaped journal on every attempt.
+describe("GH#149: a legacy schema-1 journal (no clientSha256, exactly what v1.2.15 staged) must not brick the update", () => {
+  beforeEach(() => {
+    installDir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-legacy-journal-"));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(installDir, { recursive: true, force: true });
+  });
+
+  // Fixture shape lifted directly from `git show v1.2.15:server/services/updateBundle.js`'s
+  // own stageUpdateBundle() -- schemaVersion: 1, hashes: { binarySha256 }
+  // only, same paths/phase shape as today. Not constructed from memory of
+  // what "legacy" might have looked like.
+  function prepareLegacyBundle() {
+    const binaryPath = path.join(installDir, "ZomboidControlPanel");
+    const stagedBinaryPath = `${binaryPath}.new`;
+    const liveClientPath = path.join(installDir, "client", "dist");
+    const stagedClientPath = path.join(installDir, "client", "dist.new-2.0.0");
+    const backupBinaryPath = `${binaryPath}.bundle-previous`;
+    const backupClientPath = path.join(installDir, "client", "dist.previous");
+    const journalPath = path.join(installDir, "update-bundle.json");
+
+    writeFile(binaryPath, "old-binary");
+    writeFile(stagedBinaryPath, "new-binary");
+    writeFile(path.join(liveClientPath, "index.html"), "old-client");
+    writeFile(path.join(liveClientPath, "build-info.json"), JSON.stringify(metadata()));
+    writeFile(path.join(stagedClientPath, "index.html"), "new-client");
+    writeFile(path.join(stagedClientPath, "build-info.json"), JSON.stringify(metadata()));
+
+    const resolvedInstallDir = path.resolve(installDir);
+    const journal = {
+      schemaVersion: 1,
+      transactionId: crypto.randomUUID(),
+      version: "2.0.0",
+      phase: "staged",
+      stagedAt: new Date().toISOString(),
+      installDir: resolvedInstallDir,
+      metadata: metadata(),
+      hashes: { binarySha256: crypto.createHash("sha256").update("new-binary").digest("hex") },
+      paths: {
+        binary: path.resolve(binaryPath),
+        stagedBinary: path.resolve(stagedBinaryPath),
+        backupBinary: path.resolve(backupBinaryPath),
+        liveClient: path.resolve(liveClientPath),
+        stagedClient: path.resolve(stagedClientPath),
+        backupClient: path.resolve(backupClientPath),
+      },
+    };
+    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2), "utf8");
+    return { binaryPath, stagedBinaryPath, liveClientPath, journalPath, journal };
+  }
+
+  it("readUpdateBundleJournalIfPresent() accepts the legacy shape instead of throwing invalid_bundle", () => {
+    const { journalPath } = prepareLegacyBundle();
+
+    expect(() => readUpdateBundleJournalIfPresent(journalPath)).not.toThrow();
+    expect(readUpdateBundleJournalIfPresent(journalPath).schemaVersion).toBe(1);
+  });
+
+  // The literal GH#149 reproduction: the Windows swap has already succeeded
+  // (real files renamed in place, exactly like simulateWindowsApplication()
+  // above), the applying marker is present, and this is the moment the new
+  // binary calls inspectPendingPanelUpdate() on startup. Before the fix,
+  // this threw invalid_bundle here -- exit 76, automatic rollback, the
+  // exact supervisor.log shape from the original report.
+  it("inspectPendingUpdateBundle() reaches awaitingStartupAck on a legacy journal after a real Windows-style swap, instead of throwing", () => {
+    const { journalPath, journal } = prepareLegacyBundle();
+    fs.renameSync(journal.paths.binary, journal.paths.backupBinary);
+    fs.renameSync(journal.paths.liveClient, journal.paths.backupClient);
+    fs.renameSync(journal.paths.stagedClient, journal.paths.liveClient);
+    fs.renameSync(journal.paths.stagedBinary, journal.paths.binary);
+    const applyingMarkerPath = path.join(installDir, ".update-applying");
+    writeFile(applyingMarkerPath, "applying");
+
+    const inspection = inspectPendingUpdateBundle({
+      journalPath,
+      applyingMarkerPath,
+      runningMetadata: metadata(),
+    });
+
+    expect(inspection).toEqual(
+      expect.objectContaining({ pending: true, awaitingStartupAck: true }),
+    );
+  });
+
+  // Proves the gate from BOTH directions: a legacy journal that never had a
+  // client hash to compare against still applies cleanly (schema-1 skips
+  // the check entirely, exactly as safe as v1.2.15's own apply path, which
+  // never ran this check either) -- and the binary hash check, which every
+  // schema has always had, still runs and still fails closed.
+  it("applyUpdateBundle() on a legacy journal skips the (nonexistent) client-hash check but still verifies the binary hash", () => {
+    const { binaryPath, liveClientPath, journalPath } = prepareLegacyBundle();
+
+    expect(() => applyUpdateBundle(journalPath)).not.toThrow();
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("new-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "new-client",
+    );
+  });
+
+  it("applyUpdateBundle() on a legacy journal still rejects a tampered staged binary (the one hash schema-1 always had)", () => {
+    const { stagedBinaryPath, binaryPath, liveClientPath, journalPath } = prepareLegacyBundle();
+    fs.writeFileSync(stagedBinaryPath, "tampered-binary");
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "av_quarantine" }),
+    );
+    expect(fs.readFileSync(binaryPath, "utf8")).toBe("old-binary");
+    expect(fs.readFileSync(path.join(liveClientPath, "index.html"), "utf8")).toBe(
+      "old-client",
+    );
+  });
+
+  it("a schema-2 (current) journal still gets the full client-hash check -- the legacy bypass does not leak into current journals", () => {
+    const { journalPath } = prepareBundle();
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    expect(journal.schemaVersion).toBe(2);
+    fs.writeFileSync(
+      path.join(journal.paths.stagedClient, "index.html"),
+      "tampered-client",
+    );
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "av_quarantine" }),
+    );
+  });
+});

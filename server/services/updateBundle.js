@@ -170,10 +170,33 @@ function assertInsideInstall(installDir, candidate, label) {
   return resolved;
 }
 
+// GH#149, 2026-09-08 (god-verified root cause): f69c2f7f added clientSha256
+// as a REQUIRED field without bumping schemaVersion, so a journal staged by
+// any pre-f69c2f7f binary (v1.2.15 and earlier -- `hashes: { binarySha256 }`
+// only, no clientSha256 at all) gets unconditionally rejected as
+// invalid_bundle the instant a post-f69c2f7f binary reads it. Since the
+// journal is written by the OLD binary and read by the NEW one on every
+// single update attempt, this was a 100%-deterministic, permanent brick for
+// that entire version cohort -- re-downloading could never help, because
+// the OLD binary writes the identical legacy-shaped journal every time.
+//
+// Fix: schemaVersion now has two accepted values. 1 (legacy) means "staged
+// by a binary that never verified the client bundle's integrity" -- exactly
+// what every pre-f69c2f7f release actually did, so accepting it here is not
+// a weakening, just declining to invent a check the staging binary itself
+// never performed. 2 (current) means clientSha256 is REQUIRED, because the
+// binary that staged it computed and wrote one. New journals are always
+// written as schema 2 (see stageUpdateBundle() below) -- this branch exists
+// to keep READING old ones from bricking an install, not to keep writing
+// them.
+const LEGACY_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
+
 function validateJournal(journal, journalPath) {
   if (
     !journal ||
-    journal.schemaVersion !== 1 ||
+    (journal.schemaVersion !== LEGACY_SCHEMA_VERSION &&
+      journal.schemaVersion !== CURRENT_SCHEMA_VERSION) ||
     typeof journal.transactionId !== "string" ||
     journal.transactionId === "" ||
     typeof journal.version !== "string" ||
@@ -182,8 +205,9 @@ function validateJournal(journal, journalPath) {
     !hasValidMetadata(journal.metadata) ||
     typeof journal.hashes?.binarySha256 !== "string" ||
     journal.hashes.binarySha256 === "" ||
-    typeof journal.hashes?.clientSha256 !== "string" ||
-    journal.hashes.clientSha256 === "" ||
+    (journal.schemaVersion === CURRENT_SCHEMA_VERSION &&
+      (typeof journal.hashes?.clientSha256 !== "string" ||
+        journal.hashes.clientSha256 === "")) ||
     !journal.paths
   ) {
     throw updateError("invalid_bundle", "Update bundle journal is invalid");
@@ -255,6 +279,12 @@ function ensureCompatibleBundle(journal, runningMetadata) {
   }
 }
 
+// GH#149: traced, not assumed -- both `previous` and `current` are always
+// two reads of the SAME journalPath within one acknowledgeUpdateBundle()
+// call (see its two readUpdateBundleJournalIfPresent() calls below), so a
+// legacy schema-1 journal produces `clientSha256: undefined` on BOTH reads
+// consistently (`undefined === undefined` is true) -- this direct equality
+// does not need a schema-aware branch to stay correct for legacy journals.
 function sameAcknowledgementState(previous, current) {
   return (
     previous.transactionId === current.transactionId &&
@@ -371,7 +401,7 @@ export function stageUpdateBundle({
   const { hash: clientSha256, pairs: clientFiles } = sha256Directory(stagedClientPath);
 
   const journal = {
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     transactionId: crypto.randomUUID(),
     version: String(version),
     phase: "staged",
@@ -467,14 +497,26 @@ export function applyUpdateBundle(journalPath) {
   if (stagedBinaryHash !== journal.hashes.binarySha256) {
     throw updateError("av_quarantine", "Staged update binary hash changed");
   }
-  let stagedClientHash;
-  try {
-    ({ hash: stagedClientHash } = sha256Directory(paths.stagedClient));
-  } catch (error) {
-    throw updateError("hash_unverifiable", "Could not verify staged client bundle", error);
-  }
-  if (stagedClientHash !== journal.hashes.clientSha256) {
-    throw updateError("av_quarantine", "Staged client bundle hash changed");
+  // GH#149: gated on the journal's OWN schema version, not on
+  // journal.hashes.clientSha256 being truthy -- a legacy schema-1 journal
+  // never had this hash computed at stage time (see validateJournal()'s own
+  // comment above), so there is nothing honest to compare against; skipping
+  // it here is exactly as safe as the pre-f69c2f7f binary that staged it,
+  // which never checked this either. Keying off schemaVersion instead of
+  // "is the field present" means a FUTURE journal that loses this field for
+  // some other reason (a bug, a truncated write) still schema-2 and still
+  // gets the real check, rather than silently sliding through the legacy
+  // bypass it was never meant to use.
+  if (journal.schemaVersion === CURRENT_SCHEMA_VERSION) {
+    let stagedClientHash;
+    try {
+      ({ hash: stagedClientHash } = sha256Directory(paths.stagedClient));
+    } catch (error) {
+      throw updateError("hash_unverifiable", "Could not verify staged client bundle", error);
+    }
+    if (stagedClientHash !== journal.hashes.clientSha256) {
+      throw updateError("av_quarantine", "Staged client bundle hash changed");
+    }
   }
   const clientCompatibility = validateBuildCompatibility(
     readJson(path.join(paths.stagedClient, "build-info.json")),
