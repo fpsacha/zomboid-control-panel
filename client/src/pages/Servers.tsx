@@ -733,12 +733,26 @@ export default function Servers() {
       setUpdateCheckEverSucceeded(true)
       setUpdateCheckLastError(null)
     }
+    // ec0c8453 (server): the 5 failure returns in checkForUpdates() now emit
+    // this live, on its own event name -- reusing the two above would have
+    // made a live FAILURE set updateCheckEverSucceeded(true), the opposite
+    // of what happened. Deliberately does NOT touch updateCheckEverSucceeded
+    // here: a live failure after a prior success must keep showing the
+    // stale-but-real result (880d14ff's succeeded-then-failed state), not
+    // regress to the unknown badge. updateStatusUnknown's existing
+    // derivation (server.isActive && !updateCheckEverSucceeded) already
+    // covers both cases correctly once lastError alone is updated.
+    const handleUpdateCheckFailed = (data: { lastError: string }) => {
+      setUpdateCheckLastError(data.lastError)
+    }
 
     socket.on('server:updateAvailable', handleUpdateAvailable)
     socket.on('server:updateCheck', handleUpdateCheck)
+    socket.on('server:updateCheckFailed', handleUpdateCheckFailed)
     return () => {
       socket.off('server:updateAvailable', handleUpdateAvailable)
       socket.off('server:updateCheck', handleUpdateCheck)
+      socket.off('server:updateCheckFailed', handleUpdateCheckFailed)
     }
   }, [socket])
 

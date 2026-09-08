@@ -311,3 +311,79 @@ describe('Servers.tsx: a clean "checked, no update" result is a real answer, not
     expect(card.textContent).toMatch(/200/)
   })
 })
+
+// 2026-09-08, server SHA ec0c8453: checkForUpdates()'s 5 failure returns now
+// emit server:updateCheckFailed live, so a background check that starts
+// failing after mount no longer waits for a full page reload to be
+// reflected. Deliberately its own event, not a reuse of the two success
+// events above -- those unconditionally set updateCheckEverSucceeded(true)
+// on any receipt, so routing a failure through them would have made the
+// client claim a check just succeeded at the exact moment one failed.
+//
+// The one thing the handler must NOT do (Angela's own catch, named in the
+// dispatch): touch updateCheckEverSucceeded. Resetting it would regress a
+// succeeded-then-failed server back to the "unknown" badge, exactly the
+// false claim in the other direction 880d14ff's design ruling was about.
+describe('Servers.tsx: a live server:updateCheckFailed event updates lastError only, never everSucceeded', () => {
+  it('never-succeeded + a live failure: still shows "unknown" (not a regression, just confirms the state)', async () => {
+    getAll.mockResolvedValue({ servers: [ACTIVE_SERVER] } as never)
+    mockCommonServerFetches()
+    updateGetStatus.mockResolvedValue({
+      updateAvailable: null,
+      gameVersion: null,
+      lastCheck: null,
+      lastError: null,
+      intervalMinutes: 60,
+      isChecking: false,
+      lastAutoUpdateResult: null,
+    } as never)
+
+    const { socket, handlers } = fakeSocket()
+    renderServers(socket)
+
+    await screen.findByText(ACTIVE_SERVER.name)
+    expect(await screen.findByText(/update status unknown/i)).toBeInTheDocument()
+
+    act(() => {
+      handlers['server:updateCheckFailed']({ lastError: 'steamcmdPath or serverPath is not configured' })
+    })
+
+    const card = cardFor(ACTIVE_SERVER.name)
+    expect(card.textContent).toMatch(/update status unknown/i)
+  })
+
+  it('succeeded-then-failed via a LIVE event: keeps showing the stale-but-real result, does NOT regress to "unknown"', async () => {
+    getAll.mockResolvedValue({ servers: [ACTIVE_SERVER] } as never)
+    mockCommonServerFetches()
+    updateGetStatus.mockResolvedValue({
+      updateAvailable: {
+        updateAvailable: true,
+        installed: { buildId: '100', branch: 'public', lastUpdated: null },
+        latest: { buildId: '200', branch: 'public', timeUpdated: null, description: null },
+        lastCheck: new Date(0).toISOString(),
+      },
+      gameVersion: null,
+      lastCheck: new Date(0).toISOString(),
+      lastError: null,
+      intervalMinutes: 60,
+      isChecking: false,
+      lastAutoUpdateResult: null,
+    } as never)
+
+    const { socket, handlers } = fakeSocket()
+    renderServers(socket)
+
+    await screen.findByText(ACTIVE_SERVER.name)
+    expect(await screen.findByText(/update available/i)).toBeInTheDocument()
+
+    // A LATER background check fails -- must not undo the confirmed result
+    // that arrived at mount.
+    act(() => {
+      handlers['server:updateCheckFailed']({ lastError: 'Could not get the latest build info from Steam (steamcmd query failed)' })
+    })
+
+    const card = cardFor(ACTIVE_SERVER.name)
+    expect(card.textContent).toMatch(/update available/i)
+    expect(card.textContent).not.toMatch(/update status unknown/i)
+  })
+})
