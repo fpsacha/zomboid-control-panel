@@ -3831,11 +3831,17 @@ export default function ServerConfig() {
                 <ScrollArea className="h-[calc(100vh-440px)] min-h-[400px] pe-4">
                   <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                     <Badge variant="secondary">
-                      {modSettingsSearch || modSettingsModifiedOnly ? `${filteredModGroups.length} / ${modSettingsGroups.length}` : modSettingsGroups.length} {t('modSettingsTab.groupsBadge')}
+                      {/* bug-hunt-2026-09-08 (Arabic render pass, dwight): same
+                          "number / number" bidi-neutral-run reversal as
+                          6a6e26ee/09040e60/Debug.tsx -- confirmed with a real
+                          Chromium render (not assumed): the internal digit
+                          pair reverses here too once it sits next to the
+                          Arabic label text. <bdi> isolates it. */}
+                      {modSettingsSearch || modSettingsModifiedOnly ? <bdi>{`${filteredModGroups.length} / ${modSettingsGroups.length}`}</bdi> : modSettingsGroups.length} {t('modSettingsTab.groupsBadge')}
                     </Badge>
                     <Badge variant="secondary">
                       {modSettingsSearch || modSettingsModifiedOnly
-                        ? `${filteredModGroups.reduce((s, g) => s + g.filteredOpts.length, 0)} / ${modSettingsGroups.reduce((s, g) => s + g.count, 0)}`
+                        ? <bdi>{`${filteredModGroups.reduce((s, g) => s + g.filteredOpts.length, 0)} / ${modSettingsGroups.reduce((s, g) => s + g.count, 0)}`}</bdi>
                         : modSettingsGroups.reduce((s, g) => s + g.count, 0)
                       } {t('modSettingsTab.optionsBadge')}
                     </Badge>
