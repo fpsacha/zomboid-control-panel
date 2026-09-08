@@ -437,10 +437,21 @@ export default function Servers() {
 
 
   // Fetch servers
-  const fetchServers = useCallback(async () => {
+  //
+  // 2026-09-08 (retry-stacking sweep): `manual` distinguishes a human
+  // clicking the Retry button below from every other caller (the mount
+  // effect, post-mutation refreshes, socket-triggered reloads) -- the
+  // machine-initiated callers keep the default automatic retry (it's the
+  // right tolerance for a transient blip nobody is watching), while a
+  // manual retry passes {retries:0} because the human IS already the retry:
+  // stacking a silent ~7s automatic one underneath their click just makes
+  // the button look dead. Same shape as Dashboard.tsx's fetchStatus, which
+  // solved this for its own polling by passing {retries:0} at the call site
+  // rather than baking it into the shared function.
+  const fetchServers = useCallback(async (opts?: { manual?: boolean }) => {
     setFetchError(null)
     try {
-      const data = await serversApi.getAll()
+      const data = await serversApi.getAll(opts?.manual ? { retries: 0 } : undefined)
       setServers(data.servers || [])
       setManagedLifecycleSupported(data.lifecycleCapabilities?.supported === true)
     } catch (error) {
@@ -1650,7 +1661,7 @@ export default function Servers() {
           <AlertTitle>{t('fetchError.title')}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="min-w-0 break-words" dir="auto">{fetchError}</span>
-            <Button variant="outline" size="sm" onClick={fetchServers} className="self-start">
+            <Button variant="outline" size="sm" onClick={() => fetchServers({ manual: true })} className="self-start">
               <RefreshCw className="me-2 h-4 w-4" /> {t('fetchError.retry')}
             </Button>
           </AlertDescription>

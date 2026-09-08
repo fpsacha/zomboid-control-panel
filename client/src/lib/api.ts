@@ -1760,15 +1760,16 @@ export interface ComposedServerStatus {
 
 // Servers API (multi-server management)
 export const serversApi = {
-  getAll: () => apiGet("/servers") as Promise<{
-    servers: ServerInstance[];
-    lifecycleCapabilities?: {
-      supported: boolean;
-      platform: string;
-      containerized: boolean;
-      providers: Array<"direct" | "systemd" | "openrc">;
-    };
-  }>,
+  getAll: (options?: { retries?: number }) =>
+    apiGet("/servers", undefined, options?.retries) as Promise<{
+      servers: ServerInstance[];
+      lifecycleCapabilities?: {
+        supported: boolean;
+        platform: string;
+        containerized: boolean;
+        providers: Array<"direct" | "systemd" | "openrc">;
+      };
+    }>,
   getActive: () =>
     apiGet("/servers/active") as Promise<{ server: ServerInstance }>,
   getComposedStatus: (options?: { retries?: number }) =>
