@@ -187,6 +187,7 @@
     "preflight": {
       "packagedBuildGit": "Mizajou otomatik disponib sèlman nan vèsyon pake. Nan mòd devlopman, pran dènye kòd la ak git.",
       "packagedBuildDocker": "Mizajou otomatik disponib sèlman nan vèsyon pake. Rale nouvo imaj la epi kreye kontenè a ankò: docker compose pull && docker compose up -d.",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Pa gen enfòmasyon vèsyon nan kach la ankò. Klike sou Tcheke Mizajou an premye.",
       "databaseUnreadable": "Panel la pa kapab li baz done a anvan mizajou a: {{error}}.",
       "databaseMissing": "Pa jwenn data/db.json bò kote panel la k ap fonksyone. Sa sanble ak yon nouvo enstalasyon; verifye dosye done a anvan ou aplike mizajou a.",
@@ -196,6 +197,7 @@
       "folderNotWritableOther": "Pwosesis sa a pa kapab ekri nan dosye panel la: {{detail}}. Verifye pèmisyon dosye enstalasyon an pou kont k ap lanse panel la.",
       "exeNotRenameable": "Windows pa kite pwosesis sa a chanje non pwòp fichye pwogram li. Eseye lanse panel la kòm administratè oswa deplase l deyò yon dosye pwoteje.",
       "diskSpace": "Pa gen ase espas lib. Li bezwen anviwon {{neededMb}} MB, men gen {{freeMb}} MB sèlman.",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "Panel la nan yon dosye OneDrive ap senkronize. Senkronizasyon an ka bloke binè a pou yon ti tan pandan y ap ranplase l. Mete OneDrive sou poz anvan ou aplike mizajou a oswa deplase panel la nan yon kote ki pa senkronize (pa egzanp C:\\ZomboidPanel).",
       "syncSuspect": "Panel la sou Bureau oswa nan Documents. Si w ap itilize OneDrive Backup oswa Known Folder Move, dosye sa a senkronize epi li ka bloke binè a pandan aplikasyon an. Konsidere deplase panel la nan yon kote ki pa senkronize.",
       "programFiles": "Panel la enstale nan Program Files. Windows bezwen dwa administratè pou ranplase fichye la yo. Si aplikasyon an echwe, relanse panel la kòm administratè.",

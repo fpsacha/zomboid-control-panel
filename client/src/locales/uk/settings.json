@@ -251,6 +251,7 @@
     "preflight": {
       "packagedBuildGit": "Самооновлення доступне лише у зібраних пакунках. У режимі розробки отримайте найновіший код через git.",
       "packagedBuildDocker": "Самооновлення доступне лише у зібраних пакунках. Завантажте новіший образ і перестворіть контейнер: docker compose pull && docker compose up -d.",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Дані про випуск ще не кешовано — спершу натисніть «Перевірити оновлення».",
       "databaseUnreadable": "Не вдається прочитати базу даних панелі перед оновленням: {{error}}.",
       "databaseMissing": "Поруч із запущеною панеллю не знайдено data/db.json. Схоже на нове встановлення; перевірте теку даних, перш ніж застосовувати оновлення.",
@@ -260,6 +261,7 @@
       "folderNotWritableOther": "Цей процес не може писати в теку панелі: {{detail}}. Перевірте дозволи теки встановлення для облікового запису, від імені якого працює панель.",
       "exeNotRenameable": "Windows не дозволяє цьому процесу перейменувати власний файл програми. Спробуйте запустити панель від імені адміністратора або перемістіть її із захищеної теки.",
       "diskSpace": "Недостатньо вільного місця на диску. Потрібно близько {{neededMb}} МБ, доступно {{freeMb}} МБ.",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "Панель лежить у теці, яку синхронізує OneDrive. Синхронізація може ненадовго заблокувати виконуваний файл під час його заміни. Призупиніть OneDrive, перш ніж натискати «Перезапустити та застосувати», або перемістіть панель у несинхронізоване місце (наприклад, C:\\ZomboidPanel).",
       "syncSuspect": "Панель лежить на робочому столі або в «Документах». Якщо ви користуєтеся резервним копіюванням OneDrive або Known Folder Move, ця тека синхронізується й може заблокувати виконуваний файл під час застосування. Варто перемістити панель у несинхронізоване місце.",
       "programFiles": "Панель встановлено в Program Files. Windows вимагає прав адміністратора, щоб замінювати там файли. Якщо застосувати не вдасться, перезапустіть панель від імені адміністратора.",

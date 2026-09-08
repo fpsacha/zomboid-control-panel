@@ -190,6 +190,7 @@
     "preflight": {
       "packagedBuildGit": "Self-update is only available in packaged builds. In dev mode, pull the latest code with git.",
       "packagedBuildDocker": "Self-update is only available in packaged builds. Pull the newer image and recreate the container: docker compose pull && docker compose up -d.",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "No release info cached yet -- click Check for Updates first.",
       "databaseUnreadable": "Panel database cannot be read before update: {{error}}.",
       "databaseMissing": "No data/db.json was found beside the running panel. This looks like a fresh install; verify the data folder before applying the update.",
@@ -199,6 +200,7 @@
       "folderNotWritableOther": "Panel folder is not writable by this process: {{detail}}. Check the installation directory permissions for the account running the panel.",
       "exeNotRenameable": "Windows will not let this process rename its own program file. Try running as Administrator, or move the panel out of a protected folder.",
       "diskSpace": "Not enough free disk space. Need about {{neededMb}} MB, have {{freeMb}} MB.",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "Panel lives inside a OneDrive-synced folder. Sync can briefly lock the executable while it is being replaced. Pause OneDrive before clicking Restart and Apply, or move the panel to a non-synced location (for example, C:\\ZomboidPanel).",
       "syncSuspect": "Panel lives on the Desktop or in Documents. If you use OneDrive Backup or Known Folder Move, that folder is sync-backed and may lock the executable during apply. Consider moving the panel to a non-synced location.",
       "programFiles": "Panel is installed under Program Files. Windows requires Administrator rights to replace files there. If apply fails, relaunch the panel as Administrator.",

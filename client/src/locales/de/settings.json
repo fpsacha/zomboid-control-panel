@@ -242,6 +242,7 @@
     "preflight": {
       "packagedBuildGit": "Selbstaktualisierungen sind nur in gepackten Builds verfügbar. Im Entwicklungsmodus hole den neuesten Code mit git.",
       "packagedBuildDocker": "Selbstaktualisierungen sind nur in gepackten Builds verfügbar. Ziehe das neuere Image und erstelle den Container neu: docker compose pull && docker compose up -d.",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Noch keine Release-Informationen im Cache. Klicke zuerst auf Nach Updates suchen.",
       "databaseUnreadable": "Die Panel-Datenbank kann vor dem Update nicht gelesen werden: {{error}}.",
       "databaseMissing": "Neben dem laufenden Panel wurde keine data/db.json gefunden. Dies sieht nach einer frischen Installation aus. Überprüfe den Datenordner vor dem Anwenden des Updates.",
@@ -251,6 +252,7 @@
       "folderNotWritableOther": "Der Panel-Ordner ist für diesen Prozess nicht beschreibbar: {{detail}}. Überprüfe die Berechtigungen des Installationsordners für das Konto, unter dem das Panel läuft.",
       "exeNotRenameable": "Windows lässt diesen Prozess seine eigene Programmdatei nicht umbenennen. Starte das Panel als Administrator oder verschiebe es aus einem geschützten Ordner.",
       "diskSpace": "Nicht genügend freier Speicherplatz. Benötigt werden etwa {{neededMb}} MB, verfügbar sind {{freeMb}} MB.",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "Das Panel befindet sich in einem mit OneDrive synchronisierten Ordner. Die Synchronisierung kann die ausführbare Datei beim Ersetzen kurzzeitig sperren. Pausiere OneDrive vor dem Anwenden oder verschiebe das Panel an einen nicht synchronisierten Ort (zum Beispiel C:\\ZomboidPanel).",
       "syncSuspect": "Das Panel befindet sich auf dem Desktop oder in Dokumente. Wenn du OneDrive-Backup oder Known Folder Move verwendest, wird dieser Ordner synchronisiert und kann die ausführbare Datei beim Anwenden sperren. Verschiebe das Panel an einen nicht synchronisierten Ort.",
       "programFiles": "Das Panel ist unter Programme installiert. Windows benötigt Administratorrechte, um Dateien dort zu ersetzen. Wenn das Anwenden fehlschlägt, starte das Panel als Administrator neu.",

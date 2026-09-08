@@ -242,6 +242,7 @@
     "preflight": {
       "packagedBuildGit": "La mise à jour automatique est disponible uniquement dans les versions packagées. En mode développement, récupérez le dernier code avec git.",
       "packagedBuildDocker": "La mise à jour automatique est disponible uniquement dans les versions packagées. Récupérez la nouvelle image et recréez le conteneur : docker compose pull && docker compose up -d.",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Aucune information de version n'est encore en cache. Cliquez d'abord sur Rechercher les mises à jour.",
       "databaseUnreadable": "La base de données du panneau ne peut pas être lue avant la mise à jour : {{error}}.",
       "databaseMissing": "Aucun fichier data/db.json n'a été trouvé à côté du panneau en cours d'exécution. Cela ressemble à une nouvelle installation ; vérifiez le dossier de données avant d'appliquer la mise à jour.",
@@ -251,6 +252,7 @@
       "folderNotWritableOther": "Le dossier du panneau n'est pas accessible en écriture pour ce processus : {{detail}}. Vérifiez les permissions du dossier d'installation pour le compte qui exécute le panneau.",
       "exeNotRenameable": "Windows ne permet pas à ce processus de renommer son propre fichier programme. Essayez de lancer le panneau en tant qu'administrateur ou déplacez-le hors d'un dossier protégé.",
       "diskSpace": "Espace disque libre insuffisant. Environ {{neededMb}} Mo sont nécessaires, {{freeMb}} Mo sont disponibles.",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "Le panneau se trouve dans un dossier synchronisé par OneDrive. La synchronisation peut brièvement verrouiller l'exécutable pendant son remplacement. Mettez OneDrive en pause avant d'appliquer la mise à jour ou déplacez le panneau vers un emplacement non synchronisé (par exemple C:\\ZomboidPanel).",
       "syncSuspect": "Le panneau se trouve sur le Bureau ou dans Documents. Si vous utilisez la sauvegarde OneDrive ou Known Folder Move, ce dossier est synchronisé et peut verrouiller l'exécutable pendant l'application. Envisagez de déplacer le panneau vers un emplacement non synchronisé.",
       "programFiles": "Le panneau est installé dans Program Files. Windows exige des droits d'administrateur pour y remplacer des fichiers. Si l'application échoue, relancez le panneau en tant qu'administrateur.",

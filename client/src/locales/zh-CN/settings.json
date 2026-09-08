@@ -242,6 +242,7 @@
     "preflight": {
       "packagedBuildGit": "自动更新仅适用于打包版本。开发模式下，请使用 git 获取最新代码。",
       "packagedBuildDocker": "自动更新仅适用于打包版本。请拉取新镜像并重新创建容器：docker compose pull && docker compose up -d。",
+      "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "尚未缓存版本信息，请先点击“检查更新”。",
       "databaseUnreadable": "更新前无法读取面板数据库：{{error}}。",
       "databaseMissing": "运行中的面板旁未找到 data/db.json。这看起来像是全新安装，请在应用更新前确认数据文件夹。",
@@ -251,6 +252,7 @@
       "folderNotWritableOther": "此进程无法写入面板文件夹：{{detail}}。请检查运行面板的账户对安装文件夹的写入权限。",
       "exeNotRenameable": "Windows 不允许此进程重命名它自己的程序文件。请尝试以管理员身份运行，或将面板移出受保护的文件夹。",
       "diskSpace": "可用磁盘空间不足。大约需要 {{neededMb}} MB，目前有 {{freeMb}} MB。",
+      "diskSpaceUnknown": "Could not determine free disk space before update. Proceeding without this check -- verify you have enough free space manually if the apply fails partway through.",
       "oneDrive": "面板位于 OneDrive 同步文件夹中。替换可执行文件时，同步可能会短暂锁定文件。请在点击“重启并应用”前暂停 OneDrive，或将面板移到不同步的位置（例如 C:\\ZomboidPanel）。",
       "syncSuspect": "面板位于桌面或文档文件夹中。如果你使用 OneDrive 备份或 Known Folder Move，该文件夹会被同步，并可能在应用更新时锁定可执行文件。建议将面板移到不同步的位置。",
       "programFiles": "面板安装在 Program Files 下。Windows 需要管理员权限才能替换其中的文件。如果应用失败，请以管理员身份重新启动面板。",
