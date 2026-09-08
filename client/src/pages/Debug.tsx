@@ -6065,7 +6065,15 @@ export default function Debug() {
                       )}
                     >
                       {latest?.hostMemUsedGB != null
-                        ? `${latest.hostMemUsedGB} / ${latest.hostMemGB} GB`
+                        // bug-hunt-2026-09-08 (Arabic render pass, dwight):
+                        // same "number / number" bidi-neutral-run reversal
+                        // DashboardPerformanceCharts hit (6a6e26ee) -- this
+                        // page has its own separate host-RAM display that
+                        // never got that fix. <bdi> isolates the whole
+                        // expression (used/total/unit together, same as
+                        // Servers.tsx's memory-range fix, 09040e60) from the
+                        // surrounding RTL paragraph.
+                        ? <bdi>{`${latest.hostMemUsedGB} / ${latest.hostMemGB} GB`}</bdi>
                         : t("common.notAvailable")}
                     </p>
                     {performanceStats.hostGB.avg != null && (
