@@ -609,10 +609,47 @@ export class ModChecker extends EventEmitter {
       if (content.charCodeAt(0) === 0xfeff) content = content.slice(1);
       const parsed = this.parseAcfFile(content);
 
-      const workshopIds = Object.keys(parsed.installedMods);
+      const acfWorkshopIds = Object.keys(parsed.installedMods);
+
+      if (acfWorkshopIds.length === 0) {
+        log.debug("No mods found in workshop ACF");
+        return;
+      }
+
+      // appworkshop_108600.acf is SteamCMD's own shared Workshop content
+      // cache, not scoped per configured panel server -- a host that has
+      // run more than one server through the same SteamCMD install can have
+      // ACF entries left behind by a PREVIOUS server. This is the write-side
+      // half of the same bug e4de1518 fixed on the read side (see
+      // checkForUpdates()'s own relevantWorkshopIds comment): that fix
+      // trusts getTrackedMods() as "already server-scoped, unlike the ACF",
+      // which is true by schema but was false in practice here -- this
+      // function used to bulk-import EVERY ACF entry into the active
+      // server's own tracked_mods the moment that server had zero tracked
+      // mods (true for any brand-new server), permanently mislabeling a
+      // previous server's mods as this one's and defeating the read-side
+      // filter at its source. Only auto-track an ACF entry the active
+      // server's own ini WorkshopItems= actually lists -- the one signal
+      // that's genuinely per-server before anything's been manually tracked
+      // yet. With no ini signal at all (a brand-new server before its first
+      // full config write), there's no way to tell which ACF entries are
+      // even this server's own, so this skips syncing entirely rather than
+      // guessing from a cache shared with every other server on the host.
+      const iniWorkshopIds = await this.getConfiguredWorkshopIds();
+      if (!iniWorkshopIds || iniWorkshopIds.size === 0) {
+        log.debug(
+          "No server INI workshop IDs configured yet -- skipping ACF auto-sync rather than trusting the shared cache",
+        );
+        return;
+      }
+      const workshopIds = acfWorkshopIds.filter((id) =>
+        iniWorkshopIds.has(id),
+      );
 
       if (workshopIds.length === 0) {
-        log.debug("No mods found in workshop ACF");
+        log.debug(
+          "No ACF entries match this server's own INI -- nothing to auto-sync",
+        );
         return;
       }
 
