@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **TL;DR:**
 
-- *[PENDING -- Jim's supervisor fix, headline item: the Windows updater could delete the only surviving copy of the working server executable and still report "executable untouched." Awaiting his one-line wording before this ships.]*
+- An update interrupted partway through (a reboot, antivirus, or a forced close) could delete the panel's only working copy of itself and then report it as untouched - leaving no way back except a manual reinstall.
 - Applying a server config template could show no warning and stay clickable even while the target server was actually still running (Docker-managed or remote installs) - that safety check now works correctly there too.
 - On a host running more than one server, several places could get a Docker-managed or remote server's running state wrong the same way - Manual Restart and Quick Broadcasts, the live performance chart, and checking a server before applying a template to it - all now share one correct check.
 - SteamCMD reliability on Linux: a fresh install could fail on a sandboxing setting that has nothing to do with the game folder's own permissions (#147), and a panel crash mid-install could let the very next Start launch straight over a half-written install - both fixed.
@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Panel updater**
 
-- *[Jim's fix slots in here once it lands]*
+- **An update interrupted partway through (a reboot, antivirus, or a forced close) could delete the panel's only working copy of itself and then report it as untouched** - leaving no way back except a manual reinstall. The supervisor's own cleanup step now checks whether a working copy still exists before clearing out backups, and if something does still go wrong it names the exact file to rename back by hand instead of claiming nothing was touched.
 - **A failed Windows Supervisor restart could leave the panel thinking an update was still in progress, forever** - every later restart attempt was wrongly rejected with "an update apply is already in progress," with no way back short of killing the process externally.
 - **Clicking Download twice in quick succession could corrupt the staged update file** - both clicks could get past a guard that didn't actually take effect until after an async permissions check had already started.
 - **A failure reading the panel's own update status could occasionally surface as a generic server error** instead of the same structured error every other update check already gives.
