@@ -38,6 +38,19 @@ export class UpdateChecker {
     this.serverManager = serverManager;
     this.checkInterval = null;
     this.lastCheck = null;
+    // wrapper-bypass/sibling-instrumentation class sweep, 2026-09-08:
+    // panelUpdateChecker.js (the panel's own self-update checker, doing the
+    // structurally identical "fetch, compare, report" operation) already has
+    // this exact field for its own check flow. This class never adopted it,
+    // so checkForUpdates() ran unattended (an initial post-boot check, then
+    // an unconditional setInterval forever, both fire-and-forget) with every
+    // failure path logging server-side and returning null -- no signal ever
+    // reached an operator who wasn't the one person who happened to click
+    // "Check Now" at the exact moment it failed. Same clearing discipline as
+    // dockerClient.js's lastError: cleared on any check that reached a real
+    // answer (available or not), set only when the check itself couldn't
+    // produce one.
+    this.lastError = null;
     this.updateAvailable = null;
     this.gameVersion = null;
     this.isChecking = false;
@@ -411,6 +424,7 @@ export class UpdateChecker {
 
       if (!steamcmdPath || !serverPath) {
         log.debug("UpdateChecker: steamcmdPath or serverPath not configured");
+        this.lastError = "steamcmdPath or serverPath is not configured";
         this.isChecking = false;
         return null;
       }
@@ -419,6 +433,7 @@ export class UpdateChecker {
       const installed = await this.getInstalledBuildInfo(serverPath);
       if (!installed || !installed.buildId) {
         log.debug("UpdateChecker: Could not determine installed build");
+        this.lastError = "Could not determine the installed build (missing or unreadable appmanifest)";
         this.isChecking = false;
         return null;
       }
@@ -434,11 +449,13 @@ export class UpdateChecker {
       );
       if (!latest || !latest.buildId) {
         log.debug("UpdateChecker: Could not get latest build info from Steam");
+        this.lastError = "Could not get the latest build info from Steam (steamcmd query failed)";
         this.isChecking = false;
         return null;
       }
 
       this.lastCheck = new Date().toISOString();
+      this.lastError = null;
 
       // Compare build IDs (ensure base 10 parsing)
       const installedBuild = parseInt(installed.buildId, 10);
@@ -447,6 +464,7 @@ export class UpdateChecker {
       // Guard against NaN from invalid build IDs
       if (isNaN(installedBuild) || isNaN(latestBuild)) {
         log.warn("UpdateChecker: Invalid build ID format");
+        this.lastError = "Installed or latest build ID was not a valid number";
         this.isChecking = false;
         return null;
       }
@@ -510,6 +528,7 @@ export class UpdateChecker {
       return updateInfo;
     } catch (err) {
       log.error(`Update check failed: ${err.message}`);
+      this.lastError = err.message;
       this.isChecking = false;
       return null;
     } finally {
@@ -884,6 +903,7 @@ export class UpdateChecker {
       updateAvailable: this.updateAvailable,
       gameVersion: this.gameVersion,
       lastCheck: this.lastCheck,
+      lastError: this.lastError,
       intervalMinutes: this.intervalMs / 60000,
       isChecking: this.isChecking,
       lastAutoUpdateResult: this.lastAutoUpdateResult,
