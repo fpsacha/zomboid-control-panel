@@ -1055,7 +1055,16 @@ export default function Servers() {
       (serverStatus) => {
         setServerStatuses(prev => ({
           ...prev,
-          [String(serverStatus.id)]: { running: serverStatus.running, pid: serverStatus.pid },
+          // stateUnknown must survive this write -- dropping it here reset the
+          // flag to falsy on every poll tick during an inline start/stop
+          // action, so a mid-transition "the scan couldn't tell" response
+          // still displayed as a confident running/stopped card the instant
+          // it landed (2026-09-08 three-state audit).
+          [String(serverStatus.id)]: {
+            running: serverStatus.running,
+            pid: serverStatus.pid,
+            stateUnknown: serverStatus.stateUnknown === true,
+          },
         }))
       },
     )
@@ -1863,8 +1872,17 @@ export default function Servers() {
                             : { status: dockerHostStatus, label: t('card.statusContainer') }
                         } else {
                           const status = serverStatuses[String(server.id)]
+                          // stateUnknown (server/routes/servers.js's GET /status,
+                          // see the ServerStatusEntry comment in lib/serverStatus.ts)
+                          // must not collapse into a confident running/stopped here
+                          // -- this is the exact "the server said unknown, the badge
+                          // said stopped" gap resolveServerCardRunning below already
+                          // guards for button enablement; the badge had its own,
+                          // separate collapse (2026-09-08 three-state audit).
                           host = status
-                            ? { status: status.running ? 'running' : 'stopped', label: t('card.statusProcess') }
+                            ? status.stateUnknown
+                              ? { status: 'unknown', label: t('card.statusProcess'), detail: t('card.statusUnavailable') }
+                              : { status: status.running ? 'running' : 'stopped', label: t('card.statusProcess') }
                             : undefined
                         }
                         const rconStatus = rconStatuses[String(server.id)]

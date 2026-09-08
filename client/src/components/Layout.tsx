@@ -450,7 +450,14 @@ export default function Layout({ children }: LayoutProps) {
   const refreshServerRunState = useCallback(async () => {
     if (provider === 'native') {
       try {
-        const data = await serverApi.getStatus()
+        const data = await serverApi.getStatus() as { running?: boolean; scanFailed?: boolean } | undefined
+        // scanFailed (serverManager.js's getServerStatus(), same field
+        // Dashboard.tsx's deriveDashboardStatus already excludes for this
+        // exact reason) means the scan itself couldn't tell, not that it
+        // confirmed stopped -- this dot used to collapse that into a
+        // confident 'stopped' in the sidebar, on every page (2026-09-08
+        // three-state audit).
+        if (data?.scanFailed) { setServerRunState('unknown'); return }
         if (typeof data?.running === 'boolean') setServerRunState(data.running ? 'running' : 'stopped')
       } catch { /* transient fetch failure -- keep the last known state */ }
       return
