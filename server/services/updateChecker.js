@@ -621,6 +621,31 @@ export class UpdateChecker {
         shouldRestart = true;
         phase = "before-stop";
         if (!this.rconService.connected) fail("RCON_NOT_CONNECTED", "RCON is not connected, so the server cannot be stopped safely");
+        // scheduleAutoUpdate()'s own warning announcement only fires ONCE,
+        // at the moment the update was first detected -- if RCON happened
+        // to be disconnected at that exact instant (a transient blip, not a
+        // sustained outage), the warning is silently skipped there (best-
+        // effort, matching this same "log and continue" posture) while the
+        // timer still runs to completion. If RCON has since reconnected by
+        // the time this line runs, the check above passes and the server
+        // gets stopped with players never having been warned at all --
+        // "silently drops connected players mid-session" is exactly the
+        // failure mode this whole feature exists to avoid. A second,
+        // immediate announcement right here, right before the actual save
+        // + quit, closes that gap regardless of what happened minutes ago,
+        // and also gives a final heads-up to anyone who missed or ignored
+        // the original N-minute warning. Best-effort, same as the other
+        // one -- a failed announcement must not abort an update that is
+        // otherwise safe to run.
+        try {
+          const announced = await this.rconService.serverMessage(
+            "Server is restarting now for an update.",
+            { skipLog: true },
+          );
+          if (!announced?.success) log.warn(`Could not announce imminent automatic update: ${announced?.error || "unknown error"}`);
+        } catch (error) {
+          log.warn(`Could not announce imminent automatic update: ${error.message}`);
+        }
         const saved = await this.rconService.save({ skipLog: true });
         if (!saved?.success) fail("SAVE_FAILED", `The world could not be saved (${saved?.error || "unknown error"}), so the update was abandoned rather than lose progress`, { reason: sanitizeError(saved?.error || "unknown error") });
         const quit = await this.rconService.quit();

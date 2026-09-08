@@ -156,6 +156,84 @@ describe("UpdateChecker persists lastAutoUpdateResult so it survives past the li
     expect(serverManager.startServer).not.toHaveBeenCalled();
   });
 
+  // 2026-09-08, god's four questions applied to this state machine: can a
+  // scheduled auto-update interrupt an active game with no notice at all?
+  // scheduleAutoUpdate()'s own warning announcement fires exactly once, at
+  // detection time -- if RCON happened to be disconnected at that instant
+  // (a transient blip, not this test's concern), the warning is silently
+  // skipped there while the timer still runs to completion, and if RCON
+  // reconnects before the timer fires, runAutoUpdate() would previously
+  // stop the server with players never having been told anything. A second,
+  // immediate announcement right before save+quit closes that gap
+  // regardless of what happened minutes earlier.
+  it("announces to connected players immediately before stopping the server, in addition to scheduleAutoUpdate()'s own earlier warning", async () => {
+    const calls = [];
+    let call = 0;
+    const { checker, rconService } = buildChecker({
+      // First call: confirmed running (enters the stop sequence). Second
+      // call (inside the "wait for stop" loop): confirmed stopped, so the
+      // run proceeds to the natural STEAMCMD_NOT_FOUND failure below
+      // instead of looping for the real 5-minute stop-wait deadline.
+      getServerProcessDetails: vi.fn(async () => {
+        call += 1;
+        return { running: call === 1, scanFailed: false };
+      }),
+      rconOverrides: {
+        serverMessage: vi.fn(async (message) => {
+          calls.push(message);
+          return { success: true };
+        }),
+        save: vi.fn(async () => {
+          calls.push("save");
+          return { success: true };
+        }),
+      },
+    });
+
+    await expect(
+      checker.runAutoUpdate({ installed: { branch: "stable" } }),
+    ).rejects.toThrow(/steamcmd not found/i);
+
+    expect(rconService.serverMessage).toHaveBeenCalledWith(
+      expect.stringMatching(/restarting now/i),
+      expect.objectContaining({ skipLog: true }),
+    );
+    // Announced BEFORE the world is saved and the server is quit -- a
+    // player needs the message before the kick, not logged alongside it.
+    expect(calls).toEqual([expect.stringMatching(/restarting now/i), "save"]);
+  });
+
+  it("does not abort the update when the imminent-announcement itself fails -- best-effort, same posture as scheduleAutoUpdate()'s own warning", async () => {
+    let call = 0;
+    const { checker, rconService } = buildChecker({
+      // First call: confirmed running (enters the stop sequence). Second
+      // call (inside the "wait for stop" loop): confirmed stopped, so the
+      // run proceeds past save+quit to the STEAMCMD_NOT_FOUND failure
+      // below -- steamcmdPath is mocked to a path that doesn't exist on
+      // this test runner, so this reaches a real, natural failure point
+      // without needing to mock child_process.
+      getServerProcessDetails: vi.fn(async () => {
+        call += 1;
+        return { running: call === 1, scanFailed: false };
+      }),
+      rconOverrides: {
+        serverMessage: vi.fn(async () => {
+          throw new Error("rcon socket reset");
+        }),
+      },
+    });
+
+    await expect(
+      checker.runAutoUpdate({ installed: { branch: "stable" } }),
+    ).rejects.toThrow(/steamcmd not found/i);
+
+    // The failure came from STEAMCMD_NOT_FOUND, well past the announcement
+    // -- proof the thrown announcement error was swallowed (best-effort)
+    // rather than aborting the update on its own.
+    expect(rconService.save).toHaveBeenCalled();
+    expect(rconService.quit).toHaveBeenCalled();
+  });
+
   it("carries the world-save failure's own detail as a translatable param, not a raw message baked into `reason`", async () => {
     const { checker } = buildChecker({
       getServerProcessDetails: vi.fn(async () => ({ running: true, scanFailed: false })),
