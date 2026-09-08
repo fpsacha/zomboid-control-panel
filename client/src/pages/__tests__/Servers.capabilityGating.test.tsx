@@ -411,7 +411,36 @@ describe('Servers.tsx: capability gating', () => {
   // A regression that broke handleActivateServer/handleInlineStart's actual
   // body (as opposed to the canServersManage/canInlineStartStop disabled
   // expressions) would have sat green.
-  it('switchToThisServer reaches serversApi.activate, and Start reaches activate then serverApi.start, when the role holds the matching capabilities', async () => {
+  // bug-hunt-2026-09-08 (gate-not-destination sweep), SECOND bug this test
+  // caught in itself: switchToThisServer and Start were originally proven
+  // in ONE test, sequentially. handleActivateServer's success path fires an
+  // UNAWAITED fetchServers() after serversApi.activate() resolves, which
+  // re-renders the whole server list on its own schedule -- a window that
+  // can land between querying Start's button and clicking it, swapping the
+  // live DOM node out from under a reference grabbed just before. Passed
+  // reliably alone and in small batches, then failed under full-suite gate
+  // load (reported by Kevin/god, full local suite re-run afterward came
+  // back 4339/4339 clean -- consistent with a timing race, not a
+  // deterministic defect). Split into two independent tests, each doing
+  // exactly one action against its own fresh render, removes the
+  // interaction between the two actions' re-renders entirely rather than
+  // trying to out-wait it.
+  it('switchToThisServer reaches serversApi.activate with the right server id, when the role holds servers.manage', async () => {
+    mockCan = () => true
+    await setUpFixtures()
+    renderServers()
+    await screen.findByText('server-a')
+
+    // Both server-a and server-b are inactive in this fixture, so both show
+    // switchToThisServer -- click server-a's (index 0, matching getAll's
+    // [SERVER_A, SERVER_B] order) and prove it targets id 1, not just "some"
+    // server.
+    const switchButtons = screen.getAllByRole('button', { name: en.card.switchToThisServer })
+    fireEvent.click(switchButtons[0])
+    await waitFor(() => expect(activate).toHaveBeenCalledWith(SERVER_A.id))
+  })
+
+  it('Start reaches serverApi.start, when the role holds servers.manage and server.control', async () => {
     mockCan = () => true
     await setUpFixtures()
     // Without a real per-server status entry, Start renders its OTHER
@@ -424,14 +453,6 @@ describe('Servers.tsx: capability gating', () => {
     } as never)
     renderServers()
     await screen.findByText('server-a')
-
-    // Both server-a and server-b are inactive in this fixture, so both show
-    // switchToThisServer -- click server-a's (index 0, matching getAll's
-    // [SERVER_A, SERVER_B] order) and prove it targets id 1, not just "some"
-    // server.
-    const switchButtons = screen.getAllByRole('button', { name: en.card.switchToThisServer })
-    fireEvent.click(switchButtons[0])
-    await waitFor(() => expect(activate).toHaveBeenCalledWith(SERVER_A.id))
 
     // server-b is docker-managed, which suppresses its inline Start button
     // (Docker's own controls take over) -- only server-a's should exist.
