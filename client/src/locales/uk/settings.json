@@ -253,7 +253,7 @@
       "packagedBuildDocker": "Самооновлення доступне лише у зібраних пакунках. Завантажте новіший образ і перестворіть контейнер: docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Дані про випуск ще не кешовано — спершу натисніть «Перевірити оновлення».",
-      "databaseUnreadable": "Не вдається прочитати базу даних панелі перед оновленням: {{error}}.",
+      "databaseUnreadable": "Не вдається прочитати базу даних панелі перед оновленням: {{error}}. Спершу перезапустіть панель — під час запуску вона автоматично намагається відновити db.json із власних резервних копій у data/backups.",
       "databaseMissing": "Поруч із запущеною панеллю не знайдено data/db.json. Схоже на нове встановлення; перевірте теку даних, перш ніж застосовувати оновлення.",
       "binaryMissing": "У найновішому випуску не знайдено виконуваного файлу для {{platform}}.",
       "folderNotWritableWindows": "Цей процес не може писати в теку панелі: {{detail}}. Спробуйте запустити її від імені адміністратора або перемістіть панель із захищеної теки.",

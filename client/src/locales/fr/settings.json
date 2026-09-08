@@ -244,7 +244,7 @@
       "packagedBuildDocker": "La mise à jour automatique est disponible uniquement dans les versions packagées. Récupérez la nouvelle image et recréez le conteneur : docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Aucune information de version n'est encore en cache. Cliquez d'abord sur Rechercher les mises à jour.",
-      "databaseUnreadable": "La base de données du panneau ne peut pas être lue avant la mise à jour : {{error}}.",
+      "databaseUnreadable": "La base de données du panneau ne peut pas être lue avant la mise à jour : {{error}}. Redémarrez d'abord le panneau : il tente automatiquement de récupérer db.json à partir de ses propres sauvegardes dans data/backups au démarrage.",
       "databaseMissing": "Aucun fichier data/db.json n'a été trouvé à côté du panneau en cours d'exécution. Cela ressemble à une nouvelle installation ; vérifiez le dossier de données avant d'appliquer la mise à jour.",
       "binaryMissing": "Aucun binaire {{platform}} n'a été trouvé dans la dernière version.",
       "folderNotWritableWindows": "Le dossier du panneau n'est pas accessible en écriture pour ce processus : {{detail}}. Essayez de lancer le panneau en tant qu'administrateur ou déplacez-le hors d'un dossier protégé.",

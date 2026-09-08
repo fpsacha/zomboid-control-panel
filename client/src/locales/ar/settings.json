@@ -257,7 +257,7 @@
       "packagedBuildDocker": "التحديث الذاتي متاح في الإصدارات المحزَّمة فقط. اسحب الصورة الأحدث وأعد إنشاء الحاوية: docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "لا توجد معلومات إصدار مخزَّنة بعد — انقر على \"التحقق من التحديثات\" أولًا.",
-      "databaseUnreadable": "تعذّرت قراءة قاعدة بيانات اللوحة قبل التحديث: {{error}}.",
+      "databaseUnreadable": "تعذّرت قراءة قاعدة بيانات اللوحة قبل التحديث: {{error}}. أعد تشغيل اللوحة أولًا — فهي تحاول تلقائيًا استعادة db.json من نسخها الاحتياطية في data/backups عند بدء التشغيل.",
       "databaseMissing": "لم يُعثر على data/db.json بجوار اللوحة العاملة. يبدو هذا تثبيتًا جديدًا؛ تحقق من مجلد البيانات قبل تطبيق التحديث.",
       "binaryMissing": "لم يُعثر على ملف ثنائي لنظام {{platform}} في أحدث إصدار.",
       "folderNotWritableWindows": "لا تستطيع هذه العملية الكتابة في مجلد اللوحة: {{detail}}. جرّب التشغيل بصلاحيات المسؤول، أو انقل اللوحة خارج مجلد محمي.",

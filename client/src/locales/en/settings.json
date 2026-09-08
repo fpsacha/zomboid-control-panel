@@ -192,7 +192,7 @@
       "packagedBuildDocker": "Self-update is only available in packaged builds. Pull the newer image and recreate the container: docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "No release info cached yet -- click Check for Updates first.",
-      "databaseUnreadable": "Panel database cannot be read before update: {{error}}.",
+      "databaseUnreadable": "Panel database cannot be read before update: {{error}}. Restart the panel first -- it automatically tries to recover db.json from its own backups in data/backups on startup.",
       "databaseMissing": "No data/db.json was found beside the running panel. This looks like a fresh install; verify the data folder before applying the update.",
       "binaryMissing": "No {{platform}} binary was found in the latest release.",
       "folderNotWritableWindows": "Panel folder is not writable by this process: {{detail}}. Try running as Administrator, or move the panel out of a protected folder.",

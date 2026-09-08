@@ -189,7 +189,7 @@
       "packagedBuildDocker": "Mizajou otomatik disponib sèlman nan vèsyon pake. Rale nouvo imaj la epi kreye kontenè a ankò: docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Pa gen enfòmasyon vèsyon nan kach la ankò. Klike sou Tcheke Mizajou an premye.",
-      "databaseUnreadable": "Panel la pa kapab li baz done a anvan mizajou a: {{error}}.",
+      "databaseUnreadable": "Panel la pa kapab li baz done a anvan mizajou a: {{error}}. Redemare panel la anvan. Lè li demare, li eseye otomatikman restore db.json soti nan pwòp backup li yo nan data/backups.",
       "databaseMissing": "Pa jwenn data/db.json bò kote panel la k ap fonksyone. Sa sanble ak yon nouvo enstalasyon; verifye dosye done a anvan ou aplike mizajou a.",
       "binaryMissing": "Pa jwenn binè {{platform}} nan dènye vèsyon an.",
       "folderNotWritableWindows": "Pwosesis sa a pa kapab ekri nan dosye panel la: {{detail}}. Eseye lanse panel la kòm administratè oswa deplase l deyò yon dosye pwoteje.",

@@ -244,7 +244,7 @@
       "packagedBuildDocker": "La actualización automática solo está disponible en versiones empaquetadas. Descarga la imagen más reciente y vuelve a crear el contenedor: docker compose pull && docker compose up -d.",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "Todavía no hay información de versión en caché. Haz clic primero en Buscar actualizaciones.",
-      "databaseUnreadable": "No se puede leer la base de datos del panel antes de actualizar: {{error}}.",
+      "databaseUnreadable": "No se puede leer la base de datos del panel antes de actualizar: {{error}}. Reinicia primero el panel: al iniciar, intenta recuperar automáticamente db.json desde sus propias copias de seguridad en data/backups.",
       "databaseMissing": "No se encontró data/db.json junto al panel en ejecución. Parece una instalación nueva; comprueba la carpeta de datos antes de aplicar la actualización.",
       "binaryMissing": "No se encontró ningún binario de {{platform}} en la última versión.",
       "folderNotWritableWindows": "Este proceso no puede escribir en la carpeta del panel: {{detail}}. Intenta ejecutar el panel como administrador o muévelo fuera de una carpeta protegida.",

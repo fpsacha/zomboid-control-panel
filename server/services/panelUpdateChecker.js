@@ -1832,7 +1832,17 @@ export class PanelUpdateChecker {
           blockerDetails,
           "updates.preflight.databaseUnreadable",
           { error: err.message },
-          `Panel database cannot be read before update: ${err.message}.`,
+          // Every other blocker in this function names a concrete operator
+          // action; this one used to just dump the raw parse error with
+          // nothing to do about it. Restarting is the real, verified fix:
+          // getDb() (database/init.js) only attempts recovery from the
+          // backup ring once, on the FIRST call after process start (guarded
+          // by `if (!db)`) -- a corruption discovered here, mid-run, by this
+          // preflight check's own fresh read has never gone through that
+          // path yet, so a restart is not a generic "have you tried turning
+          // it off and on again" but the one action that actually invokes
+          // the recovery this codebase already has.
+          `Panel database cannot be read before update: ${err.message}. Restart the panel first -- it automatically tries to recover db.json from its own backups in data/backups on startup.`,
         );
       }
     } else {

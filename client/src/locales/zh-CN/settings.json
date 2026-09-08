@@ -244,7 +244,7 @@
       "packagedBuildDocker": "自动更新仅适用于打包版本。请拉取新镜像并重新创建容器：docker compose pull && docker compose up -d。",
       "dockerNotChecked": "Docker updates are applied by a separate update controller container. The panel does not run its own preflight checks (disk space, permissions, etc.) for this mode -- those are the controller's responsibility.",
       "noReleaseInfo": "尚未缓存版本信息，请先点击“检查更新”。",
-      "databaseUnreadable": "更新前无法读取面板数据库：{{error}}。",
+      "databaseUnreadable": "更新前无法读取面板数据库：{{error}}。请先重启面板：启动时它会自动尝试从 data/backups 中的自身备份恢复 db.json。",
       "databaseMissing": "运行中的面板旁未找到 data/db.json。这看起来像是全新安装，请在应用更新前确认数据文件夹。",
       "binaryMissing": "最新版本中未找到 {{platform}} 二进制文件。",
       "folderNotWritableWindows": "此进程无法写入面板文件夹：{{detail}}。请尝试以管理员身份运行，或将面板移出受保护的文件夹。",
