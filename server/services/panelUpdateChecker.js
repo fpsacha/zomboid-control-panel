@@ -119,7 +119,20 @@ export function createUpdateDataBackup(dataPaths, version, fsModule = fs) {
   const dbPath = dataPaths?.dbPath;
   if (!dbPath || !fsModule.existsSync(dbPath)) return null;
   const safeVersion = String(version || "unknown").replace(/[^a-zA-Z0-9._-]/g, "_");
-  const backupPath = `${dbPath}.pre-update-${safeVersion}-${Date.now()}`;
+  const baseBackupPath = `${dbPath}.pre-update-${safeVersion}-${Date.now()}`;
+  // Same collision-suffix convention as every other timestamp-named backup
+  // in this codebase (configBackup.js, autoExportPlayer, world backups,
+  // the pre-import snapshot). Date.now() is millisecond-resolution, and
+  // this function's only caller (POST /api/panel/restart, server/index.js)
+  // runs it BEFORE checker.isApplying is set -- a double-submit of that
+  // request (the exact trigger already guarded against for the pre-import
+  // snapshot elsewhere in this codebase) can reach this twice before either
+  // request's copy completes, computing the identical path both times. The
+  // second renameSync would otherwise silently replace the first snapshot.
+  let backupPath = baseBackupPath;
+  for (let collision = 2; fsModule.existsSync(backupPath); collision++) {
+    backupPath = `${baseBackupPath}-${collision}`;
+  }
   const tempPath = `${backupPath}.tmp`;
   fsModule.copyFileSync(dbPath, tempPath);
   try {

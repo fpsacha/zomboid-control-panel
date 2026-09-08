@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -185,6 +185,63 @@ describe("pre-update database backup lifecycle around a real bundle transaction"
     // The database was never touched -- still exactly the pre-update
     // content, with no restore call needed or made.
     expect(fs.readFileSync(dbPath, "utf8")).toBe(originalDbContent);
+  });
+});
+
+describe("createUpdateDataBackup() -- same-millisecond collision", () => {
+  let dir;
+
+  afterEach(() => {
+    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  // 2026-09-08, kevin-third-instance-ms-named-artifacts sweep: this is the
+  // ONE writer in that sweep that turned out to be genuinely reachable --
+  // its only caller (POST /api/panel/restart, server/index.js) runs it
+  // BEFORE checker.isApplying is set, so a double-submit of that request
+  // (the exact trigger already guarded against for the pre-import snapshot
+  // elsewhere in this codebase) can call this twice before either request's
+  // copy completes. Without the fix, the second call computes the IDENTICAL
+  // path (same version, same Date.now() millisecond) and its renameSync
+  // silently replaces the first snapshot -- the panel's only safety net for
+  // its own database during a self-update, gone with no error anywhere.
+  it("two backups of the same version in the same millisecond get distinct names, and neither overwrites the other", () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-update-db-collision-"));
+    const dbPath = path.join(dir, "db.json");
+    fs.writeFileSync(dbPath, "version 1");
+
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234567890123);
+    try {
+      const first = createUpdateDataBackup({ dbPath }, "2.0.0");
+      expect(first).toBeTruthy();
+
+      fs.writeFileSync(dbPath, "version 2");
+      const second = createUpdateDataBackup({ dbPath }, "2.0.0");
+      expect(second).toBeTruthy();
+
+      expect(second).not.toBe(first);
+      expect(fs.readFileSync(first, "utf8")).toBe("version 1");
+      expect(fs.readFileSync(second, "utf8")).toBe("version 2");
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it("a third collision in the same millisecond still gets its own distinct name", () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-update-db-collision-"));
+    const dbPath = path.join(dir, "db.json");
+    fs.writeFileSync(dbPath, "v1");
+
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234567890123);
+    try {
+      const first = createUpdateDataBackup({ dbPath }, "2.0.0");
+      const second = createUpdateDataBackup({ dbPath }, "2.0.0");
+      const third = createUpdateDataBackup({ dbPath }, "2.0.0");
+
+      expect(new Set([first, second, third]).size).toBe(3);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
 
