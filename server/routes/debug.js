@@ -2514,6 +2514,7 @@ export async function getServerProcessState(
 
   if (typeof serverManager.checkServerRunning === "function") {
     const running = await withTimeout(
+      // eslint-disable-next-line local/no-fail-open-check-server-running -- already fail-closed on its own terms: the typeof check below converts anything that isn't a real boolean into { running: null, scanFailed: true } before returning, and this function's only two callers are both read-only diagnostics routes in this file -- nothing destructive is gated on the result.
       Promise.resolve().then(() => serverManager.checkServerRunning()),
       timeoutMs,
       null,

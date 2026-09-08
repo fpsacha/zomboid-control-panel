@@ -504,6 +504,7 @@ export class RconService extends EventEmitter {
       try {
         if (this.serverManager) {
           try {
+            // eslint-disable-next-line local/no-fail-open-check-server-running -- advisory only: the boolean only selects which log line is printed below ("attempting connection" vs "probing RCON port anyway"); the real RCON connection attempt happens unconditionally right after, in every branch.
             const isRunning = await this.serverManager.checkServerRunning();
             if (isRunning) {
               log.info("Server is running, attempting connection...");
@@ -895,6 +896,7 @@ export class RconService extends EventEmitter {
       let timeoutId;
       try {
         // Add a shorter timeout for the server check to avoid long waits
+        // eslint-disable-next-line local/no-fail-open-check-server-running -- advisory only: true/false/error/timeout all fall through to the same "attempt the real connection anyway" path below; the boolean only sets a soft this.connected hint and picks a debug log line.
         const checkPromise = this.serverManager.checkServerRunning();
         const timeoutPromise = new Promise((_, reject) => {
           timeoutId = setTimeout(
