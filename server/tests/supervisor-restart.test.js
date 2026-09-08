@@ -107,6 +107,16 @@ using System.IO;
 // exits with the chosen code -- so a test can script a whole run history
 // ("crash, crash, stay up, crash, clean exit") without touching the real
 // panel binary.
+//
+// start-bat-never-captures-the-launched-panels-own-output: extra-stdout.txt
+// is a THIRD, strictly opt-in indexed file (same one-line-per-invocation,
+// last-line-repeats convention as the two above) -- absent for every
+// existing test, so it changes nothing about their output. When present, its
+// line for this invocation is printed BEFORE the "stub invocation N..."
+// line, standing in for a real panel's own winston console output (e.g. the
+// "Update startup handshake failed [...]" message this card's whole point is
+// to capture) so a test can assert Start.bat's new capture actually contains
+// it, without adding any always-on noise other tests would have to filter.
 class Stub {
   static int Main() {
     string dir = AppDomain.CurrentDomain.BaseDirectory;
@@ -119,8 +129,10 @@ class Stub {
 
     int code = ReadIndexed(Path.Combine(dir, "exit-codes.txt"), invocation, 0);
     int sleepMs = ReadIndexed(Path.Combine(dir, "sleep-ms.txt"), invocation, 0);
+    string extraLine = ReadIndexedString(Path.Combine(dir, "extra-stdout.txt"), invocation);
 
     if (sleepMs > 0) System.Threading.Thread.Sleep(sleepMs);
+    if (extraLine != null) Console.WriteLine(extraLine);
     Console.WriteLine("stub invocation " + invocation + " exiting with code " + code);
     return code;
   }
@@ -132,6 +144,14 @@ class Stub {
     int i = index < lines.Length ? index : lines.Length - 1;
     int val;
     return int.TryParse(lines[i].Trim(), out val) ? val : fallback;
+  }
+
+  static string ReadIndexedString(string path, int index) {
+    if (!File.Exists(path)) return null;
+    var lines = File.ReadAllLines(path);
+    if (lines.Length == 0) return null;
+    int i = index < lines.Length ? index : lines.Length - 1;
+    return lines[i];
   }
 }
 `;
@@ -1056,6 +1076,101 @@ describe.skipIf(!!skipReason)(
         expect(log).not.toMatch(/hash_unverifiable/i);
         expect(log).not.toMatch(/MISMATCH/i);
         expect(log).toMatch(/Apply: bundle activated/i);
+      },
+      75000,
+    );
+
+    // start-bat-never-captures-the-launched-panels-own-output, god-dispatched
+    // 2026-09-08, item A (the writer half of GH#149's diagnosis; d9b014b5
+    // already widened the reader). Before this, "%INSTALL_DIR%!TARGET!" ran
+    // with no redirection at all, so nothing the freshly-swapped binary
+    // printed -- including index.js's own "Update startup handshake failed
+    // [<code>]: <message>" line, which winston's Console transport puts on
+    // STDOUT -- ever reached supervisor.log. Uses extra-stdout.txt (added to
+    // STUB_SOURCE above) to stand in for that exact message.
+    it(
+      "captures the freshly-swapped binary's own stdout into supervisor.log during the apply handshake window",
+      async () => {
+        const dir = freshScenarioDir("capture-apply-handshake-output");
+        await writeStartBatInto(dir);
+        setupStub(dir, [76], [0]);
+        setupPendingUpdate(dir);
+        fs.writeFileSync(
+          path.join(dir, "extra-stdout.txt"),
+          "Update startup handshake failed [version_mismatch]: staged bundle targets a different major version. Journal: update-bundle.json",
+        );
+
+        const result = await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          140000,
+        );
+
+        const log = readSupervisorLog(dir);
+        expect(log).toMatch(
+          /Update startup handshake failed \[version_mismatch\]: staged bundle targets a different major version/,
+        );
+        // Sits inside the launch window this invocation owns, not smeared
+        // across an adjacent one -- between ITS OWN "Launching" and "Panel
+        // exited" stamps, not merely present anywhere in the file.
+        const launchIdx = log.indexOf("Launching ZomboidControlPanel.exe");
+        const captureIdx = log.indexOf("Update startup handshake failed");
+        const exitIdx = log.indexOf("Panel exited with code 76");
+        expect(launchIdx).toBeGreaterThan(-1);
+        expect(captureIdx).toBeGreaterThan(launchIdx);
+        expect(exitIdx).toBeGreaterThan(captureIdx);
+        // The capture must never come at the cost of the real exit code --
+        // 76 still reaches the SAME rollback path it would have taken
+        // unwrapped (APPLYING still present, not 75/78, so :rollback_update
+        // fires exactly as it does in every other rollback scenario in this
+        // file).
+        expect(log).toMatch(/startup handshake failed; rolling back bundle/i);
+      },
+      155000,
+    );
+
+    // start-bat-never-captures-the-launched-panels-own-output, god-dispatched
+    // 2026-09-08, item B ("cost me an hour personally"): :do_rename's client-
+    // dist backup and activation moves used to stamp ONLY on failure, so a
+    // successful run left nothing in supervisor.log between step 1's
+    // "Apply: backing up ZomboidControlPanel.exe..." and step 4's "Apply:
+    // renaming..." -- indistinguishable from the client-dist step never
+    // having run at all. This is exactly the read that cost god an hour,
+    // corrected only by `git show v1.2.15:build.js`.
+    it(
+      "stamps the client-dist backup and activation steps even on success, not only on failure",
+      async () => {
+        const dir = freshScenarioDir("do-rename-success-stamps");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        setupPendingUpdate(dir);
+
+        await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          60000,
+        );
+
+        const log = readSupervisorLog(dir);
+        const exeBackupIdx = log.indexOf(
+          "Apply: backing up ZomboidControlPanel.exe to ZomboidControlPanel.exe.bundle-previous",
+        );
+        const clientBackupIdx = log.indexOf(
+          "Apply: backing up live frontend to its previous-version backup",
+        );
+        const clientActivateIdx = log.indexOf("Apply: activating staged frontend");
+        const renameIdx = log.indexOf("Apply: renaming ZomboidControlPanel.exe.new to ZomboidControlPanel.exe");
+
+        expect(exeBackupIdx).toBeGreaterThan(-1);
+        expect(clientBackupIdx).toBeGreaterThan(-1);
+        expect(clientActivateIdx).toBeGreaterThan(-1);
+        expect(renameIdx).toBeGreaterThan(-1);
+        // In the same order :do_rename actually performs them -- proves
+        // these are the step-boundary stamps, not some unrelated line that
+        // happens to contain the same words.
+        expect(exeBackupIdx).toBeLessThan(clientBackupIdx);
+        expect(clientBackupIdx).toBeLessThan(clientActivateIdx);
+        expect(clientActivateIdx).toBeLessThan(renameIdx);
       },
       75000,
     );

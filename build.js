@@ -533,8 +533,86 @@ echo.
   call :stamp "Launching !TARGET!"
   echo Launching !TARGET!
   echo.
-  "%INSTALL_DIR%!TARGET!"
-  set "EXITCODE=!ERRORLEVEL!"
+  rem start-bat-never-captures-the-launched-panels-own-output, god-dispatched
+  rem 2026-09-08 (GH#149 item 2, the writer half -- Dwight's d9b014b5 widened
+  rem the READER, readMostRecentApplyLog(), to also surface logs/error.log's
+  rem tail; nothing captured the panel's own console output into
+  rem supervisor.log itself before this). index.js's "Update startup
+  rem handshake failed [<code>]: <message>" line goes through winston, which
+  rem (see server/utils/logger.js) prints EVERY level including error to
+  rem STDOUT via its Console transport (no stderrLevels configured) -- so
+  rem tee-ing this launch's stdout into %LOG_FILE% puts the exact
+  rem version_mismatch/invalid_bundle code and message right next to the
+  rem "Launching"/"Panel exited" stamps bracketing it, with zero changes
+  rem needed on the Node side.
+  rem
+  rem Scoped to ONLY the update-apply handshake window (an "%APPLYING%"
+  rem marker present at launch -- this iteration's own :apply_update just
+  rem set it, or a previous attempt's handshake never cleared it) rather
+  rem than every ordinary launch: a panel that starts cleanly runs for days
+  rem as a long-lived server, and tee-ing its ENTIRE lifetime of console
+  rem chatter (RCON activity, scheduled tasks, ...) would be unbounded
+  rem memory growth in the wrapping powershell.exe AND would bloat
+  rem supervisor.log on every single restart, not just update-related ones
+  rem -- disproportionate to what this card actually asked for ("a panel
+  rem that exits 76 DURING APPLY"). An ordinary launch keeps the exact bare
+  rem invocation this file has always used, unchanged, zero added risk.
+  rem
+  rem Verified empirically under real Windows (csc.exe stub, not reasoned
+  rem from the PowerShell docs alone -- several of the choices below only
+  rem surfaced by actually running it):
+  rem   - Piping through Tee-Object (or anything) in CMD ITSELF would hand
+  rem     %ERRORLEVEL% to the pipe's LAST command, not the panel -- exactly
+  rem     the risk god flagged. The pipe instead lives ENTIRELY inside one
+  rem     powershell -Command invocation, using $LASTEXITCODE (which native-
+  rem     command invocation sets and Tee-Object/ForEach-Object do not
+  rem     disturb), then 'exit $LASTEXITCODE' so the OUTER cmd.exe capture
+  rem     (this file's own existing 'set EXITCODE=!ERRORLEVEL!' below) sees
+  rem     the real panel exit code untouched. Confirmed byte-identical for
+  rem     0/75/76/78 and an ordinary crash code.
+  rem   - A launch that never starts at all (corrupt/blocked exe) leaves
+  rem     $LASTEXITCODE UNSET, which 'exit $LASTEXITCODE' turns into 0 --
+  rem     silently reads as "clean shutdown" and never relaunches. Wrapped
+  rem     in try/catch with an explicit '$code = 1' fallback so this matches
+  rem     cmd's own baseline (a direct invocation of the same broken exe
+  rem     also yields ERRORLEVEL 1) instead of a false "exited cleanly".
+  rem   - Merging stderr into the pipe (2>&1, PowerShell's own operator, not
+  rem     cmd's) makes PowerShell wrap every native stderr LINE as an
+  rem     ErrorRecord and print an ugly multi-line "NativeCommandError"
+  rem     block for it, on the live console too -- worse UX than today for
+  rem     any stderr output at all. Left unmerged: stdout is tee'd (where
+  rem     the winston message actually is), stderr still passes straight
+  rem     through to the real console exactly as before, unredirected.
+  rem   - Tee-Object on Windows PowerShell 5.1 (the "powershell" this file
+  rem     has always invoked, NOT the newer "pwsh") has no -Encoding
+  rem     parameter at all -- its fixed default is UTF-16, which corrupts
+  rem     when interleaved into supervisor.log's existing single-byte
+  rem     content from :stamp's plain 'echo >>'. Captured into a bounded
+  rem     queue instead and written with a single explicit
+  rem     'Add-Content -Encoding ASCII' call, matching :stamp's own bytes.
+  rem   - '$capturedLines = & exe | Tee-Object ...' (assigning the whole
+  rem     pipeline) suppresses PowerShell's own default host display --
+  rem     the user's console would go SILENT for the entire launch,
+  rem     including the "ready" URL line this file promises above. Left the
+  rem     pipeline's own output unassigned (ForEach-Object side-effects into
+  rem     the queue instead) so it still auto-displays live, confirmed by
+  rem     polling the capture file's line count while a slow-printing stub
+  rem     ran and seeing it grow incrementally, not all at once at exit.
+  rem   - Bounded to the last 200 lines (a Queue, not a growing list) so
+  rem     even an update whose freshly-swapped binary happens to run for a
+  rem     long time before finally failing does not turn this into an
+  rem     unbounded capture -- supervisor.log itself still has no rotation
+  rem     of its own (unchanged; matching it, not inventing a new policy),
+  rem     but this new per-launch contribution is capped regardless.
+  if exist "%APPLYING%" (
+    set "LAUNCH_TARGET=%INSTALL_DIR%!TARGET!"
+    set "CAPTURE_LOG=%LOG_FILE%"
+    powershell -NoProfile -Command "$q = New-Object System.Collections.Generic.Queue[string]; try { & $env:LAUNCH_TARGET | ForEach-Object { $_; $q.Enqueue([string]$_); if ($q.Count -gt 200) { [void]$q.Dequeue() } }; $code = $LASTEXITCODE } catch { $code = 1 }; try { if ($q.Count -gt 0) { Add-Content -Path $env:CAPTURE_LOG -Value ($q -join [Environment]::NewLine) -Encoding ASCII } } catch { }; exit $code"
+    set "EXITCODE=!ERRORLEVEL!"
+  ) else (
+    "%INSTALL_DIR%!TARGET!"
+    set "EXITCODE=!ERRORLEVEL!"
+  )
   call :stamp "Panel exited with code !EXITCODE!"
 
   rem Exit code 75 = panel requested restart-for-update.
@@ -931,6 +1009,29 @@ rem ============================================================
 
 :do_rename
   if exist "%CLIENT_LIVE%" (
+    rem start-bat-never-captures-the-launched-panels-own-output, god-
+    rem dispatched 2026-09-08 (item B, "cost me an hour personally"): this
+    rem step and the activation move below used to stamp ONLY on failure --
+    rem so a supervisor.log read on the happy path shows nothing between
+    rem step 1's "Apply: backing up %BASE_EXE%..." and step 4's "Apply:
+    rem renaming !STAGED_NAME!..." stamps, exactly matching step 1/4's own
+    rem style (a stamp naming the step BEFORE attempting it) so this step's
+    rem presence in the log no longer depends on it having failed. A log
+    rem silent on success cannot be used to prove a step ran, and someone
+    rem WILL try -- god did, within the hour, misread the silence as "the
+    rem client dist was never swapped," and had to be corrected by
+    rem 'git show v1.2.15:build.js'. Message text deliberately does NOT
+    rem interpolate %CLIENT_LIVE%/%CLIENT_BACKUP%/!STAGED_CLIENT! themselves
+    rem (unlike this step's own move command two lines below, which must)
+    rem -- those are arbitrary, operator-controlled full paths (INSTALL_DIR
+    rem plus whatever the journal names), and step 1/4's own stamps only
+    rem ever interpolate short, fixed literal filenames (BASE_EXE,
+    rem BIN_BACKUP, STAGED_NAME) for exactly this reason: an install path
+    rem containing a cmd.exe metacharacter, once %-expanded, is re-parsed
+    rem by cmd rather than treated as an opaque string, which could break
+    rem this stamp's own quoting. A fixed, generic message names the step
+    rem just as unambiguously without that risk.
+    call :stamp "Apply: backing up live frontend to its previous-version backup"
     rem god-dispatched, 2026-09-08 (harden-updater-fileops #3): same fix as
     rem the exe backup above -- was >nul 2>&1, now mirrors the staged-client
     rem activation move below.
@@ -942,6 +1043,7 @@ rem ============================================================
     )
     set "CLIENT_BACKUP_MADE=1"
   )
+  call :stamp "Apply: activating staged frontend"
   move "!STAGED_CLIENT!" "%CLIENT_LIVE%" >>"%LOG_FILE%" 2>&1
   if errorlevel 1 (
     call :stamp "Apply: could not activate staged frontend [frontend_swap_failed]"
