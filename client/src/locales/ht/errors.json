@@ -170,7 +170,6 @@
   "STATS_MODE_REQUIRED": "Mòd obligatwa",
   "STATS_INVALID_MODE": "Mòd envalid. Valid: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Chan obligatwa manke: steamcmdPath, installPath",
-  "STEAM_UPDATE_SERVER_RUNNING": "Sèvè a ap kouri kounye a. Tanpri sispann sèvè a anvan w mete l ajou.",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Gen yon operasyon Steam k ap fèt deja pou sèvè sa a. Tanpri tann li fini.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Chemen enstalasyon envalid",
   "INVALID_PATH": "Chemen envalid",

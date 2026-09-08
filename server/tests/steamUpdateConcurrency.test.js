@@ -48,7 +48,28 @@ vi.mock("../database/init.js", () => ({
   setSetting: (...args) => setSettingMock(...args),
   getSetting: (...args) => getSettingMock(...args),
   getActiveServer: vi.fn(async () => null),
+  getServers: vi.fn(async () => []),
 }));
+
+// steamcmd-routes-running-check, 2026-09-08: /steam-update's running-check
+// no longer reads `req.app.get("serverManager")` (that was the wrong-target
+// Convention A this card fixed) -- it now calls checkSpecificServerStopped()
+// via a throwaway ServerManager instance's real host scan. Default to "no PZ
+// processes anywhere" so this file's own concurrency race (unrelated to the
+// running-check) is what's actually under test, not a real OS scan.
+const scanHostForServerProcesses = vi.fn(async () => ({
+  scanFailed: false,
+  matched: [],
+}));
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
 
 const { default: router } = await import("../routes/server.js");
 

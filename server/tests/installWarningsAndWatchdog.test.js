@@ -29,7 +29,30 @@ vi.mock("../database/init.js", () => ({
   setSetting: vi.fn(async () => {}),
   logServerEvent: vi.fn(async () => {}),
   getActiveServer: vi.fn(async () => null),
+  getServers: vi.fn(async () => []),
 }));
+
+// steamcmd-routes-running-check, 2026-09-08: POST /install now calls
+// checkSpecificServerStopped() (via resolveTargetServerForRunningCheck),
+// which scans the whole host for real via a throwaway ServerManager
+// instance. Keep scoreServerProcessOwnership() real (importActual) and only
+// replace the host scan, same pattern as deleteFilesGuards.test.js -- these
+// tests are about install-warnings/watchdog behavior, not this guard, so
+// default to "no PZ processes anywhere" (the check passes through) rather
+// than hitting a real OS process scan on every test.
+const scanHostForServerProcesses = vi.fn(async () => ({
+  scanFailed: false,
+  matched: [],
+}));
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
 
 // Real writeFileAtomic by default (writes to real temp-directory paths
 // below) -- each test overrides it only for the one call it wants to fail,

@@ -647,9 +647,6 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js -- POST /api/server/steam-update, missing
    * steamcmdPath/installPath. */
   STEAM_UPDATE_MISSING_FIELDS: "STEAM_UPDATE_MISSING_FIELDS",
-  /** server/routes/server.js -- POST /api/server/steam-update, the target
-   * server process is currently running. */
-  STEAM_UPDATE_SERVER_RUNNING: "STEAM_UPDATE_SERVER_RUNNING",
   /** server/routes/server.js -- POST /api/server/steam-update, another Steam
    * operation already running for this server. See STEAM_OPERATION_IN_
    * PROGRESS_PATH above for why this stays a separate code. */

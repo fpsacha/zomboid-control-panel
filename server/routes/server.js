@@ -2740,6 +2740,30 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     const { zomboidPath, serverConfigPath, usesEnvironmentDataPath } =
       resolveZomboidPaths(installPath, zomboidDataPath);
 
+    // steamcmd-routes-running-check, 2026-09-08: installPath can point at an
+    // EXISTING install with a server already running there (a re-run, a
+    // repair, or simply the wrong path) -- SteamCMD writing over live game
+    // files, and this route's own later writeFileAtomic() calls rewriting a
+    // running JVM's INI/start scripts out from under it, is exactly the
+    // "wholesale overwrite while running" class serverFiles.js's own
+    // requireStoppedForLocalConfigMutation exists to block, except this
+    // route had no guard at all. See resolveTargetServerForRunningCheck's
+    // own comment for why Convention A (the shared serverManager singleton)
+    // would answer the wrong question here.
+    const installTargetServer = await resolveTargetServerForRunningCheck(
+      installPath,
+      { serverName, zomboidDataPath },
+    );
+    const installNotStoppedError = await checkSpecificServerStopped(
+      installTargetServer,
+      "installing to this path",
+    );
+    if (installNotStoppedError) {
+      return res
+        .status(installNotStoppedError.status)
+        .json(installNotStoppedError.body);
+    }
+
     try {
       ensureWritableDirectory(installPath);
     } catch (directoryError) {
@@ -3378,6 +3402,29 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       });
     }
 
+    // steamcmd-routes-running-check, 2026-09-08: unlike /install, this
+    // route's own precondition just above GUARANTEES server files already
+    // exist at installPath -- exactly the state an existing, possibly
+    // running server is in. It then unconditionally rewrites the INI and
+    // both start scripts via writeFileAtomic() below with nothing standing
+    // in the way. See resolveTargetServerForRunningCheck's own comment for
+    // why the shared serverManager singleton (Convention A) would answer
+    // the wrong question for a route whose target is an arbitrary
+    // caller-supplied path, not necessarily the active server.
+    const quickSetupTargetServer = await resolveTargetServerForRunningCheck(
+      installPath,
+      { serverName, zomboidDataPath },
+    );
+    const quickSetupNotStoppedError = await checkSpecificServerStopped(
+      quickSetupTargetServer,
+      "running quick setup on this path",
+    );
+    if (quickSetupNotStoppedError) {
+      return res
+        .status(quickSetupNotStoppedError.status)
+        .json(quickSetupNotStoppedError.body);
+    }
+
     try {
       ensureWritableDirectory(installPath);
     } catch (directoryError) {
@@ -3977,36 +4024,33 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
       return res.status(400).json({ error: "Invalid install path", code: ErrorCode.INSTALL_PATH_INVALID });
     }
 
-    // Check if server is running - cannot update while running. Fail closed:
-    // this used to swallow a failed detection scan and continue as if the
-    // server were stopped ("user may be updating a different server"), but
-    // checkServerRunning() throwing (or resolving scanFailed) means we
-    // genuinely don't know the process state — and running SteamCMD
-    // `validate` against a live install's files is exactly what this check
-    // exists to prevent. Same doctrine as configMutationGuard.js's
-    // SERVER_STATE_UNKNOWN response.
-    const serverManager = req.app.get("serverManager");
-    try {
-      const processDetails = await serverManager.getServerProcessDetails();
-      if (processDetails.scanFailed) {
-        return res.status(503).json({
-          error: "Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server. Check the panel's log for the error. If this keeps happening, something on this host (antivirus, a full disk, or a missing system tool) may be blocking detection.",
-          code: ErrorCode.SERVER_STATE_UNKNOWN,
-        });
-      }
-      if (processDetails.running) {
-        return res.status(400).json({
-          error:
-            "Server is currently running. Please stop the server before updating.",
-          code: ErrorCode.STEAM_UPDATE_SERVER_RUNNING,
-        });
-      }
-    } catch (e) {
-      log.warn(`Could not verify server status before update: ${e.message}`);
-      return res.status(503).json({
-        error: "Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server. Check the panel's log for the error. If this keeps happening, something on this host (antivirus, a full disk, or a missing system tool) may be blocking detection.",
-        code: ErrorCode.SERVER_STATE_UNKNOWN,
-      });
+    // Check if server is running - cannot update while running.
+    //
+    // steamcmd-routes-running-check, 2026-09-08: this used to check
+    // `serverManager.getServerProcessDetails()` on the shared serverManager
+    // singleton -- scoped to whichever server serverManager itself has
+    // loaded, NOT necessarily the server at `installPath`, which arrives raw
+    // from req.body with no reload or reconciliation against it first. On a
+    // host managing more than one server, updating server B's installPath
+    // while serverManager has server A loaded checked A's running-state,
+    // completely unrelated to whether B (whose files SteamCMD is about to
+    // validate/overwrite) is running -- the identical shape
+    // checkSpecificServerStopped() itself had before this file's own
+    // 8f04b051, except here the wrong answer was a false GREEN LIGHT, not
+    // just a missing check. See resolveTargetServerForRunningCheck's own
+    // comment for the fix.
+    const steamUpdateTargetServer = await resolveTargetServerForRunningCheck(
+      installPath,
+      {},
+    );
+    const steamUpdateNotStoppedError = await checkSpecificServerStopped(
+      steamUpdateTargetServer,
+      "updating it",
+    );
+    if (steamUpdateNotStoppedError) {
+      return res
+        .status(steamUpdateNotStoppedError.status)
+        .json(steamUpdateNotStoppedError.body);
     }
 
     // Auto-download SteamCMD on Linux instead of hard-failing — see
@@ -4764,6 +4808,46 @@ export async function checkSpecificServerStopped(targetServer, actionLabel) {
     };
   }
   return null;
+}
+
+// Builds the `targetServer` checkSpecificServerStopped() needs for a route
+// that has no `servers`-table row to hand it directly -- /install,
+// /quick-setup and /steam-update all accept an arbitrary installPath from
+// req.body with zero binding to any configured server (confirmed: none of
+// the three calls addServer() or references a serverId; server rows with
+// their own installPath field are created by a wholly separate route in
+// routes/servers.js).
+//
+// 2026-09-08, steamcmd-routes-running-check card: all three used to answer
+// "is the server running" by checking whichever server the shared
+// `serverManager` singleton happens to have loaded (or, for /install and
+// /quick-setup, not checking at all) -- Convention A, correct only when the
+// caller already guarantees serverManager points at the request's own
+// installPath, which none of them did. Same wrong-target shape as
+// checkSpecificServerStopped() itself before this file's own 8f04b051 fix.
+//
+// If installPath happens to match an ALREADY-CONFIGURED server (the common
+// case: re-running steam-update, or quick-setup, against a server the
+// operator already registered), prefer that real row -- it carries the
+// authoritative lifecycleProvider (routing a systemd/openrc-managed server
+// through its own service-status check, not a raw process scan) and its own
+// real serverName/zomboidDataPath, both more trustworthy than whatever the
+// client happened to submit this request. Falls back to a synthetic
+// descriptor built from the request's own fields only when genuinely no
+// configured server matches -- a brand-new install this panel has never
+// registered, exactly the state /install's own first-time-setup case is in.
+async function resolveTargetServerForRunningCheck(installPath, fallback = {}) {
+  const resolvedPath = path.resolve(installPath);
+  const configuredServers = await getServers();
+  const matchedServer = configuredServers.find(
+    (s) => s.installPath && path.resolve(s.installPath) === resolvedPath,
+  );
+  if (matchedServer) return matchedServer;
+  return {
+    serverName: fallback.serverName,
+    zomboidDataPath: fallback.zomboidDataPath,
+    installPath,
+  };
 }
 
 // Delete server files (used when removing a server from panel with file deletion)

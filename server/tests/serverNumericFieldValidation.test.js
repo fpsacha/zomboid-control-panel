@@ -18,11 +18,32 @@ vi.mock("../database/init.js", () => ({
   setSetting: vi.fn(async () => {}),
   getSetting: vi.fn(async () => null),
   getActiveServer: vi.fn(async () => null),
+  getServers: vi.fn(async () => []),
 }));
 
 vi.mock("../routes/chunks.js", () => ({
   invalidateMapFolderScan: vi.fn(),
 }));
+
+// steamcmd-routes-running-check, 2026-09-08: /install and /quick-setup now
+// call checkSpecificServerStopped() (via resolveTargetServerForRunningCheck)
+// BEFORE the numeric-field validation this file exists to test, via a
+// throwaway ServerManager instance's real host scan. Same pattern as
+// deleteFilesGuards.test.js -- default to "no PZ processes anywhere" so
+// requests reach the numeric validation under test instead of a real OS scan.
+const scanHostForServerProcesses = vi.fn(async () => ({
+  scanFailed: false,
+  matched: [],
+}));
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
 
 const { default: router, requireIntInRange } = await import("../routes/server.js");
 

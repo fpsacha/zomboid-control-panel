@@ -170,7 +170,6 @@
   "STATS_MODE_REQUIRED": "模式为必填项",
   "STATS_INVALID_MODE": "模式无效。有效值：{{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "缺少必填字段：steamcmdPath、installPath",
-  "STEAM_UPDATE_SERVER_RUNNING": "服务器当前正在运行。更新前请先停止服务器。",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "此服务器已有 Steam 操作正在进行，请等待其完成。",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "安装路径无效",
   "INVALID_PATH": "路径无效",

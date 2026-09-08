@@ -170,7 +170,6 @@
   "STATS_MODE_REQUIRED": "Потрібно вказати режим",
   "STATS_INVALID_MODE": "Некоректний режим. Доступні: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Відсутні обов'язкові поля: steamcmdPath, installPath",
-  "STEAM_UPDATE_SERVER_RUNNING": "Сервер зараз працює. Зупиніть сервер перед оновленням.",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Операція Steam для цього сервера вже виконується. Зачекайте на її завершення.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Некоректний шлях інсталяції",
   "INVALID_PATH": "Некоректний шлях",

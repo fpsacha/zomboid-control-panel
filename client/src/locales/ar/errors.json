@@ -170,7 +170,6 @@
   "STATS_MODE_REQUIRED": "الوضع مطلوب",
   "STATS_INVALID_MODE": "وضع غير صالح. الصالح: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "حقول مطلوبة مفقودة: steamcmdPath, installPath",
-  "STEAM_UPDATE_SERVER_RUNNING": "الخادم يعمل حاليًا. يرجى إيقافه قبل التحديث.",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "هناك عملية Steam جارية بالفعل لهذا الخادم. يرجى انتظار اكتمالها.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "مسار التثبيت غير صالح",
   "INVALID_PATH": "مسار غير صالح",

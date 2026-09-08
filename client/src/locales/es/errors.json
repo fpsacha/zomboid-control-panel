@@ -170,7 +170,6 @@
   "STATS_MODE_REQUIRED": "Se requiere el modo",
   "STATS_INVALID_MODE": "Modo no válido. Válidos: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Faltan campos obligatorios: steamcmdPath, installPath",
-  "STEAM_UPDATE_SERVER_RUNNING": "El servidor está actualmente en ejecución. Detenlo antes de actualizar.",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Ya hay una operación de Steam en curso para este servidor. Espera a que finalice.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Ruta de instalación no válida",
   "INVALID_PATH": "Ruta no válida",
