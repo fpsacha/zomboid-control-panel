@@ -223,6 +223,7 @@
     "footerAutoUpdateDevMode": "Mizajou otomatik fonksyone sèlman nan vèsyon anpakte. Nan mòd devlopman, mete ajou soti nan git. W ap fonksyone nan Docker san kontwolè mizajou konfigire? Mete ajou ak docker compose pull && docker compose up -d.",
     "permissionDeniedWindows": "aksè refize pou ekri nan dosye panèl la. Relanse panèl la kòm Administratè oswa deplase l soti nan Program Files.",
     "permissionDeniedPosix": "aksè refize pou ekri nan dosye panèl la. Verifye pwopriyetè a ak pèmisyon ekriti pou itilizatè sèvis panèl la.",
+    "powershellUnavailable": "Sanble PowerShell bloke sou machin sa a (politik ekzekisyon, AppLocker, oswa Group Policy). Mekanis mizajou a depann de li pou verifye ak aplike fichye ki prepare yo. Mande administratè w la pou l pèmèt powershell.exe fonksyone pou aplikasyon sa a.",
     "helperLogHintWindows": "Si nouvo vèsyon an pa retounen anliy nan yon minit, verifye <code>{{path}}</code>. Ansyen helper yo ka gen jounal tou anba <code>%TEMP%</code>.",
     "helperLogHintPosix": "Si nouvo vèsyon an pa retounen anliy nan yon minit, verifye <code>{{path}}</code>. Pou enstalasyon systemd, verifye tou <code>journalctl -u zomboid-panel</code>.",
     "logPathUnavailable": "dosye jounal panèl la",

@@ -2482,6 +2482,9 @@ public static extern bool CloseHandle(System.IntPtr hObject);
    *   'permission'    — access denied on move/copy
    *   'no_helper_log' — no log found at all
    *   'unknown'       — log exists but doesn't match a known pattern
+   *   'powershell_unavailable' — a hash-check step got no output at all, and
+   *                     a follow-up probe confirmed PowerShell itself won't
+   *                     run (execution policy / AppLocker / Group Policy)
    *
    * Order matters: check permission before lock, and check AV signatures
    * first because "cannot find path" / "system cannot find the file" can
@@ -2543,13 +2546,25 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     // extends the client-side vocabulary, not a silent one.
     const supervisorTags = [
       ...helperLog.matchAll(
-        /\[(av_quarantine|version_mismatch|startup_handshake_failed|frontend_swap_failed|binary_swap_failed|bundle_apply_failed|rollback_failed)\]/gi,
+        /\[(av_quarantine|version_mismatch|startup_handshake_failed|frontend_swap_failed|binary_swap_failed|bundle_apply_failed|rollback_failed|powershell_unavailable)\]/gi,
       ),
     ].map((m) => m[1].toLowerCase());
     const lastSupervisorTag = supervisorTags[supervisorTags.length - 1];
     if (lastSupervisorTag === "av_quarantine") return "av_quarantine";
     if (lastSupervisorTag === "binary_swap_failed") return "rename_locked";
     if (lastSupervisorTag === "rollback_failed") return "rollback_failed";
+    // 2026-09-08, god-dispatched fix: generateStartBat()'s hash checks used
+    // to stamp [av_quarantine] unconditionally whenever the powershell hash
+    // command produced no output at all -- indistinguishable from a real
+    // hash mismatch, so an operator whose PowerShell is blocked (execution
+    // policy / AppLocker / Group Policy -- the exact v1.0.20 ASR/Defender
+    // shape spawnWindowsApplyHelper()'s own history documents, never
+    // revisited when the supervisor's outer script moved to cmd.exe) got
+    // sent at AV exclusions instead of the actual fix. The supervisor now
+    // probes with a trivial PowerShell command, ONLY after that refusal has
+    // already happened, and stamps this distinct tag when the probe ALSO
+    // comes back empty -- same refusal either way, precise reported cause.
+    if (lastSupervisorTag === "powershell_unavailable") return "powershell_unavailable";
 
     // Helper was blocked from running at all (ASR / AV / Group Policy).
     // The PRE-SPAWN sentinel line written by the main panel is there, but

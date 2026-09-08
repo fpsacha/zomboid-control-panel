@@ -168,6 +168,7 @@
     "permissionDenied": "access denied writing to the panel folder. Check the permissions for the account running the panel.",
     "permissionDeniedWindows": "access denied writing to the panel folder. Relaunch the panel as Administrator or move it out of Program Files.",
     "permissionDeniedPosix": "access denied writing to the panel folder. Check ownership and write permissions for the panel service user.",
+    "powershellUnavailable": "PowerShell appears to be blocked on this machine (execution policy, AppLocker, or Group Policy). The update mechanism depends on it to verify and apply the staged files. Ask your administrator to allow powershell.exe to run for this application.",
     "helperBlocked": "the update helper script was blocked from running (Windows Defender ASR, AppLocker, or Group Policy). The staged binary is still on disk.",
     "helperBlockedRecoveryLabel": "Recovery:",
     "helperBlockedRecovery": "close this panel and double-click <code>Start.bat</code> in:",

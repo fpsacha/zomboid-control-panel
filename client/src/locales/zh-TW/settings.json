@@ -278,6 +278,7 @@
     "footerAutoUpdateDevMode": "自動更新僅適用於打包版本。在開發模式下，請通過 git 更新。若在尚未設定更新控制器的 Docker 中執行，請使用 docker compose pull && docker compose up -d 進行更新。",
     "permissionDeniedWindows": "寫入面板資料夾時被拒絕訪問。請以管理員身份重新啟動面板，或將其移出 Program Files 資料夾。",
     "permissionDeniedPosix": "寫入面板資料夾時被拒絕訪問。請檢查面板服務使用者的所有權和寫入權限。",
+    "powershellUnavailable": "此電腦上的 PowerShell 似乎被封鎖執行（執行原則、AppLocker 或群組原則）。更新機制依賴它來驗證並套用已暫存的檔案。請管理員允許 powershell.exe 為此應用程式執行。",
     "helperLogHintWindows": "如果新版本在一分鐘內未恢復線上，請檢視 <code>{{path}}</code>。舊版輔助程式的日誌也可能位於 <code>%TEMP%</code> 下。",
     "helperLogHintPosix": "如果新版本在一分鐘內未恢復線上，請檢視 <code>{{path}}</code>。對於 systemd 安裝，還可以檢視 <code>journalctl -u zomboid-panel</code>。",
     "logPathUnavailable": "面板日誌目錄",

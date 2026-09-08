@@ -3486,6 +3486,7 @@ export interface PanelUpdateApplyResult {
     | "permission"
     | "no_helper_log"
     | "rollback_failed"
+    | "powershell_unavailable"
     | "unknown";
   // Only meaningful when likelyCause is "rollback_failed" -- see
   // isRollbackRetryLikely()'s doc comment in panelUpdateChecker.js. Absent

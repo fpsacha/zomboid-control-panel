@@ -727,7 +727,33 @@ rem ============================================================
   for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.binarySha256; if (-not $expected) { 'NOHASH' } else { try { $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($env:STAGED_NAME))).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_HASH_STATUS=%%F"
 
   if not "!STAGED_HASH_STATUS!"=="OK" (
-    if "!STAGED_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
+    if "!STAGED_HASH_STATUS!"=="" (
+      rem Empty means the powershell INVOCATION ITSELF produced no output --
+      rem the script's own try/catch already turns every OTHER failure (a
+      rem missing file, an unreadable journal, a real hash mismatch) into a
+      rem non-empty string, so empty specifically means "powershell did not
+      rem run", not "ran and found nothing". This used to fall straight into
+      rem the generic else below and get stamped [av_quarantine] regardless
+      rem -- same refusal, wrong reported cause, sending the operator at AV
+      rem exclusions instead of the actual fix. Probe with a trivial command,
+      rem ONLY here, AFTER the refusal has already happened on empty output:
+      rem this can only ever REFINE why we refused, never CAUSE a refusal,
+      rem so on a healthy install where powershell works fine this line
+      rem never runs at all. (The v1.0.20 ASR/Defender incident that made
+      rem spawnWindowsApplyHelper() switch its OUTER script to cmd.exe never
+      rem revisited the INNER powershell calls this supervisor still makes
+      rem -- this is that gap.)
+      set "PS_PROBE_RESULT="
+      for /f "usebackq delims=" %%Q in (\`powershell -NoProfile -Command "'PS_PROBE_OK'"\`) do set "PS_PROBE_RESULT=%%Q"
+      if "!PS_PROBE_RESULT!"=="PS_PROBE_OK" (
+        rem PowerShell itself works -- inconclusive why THIS specific
+        rem command returned nothing. Do not guess a more specific answer
+        rem than the existing, already-correct default.
+        call :stamp "Apply: staged binary hash check produced no output; a trivial PowerShell probe succeeded, so the cause is inconclusive -- refusing to apply [av_quarantine]"
+      ) else (
+        call :stamp "Apply: staged binary hash check produced no output, and a trivial PowerShell probe ALSO produced none -- PowerShell itself appears blocked (execution policy / AppLocker / Group Policy) -- refusing to apply [powershell_unavailable]"
+      )
+    ) else if "!STAGED_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
       call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [hash_unverifiable]"
     ) else (
       call :stamp "Apply: staged binary hash check [!STAGED_HASH_STATUS!] -- refusing to apply [av_quarantine]"
@@ -812,7 +838,20 @@ rem ============================================================
   for /f "usebackq delims=" %%F in (\`powershell -NoProfile -Command "$j = Get-Content -LiteralPath $env:JOURNAL -Raw | ConvertFrom-Json; $expected = $j.hashes.clientSha256; if (-not $expected) { 'NOHASH' } else { try { $root = (Get-Item -LiteralPath $env:STAGED_CLIENT).FullName.TrimEnd([char]92,[char]47); $pairs = @(Get-ChildItem -LiteralPath $root -Recurse -File | ForEach-Object { if (-not $_.FullName.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { throw 'root prefix mismatch: root=' + $root + ' fullname=' + $_.FullName }; $rel = $_.FullName.Substring($root.Length + 1).Replace([char]92,[char]47); $h = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.IO.File]::ReadAllBytes($_.FullName))).Replace('-','').ToLowerInvariant(); $rel + ':' + $h }); [System.Array]::Sort($pairs, [System.StringComparer]::Ordinal); $nul = [char]0; $nl = [char]10; $combined = ($pairs | ForEach-Object { $p = $_.Split(':',2); $p[0] + $nul + $p[1] + $nl }) -join ''; $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined); $actual = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)).Replace('-','').ToLowerInvariant(); if ($actual -ieq $expected) { 'OK' } else { 'MISMATCH actual=' + $actual + ' expected=' + $expected + ' root=' + $root + ' pairs={' + ($pairs -join ';') + '}' } } catch { 'UNVERIFIABLE ' + $_.Exception.Message.Replace('(','[').Replace(')',']').Replace('|',':') } }"\`) do set "STAGED_CLIENT_HASH_STATUS=%%F"
 
   if not "!STAGED_CLIENT_HASH_STATUS!"=="OK" (
-    if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
+    if "!STAGED_CLIENT_HASH_STATUS!"=="" (
+      rem Same reasoning as the staged-binary hash check above: empty means
+      rem powershell itself produced no output, not "ran and found nothing"
+      rem -- probe with a trivial command, only after the refusal already
+      rem happened, so this can only refine the reported cause, never cause
+      rem a refusal on a healthy install.
+      set "PS_PROBE_RESULT="
+      for /f "usebackq delims=" %%Q in (\`powershell -NoProfile -Command "'PS_PROBE_OK'"\`) do set "PS_PROBE_RESULT=%%Q"
+      if "!PS_PROBE_RESULT!"=="PS_PROBE_OK" (
+        call :stamp "Apply: staged frontend hash check produced no output; a trivial PowerShell probe succeeded, so the cause is inconclusive -- refusing to apply [av_quarantine]"
+      ) else (
+        call :stamp "Apply: staged frontend hash check produced no output, and a trivial PowerShell probe ALSO produced none -- PowerShell itself appears blocked (execution policy / AppLocker / Group Policy) -- refusing to apply [powershell_unavailable]"
+      )
+    ) else if "!STAGED_CLIENT_HASH_STATUS:~0,12!"=="UNVERIFIABLE" (
       call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [hash_unverifiable]"
     ) else (
       call :stamp "Apply: staged frontend hash check [!STAGED_CLIENT_HASH_STATUS!] -- refusing to apply [av_quarantine]"

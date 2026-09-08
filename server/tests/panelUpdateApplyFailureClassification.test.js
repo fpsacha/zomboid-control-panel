@@ -50,6 +50,26 @@ describe("classifyApplyFailure() recognises Supervisor v2's real, current wordin
     expect(checker.classifyApplyFailure(log, false)).toBe("av_quarantine");
   });
 
+  it("2026-09-08, god-dispatched fix: powershell_unavailable (a hash check that got no output, and a follow-up probe confirmed PowerShell itself won't run) maps to its own bucket, not av_quarantine", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 10:00:00] Supervisor v2 starting\n" +
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "[2026-09-08 10:00:06] Apply: staged binary hash check produced no output, and a trivial PowerShell probe ALSO produced none -- PowerShell itself appears blocked (execution policy / AppLocker / Group Policy) -- refusing to apply [powershell_unavailable]\n";
+
+    expect(checker.classifyApplyFailure(log, false)).toBe("powershell_unavailable");
+  });
+
+  it("the SAME empty-hash-output case, but the follow-up probe found PowerShell working, still stamps av_quarantine (inconclusive, not a guess)", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 10:00:00] Supervisor v2 starting\n" +
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "[2026-09-08 10:00:06] Apply: staged binary hash check produced no output; a trivial PowerShell probe succeeded, so the cause is inconclusive -- refusing to apply [av_quarantine]\n";
+
+    expect(checker.classifyApplyFailure(log, false)).toBe("av_quarantine");
+  });
+
   it("a Supervisor v2 code with no existing client-recognised bucket still falls through to 'unknown' -- a named gap, not a regression", () => {
     const checker = new PanelUpdateChecker();
     const log =

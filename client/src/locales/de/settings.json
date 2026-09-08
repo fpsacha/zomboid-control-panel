@@ -278,6 +278,7 @@
     "footerAutoUpdateDevMode": "Automatische Updates funktionieren nur in gepackten Builds. Im Dev-Modus aktualisiere über Git. Läuft der Panel in Docker ohne konfigurierten Update-Controller? Aktualisiere mit docker compose pull && docker compose up -d.",
     "permissionDeniedWindows": "Zugriff verweigert beim Schreiben in den Panel-Ordner. Starte das Panel als Administrator neu oder verschiebe es aus dem Ordner „Programme“.",
     "permissionDeniedPosix": "Zugriff verweigert beim Schreiben in den Panel-Ordner. Überprüfe Besitzer und Schreibrechte für den Benutzer, unter dem der Panel-Dienst läuft.",
+    "powershellUnavailable": "PowerShell scheint auf diesem Rechner blockiert zu sein (Ausführungsrichtlinie, AppLocker oder Gruppenrichtlinie). Der Update-Mechanismus benötigt es, um die bereitgestellten Dateien zu prüfen und anzuwenden. Bitte den Administrator, powershell.exe für diese Anwendung zuzulassen.",
     "helperLogHintWindows": "Falls die neue Version nicht innerhalb einer Minute wieder online ist, prüfe <code>{{path}}</code>. Ältere Helper-Versionen können außerdem Protokolle unter <code>%TEMP%</code> ablegen.",
     "helperLogHintPosix": "Falls die neue Version nicht innerhalb einer Minute wieder online ist, prüfe <code>{{path}}</code>. Bei systemd-Installationen zusätzlich <code>journalctl -u zomboid-panel</code> prüfen.",
     "logPathUnavailable": "das Panel-Protokollverzeichnis",

@@ -278,6 +278,7 @@
     "footerAutoUpdateDevMode": "La mise à jour automatique fonctionne uniquement pour les versions packagées. En mode développement, mettez à jour depuis git. Exécution dans Docker sans contrôleur de mise à jour configuré ? Mettez à jour avec docker compose pull && docker compose up -d.",
     "permissionDeniedWindows": "accès refusé lors de l'écriture dans le dossier du panneau. Relancez le panneau en tant qu'Administrateur ou déplacez-le hors de Program Files.",
     "permissionDeniedPosix": "accès refusé lors de l'écriture dans le dossier du panneau. Vérifiez le propriétaire et les permissions d'écriture de l'utilisateur du service du panneau.",
+    "powershellUnavailable": "PowerShell semble être bloqué sur cette machine (stratégie d'exécution, AppLocker ou stratégie de groupe). Le mécanisme de mise à jour en dépend pour vérifier et appliquer les fichiers préparés. Demandez à votre administrateur d'autoriser powershell.exe pour cette application.",
     "helperLogHintWindows": "Si la nouvelle version ne revient pas en ligne en une minute, consultez <code>{{path}}</code>. Les anciens helpers peuvent aussi avoir des journaux sous <code>%TEMP%</code>.",
     "helperLogHintPosix": "Si la nouvelle version ne revient pas en ligne en une minute, consultez <code>{{path}}</code>. Pour les installations systemd, consultez aussi <code>journalctl -u zomboid-panel</code>.",
     "logPathUnavailable": "le répertoire des journaux du panneau",

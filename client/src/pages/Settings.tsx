@@ -3206,6 +3206,15 @@ export default function Settings() {
                             </div>
                           )}
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
+                            "powershell_unavailable" && (
+                            <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
+                              <strong className="text-destructive-foreground">
+                                {t("updates.likelyCauseLabel")}
+                              </strong>{" "}
+                              {t("updates.powershellUnavailable")}
+                            </div>
+                          )}
+                          {panelUpdateStatus.lastApplyResult.likelyCause ===
                             "helper_blocked" && runtimeInfo?.family === "windows" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">

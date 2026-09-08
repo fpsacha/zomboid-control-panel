@@ -278,6 +278,7 @@
     "footerAutoUpdateDevMode": "La actualización automática solo funciona en compilaciones empaquetadas. En modo de desarrollo, actualiza desde git. ¿Se ejecuta en Docker sin el controlador de actualización configurado? Actualiza con docker compose pull && docker compose up -d.",
     "permissionDeniedWindows": "acceso denegado al escribir en la carpeta del panel. Vuelve a iniciar el panel como Administrador o muévelo fuera de Archivos de programa.",
     "permissionDeniedPosix": "acceso denegado al escribir en la carpeta del panel. Comprueba el propietario y los permisos de escritura del usuario del servicio del panel.",
+    "powershellUnavailable": "PowerShell parece estar bloqueado en este equipo (directiva de ejecución, AppLocker o directiva de grupo). El mecanismo de actualización depende de él para verificar y aplicar los archivos preparados. Pide a tu administrador que permita ejecutar powershell.exe para esta aplicación.",
     "helperLogHintWindows": "Si la nueva versión no vuelve a estar en línea en un minuto, revisa <code>{{path}}</code>. Los helpers antiguos también pueden dejar registros en <code>%TEMP%</code>.",
     "helperLogHintPosix": "Si la nueva versión no vuelve a estar en línea en un minuto, revisa <code>{{path}}</code>. En instalaciones con systemd, revisa también <code>journalctl -u zomboid-panel</code>.",
     "logPathUnavailable": "el directorio de registros del panel",
