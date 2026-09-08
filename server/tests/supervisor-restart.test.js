@@ -607,6 +607,55 @@ describe.skipIf(!!skipReason)(
     );
 
     it(
+      "2026-09-08, god-dispatched fix (preflight gap #3): falls back to logging in the install folder when logs\\ itself can't be created, instead of going dark for the whole run",
+      async () => {
+        // Real permission denial, not a name collision: deny (AD) --
+        // Append Data / Create Subdirectories -- to Everyone on the
+        // scenario dir, the exact right `mkdir logs` needs and the ONLY
+        // one denied (file writes elsewhere in this same dir, which the
+        // rest of this run still needs, are untouched). Same icacls
+        // technique this file already trusts for denyDelete() above, just
+        // a different permission bit for a different operation.
+        const dir = freshScenarioDir("logdir-mkdir-denied");
+        await writeStartBatInto(dir);
+        setupStub(dir, [0], [0]);
+        execFileSync("icacls.exe", [dir, "/deny", "*S-1-1-0:(AD)"], {
+          stdio: "ignore",
+        });
+
+        try {
+          // watchdog 80000, same as the other single-clean-launch scenario
+          // just above (no-hardcoded-url) -- identical shape, one launch,
+          // exit 0.
+          const result = await runSupervisor(dir, {}, 80000);
+
+          expect(result.status).toBe(0);
+          // logs\ must never have been created -- if it exists, the deny
+          // didn't actually take and this test is exercising nothing.
+          expect(fs.existsSync(path.join(dir, "logs"))).toBe(false);
+          expect(readSupervisorLog(dir)).toBe("");
+
+          const fallbackLog = fs.existsSync(path.join(dir, "supervisor.log"))
+            ? fs.readFileSync(path.join(dir, "supervisor.log"), "utf8")
+            : "";
+          expect(fallbackLog).toMatch(/Supervisor v2 starting/);
+          expect(result.stdout).toMatch(
+            /WARNING: could not create the logs folder/i,
+          );
+        } finally {
+          // Must clear the deny before afterAll's fs.rmSync -- a lingering
+          // ACE on this directory would make the shared tempdir cleanup
+          // fail for every OTHER scenario's leftovers too, not just this
+          // one's.
+          execFileSync("icacls.exe", [dir, "/remove:d", "*S-1-1-0"], {
+            stdio: "ignore",
+          });
+        }
+      },
+      95000,
+    );
+
+    it(
       "relaunches once after a crash, then stops cleanly once the panel recovers",
       async () => {
         const dir = freshScenarioDir("recover-after-crash");

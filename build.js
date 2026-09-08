@@ -491,6 +491,20 @@ set "MAX_PENDING_APPLY_ATTEMPTS=3"
 if defined PANEL_SUPERVISOR_MAX_PENDING_APPLY_ATTEMPTS set "MAX_PENDING_APPLY_ATTEMPTS=%PANEL_SUPERVISOR_MAX_PENDING_APPLY_ATTEMPTS%"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+if not exist "%LOG_DIR%" (
+  rem mkdir above failed silently (a permission-restricted install folder, a
+  rem read-only mount, or similar) and LOG_FILE below would redirect into a
+  rem directory that still doesn't exist -- every :stamp call for the rest
+  rem of this run would then fail too, leaving supervisor.log completely
+  rem dark for whatever ELSE goes wrong this session. Not the same
+  rem condition preflight's write-probe already catches: that probe writes
+  rem a throwaway FILE directly in the install folder, which is a different
+  rem permission than creating a NEW subdirectory inside it. Fall back to
+  rem logging directly in the install folder instead of going dark for the
+  rem whole run -- an uglier location beats no diagnostic trail at all.
+  echo WARNING: could not create the logs folder at "%LOG_DIR%" -- logging to the install folder instead.
+  set "LOG_FILE=%INSTALL_DIR%supervisor.log"
+)
 
 call :stamp "Supervisor v2 starting"
 
