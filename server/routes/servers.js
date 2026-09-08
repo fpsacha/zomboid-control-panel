@@ -1709,6 +1709,28 @@ async function reloadServicesForNewActiveServer(req, server) {
     }
   }
 
+  // panelBridge is the third shared singleton this function repoints, next
+  // to serverManager and rconService above -- previously the only thing
+  // that repointed it was rconService's own "connected" event indirectly
+  // re-triggering tryStartPanelBridge(), which only fires when the RCON
+  // reconnect above actually runs (i.e. only when `server.rconPassword` is
+  // set). A server managed via PanelBridge/SFTP only, or one that simply
+  // hasn't had a password set yet, left panelBridge silently still pointed
+  // at whatever server it last served -- not a display-only bug:
+  // sendCommand() writes to the stale bridgePath's commands.json, so a
+  // command the operator believes targets the newly active server is
+  // actually delivered to, and executed by, the previous one. Explicit now,
+  // not dependent on RCON reconnecting for an unrelated reason.
+  const resyncPanelBridge = req.app.get("resyncPanelBridgeForActiveServer");
+  if (typeof resyncPanelBridge === "function") {
+    try {
+      await resyncPanelBridge("active-server-changed");
+      log.info(`PanelBridge repointed for server: ${server.name}`);
+    } catch (bridgeErr) {
+      log.warn(`Failed to repoint PanelBridge for new server: ${bridgeErr.message}`);
+    }
+  }
+
   // Best-effort: keep PanelBridge.lua current on servers the panel can
   // reach directly on disk. Never let an install failure block activation.
   autoInstallBridgeIfNeeded(server);

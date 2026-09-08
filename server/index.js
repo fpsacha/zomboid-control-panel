@@ -1242,6 +1242,32 @@ async function tryStartPanelBridge(trigger = "unknown") {
   }
 }
 
+// server-running-determination-convention sweep, 2026-09-08: panelBridge is
+// a shared singleton, exactly like serverManager and rconService, that only
+// ever points at ONE server's bridge folder (this.bridgePath) at a time --
+// but unlike those two, nothing explicitly repointed it when the active
+// server changed. tryStartPanelBridge() alone can't fix that: its very
+// first line is `if (panelBridge.isRunning) return true`, so calling it
+// after a switch is a guaranteed no-op whenever the bridge was already
+// running for the PREVIOUS server, which is exactly the moment a resync is
+// needed. The only thing that used to save this was rconService's own
+// "connected" event re-triggering tryStartPanelBridge('rcon-connected') --
+// conditional on the NEWLY active server having an RCON password
+// configured at all. A server managed via PanelBridge/SFTP only, or simply
+// not yet given a password, left panelBridge silently pointed at whichever
+// server it last served, indefinitely. That is not a display-only bug:
+// sendCommand() (weather control, player details, world stats, safehouses,
+// vehicles, every PanelBridge-routed feature) writes straight to
+// this.bridgePath's commands.json -- a stale bridgePath means a command
+// the operator believes is going to the newly active server is actually
+// delivered to, and executed by, the PREVIOUS one.
+async function resyncPanelBridgeForActiveServer(trigger = "active-server-changed") {
+  if (panelBridge.isRunning) {
+    panelBridge.stop();
+  }
+  return tryStartPanelBridge(trigger);
+}
+
 // Auto-start PanelBridge when RCON connects (secondary trigger)
 // An async EventEmitter listener that rejects becomes an unhandled rejection,
 // which reaches process.on("unhandledRejection") and kills the panel — so
@@ -1333,6 +1359,7 @@ panelBridge.on("playerDisconnect", (playerName) => {
 // Make services available to routes
 app.set("rconService", rconService);
 app.set("serverManager", serverManager);
+app.set("resyncPanelBridgeForActiveServer", resyncPanelBridgeForActiveServer);
 app.set("dockerClient", dockerClient);
 app.set("modChecker", modChecker);
 app.set("scheduler", scheduler);
