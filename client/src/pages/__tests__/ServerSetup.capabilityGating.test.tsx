@@ -65,7 +65,12 @@ vi.mock("@/lib/api", async () => {
       updateAppSettings: vi.fn(),
     },
     debugApi: { ...actual.debugApi, getRam: vi.fn().mockRejectedValue(new Error("no RAM info in test env")) },
-    serverApi: { ...actual.serverApi, start: vi.fn(), getBranches: vi.fn().mockResolvedValue({ branches: [] }) },
+    serverApi: {
+      ...actual.serverApi,
+      start: vi.fn(),
+      getBranches: vi.fn().mockResolvedValue({ branches: [] }),
+      downloadSteamCmd: vi.fn(),
+    },
     serversApi: { ...actual.serversApi, create: vi.fn(), activate: vi.fn() },
   };
 });
@@ -77,6 +82,7 @@ vi.mock("@/components/ui/use-toast", () => ({
 
 const updateAppSettings = vi.mocked(configApi.updateAppSettings);
 const start = vi.mocked(serverApi.start);
+const downloadSteamCmd = vi.mocked(serverApi.downloadSteamCmd);
 const create = vi.mocked(serversApi.create);
 const activate = vi.mocked(serversApi.activate);
 
@@ -158,6 +164,23 @@ describe("ServerSetup.tsx: Save SteamCMD path gates on panel.settings, not serve
 
     const downloadButton = screen.getByRole("button", { name: enServerSetup.full.step1.installButton });
     expect(downloadButton).not.toBeDisabled();
+  });
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above stopped
+  // at not.toBeDisabled() -- the button was never clicked, so a regression
+  // in handleAutoDownloadSteamCmd's own body (as opposed to the !canInstall
+  // disabled expression) would have sat green.
+  it("reaches serverApi.downloadSteamCmd when the auto-download button is clicked, holding server.install", async () => {
+    mockCan = () => true;
+    renderServerSetup();
+    fireEvent.click(screen.getByText(enServerSetup.modeSelect.fullCard.title, { selector: "h3" }));
+    await screen.findByText(enServerSetup.full.step1.title);
+
+    const downloadButton = screen.getByRole("button", { name: enServerSetup.full.step1.installButton });
+    expect(downloadButton).not.toBeDisabled();
+    fireEvent.click(downloadButton);
+
+    await waitFor(() => expect(downloadSteamCmd).toHaveBeenCalledTimes(1));
   });
 });
 
