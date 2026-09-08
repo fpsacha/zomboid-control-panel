@@ -13,6 +13,7 @@ import { getDiskFree } from "../utils/diskSpace.js";
 import { resolveLaunchMode } from "../services/serverManager.js";
 const log = createLogger("API:Debug");
 import { getDataPaths, setDataPaths } from "../utils/paths.js";
+import { isLockProtectionDisabled } from "../utils/pidLock.js";
 import {
   getPerformanceHistory,
   recordPerformanceSnapshot,
@@ -4454,6 +4455,9 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
       );
     }
 
+    const lockProtectionCheck = buildLockProtectionCheck();
+    if (lockProtectionCheck) checks.push(lockProtectionCheck);
+
     try {
       const backupsDir = path.join(paths.dataDir, "backups");
       if (await safePathExists(backupsDir)) {
@@ -5090,6 +5094,33 @@ async function detectSaveBuild(savePath) {
   if (rootEntries && rootEntries.some((e) => /^map_\d+_\d+\.bin$/.test(e)))
     return "b41";
   return "unknown";
+}
+
+// god's dispatch, 2026-09-08 (part 2 of the pidLock.js fix, ea286e15):
+// isLockProtectionDisabled() (utils/pidLock.js) is non-null only when
+// acquireLock() succeeded WITHOUT actually creating a lock, because the
+// data directory turned out to be one of the accepted read-only/access-
+// restricted cases -- previously logged once as a warn and never surfaced
+// again. "Fatal" is off the table (that specific case is a real, supported
+// deployment shape), so the only remaining lever is making the degraded
+// state persistently visible instead of silent -- exactly the pattern
+// nearly every other fix tonight followed: the panel telling the operator
+// something untrue (here, nothing at all) about its own state. Exported so
+// it can be unit tested directly rather than only reachable through the
+// full /diagnostics handler's many other dependencies.
+export function buildLockProtectionCheck() {
+  const disabled = isLockProtectionDisabled();
+  if (!disabled) return null;
+  return diagWarn(
+    "storage.lockProtection",
+    "Duplicate-instance protection is disabled",
+    `The panel could not create its startup lock file (${disabled.code}) and is running without protection against a second instance starting against the same data directory.`,
+    {
+      category: "storage",
+      hint: "This is expected on a deliberately read-only or access-restricted data directory. If that wasn't intentional, check permissions on the data directory; otherwise make sure your deployment only ever runs one panel instance at a time.",
+      params: { code: disabled.code },
+    },
+  );
 }
 
 // Turns a scanSaveStats() result into the server.staleLocks diagnostics

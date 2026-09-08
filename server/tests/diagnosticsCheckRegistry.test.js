@@ -56,6 +56,7 @@ const KNOWN_TRANSLATED_IDS = new Set([
   "db.exists",
   "db.writable",
   "db.backup",
+  "storage.lockProtection",
   "logs.writable",
   "disk.free",
   "storage.saveSize",

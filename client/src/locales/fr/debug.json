@@ -676,6 +676,13 @@
         }
       },
       "storage": {
+        "lockProtection": {
+          "warn": {
+            "label": "Protection contre les instances multiples désactivée",
+            "message": "Le panneau n'a pas pu créer son fichier de verrouillage au démarrage ({{code}}) et fonctionne sans protection contre le démarrage d'une seconde instance sur le même dossier de données.",
+            "hint": "C'est normal si le dossier de données est volontairement en lecture seule ou à accès restreint. Si ce n'était pas voulu, vérifiez les permissions du dossier de données ; sinon, assurez-vous que votre déploiement ne lance jamais qu'une seule instance du panneau à la fois."
+          }
+        },
         "saveSize": {
           "warn": {
             "label": "Dossier de sauvegarde très volumineux",
