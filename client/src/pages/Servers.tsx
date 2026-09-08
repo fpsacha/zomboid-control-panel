@@ -628,6 +628,16 @@ export default function Servers() {
     }
   }, [activeServerId, fetchActiveStatus])
 
+  // Deliberately scoped to activeServerId, not broadened to every server row:
+  // every server-side io.emit("server:status", ...) call site (routes/server.js,
+  // index.js's checkServerStatusNow watchdog, scheduler.js's performRestart)
+  // carries no server id in its payload and is driven off module-level
+  // singleton state (lastKnownRunning/lastKnownPhase, rconService.serverStarting)
+  // -- this backend tracks exactly one "the server" (the active one) at a
+  // time, never several concurrently. There is no server id to route a push
+  // to any other row with, so attributing it to activeServerId is the only
+  // safe reading; writing it to every row would misattribute the active
+  // server's transition onto unrelated, unmanaged configs.
   useEffect(() => {
     if (!socket || activeServerId === null) return
 
