@@ -466,7 +466,13 @@ export default function Scheduler() {
   const [restartMinutes, setRestartMinutes] = useState(5)
   const [serverRunning, setServerRunning] = useState<boolean>(false)
 
-  const fetchData = useCallback(async () => {
+  // 2026-09-08 (retry-stacking sweep): `manual` distinguishes a human
+  // pressing Retry or the Execution History card's Refresh button (both
+  // call this function directly) from the mount effect and every
+  // post-action refetch elsewhere on this page -- see Servers.tsx's
+  // fetchServers() for the full reasoning.
+  const fetchData = useCallback(async (opts?: { manual?: boolean }) => {
+    const retries = opts?.manual ? { retries: 0 } : undefined
     setFetchError(null)
     try {
       // Only getTasks() is allowed to fail the whole load -- it's the one
@@ -476,11 +482,11 @@ export default function Scheduler() {
       // away a perfectly good task list, replacing it with an empty-state
       // "no tasks scheduled" even though real tasks existed and loaded fine.
       const [tasksData, presetsData, statusData, historyData, serversData] = await Promise.all([
-        schedulerApi.getTasks(),
-        schedulerApi.getCronPresets().catch(() => ({ presets: [] as CronPreset[] })),
-        schedulerApi.getStatus().catch(() => null),
-        schedulerApi.getHistory(EXECUTION_HISTORY_FETCH_LIMIT).catch(() => ({ history: [] as ScheduleHistoryEntry[] })),
-        serversApi.getAll().catch(() => ({ servers: [] as ServerInstance[] })),
+        schedulerApi.getTasks(retries),
+        schedulerApi.getCronPresets(retries).catch(() => ({ presets: [] as CronPreset[] })),
+        schedulerApi.getStatus(retries).catch(() => null),
+        schedulerApi.getHistory(EXECUTION_HISTORY_FETCH_LIMIT, undefined, retries).catch(() => ({ history: [] as ScheduleHistoryEntry[] })),
+        serversApi.getAll(retries).catch(() => ({ servers: [] as ServerInstance[] })),
       ])
       setTasks(tasksData.tasks || [])
       setPresets(presetsData.presets || [])
@@ -1026,7 +1032,7 @@ export default function Scheduler() {
           <AlertTitle>{t('fetchError.title')}</AlertTitle>
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="min-w-0 break-words" dir="auto">{fetchError}</span>
-            <Button variant="outline" size="sm" onClick={fetchData} className="self-start">
+            <Button variant="outline" size="sm" onClick={() => fetchData({ manual: true })} className="self-start">
               <RefreshCw className="me-2 h-4 w-4" /> {t('fetchError.retry')}
             </Button>
           </AlertDescription>
@@ -1835,7 +1841,7 @@ export default function Scheduler() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchData}
+                onClick={() => fetchData({ manual: true })}
                 disabled={loading}
               >
                 <RefreshCw className="w-4 h-4 me-1" />

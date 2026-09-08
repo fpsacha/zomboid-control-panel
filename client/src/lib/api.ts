@@ -952,8 +952,10 @@ export interface SchedulerStatus {
 }
 
 export const schedulerApi = {
-  getStatus: () => apiGet("/scheduler/status") as Promise<SchedulerStatus>,
-  getTasks: () => apiGet("/scheduler/tasks"),
+  getStatus: (options?: { retries?: number }) =>
+    apiGet("/scheduler/status", undefined, options?.retries) as Promise<SchedulerStatus>,
+  getTasks: (options?: { retries?: number }) =>
+    apiGet("/scheduler/tasks", undefined, options?.retries),
   createTask: (
     name: string,
     cronExpression: string,
@@ -984,19 +986,24 @@ export const schedulerApi = {
       message: string;
       warningMinutes: number;
     }>,
-  getCronPresets: () => apiGet("/scheduler/cron-presets"),
+  getCronPresets: (options?: { retries?: number }) =>
+    apiGet("/scheduler/cron-presets", undefined, options?.retries),
   validateCron: (cronExpression: string) =>
     apiPost("/scheduler/validate-cron", { cronExpression }) as Promise<{
       valid: boolean;
       error?: string;
       code?: string;
     }>,
-  getHistory: (limit?: number, taskId?: number) => {
+  getHistory: (limit?: number, taskId?: number, options?: { retries?: number }) => {
     const params = new URLSearchParams();
     if (limit) params.set("limit", limit.toString());
     if (taskId) params.set("taskId", taskId.toString());
     const query = params.toString();
-    return apiGet(`/scheduler/history${query ? `?${query}` : ""}`) as Promise<{
+    return apiGet(
+      `/scheduler/history${query ? `?${query}` : ""}`,
+      undefined,
+      options?.retries,
+    ) as Promise<{
       history: ScheduleHistoryEntry[];
     }>;
   },
