@@ -108,6 +108,43 @@ function entityTokens(value: unknown): string[] {
   return [...value.matchAll(HTML_ENTITY_RE)].map((m) => m[0]).sort()
 }
 
+// bug-hunt-2026-09-08 (Arabic plural sweep): the "exactly the same keys"
+// check above compares a target language's key SHAPE against English's --
+// correct for ordinary keys, actively wrong for a pluralised one. i18next's
+// pluralisation suffixes a base key with a CLDR plural category
+// (_zero/_one/_two/_few/_many/_other), and which categories a given
+// language NEEDS is a property of THAT language's own grammar, not
+// English's. English only ever needs {one, other} (its own CLDR set), so a
+// flat "target keys must equal source keys" check does two wrong things at
+// once: it never notices Arabic is missing _two/_few/_many/_zero (English
+// never had them to compare against), and if a translator correctly ADDS
+// one, this same check fails it as "extra... stale/typo?" -- rejecting the
+// correct fix. Confirmed empirically, not assumed: a missing plural-
+// category key does NOT fall back to that language's own _other at
+// runtime (isolated with fallbackLng:false against the real i18next
+// resources) -- it falls all the way through to English, rendering literal
+// English text inside e.g. an Arabic RTL sentence. See the dedicated
+// "has every plural form its own CLDR rule requires" test below, which
+// replaces English's shape with `Intl.PluralRules(lang)` -- the browser's
+// own real CLDR data, not a hand-maintained table (a hardcoded per-language
+// category list would be a second source of truth that goes stale the
+// moment CLDR itself revises a language's rule; `Intl` already ships it).
+const PLURAL_SUFFIX_RE = /_(zero|one|two|few|many|other)$/
+
+function pluralBaseOf(key: string): string | null {
+  const match = key.match(PLURAL_SUFFIX_RE)
+  return match ? key.slice(0, key.length - match[0].length) : null
+}
+
+function basesWithPluralSuffix(keys: string[]): Set<string> {
+  const bases = new Set<string>()
+  for (const key of keys) {
+    const base = pluralBaseOf(key)
+    if (base) bases.add(base)
+  }
+  return bases
+}
+
 // A narrow, individually-reviewed exception list — NOT a blanket "_one keys
 // may omit {{count}}" rule, which would hide a future _one key that drops
 // {{count}} by accident instead of by design. Each entry here was checked
@@ -177,15 +214,74 @@ describe(`locale parity (${SOURCE_LANGUAGE} is the source of truth)`, () => {
       const sourceObj = byLanguageThenNamespace[SOURCE_LANGUAGE]?.[ns] ?? {}
       const targetObj = byLanguageThenNamespace[lang]?.[ns] ?? {}
 
-      it(`${lang}/${ns}.json has exactly the same keys as ${SOURCE_LANGUAGE}/${ns}.json`, () => {
-        const sourceKeys = collectKeyPaths(sourceObj).sort()
-        const targetKeys = collectKeyPaths(targetObj).sort()
+      it(`${lang}/${ns}.json has exactly the same keys as ${SOURCE_LANGUAGE}/${ns}.json (pluralised keys excluded, see the dedicated CLDR test below)`, () => {
+        const sourceKeys = collectKeyPaths(sourceObj)
+        const targetKeys = collectKeyPaths(targetObj)
+        // Pluralised base keys are governed by each language's OWN CLDR
+        // category set (the dedicated test right below), not by matching
+        // English's key shape -- excluded here from both directions so a
+        // language correctly needing MORE categories than English (Arabic,
+        // Ukrainian, French, Spanish all do) isn't flagged "extra... stale/
+        // typo?", and one needing categories English can't express isn't
+        // silently un-checked by never appearing as "missing" either. A
+        // base counts as plural-controlled if EITHER side has any suffixed
+        // form of it, so a target's legitimately-added category (once
+        // populated) doesn't fall through and get flagged as a stray extra
+        // key just because English has no equivalent suffix to match it.
+        const pluralBases = new Set([
+          ...basesWithPluralSuffix(sourceKeys),
+          ...basesWithPluralSuffix(targetKeys),
+        ])
+        const isPluralKey = (key: string) => {
+          const base = pluralBaseOf(key)
+          return base !== null && pluralBases.has(base)
+        }
+        const sourceKeySet = new Set(sourceKeys)
+        const targetKeySet = new Set(targetKeys)
+        const sourcePlainKeys = sourceKeys.filter((k) => !isPluralKey(k)).sort()
+        const targetPlainKeys = targetKeys.filter((k) => !isPluralKey(k)).sort()
 
-        const missing = sourceKeys.filter((k) => !targetKeys.includes(k))
-        const extra = targetKeys.filter((k) => !sourceKeys.includes(k))
+        const missing = sourcePlainKeys.filter((k) => !targetKeySet.has(k))
+        const extra = targetPlainKeys.filter((k) => !sourceKeySet.has(k))
 
         expect(missing, `${lang}/${ns}.json is missing keys present in ${SOURCE_LANGUAGE}`).toEqual([])
         expect(extra, `${lang}/${ns}.json has keys not present in ${SOURCE_LANGUAGE} (stale/typo?)`).toEqual([])
+      })
+
+      // bug-hunt-2026-09-08 (Arabic plural sweep): the required suffix set
+      // for THIS language is `Intl.PluralRules(lang).resolvedOptions()
+      // .pluralCategories` -- real CLDR data, derived, not a hardcoded
+      // per-language table (see the header comment above pluralBaseOf for
+      // why deriving beats hand-maintaining one). "other" is always a
+      // member of every language's set, so this is never vacuous. A
+      // language whose own CLDR set happens to equal English's {one, other}
+      // (German, Haitian Creole -- checked against real Intl data, not
+      // assumed) requires nothing beyond what the same-keys test above
+      // already enforces; this test is a genuine no-op for them, not a
+      // special case.
+      it(`${lang}/${ns}.json has every plural form ${lang}'s own CLDR rule requires, on every key ${SOURCE_LANGUAGE} pluralises`, () => {
+        const sourceKeys = collectKeyPaths(sourceObj)
+        const targetKeySet = new Set(collectKeyPaths(targetObj))
+        // English decides WHICH keys are plural-controlled at all (a key
+        // with zero suffixed forms in English was never meant to pluralise
+        // and isn't this test's concern) -- only the SET OF CATEGORIES for
+        // an already-plural key is lang-specific, not whether it pluralises
+        // in the first place.
+        const pluralBasesFromSource = basesWithPluralSuffix(sourceKeys)
+        const requiredCategories = new Intl.PluralRules(lang).resolvedOptions().pluralCategories
+        const missing = [...pluralBasesFromSource].flatMap((base) =>
+          requiredCategories
+            .filter((category) => !targetKeySet.has(`${base}_${category}`))
+            .map((category) => `${base}_${category}`),
+        ).sort()
+
+        expect(
+          missing,
+          `${lang}/${ns}.json is missing plural forms its own language's grammar requires ` +
+            `(Intl.PluralRules("${lang}").resolvedOptions().pluralCategories = [${requiredCategories.join(', ')}]) -- ` +
+            `a missing category does NOT fall back to this language's own _other at runtime, it falls through to ` +
+            `${SOURCE_LANGUAGE} and renders that language's text instead`,
+        ).toEqual([])
       })
 
       it(`${lang}/${ns}.json has no empty string values`, () => {
