@@ -372,4 +372,34 @@ describe('waitForServerState', () => {
       .resolves.toBe(false)
     expect(fetchStatus).toHaveBeenCalledOnce()
   })
+
+  // is-running-enumeration sweep, 2026-09-08: server/routes/servers.js's
+  // active-server fallback used to be a bare cached-field read with no
+  // freshness signal, so a stale running:true could satisfy this function's
+  // match forever -- a STOP confirmation would never see running:false (it
+  // burned the full timeout reporting "not confirmed" on a server that had
+  // actually stopped) and a START confirmation could resolve off a flag set
+  // before anything had observed the process. stateUnknown is that missing
+  // freshness signal; this must never let such a row satisfy either
+  // direction, so the poll keeps waiting for a row the server itself
+  // vouches for instead of latching onto an unconfirmed one.
+  it('does not treat a stateUnknown row as satisfying a STOP confirmation, even though running is still true', async () => {
+    const fetchStatus = vi.fn()
+      .mockResolvedValueOnce({ servers: [{ id: 7, running: true, pid: '123', stateUnknown: true }] })
+      .mockResolvedValueOnce({ servers: [{ id: 7, running: false, pid: null }] })
+
+    await expect(waitForServerState(fetchStatus, 7, false, undefined, { pollMs: 0 }))
+      .resolves.toBe(true)
+    expect(fetchStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not treat a stateUnknown row as satisfying a START confirmation, even though running is already true', async () => {
+    const fetchStatus = vi.fn()
+      .mockResolvedValueOnce({ servers: [{ id: 7, running: true, pid: '123', stateUnknown: true }] })
+      .mockResolvedValueOnce({ servers: [{ id: 7, running: true, pid: '123' }] })
+
+    await expect(waitForServerState(fetchStatus, 7, true, undefined, { pollMs: 0 }))
+      .resolves.toBe(true)
+    expect(fetchStatus).toHaveBeenCalledTimes(2)
+  })
 })

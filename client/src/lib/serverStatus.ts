@@ -202,6 +202,14 @@ export interface ServerStatusEntry {
   id: string | number
   running: boolean
   pid: string | null
+  // is-running-enumeration sweep, 2026-09-08: mirrors server/routes/servers.js's
+  // GET /status -- true when this row's `running` came from a fallback that
+  // couldn't independently confirm it (the host-wide scan's own failure, or
+  // the active-server grace-window fallback hitting a scanFailed itself).
+  // waitForServerState below must NOT treat a stateUnknown row as a match in
+  // either direction -- see that function's own comment for why "unknown"
+  // and "confirmed" used to be indistinguishable here.
+  stateUnknown?: boolean
 }
 
 export interface ServerStatusResponse {
@@ -222,7 +230,12 @@ export async function waitForServerState(
       const serverStatus = data.servers?.find((entry) => String(entry.id) === String(serverId))
       if (serverStatus) {
         onStatus?.(serverStatus)
-        if (serverStatus.running === expectedRunning) return true
+        // stateUnknown deliberately excluded from the match below (server-
+        // side comment on GET /status's active-fallback has the full
+        // reasoning): a row the server itself couldn't confirm must not
+        // satisfy either a Start or a Stop confirmation, the same way a
+        // failed scan there refuses to be read as a confident answer.
+        if (!serverStatus.stateUnknown && serverStatus.running === expectedRunning) return true
       }
     } catch {
       // A short process transition can briefly interrupt the status endpoint.

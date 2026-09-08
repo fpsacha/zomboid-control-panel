@@ -135,3 +135,104 @@ describe("GET /api/servers/status", () => {
     expect(payload.servers.find((s) => s.id === 2).running).toBe(false);
   });
 });
+
+// is-running-enumeration sweep, 2026-09-08: the active server's own
+// grace-window fallback (below the host-wide scan, for a stock launch with
+// no -servername/-cachedir the scan above can't attribute) used to read
+// serverManager.isRunning directly -- a cached field with no bound on its
+// own age. Servers.tsx's waitForActionState() polls this exact endpoint to
+// confirm both Start and Stop, so a stale-true cached flag broke both
+// directions. Fixed by calling serverManager.getServerProcessDetails()
+// fresh instead of reading the field, giving this fallback the same
+// scanFailed-style "don't know yet" signal (surfaced here as stateUnknown)
+// every other convention-A site already has.
+describe("GET /api/servers/status -- active-server fallback freshness", () => {
+  beforeEach(() => {
+    getServers.mockReset();
+    getActiveServer.mockReset().mockResolvedValue({ id: 1 });
+    scanHostForServerProcesses.mockReset();
+  });
+
+  it("confirms the active server running via a FRESH scan when the host-wide scan can't attribute it (stock launch, no identifying args)", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, name: "Active", installPath: "C:\\Servers\\Active" },
+    ]);
+    getActiveServer.mockResolvedValue({ id: 1 });
+    // Host-wide scan finds nothing it can attribute to server 1 at all.
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    const getServerProcessDetails = vi.fn().mockResolvedValue({ running: true, scanFailed: false });
+    const response = createResponse();
+
+    await getStatusHandler()(
+      { app: fakeApp({ serverManager: { getServerProcessDetails } }) },
+      response,
+    );
+
+    expect(getServerProcessDetails).toHaveBeenCalledTimes(1);
+    const payload = response.json.mock.calls[0][0];
+    const active = payload.servers.find((s) => s.id === 1);
+    expect(active.running).toBe(true);
+    expect(active.stateUnknown).toBe(false);
+  });
+
+  it("does NOT force the active server running off a real stop -- a fresh scan reporting running:false is trusted, not overridden", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, name: "Active", installPath: "C:\\Servers\\Active" },
+    ]);
+    getActiveServer.mockResolvedValue({ id: 1 });
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    // The server genuinely stopped -- a fresh scan confirms no process.
+    const getServerProcessDetails = vi.fn().mockResolvedValue({ running: false, scanFailed: false });
+    const response = createResponse();
+
+    await getStatusHandler()(
+      { app: fakeApp({ serverManager: { getServerProcessDetails } }) },
+      response,
+    );
+
+    const payload = response.json.mock.calls[0][0];
+    expect(payload.servers.find((s) => s.id === 1).running).toBe(false);
+  });
+
+  it("reports stateUnknown, not a confident guess, when the fallback's own fresh scan fails", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, name: "Active", installPath: "C:\\Servers\\Active" },
+    ]);
+    getActiveServer.mockResolvedValue({ id: 1 });
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    const getServerProcessDetails = vi.fn().mockResolvedValue({ running: false, scanFailed: true });
+    const response = createResponse();
+
+    await getStatusHandler()(
+      { app: fakeApp({ serverManager: { getServerProcessDetails } }) },
+      response,
+    );
+
+    const payload = response.json.mock.calls[0][0];
+    const active = payload.servers.find((s) => s.id === 1);
+    expect(active.running).toBe(false);
+    expect(active.stateUnknown).toBe(true);
+  });
+
+  it("only applies the grace window to the active server's own row, never to a non-active sibling", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, name: "Active", installPath: "C:\\Servers\\Active" },
+      { id: 2, name: "Other", installPath: "C:\\Servers\\Other" },
+    ]);
+    getActiveServer.mockResolvedValue({ id: 1 });
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    const getServerProcessDetails = vi.fn().mockResolvedValue({ running: true, scanFailed: false });
+    const response = createResponse();
+
+    await getStatusHandler()(
+      { app: fakeApp({ serverManager: { getServerProcessDetails } }) },
+      response,
+    );
+
+    // Called exactly once -- only for server 1 (active), never for server 2.
+    expect(getServerProcessDetails).toHaveBeenCalledTimes(1);
+    const payload = response.json.mock.calls[0][0];
+    expect(payload.servers.find((s) => s.id === 1).running).toBe(true);
+    expect(payload.servers.find((s) => s.id === 2).running).toBe(false);
+  });
+});

@@ -676,11 +676,45 @@ router.get("/status", async (req, res) => {
         }
       }
       // Fallback: the active server's running state is authoritative even
-      // when nothing in the scan can be attributed to it (e.g. when the
-      // process was started outside the panel and uses a different working
-      // directory, with no -servername/-cachedir either).
-      if (!running && server.id === activeId && serverManager?.isRunning) {
-        running = true;
+      // when nothing in the host-wide scan above can be attributed to it
+      // (e.g. when the process was started outside the panel and uses a
+      // different working directory, with no -servername/-cachedir either).
+      //
+      // is-running-enumeration sweep, 2026-09-08: this used to read
+      // serverManager.isRunning directly -- a cached field with no bound on
+      // its own age, refreshed only as a SIDE EFFECT of something unrelated
+      // elsewhere happening to call getServerProcessDetails() on the shared
+      // instance. Convention A (getServerProcessDetails() itself) exposes
+      // scanFailed precisely so a caller never mistakes "haven't checked
+      // recently" for "confirmed" -- this fallback had no such capability.
+      // Servers.tsx's waitForActionState() polls exactly this endpoint to
+      // confirm both Start and Stop, so a stale-true cached flag broke both
+      // directions: STOP could never see running:false and burned its full
+      // timeout reporting "not confirmed" on a server that HAD actually
+      // stopped, and START could report success off a flag startServer()
+      // sets synchronously at spawn time, before anything had actually
+      // observed the process. Calling getServerProcessDetails() fresh here
+      // -- the same call every other convention-A site already makes --
+      // keeps the grace window (its JVM-shape/zomboid-adjacent matching is
+      // deliberately more permissive than scoreServerProcessOwnership's
+      // descriptor-based scoring above, which is what let it catch a stock,
+      // argument-less launch in the first place) while replacing an
+      // unbounded-age field read with an actual observation, and gives this
+      // row the same "don't know yet" signal every other site already has
+      // instead of forcing a confident guess.
+      let activeFallbackUnknown = false;
+      if (!running && server.id === activeId && typeof serverManager?.getServerProcessDetails === "function") {
+        try {
+          const activeDetails = await serverManager.getServerProcessDetails();
+          if (activeDetails.scanFailed) {
+            activeFallbackUnknown = true;
+          } else if (activeDetails.running) {
+            running = true;
+          }
+        } catch (err) {
+          activeFallbackUnknown = true;
+          log.debug(`Active-server fallback detection failed: ${err.message}`);
+        }
       }
       return {
         id: server.id,
@@ -689,7 +723,7 @@ router.get("/status", async (req, res) => {
         pid: pid || null,
         isActive: server.id === activeId,
         provider: "direct",
-        stateUnknown: Boolean(detectionError),
+        stateUnknown: Boolean(detectionError) || activeFallbackUnknown,
       };
     }));
 
