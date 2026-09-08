@@ -56,6 +56,14 @@ vi.mock('@/lib/api', async () => {
       getServerInfo: vi.fn(),
       getStatus: vi.fn(),
       sendCommand: vi.fn(),
+      // bug-hunt-2026-09-08 (gate-not-destination sweep): only needed to
+      // drive Custom Drop's real dialog for real below -- every other test
+      // in this file never opens it. Rejecting the catalog fetch forces
+      // ItemPicker's manual-ID text-input fallback deterministically
+      // (same component either way; no catalog exists in this test env
+      // regardless), which is far simpler to drive than its autocomplete.
+      getCatalogItems: vi.fn().mockRejectedValue(new Error('no catalog in test env')),
+      triggerAirdrop: vi.fn(),
     },
   }
 })
@@ -64,6 +72,7 @@ const getResolvedActive = vi.mocked(serversApi.getResolvedActive)
 const getUpdateStatus = vi.mocked(updateApi.getStatus)
 const mapResolve = vi.mocked(mapApi.resolve)
 const mapVehicles = vi.mocked(mapApi.vehicles)
+const triggerAirdrop = vi.mocked(panelBridgeApi.triggerAirdrop)
 const getServerInfo = vi.mocked(panelBridgeApi.getServerInfo)
 const getBridgeStatus = vi.mocked(panelBridgeApi.getStatus)
 const sendCommand = vi.mocked(panelBridgeApi.sendCommand)
@@ -214,6 +223,35 @@ describe('WorldMap.tsx: healPlayer/setGodMode require players.gm_tools ALONE (20
 
     const customDrop = await screen.findByRole('menuitem', { name: /custom drop/i })
     expect(customDrop).not.toBeDisabled()
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above stopped
+  // at not.toBeDisabled() on the menu item -- it was never clicked, so a
+  // regression anywhere in the dialog it opens (up to and including
+  // callCustomDrop's own triggerAirdrop call) would have sat green.
+  it('reaches panelBridgeApi.triggerAirdrop when Custom Drop is clicked through, filled in, and confirmed, holding bridge.command', async () => {
+    mockCan = () => true
+    await setUp([])
+    triggerAirdrop.mockResolvedValue({ success: true, data: {} } as Awaited<ReturnType<typeof panelBridgeApi.triggerAirdrop>>)
+
+    renderWorldMap()
+
+    await waitFor(() => expect(getBridgeStatus).toHaveBeenCalled())
+
+    const canvas = await screen.findByRole('img', { name: /world map/i })
+    fireEvent.contextMenu(canvas, { clientX: 10, clientY: 10 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /custom drop/i }))
+
+    await screen.findByText('Custom item drop')
+    const itemInput = await screen.findByPlaceholderText('e.g., Base.Axe')
+    fireEvent.change(itemInput, { target: { value: 'Base.Axe' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Drop' }))
+
+    await waitFor(() => expect(triggerAirdrop).toHaveBeenCalledTimes(1))
+    expect(triggerAirdrop.mock.calls[0][0]).toMatchObject({
+      items: [{ itemType: 'Base.Axe', count: 1 }],
+    })
   })
 
   it('enables the dossier Heal and God buttons, and Heal actually calls healPlayer, when the role holds players.gm_tools WITHOUT bridge.command -- the Technician case this ruling exists for', async () => {
