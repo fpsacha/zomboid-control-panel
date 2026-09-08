@@ -1833,7 +1833,26 @@ app.post("/api/panel/restart", requireRole("admin"), async (req, res) => {
       // Release the apply guard so the user can retry after fixing whatever
       // failed (e.g. permission, disk full).
       checker.isApplying = false;
-      log.error(`Failed to apply Linux staged update: ${err.message}`);
+      // god-dispatched, 2026-09-08 (harden-updater-fileops #3): updateError()
+      // (updateBundle.js) stores the real fs error -- EPERM/EBUSY/EACCES,
+      // the actual reason a rename/copy failed -- only in `.cause`, and
+      // overwrites `.code` with the semantic bucket name
+      // (binary_swap_failed/frontend_swap_failed/...). Logging only
+      // err.message here meant an AV-locked file, a permission problem and
+      // a full disk all produced the byte-identical log line, same disease
+      // as [powershell_unavailable] before that fix. LOG the raw cause in
+      // full -- it can carry absolute paths, which is fine server-side.
+      // Deliberately does NOT widen the RESPONSE: REGISTERED_ERROR_CODES's
+      // own header comment above (~2203) already rules on this exact
+      // question -- forwarding a raw Node/OS code to the client, even a
+      // "harmless-looking" one, is the leak apiErrorHandler's allowlist
+      // exists to prevent, and this catch's `code` field already goes
+      // through that same allowlist via registeredErrorCode(). If the
+      // operator-facing message should say more, that's a wording change
+      // to report, not one to invent here.
+      log.error(
+        `Failed to apply Linux staged update: ${err.message}${describeErrorCause(err)}`,
+      );
       const body = { error: sanitizeError(err.message) };
       const code = registeredErrorCode(err);
       if (code) {
@@ -2207,6 +2226,20 @@ export function registeredErrorCode(err) {
   return typeof err?.code === "string" && REGISTERED_ERROR_CODES.has(err.code)
     ? err.code
     : undefined;
+}
+
+// god-dispatched, 2026-09-08 (harden-updater-fileops #3): updateBundle.js's
+// updateError() overwrites `.code` with a semantic bucket name
+// (binary_swap_failed, frontend_swap_failed, ...) and keeps the REAL fs
+// error -- the actual EPERM/EBUSY/EACCES/ENOSPC a rename/copy failed with
+// -- only on `.cause`. Nothing read `.cause` anywhere, so a locked-by-AV
+// rename, a permission problem and a full disk all logged the identical
+// line: an operator with the log open had no more information than one
+// without it. Server-log-only, deliberately -- see the Linux-apply catch's
+// own comment for why this never reaches the client response.
+export function describeErrorCause(err) {
+  if (!err?.cause) return "";
+  return ` (cause: ${err.cause.code || "no code"}: ${err.cause.message})`;
 }
 // Exported so server/tests/errorCodeReachability.test.js can assert the
 // allowlist both ways directly against the real handler, not a reimplementation.

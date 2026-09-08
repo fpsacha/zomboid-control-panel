@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   apiErrorHandler,
+  describeErrorCause,
   handlePanelUpdateDownload,
   registeredErrorCode,
 } from "../index.js";
@@ -209,5 +210,41 @@ describe("registeredErrorCode: the shared allowlist gate both apiErrorHandler an
 
   it("does not throw on an error with no code at all", () => {
     expect(registeredErrorCode(new Error("boom"))).toBeUndefined();
+  });
+});
+
+// 2026-09-08, harden-updater-fileops #3: the Linux-apply catch's log line
+// used only err.message -- updateError()'s semantic bucket name
+// ("Could not activate staged binary") -- and never read err.cause, where
+// the real fs error (EPERM/EBUSY/EACCES/ENOSPC) actually lives. An
+// AV-locked rename, a permission problem and a full disk all produced the
+// identical log line. describeErrorCause() is server-log-only by design --
+// see its own comment and the Linux-apply catch's for why this never
+// reaches the client response (registeredErrorCode's allowlist already
+// governs that path and stays untouched here).
+describe("describeErrorCause: surfaces the real OS error a semantic bucket code was hiding, log-only", () => {
+  it("formats the underlying cause's code and message when present", () => {
+    const cause = new Error("EACCES: permission denied, rename '/opt/panel/app' -> '/opt/panel/app.new'");
+    cause.code = "EACCES";
+    const err = new Error("Could not activate staged binary", { cause });
+    err.code = "binary_swap_failed";
+    expect(describeErrorCause(err)).toBe(
+      " (cause: EACCES: EACCES: permission denied, rename '/opt/panel/app' -> '/opt/panel/app.new')",
+    );
+  });
+
+  it("falls back to 'no code' when the cause has a message but no .code", () => {
+    const cause = new Error("something went wrong");
+    const err = new Error("Could not activate staged frontend", { cause });
+    expect(describeErrorCause(err)).toBe(" (cause: no code: something went wrong)");
+  });
+
+  it("returns an empty string when there is no cause at all", () => {
+    expect(describeErrorCause(new Error("boom"))).toBe("");
+  });
+
+  it("returns an empty string for a nullish error", () => {
+    expect(describeErrorCause(undefined)).toBe("");
+    expect(describeErrorCause(null)).toBe("");
   });
 });
