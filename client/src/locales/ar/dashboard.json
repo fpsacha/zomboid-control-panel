@@ -2,7 +2,7 @@
   "loading": "جارٍ تأسيس الاتصال…",
   "autoUpdateResult": {
     "scheduledTitle": "تمت جدولة التحديث التلقائي",
-    "scheduledDescription_one": "سيُعاد تشغيل الخادم خلال دقيقة واحدة.",
+    "scheduledDescription_one": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة واحدة.",
     "scheduledDescription_other": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة.",
     "scheduledDescriptionNow": "يُعاد تشغيل الخادم الآن.",
     "successTitle": "اكتمل التحديث التلقائي",
