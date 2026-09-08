@@ -85,9 +85,13 @@ router.use(requirePermission('automation.manage'));
 //                                             only, deliberately not
 //                                             moderator)
 // requiredCapabilityForScheduledCommand() in services/scheduler.js is the
-// single source of truth for this mapping — both the checks below and
-// executeTask()'s own dispatch draw from it, so they can never silently
-// drift on what a given command needs.
+// single source of truth for this mapping — every check below (create,
+// edit-command, edit-enable, run-now) and executeTask()'s own dispatch all
+// draw from it, so they can never silently drift on what a given command
+// needs. (Was "both the checks below" when there were two call sites here;
+// the enabling-arms-a-stored-command fix below added a third, then a
+// fourth counting create -- exactly the enumeration-goes-stale-the-first-
+// time-someone-adds-a-path shape, caught while sweeping for it elsewhere.)
 //
 // This closes two related but DIFFERENT gaps found the same night:
 // docs/qa/kevin-adversarial-findings.md Finding 1 (raw commands reaching
