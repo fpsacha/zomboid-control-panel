@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // panel." scheduler.js's performRestart() already escalates its own
 // stop-phase to a force-kill after 60 failed 1s polls following its RCON
 // quit -- this brings plain /stop's monitor in line with that same bound and
-// the same mechanism (serverManager.stopServer(false, ...)).
+// the same mechanism (serverManager.stopServer(...)).
 //
 // These tests exercise the real setTimeout-based poll loop with fake timers
 // (not just asserting about it), the same discipline forceStopSaveOutcome.test.js
@@ -101,7 +101,7 @@ describe("POST /stop -- graceful stop escalates to force-stop instead of hanging
       // Cross the bound: escalation fires, kills the process, confirms, releases.
       await vi.advanceTimersByTimeAsync(10_000);
 
-      expect(serverManager.stopServer).toHaveBeenCalledWith(false, { serverId: null });
+      expect(serverManager.stopServer).toHaveBeenCalledWith({ serverId: null });
       expect(serverManager.markServerStopped).toHaveBeenCalledTimes(1);
       expect(checkServerStatusNow).toHaveBeenCalledWith("graceful-stop-escalated");
       expect(discordBot.sendEventNotification).toHaveBeenCalledWith("serverStop", {});

@@ -1486,7 +1486,7 @@ router.post("/start", requirePermission("server.control"), async (req, res) => {
   const activeServerForLock = await getActiveServer();
   const lifecycleLock = acquireLifecycleLock(
     "start",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
@@ -1756,7 +1756,7 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
   const activeServerForLock = await getActiveServer();
   const lifecycleLock = acquireLifecycleLock(
     "stop",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
@@ -1816,7 +1816,7 @@ router.post("/stop", requirePermission("server.control"), async (req, res) => {
     const result = managed.handled
       ? { success: true, message: managed.message || "Container stopping" }
       : serviceManaged
-        ? await serverManager.stopServer(false, {
+        ? await serverManager.stopServer({
             serverId: activeServer?.id ?? null,
           })
         : await rconService.quit({ retryOnConnectionError: false });
@@ -1937,7 +1937,7 @@ const GRACEFUL_STOP_CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000;
 // up silently, releasing the lock with the game process potentially still
 // running and nothing having ever tried to actually kill it. This brings
 // /stop in line with the SAME bound and the SAME mechanism restart already
-// uses (serverManager.stopServer(false, ...)) rather than inventing a new
+// uses (serverManager.stopServer(...)) rather than inventing a new
 // escalation path. Only reached for the native-process RCON-quit branch --
 // a Docker- or systemd/openrc-managed stop is already confirmed synchronously
 // before the route ever calls this (see the `managed.handled || serviceManaged`
@@ -1977,7 +1977,7 @@ function monitorGracefulStop({
       `Graceful stop did not confirm within ${GRACEFUL_STOP_ESCALATE_AFTER_MS / 1000}s; escalating to force-stop`,
     );
     try {
-      const forced = await serverManager.stopServer(false, { serverId });
+      const forced = await serverManager.stopServer({ serverId });
       if (forced?.success && forced.confirmed !== false) {
         serverManager?.markServerStopped?.();
         announceStopped("graceful-stop-escalated");
@@ -2083,7 +2083,7 @@ router.post("/force-stop", requirePermission("server.control"), async (req, res)
   const activeServerForLock = await getActiveServer();
   const lifecycleLock = acquireLifecycleLock(
     "force-stop",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
@@ -2121,7 +2121,7 @@ router.post("/force-stop", requirePermission("server.control"), async (req, res)
           success: true,
           message: managed.message || "Container stopped.",
         }
-      : await serverManager.stopServer(false, {
+      : await serverManager.stopServer({
           serverId: activeServer?.id ?? null,
         });
 
@@ -2161,7 +2161,7 @@ router.post("/restart", requirePermission("server.control"), async (req, res) =>
   const activeServerForLock = await getActiveServer();
   const lifecycleLock = acquireLifecycleLock(
     "restart",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
@@ -4864,9 +4864,21 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
   // from under it. Same fix as /wipe (bfc0e515) and now chunks.js's
   // delete-chunks/delete-region: take the process-wide lifecycleCoordinator
   // lock for the whole handler. Acquired before deletePath is even parsed
-  // (nothing here identifies a target server yet), so the cosmetic
-  // serverName is degraded to the generic wording -- see
+  // (nothing here identifies a target server yet), so no serverId is passed
+  // -- degrades to the generic refusal wording, see
   // lifecycleCoordinator.js's own comment on that fallback.
+  //
+  // normalize-lifecycle-lock-server-identifier, 2026-09-08: deliberately
+  // still null, not a gap left over from that sweep. targetServer (the
+  // actual server DB id) isn't resolved until deep in the try block below
+  // -- after confirm/path/existence/PZ-marker checks -- by matching
+  // deletePath against configured servers' installPath. Fetching that
+  // early enough to pass into the lock would mean either doing the DB
+  // lookup before the lock (an async gap the TOCTOU fix above exists
+  // specifically to close) or acquiring the lock after it (reopening the
+  // exact race this fix closes). Nothing here is a server DB id yet at the
+  // one point in this handler an id could be attached to the lock -- a
+  // genuine "no id available" site, not an oversight.
   const lifecycleLock = acquireLifecycleLock("delete-files");
   if (!lifecycleLock) {
     return res.status(409).json(lifecycleInProgressResponse());
@@ -6097,7 +6109,7 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
   const activeServerForLock = await getActiveServer();
   const lifecycleLock = acquireLifecycleLock(
     "wipe",
-    activeServerForLock?.name || activeServerForLock?.serverName || null,
+    activeServerForLock?.id ?? null,
   );
   if (!lifecycleLock) {
     wipeInProgress = false;

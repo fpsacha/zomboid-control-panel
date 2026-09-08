@@ -104,7 +104,7 @@ describe("ServerManager managed Linux lifecycle", () => {
     manager._killPids = vi.fn();
     manager._genericForceStop = vi.fn();
 
-    const result = await manager.stopServer(false);
+    const result = await manager.stopServer();
 
     expect(lifecycle.run).toHaveBeenCalledWith("stop");
     expect(manager._killPids).not.toHaveBeenCalled();

@@ -1214,9 +1214,28 @@ export class Scheduler {
       return { success: false, message: "Restart already in progress" };
     }
 
+    // normalize-lifecycle-lock-server-identifier, 2026-09-08: deliberately
+    // NOT the fuller pinnedServerId resolution below (which falls back to an
+    // async getActiveServer() read when serverManager._serverId is null) --
+    // that read would have to happen before this point to feed the lock,
+    // and inserting an await between the restartInProgress check above and
+    // the this.restartInProgress = true below would reopen exactly the
+    // checked-then-set race /wipe's own wipeInProgress guard was fixed
+    // against (a second concurrent performRestart() call, e.g. the
+    // AUTO_RESTART_CRON job firing at the same moment as a "Restart Now"
+    // click, could pass the check while the first call is still awaiting).
+    // Using only the synchronous serverManager._serverId here -- already
+    // populated for a throwaway ServerManager the Scheduler pointed at a
+    // specific non-active server (see loadConfig()'s own comment), null for
+    // the common case of the shared singleton -- still replaces
+    // serverManager?.serverName (a display name, possibly stale if
+    // serverManager hadn't loaded any config yet) with a real server DB id
+    // wherever one is synchronously known, without widening that race. The
+    // full resolution (including the async fallback) still runs immediately
+    // below, unmoved, for the restart logic that actually needs it.
     const lifecycleLock =
       providedLifecycleLock ||
-      acquireLifecycleLock("restart", serverManager?.serverName || null);
+      acquireLifecycleLock("restart", serverManager._serverId ?? null);
     if (!lifecycleLock) {
       return { success: false, ...lifecycleInProgressResponse() };
     }
@@ -1583,7 +1602,7 @@ export class Scheduler {
 
         // Force stop if needed
         if (processDetails.running) {
-          const forced = await serverManager.stopServer(false, {
+          const forced = await serverManager.stopServer({
             serverId: pinnedServerId,
           });
           if (!forced?.success || forced.confirmed === false) {

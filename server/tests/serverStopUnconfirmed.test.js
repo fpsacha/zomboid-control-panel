@@ -200,7 +200,7 @@ describe("POST /stop -- managed Linux service", () => {
 
     expect(rconService.save).toHaveBeenCalledOnce();
     expect(rconService.quit).not.toHaveBeenCalled();
-    expect(serverManager.stopServer).toHaveBeenCalledWith(false, {
+    expect(serverManager.stopServer).toHaveBeenCalledWith({
       serverId: null,
     });
     expect(io.emit).not.toHaveBeenCalled();

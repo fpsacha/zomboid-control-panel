@@ -207,7 +207,7 @@ describe("POST /server/force-stop -- bounded, fail-open pre-stop save", () => {
     );
 
     expect(rconService.save).toHaveBeenCalled();
-    expect(serverManager.stopServer).toHaveBeenCalledWith(false, { serverId: null });
+    expect(serverManager.stopServer).toHaveBeenCalledWith({ serverId: null });
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, saveOutcome: "saved" }),
     );

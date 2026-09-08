@@ -40,7 +40,7 @@ describe('stopServer: kill timeout cannot leave the server permanently stuck', (
       .mockReturnValue({ failed: false, errors: [] });
     manager._killPids = async () => ({ timedOut: false });
 
-    await manager.stopServer(false);
+    await manager.stopServer();
 
     expect(groupKill).toHaveBeenCalledWith(4241);
   });
@@ -140,12 +140,12 @@ describe('stopServer: kill timeout cannot leave the server permanently stuck', (
   });
 });
 
-// Runs stopServer(false) under a hard test-level watchdog so a REGRESSION
+// Runs stopServer() under a hard test-level watchdog so a REGRESSION
 // back to "the exec never calls back" hangs this test with a clear timeout
 // failure instead of hanging the whole suite indefinitely.
 async function stopServerWithGuard(manager) {
   return Promise.race([
-    manager.stopServer(false),
+    manager.stopServer(),
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('stopServer() did not return — _stopping would be stuck')), 2000),
     ),

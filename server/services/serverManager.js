@@ -1876,20 +1876,22 @@ export class ServerManager {
     });
   }
 
-  async stopServer(
-    graceful = true,
-    { serverId = this._serverId } = {},
-  ) {
-    if (graceful) {
-      // This should be done via RCON 'quit' command
-      // This method is for force stopping
-      log.info("Graceful stop requested - use RCON quit command");
-      return {
-        success: true,
-        message: "Use RCON quit command for graceful shutdown",
-      };
-    }
-
+  // Force-stops the process/container this instance tracks. Graceful
+  // shutdown is a SEPARATE path (RCON 'quit', issued by the caller) --
+  // this used to also accept a `graceful` flag that, when true (the
+  // DEFAULT), skipped every check below and returned `{success:true}`
+  // without confirming anything or issuing any command at all. Every real
+  // call site already passed `false` explicitly (grepped server/ and
+  // client/src, zero exceptions), so the flag was reachable only via the
+  // most natural-looking call of all -- a bare `stopServer()` -- exactly
+  // the "confident answer with nothing confirmed" shape 63a32640 (OpenRC
+  // stop reporting `success:true, confirmed:true` with no stop issued) was
+  // fixed for. Removed by construction rather than documented as a trap:
+  // deleting is behaviour-preserving at every existing site since they all
+  // already pass `false`, and a real graceful-RCON-quit-from-here would be
+  // a new feature duplicating the RCON path that already exists (see
+  // managedContainer.js's header comment on the two mechanisms).
+  async stopServer({ serverId = this._serverId } = {}) {
     // startServer() already refuses outright when this._stopping is true
     // (see "Prevent start while a stop is still in flight" above) -- this
     // function only ever SET the flag, it never checked it on its OWN
@@ -2343,7 +2345,7 @@ export class ServerManager {
 
       // Force stop if still running
       if (processDetails.running) {
-        const forced = await this.stopServer(false);
+        const forced = await this.stopServer();
         if (!forced?.success || forced.confirmed === false) {
           throw new Error(
             `The old server process could not be stopped (${forced?.error || "unknown error"}), so it was not restarted`,

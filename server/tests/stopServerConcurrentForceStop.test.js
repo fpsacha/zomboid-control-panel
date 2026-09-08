@@ -8,7 +8,7 @@ import { ServerManager } from "../services/serverManager.js";
 // `this._stopping` before proceeding (throws "Server stop in progress, try
 // again in a moment" / "Server start already in progress"), but stopServer()
 // used to only ever SET `this._stopping = true` -- it never checked it at
-// entry. So two overlapping stopServer(false) calls (two Force Stops, or a
+// entry. So two overlapping stopServer() calls (two Force Stops, or a
 // Force Stop racing the Docker/service-managed branch of a plain Stop) both
 // proceeded past every guard: both scanned, both found the same PID, both
 // called _killPids() with it -- redundant work, and on a real OS a second
@@ -18,7 +18,7 @@ import { ServerManager } from "../services/serverManager.js";
 // couldn't be safely forced on this shared WSL kernel).
 //
 // FIXED by adding the same entry check startServer() already performs, one
-// direction earlier: stopServer(false) now refuses immediately (before its
+// direction earlier: stopServer() now refuses immediately (before its
 // first await, mirroring startServer()'s own guard) when `this._stopping`
 // is already true, instead of racing a second scan+kill against whichever
 // stop got there first.
@@ -62,8 +62,8 @@ describe("stopServer(): a second concurrent call (a second Force Stop) is refuse
     };
 
     const [resultA, resultB] = await Promise.all([
-      manager.stopServer(false),
-      manager.stopServer(false),
+      manager.stopServer(),
+      manager.stopServer(),
     ]);
 
     // The fix: only ONE call ever reaches _killPids(), because the entry

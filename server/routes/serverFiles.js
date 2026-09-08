@@ -255,7 +255,7 @@ router.use(async (req, res, next) => {
 //
 // HONEST CAVEAT for whoever reads this next: the measurement covers a B42
 // server only, both a clean RCON `quit` and a hard `taskkill /F` force-stop
-// (dwight, 2026-08-23, replicating serverManager.stopServer(false)'s actual
+// (dwight, 2026-08-23, replicating serverManager.stopServer()'s actual
 // mechanism) — both behave identically for this question: neither rewrites
 // either file, both preserve an edit made on disk while running, and
 // startup afterward rewrites-but-preserves in both cases. Two things remain
