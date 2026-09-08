@@ -703,4 +703,39 @@ describe("GH#149: a legacy schema-1 journal (no clientSha256, exactly what v1.2.
       expect.objectContaining({ code: "av_quarantine" }),
     );
   });
+
+  // God's own regression on the first pass, found and corrected same night:
+  // `git show v1.2.16:server/services/updateBundle.js` and
+  // `git show v1.2.20:server/services/updateBundle.js` both write
+  // `schemaVersion: 1` -- SAME AS v1.2.15 -- but WITH a real, valid
+  // clientSha256 (f69c2f7f added the field without bumping the schema, which
+  // is the whole root cause). A gate keyed on schemaVersion === 2 could not
+  // tell that shape apart from a genuine v1.2.15 legacy journal, and would
+  // silently skip verifying the client bundle for the entire v1.2.16-v1.2.20
+  // install base -- the majority of real users, not the v1.2.15 minority
+  // this fix targets. The gate must key on the hash actually being present,
+  // not on the schema number.
+  //
+  // Fixture built from the REAL current stageUpdateBundle() (so clientSha256
+  // is a genuine, correctly-computed hash of the actual staged directory,
+  // not hand-typed), with only schemaVersion patched down to 1 afterward --
+  // exactly the shape v1.2.16-v1.2.20 actually wrote (schema 1, real hash),
+  // not reconstructed by hand.
+  it("GH#149 regression: a schema-1 journal that DOES carry a real clientSha256 (the actual v1.2.16-v1.2.20 shape) still catches a tampered client dist", () => {
+    const { journalPath } = prepareBundle();
+    const journal = JSON.parse(fs.readFileSync(journalPath, "utf8"));
+    expect(typeof journal.hashes.clientSha256).toBe("string");
+    expect(journal.hashes.clientSha256).not.toBe("");
+    journal.schemaVersion = 1;
+    fs.writeFileSync(journalPath, JSON.stringify(journal, null, 2), "utf8");
+
+    fs.writeFileSync(
+      path.join(journal.paths.stagedClient, "index.html"),
+      "tampered-client",
+    );
+
+    expect(() => applyUpdateBundle(journalPath)).toThrowError(
+      expect.objectContaining({ code: "av_quarantine" }),
+    );
+  });
 });

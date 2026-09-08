@@ -497,24 +497,48 @@ export function applyUpdateBundle(journalPath) {
   if (stagedBinaryHash !== journal.hashes.binarySha256) {
     throw updateError("av_quarantine", "Staged update binary hash changed");
   }
-  // GH#149: gated on the journal's OWN schema version, not on
-  // journal.hashes.clientSha256 being truthy -- a legacy schema-1 journal
-  // never had this hash computed at stage time (see validateJournal()'s own
-  // comment above), so there is nothing honest to compare against; skipping
-  // it here is exactly as safe as the pre-f69c2f7f binary that staged it,
-  // which never checked this either. Keying off schemaVersion instead of
-  // "is the field present" means a FUTURE journal that loses this field for
-  // some other reason (a bug, a truncated write) still schema-2 and still
-  // gets the real check, rather than silently sliding through the legacy
-  // bypass it was never meant to use.
-  if (journal.schemaVersion === CURRENT_SCHEMA_VERSION) {
+  // GH#149, corrected 2026-09-08 (god's own regression on the first pass):
+  // gated on the hash actually BEING PRESENT, not on schemaVersion. f69c2f7f
+  // added clientSha256 without bumping schemaVersion, so schema 1 covers two
+  // real shapes on disk: v1.2.15-and-earlier (no clientSha256 at all -- see
+  // validateJournal()'s own comment above) AND v1.2.16-v1.2.20 (schema
+  // STILL 1, but a real, valid clientSha256 -- confirmed via `git show
+  // v1.2.16:...`/`v1.2.20:...`, not assumed). Gating on schemaVersion
+  // === CURRENT_SCHEMA_VERSION (2) would have silently disabled this
+  // integrity check for that entire v1.2.16-v1.2.20 cohort -- the majority
+  // of real installs, not the v1.2.15 minority this fix exists for. That
+  // would trade a rare permanent brick for a silent, universal loss of the
+  // exact check f69c2f7f was written to add.
+  //
+  // The "a future journal could lose this field" worry that originally
+  // justified schema-keying is already closed by question 1 (is the field
+  // REQUIRED), which validateJournal() answers correctly: at schema 2 the
+  // field is required, so a schema-2 journal missing it throws
+  // invalid_bundle there and never reaches this function at all.
+  // Presence-keying here is safe precisely because validation already
+  // version-keys -- these are two different questions (is it required vs.
+  // should we verify it) and only the first one is about schemaVersion.
+  //
+  // Decided, not incidental: a schema-1 journal with a MALFORMED
+  // clientSha256 (present but empty, or not a string) is treated the same
+  // as absent -- skipped, not compared. Schema 1 never guaranteed this
+  // field's validity in the first place (only schema 2's validateJournal()
+  // check does that), so a malformed value here is exactly as untrusted as
+  // a missing one; there is nothing more honest to do with it than skip,
+  // same as the legacy no-hash case.
+  const stagedClientHashToCompare =
+    typeof journal.hashes?.clientSha256 === "string" &&
+    journal.hashes.clientSha256 !== ""
+      ? journal.hashes.clientSha256
+      : null;
+  if (stagedClientHashToCompare) {
     let stagedClientHash;
     try {
       ({ hash: stagedClientHash } = sha256Directory(paths.stagedClient));
     } catch (error) {
       throw updateError("hash_unverifiable", "Could not verify staged client bundle", error);
     }
-    if (stagedClientHash !== journal.hashes.clientSha256) {
+    if (stagedClientHash !== stagedClientHashToCompare) {
       throw updateError("av_quarantine", "Staged client bundle hash changed");
     }
   }
