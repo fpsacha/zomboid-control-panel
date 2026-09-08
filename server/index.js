@@ -1884,12 +1884,26 @@ app.get("/api/panel/update-check", async (req, res) => {
 });
 
 app.get("/api/panel/update-status", (req, res) => {
-  const checker = req.app.get("panelUpdateChecker");
-  if (!checker)
-    return res
-      .status(500)
-      .json({ error: "Panel update checker not available" });
-  res.json(checker.getStatus());
+  try {
+    const checker = req.app.get("panelUpdateChecker");
+    if (!checker)
+      return res
+        .status(500)
+        .json({ error: "Panel update checker not available" });
+    res.json(checker.getStatus());
+  } catch (error) {
+    // The only inline update route with no try/catch, found by comparing it
+    // against its three siblings (update-check, update-preflight,
+    // update-apply-log) directly above and below it, which all wrap the
+    // same "call a checker method, hand the result to res.json()" shape.
+    // getStatus() calls getStagedUpdate() (real file I/O) internally; a
+    // synchronous throw here would still be caught by Express's own
+    // handler-dispatch and forwarded to apiErrorHandler today, so this
+    // wasn't a live crash, but it meant this one route alone produced a
+    // generic 500 instead of the same structured error shape every sibling
+    // route gives for the same failure.
+    res.status(500).json({ error: sanitizeError(error.message) });
+  }
 });
 
 app.get("/api/panel/update-preflight", async (req, res) => {
