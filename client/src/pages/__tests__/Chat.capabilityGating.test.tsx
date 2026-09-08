@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import Chat from '../Chat'
@@ -320,6 +320,33 @@ describe('Chat.tsx: quick-broadcast preset management gates on panel.settings', 
     fireEvent.click(screen.getByLabelText('Add preset'))
 
     await waitFor(() => expect(updateAppSettings).toHaveBeenCalledWith({ chatPresets: ['Test preset', 'A new preset'] }))
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above only
+  // clicked through Add -- Delete preset 1 was asserted not.toBeDisabled()
+  // and never clicked, so a regression in handleDeletePreset's own wiring
+  // (as opposed to its disabled prop) would have sat green. Delete has its
+  // own extra step none of the other preset actions do: a confirm() dialog
+  // between the click and persistPresets(), so this is not just a copy of
+  // the Add assertion.
+  it('reaches updateAppSettings with the preset removed when Delete preset 1 is clicked and confirmed, holding panel.settings', async () => {
+    mockCan = () => true
+    await setUp()
+    updateAppSettings.mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof configApi.updateAppSettings>>)
+
+    renderChat()
+
+    await screen.findByText('Test preset')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit presets' }))
+
+    const deleteButton = screen.getByLabelText('Delete preset 1')
+    expect(deleteButton).not.toBeDisabled()
+    fireEvent.click(deleteButton)
+
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete Preset' }))
+
+    await waitFor(() => expect(updateAppSettings).toHaveBeenCalledWith({ chatPresets: [] }))
   })
 })
 
