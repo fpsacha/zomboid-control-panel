@@ -2047,8 +2047,8 @@ export interface ConfigTemplateDetail extends ConfigTemplate {
 
 export const serverFilesApi = {
   // Paths
-  getPaths: () =>
-    apiGet("/server-files/paths") as Promise<{
+  getPaths: (options?: { retries?: number }) =>
+    apiGet("/server-files/paths", undefined, options?.retries) as Promise<{
       configPath: string;
       serverName: string;
       files: {
@@ -2066,8 +2066,8 @@ export const serverFilesApi = {
     }>,
 
   // INI
-  getIni: () =>
-    apiGet("/server-files/ini") as Promise<{
+  getIni: (options?: { retries?: number }) =>
+    apiGet("/server-files/ini", undefined, options?.retries) as Promise<{
       settings: Record<string, string>;
       path: string;
       serverName: string;
@@ -2083,8 +2083,8 @@ export const serverFilesApi = {
     }>,
 
   // Sandbox
-  getSandbox: () =>
-    apiGet("/server-files/sandbox") as Promise<{
+  getSandbox: (options?: { retries?: number }) =>
+    apiGet("/server-files/sandbox", undefined, options?.retries) as Promise<{
       sandbox: SandboxData;
       path: string;
       serverName: string;
@@ -2115,8 +2115,8 @@ export const serverFilesApi = {
     }>,
 
   // Spawn Points (keyed by profession)
-  getSpawnPoints: () =>
-    apiGet("/server-files/spawnpoints") as Promise<{
+  getSpawnPoints: (options?: { retries?: number }) =>
+    apiGet("/server-files/spawnpoints", undefined, options?.retries) as Promise<{
       spawnpoints: SpawnPointsByProfession;
       path: string;
     }>,
@@ -2124,8 +2124,8 @@ export const serverFilesApi = {
     apiPut("/server-files/spawnpoints", { spawnpoints }),
 
   // Spawn Regions
-  getSpawnRegions: () =>
-    apiGet("/server-files/spawnregions") as Promise<{
+  getSpawnRegions: (options?: { retries?: number }) =>
+    apiGet("/server-files/spawnregions", undefined, options?.retries) as Promise<{
       spawnregions: SpawnRegion[];
       path: string;
     }>,

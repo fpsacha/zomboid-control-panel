@@ -1107,7 +1107,15 @@ export default function ServerConfig() {
     }
   }, [])
 
-  const loadData = async () => {
+  // 2026-09-08 (retry-stacking sweep, page 5 of 5): `manual` distinguishes
+  // this page's THREE human-initiated triggers (two Retry buttons on the
+  // error/server-changed banners, plus the page header's own Refresh
+  // button) from the mount effect -- see Servers.tsx's fetchServers() for
+  // the full reasoning. Sequential awaits, not Promise.all/allSettled --
+  // the first one to reject short-circuits the rest, so a persistent
+  // getPaths() failure alone is what the mount-vs-manual test can rely on.
+  const loadData = async (opts?: { manual?: boolean }) => {
+    const retries = opts?.manual ? { retries: 0 } : undefined
     setLoading(true)
     setServerChangedSinceLoad(false)
     const active = await serversApi.getResolvedActive().catch(() => ({ server: null }))
@@ -1116,12 +1124,12 @@ export default function ServerConfig() {
     setActiveServerName(active.server?.name || active.server?.serverName || null)
     try {
       // Load paths info first
-      const paths = await serverFilesApi.getPaths()
+      const paths = await serverFilesApi.getPaths(retries)
       setPathsInfo(paths)
 
       // Load files that exist
       if (paths.exists.ini) {
-        const iniData = await serverFilesApi.getIni()
+        const iniData = await serverFilesApi.getIni(retries)
         const merged = mergeSchemaDefaults(iniData.settings)
         setIniSettings(merged)
         setOriginalIniSettings(merged)
@@ -1129,18 +1137,18 @@ export default function ServerConfig() {
       }
 
       const sandboxRes = paths.exists.sandbox
-        ? await serverFilesApi.getSandbox()
+        ? await serverFilesApi.getSandbox(retries)
         : { sandbox: createSandboxDefaults() }
       setSandboxData(sandboxRes.sandbox)
       setOriginalSandboxData(sandboxRes.sandbox)
 
       if (paths.exists.spawnpoints) {
-        const spawnRes = await serverFilesApi.getSpawnPoints()
+        const spawnRes = await serverFilesApi.getSpawnPoints(retries)
         setSpawnPoints(spawnRes.spawnpoints)
       }
 
       if (paths.exists.spawnregions) {
-        const regionsRes = await serverFilesApi.getSpawnRegions()
+        const regionsRes = await serverFilesApi.getSpawnRegions(retries)
         setSpawnRegions(regionsRes.spawnregions)
       }
       setLoadError(null)
@@ -2274,7 +2282,7 @@ export default function ServerConfig() {
             <AlertTitle>{t('loadErrorTitle')}</AlertTitle>
             <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="min-w-0 break-words" dir="auto" title={loadError}>{loadError}</span>
-              <Button variant="outline" size="sm" onClick={loadData} className="self-start">
+              <Button variant="outline" size="sm" onClick={() => loadData({ manual: true })} className="self-start">
                 <RefreshCw className="me-2 h-4 w-4" /> {t('retry')}
               </Button>
             </AlertDescription>
@@ -2317,7 +2325,7 @@ export default function ServerConfig() {
             <span className="min-w-0 break-words">
               {t('serverChangedBanner.desc')}
             </span>
-            <Button variant="outline" size="sm" onClick={loadData} className="self-start">
+            <Button variant="outline" size="sm" onClick={() => loadData({ manual: true })} className="self-start">
               <RefreshCw className="me-2 h-4 w-4" /> {t('retry')}
             </Button>
           </AlertDescription>
@@ -2344,7 +2352,7 @@ export default function ServerConfig() {
             <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={loadBackups}>
               <History className="h-3.5 w-3.5" /> {t('pageHeader.backups')}
             </Button>
-            <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={loadData}>
+            <Button variant="command" size="sm" className="h-9 gap-1.5 text-xs font-medium" onClick={() => loadData({ manual: true })}>
               <RefreshCw className="h-3.5 w-3.5" /> {t('pageHeader.refresh')}
             </Button>
           </div>
