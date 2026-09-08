@@ -535,6 +535,12 @@ export default function Servers() {
         description: getUserErrorMessage(error, t('toasts.containerActionFailedFallback')),
         variant: 'destructive',
       })
+      // bug-hunt-2026-09-08 (start/stop reconcile audit): same reasoning as
+      // Servers.tsx's inline start/stop catch blocks -- a client-side
+      // error doesn't mean the container's real state matches what's still
+      // on screen. Refetch immediately instead of leaving that gap open
+      // for the existing 10s periodic poll to close later.
+      void fetchDockerState()
     } finally {
       setDockerActionPending(null)
     }
@@ -1069,6 +1075,19 @@ export default function Servers() {
         description: getUserErrorMessage(error, t('toasts.unknownError')),
         variant: 'destructive',
       })
+      // bug-hunt-2026-09-08 (start/stop reconcile audit): a client-side
+      // error here (network drop, a real 4xx/5xx) does NOT mean the
+      // server's actual running state matches what's still on screen --
+      // this is the same "operation may have succeeded despite a client-
+      // observed failure" shape the timeout-class sweep found tonight.
+      // Without this, the card shows stale state in the seconds right
+      // after the click, which is exactly when an operator is watching
+      // and most likely to click Start a second time against a server
+      // whose real state neither side agrees on. The 15s periodic poll
+      // would eventually correct it either way; this closes the gap
+      // immediately instead of leaving the wrong state on screen at the
+      // moment it does the most damage.
+      void Promise.allSettled([fetchServers(), fetchServerStatuses()])
     } finally {
       setServerActionPending(null)
     }
@@ -1110,6 +1129,11 @@ export default function Servers() {
         description: getUserErrorMessage(error, t('toasts.unknownError')),
         variant: 'destructive',
       })
+      // bug-hunt-2026-09-08 (start/stop reconcile audit): same reasoning as
+      // handleInlineStart's catch above -- refetch immediately rather than
+      // leave stale (possibly wrong) state on screen right when the
+      // operator is watching and most likely to click Stop again.
+      void Promise.allSettled([fetchServers(), fetchServerStatuses()])
     } finally {
       setServerActionPending(null)
     }
