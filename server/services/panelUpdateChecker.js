@@ -2676,7 +2676,9 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     ].map((m) => m[1].toLowerCase());
     const lastSupervisorTag = supervisorTags[supervisorTags.length - 1];
     if (lastSupervisorTag === "av_quarantine") return "av_quarantine";
-    if (lastSupervisorTag === "binary_swap_failed") return "rename_locked";
+    if (lastSupervisorTag === "binary_swap_failed") {
+      return this.classifyBinarySwapFailure(helperLog);
+    }
     if (lastSupervisorTag === "rollback_failed") return "rollback_failed";
     // 2026-09-08, god-dispatched fix: generateStartBat()'s hash checks used
     // to stamp [av_quarantine] unconditionally whenever the powershell hash
@@ -2755,6 +2757,51 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     }
 
     return "unknown";
+  }
+
+  /**
+   * Sub-classify a "binary_swap_failed" bracket tag into "permission" vs the
+   * default "rename_locked". god-dispatched, 2026-09-08: both of build.js's
+   * binary_swap_failed sites (the backup-rename of the live exe, and the
+   * activation-rename of the staged exe) redirect the `ren` command's own
+   * stderr into the log via `>>"%LOG_FILE%" 2>&1` on the line immediately
+   * BEFORE the `call :stamp` line that writes the bracket tag -- so the
+   * discriminating cmd.exe text (8f939c1b) sits in a small window right
+   * before the tag, not scattered across the whole log. Mirrors
+   * isRollbackRetryLikely()'s established pattern below: a SECONDARY check
+   * run in ADDITION to the primary bracket match in classifyApplyFailure(),
+   * scoped to the LAST occurrence of this one specific tag, never replacing
+   * the primary match for any other tag or changing behaviour for a log
+   * where this sub-check finds neither string.
+   *
+   * NOTE this asymmetry is deliberate, not an oversight: frontend_swap_failed
+   * has no equivalent early return in classifyApplyFailure() -- it already
+   * falls through to the legacy whole-log prose checks below, which already
+   * discriminate permission vs rename_locked for it. Only binary_swap_failed
+   * short-circuited past that discrimination, which is the actual bug.
+   *
+   * Never throws.
+   */
+  classifyBinarySwapFailure(helperLog) {
+    const lines = helperLog.split(/\r?\n/);
+    let lastTagIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/\[binary_swap_failed\]/i.test(lines[i])) lastTagIndex = i;
+    }
+    if (lastTagIndex === -1) return "rename_locked";
+
+    const window = lines
+      .slice(Math.max(0, lastTagIndex - 3), lastTagIndex)
+      .join(" ")
+      .toLowerCase();
+    if (
+      window.includes("access is denied") ||
+      window.includes("access denied") ||
+      window.includes("unauthorized")
+    ) {
+      return "permission";
+    }
+    return "rename_locked";
   }
 
   /**

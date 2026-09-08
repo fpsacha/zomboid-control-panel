@@ -29,7 +29,7 @@ describe("classifyApplyFailure() recognises Supervisor v2's real, current wordin
     expect(checker.classifyApplyFailure(log, false)).toBe("av_quarantine");
   });
 
-  it("binary_swap_failed (a failed `ren` on the live/staged exe) maps to the existing rename_locked bucket", () => {
+  it("binary_swap_failed with no discriminating cmd.exe text nearby still defaults to rename_locked -- unchanged behaviour for the shape this bucket has always covered", () => {
     const checker = new PanelUpdateChecker();
     const log =
       "[2026-09-04 10:00:00] Supervisor v2 starting\n" +
@@ -38,6 +38,65 @@ describe("classifyApplyFailure() recognises Supervisor v2's real, current wordin
       "[2026-09-04 10:00:05] Apply: could not back up running executable [binary_swap_failed]\n";
 
     expect(checker.classifyApplyFailure(log, true)).toBe("rename_locked");
+  });
+
+  // 2026-09-08, god-dispatched follow-up: classifyApplyFailure() returned
+  // "rename_locked" for EVERY binary_swap_failed log, even when 8f939c1b's
+  // raw cmd.exe error text (now captured on the line right before the
+  // bracket tag, via build.js's `>>"%LOG_FILE%" 2>&1` redirect on the `ren`
+  // command itself) said "Access is denied" -- a permissions problem, not a
+  // lock. The bracket-first return short-circuited past the very prose
+  // checks (~2726) that would have caught this. classifyBinarySwapFailure()
+  // adds a secondary check, scoped to this one tag, mirroring
+  // isRollbackRetryLikely()'s established pattern below.
+  it("2026-09-08: binary_swap_failed + a real 'Access is denied' on the preceding line now sub-classifies as permission, not rename_locked", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 10:00:00] Supervisor v2 starting\n" +
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "Access is denied.\n" +
+      "[2026-09-08 10:00:05] Apply: could not back up running executable [binary_swap_failed]\n";
+
+    expect(checker.classifyApplyFailure(log, true)).toBe("permission");
+  });
+
+  it("2026-09-08: binary_swap_failed + 'being used by another process' on the preceding line still classifies as rename_locked -- the regression guard", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 10:00:00] Supervisor v2 starting\n" +
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "The process cannot access the file because it is being used by another process.\n" +
+      "[2026-09-08 10:00:05] Apply: could not back up running executable [binary_swap_failed]\n";
+
+    expect(checker.classifyApplyFailure(log, true)).toBe("rename_locked");
+  });
+
+  it("2026-09-08: only the LAST binary_swap_failed occurrence's preceding text decides -- an earlier attempt's 'Access is denied' must not leak into a later, differently-caused failure", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 09:00:00] Apply: marker present, beginning swap\n" +
+      "Access is denied.\n" +
+      "[2026-09-08 09:00:00] Apply: could not back up running executable [binary_swap_failed]\n" +
+      "[2026-09-08 09:05:00] Apply: retrying after rollback\n" +
+      "The process cannot access the file because it is being used by another process.\n" +
+      "[2026-09-08 09:05:05] Apply: could not back up running executable [binary_swap_failed]\n";
+
+    expect(checker.classifyApplyFailure(log, true)).toBe("rename_locked");
+  });
+
+  it("2026-09-08: frontend_swap_failed already discriminates permission vs rename_locked on its own, via the legacy whole-log prose fallback -- confirms only binary_swap_failed needed the fix, not both", () => {
+    const checker = new PanelUpdateChecker();
+    const deniedLog =
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "Access is denied.\n" +
+      "[2026-09-08 10:00:05] Apply: could not activate staged frontend [frontend_swap_failed]\n";
+    const lockedLog =
+      "[2026-09-08 10:00:05] Apply: marker present, beginning swap\n" +
+      "The process cannot access the file because it is being used by another process.\n" +
+      "[2026-09-08 10:00:05] Apply: could not activate staged frontend [frontend_swap_failed]\n";
+
+    expect(checker.classifyApplyFailure(deniedLog, true)).toBe("permission");
+    expect(checker.classifyApplyFailure(lockedLog, true)).toBe("rename_locked");
   });
 
   it("only the LAST bracket tag decides -- an earlier unrelated tag from a prior step must not win", () => {
