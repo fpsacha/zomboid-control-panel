@@ -253,6 +253,22 @@ the list.
 50` for the actual error. A permission-denied error mentioning a path outside
 `/opt/zomboid-panel` almost always means the `ReadWritePaths` trap above.
 
+**A separate trap this same sandboxing used to cause:** SteamCMD writes its
+*own* client state (login cache, depot/workshop staging, logs) to
+`$HOME/Steam` — a completely different location from wherever you point
+`+force_install_dir`. The bundled unit also sets `ProtectHome=read-only`,
+which blocks that write unconditionally, with no `ReadWritePaths` entry able
+to fix it (short of granting write access to your whole home directory,
+which isn't worth doing for this). This showed up as SteamCMD failing with
+"Missing file permissions" or "Missing configuration" (`exit code 8`) even
+when `/opt/zomboid-panel` itself had correct ownership and permissions — the
+error was real, it just wasn't about the path you'd been told to `chown`.
+The panel now redirects SteamCMD's `$HOME` to a `.steamhome` folder inside
+its own SteamCMD directory (already covered by whatever `ReadWritePaths`
+entry that directory needs anyway — see above), so this no longer requires
+any manual fix. If you're on an older panel version and still see this
+error, updating resolves it; there's nothing to change in the unit file.
+
 ---
 
 ## Phase 7: Install a PZ server through the panel wizard

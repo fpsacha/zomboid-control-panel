@@ -72,6 +72,35 @@ export function classifyProcessKillError(error) {
   return "failed";
 }
 
+// GH #147, second symptom: a real user's SteamCMD install failed with
+// "Missing file permissions" because SteamCMD writes its OWN client state
+// ($HOME/Steam) separately from the game files at `+force_install_dir`, and
+// the bundled systemd unit's `ProtectHome=read-only` blocks that write
+// unconditionally (see server/routes/server.js's buildLinuxSteamCmdEnv,
+// the fix for the panel's own install/update SteamCMD calls, for the full
+// mechanism -- verified for real on a systemd host, not just reasoned
+// about). A separate Discord report is the same root from the other end:
+// a workshop folder SteamCMD "never produced," with the base server
+// already working -- Project Zomboid's dedicated server itself shells out
+// to its OWN SteamCMD internally at startup to sync `WorkshopItems=`, and
+// that child process inherits whatever env THIS spawn gives the JVM. If
+// the JVM inherits the same unmodified (and sandboxed) $HOME, its internal
+// SteamCMD call fails the identical way. Redirect it here too, into a
+// folder inside the server's own directory -- already required to be
+// writable, so it inherits whatever ReadWritePaths grant the operator's
+// install already needs, with no new configuration surface.
+export function buildLinuxServerHome(serverDir) {
+  const steamHome = path.join(serverDir, ".steamhome");
+  try {
+    fs.mkdirSync(steamHome, { recursive: true });
+  } catch (err) {
+    log.debug(
+      `Could not create SteamCMD HOME override at ${steamHome}: ${err.message}`,
+    );
+  }
+  return steamHome;
+}
+
 // Build LD_LIBRARY_PATH from server directory, filtering to only existing paths
 function buildLdLibraryPath(serverDir) {
   log.debug(
@@ -1584,7 +1613,11 @@ export class ServerManager {
             cwd,
             detached: true,
             stdio: launchStdio,
-            env: { ...process.env, LD_LIBRARY_PATH: ldPath },
+            env: {
+              ...process.env,
+              LD_LIBRARY_PATH: ldPath,
+              HOME: buildLinuxServerHome(serverAbsPath),
+            },
           });
         } else {
           // Reached on Linux only for a no-extension custom command (the
@@ -1610,6 +1643,7 @@ export class ServerManager {
                 return {
                   ...process.env,
                   LD_LIBRARY_PATH: buildLdLibraryPath(serverAbsPath),
+                  HOME: buildLinuxServerHome(serverAbsPath),
                 };
               })();
           this.serverProcess = spawn(resolvedCmd, args, {
@@ -1722,7 +1756,11 @@ export class ServerManager {
           cwd: this.serverPath,
           detached: true,
           stdio: launchStdio,
-          env: { ...process.env, LD_LIBRARY_PATH: ldPath },
+          env: {
+            ...process.env,
+            LD_LIBRARY_PATH: ldPath,
+            HOME: buildLinuxServerHome(serverAbsPath),
+          },
         });
       }
       this._closeLaunchLogFd();

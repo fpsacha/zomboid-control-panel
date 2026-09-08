@@ -169,6 +169,46 @@ function emitRawSteamCmdLine(io, event, type, text) {
   io?.emit(event, { type, text });
 }
 
+// GH #147: a real user's SteamCMD install kept failing with "Missing file
+// permissions" (exit 8), then "Missing configuration" once he widened the
+// GAME install directory's own permissions — a permission change that MOVES
+// the error rather than fixing it means the first failure was real and the
+// thing widened wasn't what SteamCMD was actually complaining about. His own
+// log named it directly: `Redirecting stderr to
+// '/home/pzuser/Steam/logs/stderr.txt'` -- SteamCMD resolves its OWN client
+// state (login cache, depot/workshop staging, logs) from $HOME, entirely
+// separate from wherever `+force_install_dir` points the actual game files.
+// The panel's bundled systemd unit (zomboid-panel.service) sandboxes the
+// service with `ProtectHome=read-only`, which makes every write under
+// $HOME fail at the mount-namespace level regardless of the target's own
+// filesystem permissions -- chown/chmod on the install path can't touch it,
+// because the real blocker is a completely different path the install guide
+// never mentions (it only documents the `ReadWritePaths` trap for the GAME
+// install dir itself, not for SteamCMD's own home-relative state).
+// Redirecting HOME to a folder inside SteamCMD's own directory sidesteps
+// the sandboxed /home entirely -- that directory is already required to be
+// writable (SteamCMD downloads and updates itself there), so this needs no
+// unit-file edit from the user and no relaxing of ProtectHome.
+export function buildLinuxSteamCmdEnv(steamcmdBinDir) {
+  const steamHome = path.join(steamcmdBinDir, ".steamhome");
+  try {
+    fs.mkdirSync(steamHome, { recursive: true });
+  } catch (err) {
+    log.debug(
+      `Could not create SteamCMD HOME override at ${steamHome}: ${err.message}`,
+    );
+  }
+  const ldPaths = [
+    path.join(steamcmdBinDir, "linux32"),
+    path.join(steamcmdBinDir, "linux64"),
+    steamcmdBinDir,
+    process.env.LD_LIBRARY_PATH || "",
+  ]
+    .filter(Boolean)
+    .join(":");
+  return { ...process.env, LD_LIBRARY_PATH: ldPaths, HOME: steamHome };
+}
+
 // Self-heal "SteamCMD not found": downloads, extracts and first-time
 // initializes SteamCMD into `installPath` on Linux, mirroring the same
 // steps as POST /steamcmd/download. Called from /install and /update when
@@ -254,19 +294,10 @@ async function ensureSteamCmdLinux(installPath, io) {
     message: "Initializing SteamCMD (first run)...",
     progressCode: ProgressCode.STEAMCMD_INITIALIZING,
   });
-  const ldPaths = [
-    path.join(installPath, "linux32"),
-    path.join(installPath, "linux64"),
-    installPath,
-    process.env.LD_LIBRARY_PATH || "",
-  ]
-    .filter(Boolean)
-    .join(":");
-
   await new Promise((resolve, reject) => {
     const proc = spawn(steamcmdExe, ["+quit"], {
       cwd: installPath,
-      env: { ...process.env, LD_LIBRARY_PATH: ldPaths },
+      env: buildLinuxSteamCmdEnv(installPath),
     });
     proc.stdout.on("data", (d) =>
       emitRawSteamCmdLine(io, "steamcmd:log", "stdout", d.toString()),
@@ -2469,18 +2500,9 @@ router.get("/branches", requirePermission("server.install"), async (req, res) =>
     ];
 
     const result = await new Promise((resolve, reject) => {
-      // On Linux, set LD_LIBRARY_PATH for SteamCMD's 32-bit libraries
       const branchSpawnOpts = { cwd: steamcmdPath, timeout: 60000 };
       if (!isWindows) {
-        const ldPaths = [
-          path.join(steamcmdPath, "linux32"),
-          path.join(steamcmdPath, "linux64"),
-          steamcmdPath,
-          process.env.LD_LIBRARY_PATH || "",
-        ]
-          .filter(Boolean)
-          .join(":");
-        branchSpawnOpts.env = { ...process.env, LD_LIBRARY_PATH: ldPaths };
+        branchSpawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
       }
       const steamcmd = spawn(steamcmdExe, steamcmdArgs, branchSpawnOpts);
 
@@ -2836,18 +2858,9 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     const io = req.app.get("io");
 
     // Spawn SteamCMD process
-    // On Linux, set LD_LIBRARY_PATH so SteamCMD can find its 32-bit libraries
     const spawnOpts = { cwd: steamcmdPath };
     if (!isWindows) {
-      const ldPaths = [
-        path.join(steamcmdPath, "linux32"),
-        path.join(steamcmdPath, "linux64"),
-        steamcmdPath,
-        process.env.LD_LIBRARY_PATH || "",
-      ]
-        .filter(Boolean)
-        .join(":");
-      spawnOpts.env = { ...process.env, LD_LIBRARY_PATH: ldPaths };
+      spawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
     }
     const steamcmd = spawn(steamcmdExe, steamcmdArgs, spawnOpts);
     activeSteamOperations.get(normalizedPath).pid = steamcmd.pid;
@@ -4099,18 +4112,9 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
         : ProgressCode.STEAM_START_UPDATE,
     });
 
-    // On Linux, set LD_LIBRARY_PATH so SteamCMD can find its 32-bit libraries
     const updateSpawnOpts = { cwd: steamcmdPath };
     if (!isWindows) {
-      const ldPaths = [
-        path.join(steamcmdPath, "linux32"),
-        path.join(steamcmdPath, "linux64"),
-        steamcmdPath,
-        process.env.LD_LIBRARY_PATH || "",
-      ]
-        .filter(Boolean)
-        .join(":");
-      updateSpawnOpts.env = { ...process.env, LD_LIBRARY_PATH: ldPaths };
+      updateSpawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
     }
     const steamcmd = spawn(steamcmdExe, steamcmdArgs, updateSpawnOpts);
     activeSteamOperations.get(normalizedPath).pid = steamcmd.pid;
@@ -4538,18 +4542,9 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
       // function invoked from a spawn/stream callback, not awaited by
       // either caller.
       const steamcmdExe = getSteamCmdExe(installPath);
-      // On Linux, set LD_LIBRARY_PATH for SteamCMD's 32-bit libraries
       const firstRunOpts = { cwd: installPath };
       if (!isWindows) {
-        const ldPaths = [
-          path.join(installPath, "linux32"),
-          path.join(installPath, "linux64"),
-          installPath,
-          process.env.LD_LIBRARY_PATH || "",
-        ]
-          .filter(Boolean)
-          .join(":");
-        firstRunOpts.env = { ...process.env, LD_LIBRARY_PATH: ldPaths };
+        firstRunOpts.env = buildLinuxSteamCmdEnv(installPath);
       }
       const steamcmd = spawn(steamcmdExe, ["+quit"], firstRunOpts);
 
