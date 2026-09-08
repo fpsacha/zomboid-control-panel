@@ -902,6 +902,10 @@ export const ErrorCode = Object.freeze({
   MODS_ADD_TO_INI_CONFIG_PATH_NOT_SET: "MODS_ADD_TO_INI_CONFIG_PATH_NOT_SET",
   /** server/routes/mods.js -- POST /auto-restart, `enabled` not a boolean. */
   MODS_AUTO_RESTART_ENABLED_REQUIRED: "MODS_AUTO_RESTART_ENABLED_REQUIRED",
+  /** server/routes/mods.js -- POST /batch-delete-disk-mods, workshopIds.length exceeds 500. Same cap
+   * and reasoning as MODS_BATCH_REMOVE_TOO_MANY below -- own code since this
+   * route deletes real files on disk, not just an INI/DB edit. */
+  MODS_BATCH_DELETE_DISK_MODS_TOO_MANY: "MODS_BATCH_DELETE_DISK_MODS_TOO_MANY",
   /** server/routes/mods.js -- POST /batch-remove, iniEditApplied came back false from the batch removal
    * helper -- own wording ("...no mods were removed."), a 200-status response
    * with success:iniEditApplied and this error attached. Distinct from
@@ -1108,6 +1112,10 @@ export const ErrorCode = Object.freeze({
    * dependencies provided") -- different route, different phrasing, kept
    * separate. */
   MODS_RESOLVE_DEPS_ARRAY_REQUIRED: "MODS_RESOLVE_DEPS_ARRAY_REQUIRED",
+  /** server/routes/mods.js -- POST /resolve-orphan-workshop, workshopIds.length exceeds 500. Same
+   * cap and reasoning as MODS_BATCH_REMOVE_TOO_MANY above -- own code, per
+   * this file's per-call-site convention. */
+  MODS_RESOLVE_ORPHAN_WORKSHOP_TOO_MANY: "MODS_RESOLVE_ORPHAN_WORKSHOP_TOO_MANY",
   /** server/routes/mods.js -- PUT /restart-options, checkInterval outside the same 60000-7200000ms range
    * as /check-interval above but through a differently-named field and its own
    * wording -- own code, not merged. */

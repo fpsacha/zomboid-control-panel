@@ -228,3 +228,91 @@ describe("mods.js ini writes: a failed backup warns but never blocks the edit", 
     expect(iniContent).toMatch(/^Mods=.*NewMod/m);
   });
 });
+
+// sibling-convention sweep, 2026-09-08: /batch-remove caps its own
+// workshopIds array at 500 "to prevent abuse". /batch-delete-disk-mods
+// (the more destructive of the two -- it deletes real files from disk, not
+// just an INI/DB edit) and /resolve-orphan-workshop both had no cap at
+// all, found by reading the two routes directly after god's "check the
+// sibling" dispatch. Fixed with the same 500-item cap, own error code per
+// this file's per-call-site convention.
+describe("mods.js batch workshopIds routes cap array size the same way /batch-remove already does", () => {
+  let dataRoot;
+  let configPath;
+
+  beforeEach(() => {
+    dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mods-batch-cap-"));
+    configPath = path.join(dataRoot, "Server");
+    fs.mkdirSync(configPath, { recursive: true });
+    fs.writeFileSync(
+      path.join(configPath, "TestServer.ini"),
+      "Mods=ExistingMod\nWorkshopItems=1111111111\nMap=Muldraugh, KY\n",
+    );
+    getActiveServer.mockReset().mockResolvedValue({
+      id: "server-1",
+      serverConfigPath: configPath,
+      serverName: "TestServer",
+      isRemote: false,
+    });
+  });
+
+  afterEach(() => {
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  });
+
+  // Real, distinct 10-digit-shaped IDs -- not just a length count -- so a
+  // regression that only checks .length after some other filter couldn't
+  // pass by accident.
+  function manyWorkshopIds(count) {
+    return Array.from({ length: count }, (_, i) =>
+      String(1000000000 + i),
+    );
+  }
+
+  it("POST /batch-delete-disk-mods refuses more than 500 IDs and deletes nothing", async () => {
+    const res = await runRoute("/batch-delete-disk-mods", "post", {
+      body: { workshopIds: manyWorkshopIds(501) },
+    });
+
+    expect(res.getStatusCode()).toBe(400);
+    expect(res.getBody()).toEqual(
+      expect.objectContaining({
+        code: "MODS_BATCH_DELETE_DISK_MODS_TOO_MANY",
+      }),
+    );
+    // Refusal must be real, not a wrong status with the edit happening anyway.
+    expect(
+      fs.readFileSync(path.join(configPath, "TestServer.ini"), "utf-8"),
+    ).toContain("WorkshopItems=1111111111");
+  });
+
+  it("POST /batch-delete-disk-mods accepts exactly 500 IDs (the boundary itself is not refused)", async () => {
+    const res = await runRoute("/batch-delete-disk-mods", "post", {
+      body: { workshopIds: manyWorkshopIds(500) },
+    });
+
+    expect(res.getStatusCode()).toBe(200);
+  });
+
+  it("POST /resolve-orphan-workshop refuses more than 500 IDs and rewrites nothing", async () => {
+    const res = await runRoute("/resolve-orphan-workshop", "post", {
+      body: { workshopIds: manyWorkshopIds(501) },
+    });
+
+    expect(res.getStatusCode()).toBe(400);
+    expect(res.getBody()).toEqual(
+      expect.objectContaining({
+        code: "MODS_RESOLVE_ORPHAN_WORKSHOP_TOO_MANY",
+      }),
+    );
+    expect(readBackupFiles(configPath)).toHaveLength(0);
+  });
+
+  it("POST /resolve-orphan-workshop accepts exactly 500 IDs (the boundary itself is not refused)", async () => {
+    const res = await runRoute("/resolve-orphan-workshop", "post", {
+      body: { workshopIds: manyWorkshopIds(500) },
+    });
+
+    expect(res.getStatusCode()).toBe(200);
+  });
+});

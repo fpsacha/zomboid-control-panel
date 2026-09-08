@@ -8630,6 +8630,25 @@ router.post("/batch-delete-disk-mods", async (req, res) => {
           code: ErrorCode.MODS_WORKSHOP_IDS_ARRAY_REQUIRED,
         });
     }
+
+    // sibling-convention sweep, 2026-09-08: /batch-remove (an INI/DB-only
+    // edit) caps its own workshopIds array at 500 "to prevent abuse" -- this
+    // route had no cap at all despite doing the more destructive of the two
+    // operations (deleting real files from disk per ID, via
+    // findAllModIdsFromWorkshop's filesystem scan for each one, then rmSync).
+    // An unbounded array here is worse than an unbounded one on the
+    // INI-only route: the blast radius is real files gone, not just list
+    // entries, and the synchronous scan-then-delete loop over an
+    // attacker-or-mistake-supplied array has no upper bound on how long it
+    // blocks the event loop either. Same cap, same reasoning, own code
+    // since this route's failure mode is sharper.
+    if (workshopIds.length > 500) {
+      return res.status(400).json({
+        error: "Maximum 500 mods per batch",
+        code: ErrorCode.MODS_BATCH_DELETE_DISK_MODS_TOO_MANY,
+      });
+    }
+
     const cleaned = workshopIds
       .map(String)
       .filter((id) => /^\d{1,15}$/.test(id));
@@ -8773,6 +8792,21 @@ router.post("/resolve-orphan-workshop", async (req, res) => {
           code: ErrorCode.MODS_WORKSHOP_IDS_ARRAY_REQUIRED,
         });
     }
+
+    // sibling-convention sweep, 2026-09-08: same missing-cap shape as
+    // /batch-delete-disk-mods just above -- /batch-remove established a
+    // 500-item cap "to prevent abuse" for this exact array shape and this
+    // route never adopted it, despite doing the same per-ID filesystem scan
+    // (findAllModIdsFromWorkshop) that scan does. No disk deletion here
+    // (INI-only, same severity class as /batch-remove), so same cap, same
+    // reasoning, own code per this file's convention.
+    if (workshopIds.length > 500) {
+      return res.status(400).json({
+        error: "Maximum 500 mods per batch",
+        code: ErrorCode.MODS_RESOLVE_ORPHAN_WORKSHOP_TOO_MANY,
+      });
+    }
+
     const cleaned = workshopIds
       .map(String)
       .filter((id) => /^\d{1,15}$/.test(id));
