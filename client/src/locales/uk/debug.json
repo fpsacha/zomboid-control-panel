@@ -1,4 +1,48 @@
 {
+  "__pendingPluralForms": [
+    "activityTab.entriesCount_few",
+    "activityTab.entriesCount_many",
+    "activityTab.failedButton_few",
+    "activityTab.failedButton_many",
+    "activityTab.successButton_few",
+    "activityTab.successButton_many",
+    "bridgeTab.errorLogLabel_few",
+    "bridgeTab.errorLogLabel_many",
+    "diagnostics.checkCount_few",
+    "diagnostics.checkCount_many",
+    "diagnostics.numericIdsRemovedDesc_few",
+    "diagnostics.numericIdsRemovedDesc_many",
+    "diagnostics.sandboxRepairedFallback_few",
+    "diagnostics.sandboxRepairedFallback_many",
+    "diagnostics.workshopDroppedIgnored_few",
+    "diagnostics.workshopDroppedIgnored_many",
+    "diagnostics.workshopEnabled_few",
+    "diagnostics.workshopEnabled_many",
+    "diagnostics.workshopNothingToChange_few",
+    "diagnostics.workshopNothingToChange_many",
+    "fixActions.modsNumericInMods.confirmMessage_few",
+    "fixActions.modsNumericInMods.confirmMessage_many",
+    "fixActions.modsNumericInMods.labelWithCount_few",
+    "fixActions.modsNumericInMods.labelWithCount_many",
+    "fixActions.modsNumericInMods.noteWithCount_few",
+    "fixActions.modsNumericInMods.noteWithCount_many",
+    "fixActions.modsOrphanWorkshop.confirmMessage_few",
+    "fixActions.modsOrphanWorkshop.confirmMessage_many",
+    "fixActions.modsOrphanWorkshop.noteWithCount_few",
+    "fixActions.modsOrphanWorkshop.noteWithCount_many",
+    "performanceTab.acrossSamples_few",
+    "performanceTab.acrossSamples_many",
+    "performanceTab.sampleCount_few",
+    "performanceTab.sampleCount_many",
+    "worldMapTab.saveCount_few",
+    "worldMapTab.saveCount_many",
+    "worldMapTab.unitPlayer_few",
+    "worldMapTab.unitPlayer_many",
+    "worldMapTab.unitSafehouse_few",
+    "worldMapTab.unitSafehouse_many",
+    "worldMapTab.unitVehicle_few",
+    "worldMapTab.unitVehicle_many"
+  ],
   "pageHeader": {
     "title": "Налагодження та журнали",
     "description": "Діагностика в реальному часі, недавня історія та відомості про середовище цієї панелі"
@@ -45,7 +89,13 @@
       "confirmMessage_other": "Це видалить {{count}} числових ID Workshop із Mods= (їхнє місце — у WorkshopItems=). Потрібен перезапуск.\n\nПродовжити?",
       "noteWithCount_one": "Видаляє {{count}} числовий ID з Mods=. Потрібен перезапуск.",
       "noteWithCount_other": "Видаляє {{count}} числових ID з Mods=. Потрібен перезапуск.",
-      "noteGeneric": "Видаляє числові ID Workshop з Mods=. Потрібен перезапуск."
+      "noteGeneric": "Видаляє числові ID Workshop з Mods=. Потрібен перезапуск.",
+      "labelWithCount_few": "Прибрати {{count}} числових ID з Mods=",
+      "labelWithCount_many": "Прибрати {{count}} числових ID з Mods=",
+      "confirmMessage_few": "Це видалить {{count}} числових ID Workshop із Mods= (їхнє місце — у WorkshopItems=). Потрібен перезапуск.\n\nПродовжити?",
+      "confirmMessage_many": "Це видалить {{count}} числових ID Workshop із Mods= (їхнє місце — у WorkshopItems=). Потрібен перезапуск.\n\nПродовжити?",
+      "noteWithCount_few": "Видаляє {{count}} числових ID з Mods=. Потрібен перезапуск.",
+      "noteWithCount_many": "Видаляє {{count}} числових ID з Mods=. Потрібен перезапуск."
     },
     "modsResolved": {
       "labelWithCount": "Переглянути {{count}} нерозпізнаних",
@@ -59,7 +109,11 @@
       "confirmMessage_other": "Це відсортує {{count}} елементів Workshop: завантажені → додаються до Mods=; проігноровані або відсутні → вилучаються з WorkshopItems=. Щоб зміни набули чинності, сервер потрібно перезапустити.\n\nПродовжити?",
       "noteWithCount_one": "Сортує {{count}} елемент Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск.",
       "noteWithCount_other": "Сортує {{count}} елементів Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск.",
-      "noteGeneric": "Сортує елементи Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск."
+      "noteGeneric": "Сортує елементи Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск.",
+      "confirmMessage_few": "Це відсортує {{count}} елементів Workshop: завантажені → додаються до Mods=; проігноровані або відсутні → вилучаються з WorkshopItems=. Щоб зміни набули чинності, сервер потрібно перезапустити.\n\nПродовжити?",
+      "confirmMessage_many": "Це відсортує {{count}} елементів Workshop: завантажені → додаються до Mods=; проігноровані або відсутні → вилучаються з WorkshopItems=. Щоб зміни набули чинності, сервер потрібно перезапустити.\n\nПродовжити?",
+      "noteWithCount_few": "Сортує {{count}} елементів Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск.",
+      "noteWithCount_many": "Сортує {{count}} елементів Workshop: вмикає завантажені моди, прибирає проігноровані/відсутні ID. Потрібен перезапуск."
     },
     "modsMaps": {
       "label": "Відновити Map=",
@@ -1115,7 +1169,19 @@
           }
         }
       }
-    }
+    },
+    "checkCount_few": "{{count}} перевірок",
+    "checkCount_many": "{{count}} перевірок",
+    "numericIdsRemovedDesc_few": "Вилучено {{count}} записів з Mods=.{{restartHint}}",
+    "numericIdsRemovedDesc_many": "Вилучено {{count}} записів з Mods=.{{restartHint}}",
+    "workshopEnabled_few": "увімкнено {{enabled}} (додано {{count}} ID модів)",
+    "workshopEnabled_many": "увімкнено {{enabled}} (додано {{count}} ID модів)",
+    "workshopDroppedIgnored_few": "{{count}} проігноровано",
+    "workshopDroppedIgnored_many": "{{count}} проігноровано",
+    "workshopNothingToChange_few": "Нічого змінювати для {{count}} ID.",
+    "workshopNothingToChange_many": "Нічого змінювати для {{count}} ID.",
+    "sandboxRepairedFallback_few": "Застосовано {{count}} виправлень.{{restartHint}}",
+    "sandboxRepairedFallback_many": "Застосовано {{count}} виправлень.{{restartHint}}"
   },
   "worldMapTab": {
     "overallFail": "Карта світу працює з обмеженнями",
@@ -1236,7 +1302,15 @@
     "noChecksRan": "Жодної перевірки не виконано.",
     "allChecksPass": "Усі перевірки успішні.",
     "zomboidDataPathLabel": "Шлях до даних Zomboid",
-    "savePathCopyLabel": "Шлях збереження"
+    "savePathCopyLabel": "Шлях збереження",
+    "unitPlayer_few": "{{count}} гравців",
+    "unitPlayer_many": "{{count}} гравців",
+    "unitVehicle_few": "{{count}} транспортних засобів",
+    "unitVehicle_many": "{{count}} транспортних засобів",
+    "unitSafehouse_few": "{{count}} безпечних будинків",
+    "unitSafehouse_many": "{{count}} безпечних будинків",
+    "saveCount_few": "· {{count}} збережень",
+    "saveCount_many": "· {{count}} збережень"
   },
   "activityTab": {
     "title": "Журнал активності",
@@ -1277,7 +1351,13 @@
     "copiedTitle": "Скопійовано",
     "copyFailedTitle": "Не вдалося скопіювати",
     "copiedDesc": "Запис активності скопійовано в буфер обміну.",
-    "copyFailedDesc": "Не вдалося скопіювати. Виділіть рядок і натисніть Ctrl+C."
+    "copyFailedDesc": "Не вдалося скопіювати. Виділіть рядок і натисніть Ctrl+C.",
+    "entriesCount_few": "{{count}} записів",
+    "entriesCount_many": "{{count}} записів",
+    "successButton_few": "{{count}} успішних",
+    "successButton_many": "{{count}} успішних",
+    "failedButton_few": "{{count}} невдалих",
+    "failedButton_many": "{{count}} невдалих"
   },
   "logsTab": {
     "statTotal": "Усього",
@@ -1379,7 +1459,11 @@
     "collectingTitle": "Збір даних...",
     "collectingDesc": "Знімки продуктивності записуються кожні 60 секунд. Перші дані з'являться незабаром.",
     "exportedTitle": "Експортовано",
-    "exportedDesc": "{{count}} знімків експортовано у форматі CSV."
+    "exportedDesc": "{{count}} знімків експортовано у форматі CSV.",
+    "acrossSamples_few": "за {{count}} вимірюваннями",
+    "acrossSamples_many": "за {{count}} вимірюваннями",
+    "sampleCount_few": "{{count}} вимірювань",
+    "sampleCount_many": "{{count}} вимірювань"
   },
   "healthTab": {
     "systemStatusTitle": "Стан системи",
@@ -1491,6 +1575,8 @@
     "selfTestTitle": "Запустити самоперевірку Bridge",
     "selfTestDesc": "Перевіряє фіксований набір методів рушія на перших 3 предметах каталогу — швидка оцінка того, чи цей білд усе ще розуміє мову мода. Лише читання, вводити нічого не потрібно.",
     "selfTestRunButton": "Запустити самоперевірку",
-    "selfTestItemColumn": "Предмет"
+    "selfTestItemColumn": "Предмет",
+    "errorLogLabel_few": "{{count}} недавніх помилок",
+    "errorLogLabel_many": "{{count}} недавніх помилок"
   }
 }

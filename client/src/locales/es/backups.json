@@ -28,7 +28,8 @@
     "label": "Historial",
     "recordedCount_one": "{{count}} copia de seguridad registrada",
     "recordedCount_other": "{{count}} copias de seguridad registradas",
-    "latest": "Más reciente: {{date}}"
+    "latest": "Más reciente: {{date}}",
+    "recordedCount_many": "{{count}} copias de seguridad registradas"
   },
   "statusCards": {
     "totalBackups": "Total de copias de seguridad",
@@ -98,7 +99,9 @@
     "downloadAria": "Descargar {{name}}",
     "downloadTitle": "Descargar copia de seguridad",
     "deleteAria": "Eliminar {{name}}",
-    "deleteTitle": "Eliminar copia de seguridad"
+    "deleteTitle": "Eliminar copia de seguridad",
+    "selectAllLabel_many": "Seleccionar todo · {{count}} copias de seguridad",
+    "allSelectedLabel_many": "Las {{count}} seleccionadas · clic para borrar selección"
   },
   "snapshotDialog": {
     "title": "Instantánea del servidor",
@@ -189,7 +192,10 @@
     "autoUpdateFailedTitle": "Error al actualizar la copia de seguridad automática",
     "autoUpdateFailedFallback": "No se pudieron actualizar los ajustes de copia de seguridad",
     "loadStatusFailed": "No se pudo cargar el estado de las copias de seguridad.",
-    "loadBackupsFailed": "No se pudieron cargar las copias de seguridad."
+    "loadBackupsFailed": "No se pudieron cargar las copias de seguridad.",
+    "oldSnapshotsClearedDesc_many": "Se eliminaron {{count}} copias de seguridad",
+    "deleteFailedCount_many": "No se pudieron eliminar {{count}} copias de seguridad",
+    "oldBackupsRemovedFallback_many": "Se eliminaron {{count}} copias de seguridad antiguas"
   },
   "restoreProgress": {
     "title": "Restaurando {{name}}…",

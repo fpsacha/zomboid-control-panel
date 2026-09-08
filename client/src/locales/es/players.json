@@ -33,7 +33,8 @@
     "rosterTip": "Jugadores con los que te has conectado antes, ahora desconectados. Alguien conectado ahora mismo no se cuenta aquí hasta que se desconecta — por eso puede mostrar 0 mientras arriba hay una tarjeta de jugador en vivo.",
     "bannedLabel": "Steam ID baneados",
     "bannedManage": "gestionar",
-    "bannedAria": "Ver {{count}} Steam ID baneados"
+    "bannedAria": "Ver {{count}} Steam ID baneados",
+    "onlineCaption_many": "jugadores"
   },
   "roster": {
     "headerLabel": "lista",
@@ -89,7 +90,9 @@
     "removeAllowedTitle": "Quitar el Steam ID permitido {{steamId}}",
     "manualTargetLabel": "› Objetivo manual",
     "manualTargetLabelText": "Objetivo manual",
-    "manualTargetPlaceholder": "Escribir nombre de usuario…"
+    "manualTargetPlaceholder": "Escribir nombre de usuario…",
+    "seePreviouslySeen_many": "Ver {{count}} jugadores vistos anteriormente",
+    "reviewBanned_many": "Revisar {{count}} Steam ID baneados"
   },
   "dossier": {
     "subheaderLabel": "expediente",

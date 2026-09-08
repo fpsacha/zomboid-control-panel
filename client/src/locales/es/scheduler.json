@@ -11,13 +11,34 @@
     "retry": "Reintentar"
   },
   "weekdays": {
-    "mon": { "short": "LUN", "name": "Lunes" },
-    "tue": { "short": "MAR", "name": "Martes" },
-    "wed": { "short": "MIÉ", "name": "Miércoles" },
-    "thu": { "short": "JUE", "name": "Jueves" },
-    "fri": { "short": "VIE", "name": "Viernes" },
-    "sat": { "short": "SÁB", "name": "Sábado" },
-    "sun": { "short": "DOM", "name": "Domingo" }
+    "mon": {
+      "short": "LUN",
+      "name": "Lunes"
+    },
+    "tue": {
+      "short": "MAR",
+      "name": "Martes"
+    },
+    "wed": {
+      "short": "MIÉ",
+      "name": "Miércoles"
+    },
+    "thu": {
+      "short": "JUE",
+      "name": "Jueves"
+    },
+    "fri": {
+      "short": "VIE",
+      "name": "Viernes"
+    },
+    "sat": {
+      "short": "SÁB",
+      "name": "Sábado"
+    },
+    "sun": {
+      "short": "DOM",
+      "name": "Domingo"
+    }
   },
   "commands": {
     "restartServer": "Reiniciar servidor",
@@ -91,7 +112,9 @@
     "modUpdateRestart": "Reinicio por actualización de mods",
     "modUpdateSub": "Reinicio automático al actualizar mods",
     "modUpdatePending": "Pendiente",
-    "modUpdateNone": "Ninguno"
+    "modUpdateNone": "Ninguno",
+    "totalTasksSub_many": "{{count}} tareas en total",
+    "restartTasksSub_many": "{{count}} tareas de reinicio"
   },
   "manualRestart": {
     "title": "Reinicio manual",
@@ -115,7 +138,8 @@
     "shortCountdownDialogTitle_other": "¿Reiniciar en {{count}} minutos?",
     "shortCountdownDialogDesc": "Las cuentas regresivas cortas pueden sorprender a los jugadores en plena acción. Se recomienda confirmar únicamente si es realmente necesario reiniciar tan rápido.",
     "confirmShortRestart": "Reiniciar en {{count}} min",
-    "countdownWarningsNote": "Los jugadores verán avisos de cuenta regresiva a los 15, 10, 5 y 1 minuto conforme el temporizador cuenta atrás."
+    "countdownWarningsNote": "Los jugadores verán avisos de cuenta regresiva a los 15, 10, 5 y 1 minuto conforme el temporizador cuenta atrás.",
+    "shortCountdownDialogTitle_many": "¿Reiniciar en {{count}} minutos?"
   },
   "quickBroadcasts": {
     "title": "Difusiones rápidas",
@@ -164,7 +188,8 @@
     "emptyDesc": "Las ejecuciones aparecerán aquí.",
     "succeeded": "Completado",
     "failed": "Fallido",
-    "duration": "Duración: {{seconds}} s"
+    "duration": "Duración: {{seconds}} s",
+    "clearDialogDesc_many": "¿Seguro que quieres borrar TODO el historial de ejecución? Esto elimina cada ejecución registrada, no solo las {{count}} que se muestran aquí. Esta acción no se puede deshacer."
   },
   "cronHelp": {
     "title": "Ayuda de expresiones cron",
@@ -245,6 +270,8 @@
     "restartSucceededTitle": "Reinicio completado",
     "restartResultFailedTitle": "Error al reiniciar",
     "taskSucceededTitle": "\"{{name}}\" completada",
-    "taskResultFailedTitle": "\"{{name}}\" fallida"
+    "taskResultFailedTitle": "\"{{name}}\" fallida",
+    "restartInitiatedDesc_many": "El servidor se reiniciará en {{minutes}} minutos",
+    "restartInitiatedWithWarningsDesc_many": "El servidor se reiniciará en {{minutes}} minutos con avisos de cuenta regresiva"
   }
 }

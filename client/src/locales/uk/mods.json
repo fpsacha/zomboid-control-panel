@@ -1,4 +1,86 @@
 {
+  "__pendingPluralForms": [
+    "activeMods.dismissedCount_few",
+    "activeMods.dismissedCount_many",
+    "activeMods.duplicateId_few",
+    "activeMods.duplicateId_many",
+    "activeMods.duplicateTooltip_few",
+    "activeMods.duplicateTooltip_many",
+    "activeMods.missingDep_few",
+    "activeMods.missingDep_many",
+    "activeMods.restoreDismissedTooltip_few",
+    "activeMods.restoreDismissedTooltip_many",
+    "activeMods.workshopItems_few",
+    "activeMods.workshopItems_many",
+    "addModDialog.addModIds_few",
+    "addModDialog.addModIds_many",
+    "addModsTab.queued_few",
+    "addModsTab.queued_many",
+    "bulkRemoveDialog.remove_few",
+    "bulkRemoveDialog.remove_many",
+    "bulkRemoveDialog.title_few",
+    "bulkRemoveDialog.title_many",
+    "deactivatedTab.deleteAllConfirm_few",
+    "deactivatedTab.deleteAllConfirm_many",
+    "deactivatedTab.deleteSelectedConfirm_few",
+    "deactivatedTab.deleteSelectedConfirm_many",
+    "deactivatedTab.genericNameNotice_few",
+    "deactivatedTab.genericNameNotice_many",
+    "duplicateKeysWarning.title_few",
+    "duplicateKeysWarning.title_many",
+    "ignoredPanel.count_few",
+    "ignoredPanel.count_many",
+    "loadOrder.basedOnDependencies_few",
+    "loadOrder.basedOnDependencies_many",
+    "loadOrder.missingRequirements_few",
+    "loadOrder.missingRequirements_many",
+    "loadOrder.proposedOrder_few",
+    "loadOrder.proposedOrder_many",
+    "removedFromWorkshop.title_few",
+    "removedFromWorkshop.title_many",
+    "serverConfigTab.summaryMaps_few",
+    "serverConfigTab.summaryMaps_many",
+    "serverConfigTab.summaryWorkshopItems_few",
+    "serverConfigTab.summaryWorkshopItems_many",
+    "staleFlag.reported_few",
+    "staleFlag.reported_many",
+    "statusBar.updatesCount_few",
+    "statusBar.updatesCount_many",
+    "toasts.autoSortAppliedDesc_few",
+    "toasts.autoSortAppliedDesc_many",
+    "toasts.bulkDeleteCompleteDesc_few",
+    "toasts.bulkDeleteCompleteDesc_many",
+    "toasts.bulkDeleteCompleteStrippedSuffix_few",
+    "toasts.bulkDeleteCompleteStrippedSuffix_many",
+    "toasts.checkedPlaceholders_few",
+    "toasts.checkedPlaceholders_many",
+    "toasts.deleteDisabledFromDiskDesc_few",
+    "toasts.deleteDisabledFromDiskDesc_many",
+    "toasts.deleteIgnoredFromDiskDesc_few",
+    "toasts.deleteIgnoredFromDiskDesc_many",
+    "toasts.loadOrderCyclesDesc_few",
+    "toasts.loadOrderCyclesDesc_many",
+    "toasts.mapsAddedSuffix_few",
+    "toasts.mapsAddedSuffix_many",
+    "toasts.modDeletedFromDisk_few",
+    "toasts.modDeletedFromDisk_many",
+    "toasts.modEnabledDesc_few",
+    "toasts.modEnabledDesc_many",
+    "toasts.modsAddedToConfigTitle_few",
+    "toasts.modsAddedToConfigTitle_many",
+    "toasts.modsHaveUpdates_few",
+    "toasts.modsHaveUpdates_many",
+    "toasts.nothingToSortByDesc_few",
+    "toasts.nothingToSortByDesc_many",
+    "toasts.reEnabledDesc_few",
+    "toasts.reEnabledDesc_many",
+    "toasts.removeSuccessDesc_few",
+    "toasts.removeSuccessDesc_many",
+    "toasts.resolvedNames_few",
+    "toasts.resolvedNames_many",
+    "unknownWorkshopResult.label_few",
+    "unknownWorkshopResult.label_many"
+  ],
   "permissions": {
     "noModsManage": "Твоя роль не має дозволу керувати модами.",
     "noServersManage": "Твоя роль не має дозволу керувати серверами."
@@ -39,7 +121,9 @@
     "importCollection": "Імпортувати колекцію",
     "autoRestartSettings": "Налаштування автоперезапуску",
     "autoRestart": "Автоперезапуск",
-    "autoRestartAria": "Увімкнути або вимкнути автоперезапуск при оновленні мода"
+    "autoRestartAria": "Увімкнути або вимкнути автоперезапуск при оновленні мода",
+    "updatesCount_few": "{{count}} оновлень",
+    "updatesCount_many": "{{count}} оновлень"
   },
   "restartPending": {
     "title": "Очікується перезапуск",
@@ -54,13 +138,17 @@
     "reported_one": "Steam повідомив про {{count}} оновлення мода — позначки не синхронізовані",
     "reported_other": "Steam повідомив про {{count}} оновлень модів — позначки не синхронізовані",
     "desc": "У папці Workshop є новіші файли, ніж записано в панелі. Запусти перевірку, щоб оновити стан кожного мода.",
-    "checkNow": "Перевірити зараз"
+    "checkNow": "Перевірити зараз",
+    "reported_few": "Steam повідомив про {{count}} оновлень модів — позначки не синхронізовані",
+    "reported_many": "Steam повідомив про {{count}} оновлень модів — позначки не синхронізовані"
   },
   "removedFromWorkshop": {
     "title_one": "{{count}} мод більше не існує у Steam Workshop",
     "title_other": "{{count}} модів більше не існує у Steam Workshop",
     "desc": "Steam підтвердив, що ці об'єкти видалено або зроблено приватними. Вони й надалі провалюватимуть перевірки оновлень і можуть зламати наступний перезапуск сервера, доки їх не вилучити.",
-    "removeAria": "Вилучити {{name}} із сервера"
+    "removeAria": "Вилучити {{name}} із сервера",
+    "title_few": "{{count}} модів більше не існує у Steam Workshop",
+    "title_many": "{{count}} модів більше не існує у Steam Workshop"
   },
   "steamApiIssue": {
     "label": "Під час останньої перевірки не вдалося зв'язатися зі Steam Workshop — поки що використовуються лише локальні файли. Спробу буде повторено автоматично.",
@@ -70,12 +158,16 @@
   "unknownWorkshopResult": {
     "label_one": "{{count}} об'єкт отримав нерозпізнану відповідь від Steam під час цієї перевірки:",
     "label_other": "{{count}} об'єктів отримали нерозпізнану відповідь від Steam під час цієї перевірки:",
-    "item": "{{id}} (код {{code}})"
+    "item": "{{id}} (код {{code}})",
+    "label_few": "{{count}} об'єктів отримали нерозпізнану відповідь від Steam під час цієї перевірки:",
+    "label_many": "{{count}} об'єктів отримали нерозпізнану відповідь від Steam під час цієї перевірки:"
   },
   "duplicateKeysWarning": {
     "title_one": "«{{keys}}» трапляється більше одного разу в цьому файлі конфігурації",
     "title_other": "{{count}} параметрів трапляються більше одного разу в цьому файлі конфігурації: {{keys}}",
-    "desc": "Ця сторінка читає першу копію, а редактор конфігурації сервера — останню, тож вони можуть показувати різні значення того самого параметра."
+    "desc": "Ця сторінка читає першу копію, а редактор конфігурації сервера — останню, тож вони можуть показувати різні значення того самого параметра.",
+    "title_few": "{{count}} параметрів трапляються більше одного разу в цьому файлі конфігурації: {{keys}}",
+    "title_many": "{{count}} параметрів трапляються більше одного разу в цьому файлі конфігурації: {{keys}}"
   },
   "nav": {
     "aria": "Розділи керування модами",
@@ -179,7 +271,9 @@
     "addModIds_other": "Додати {{count}} ID модів",
     "addWorkshopIdOnly": "Додати лише ID Workshop",
     "addWorkshopId": "Додати ID Workshop",
-    "discoverFirst": "Спочатку визнач"
+    "discoverFirst": "Спочатку визнач",
+    "addModIds_few": "Додати {{count}} ID модів",
+    "addModIds_many": "Додати {{count}} ID модів"
   },
   "restartSettingsDialog": {
     "title": "Налаштування автоперезапуску",
@@ -273,7 +367,9 @@
     "deleteFromDisk": "Видалити з диска",
     "workshopModFallback": "Мод Workshop {{id}}",
     "deleteAllFromDisk": "Видалити всі з диска",
-    "clearAllIgnored": "Очистити список ігнорованих"
+    "clearAllIgnored": "Очистити список ігнорованих",
+    "count_few": "{{count}} ігнорованих модів",
+    "count_many": "{{count}} ігнорованих модів"
   },
   "serverConfigTab": {
     "summaryMods": "модів",
@@ -290,7 +386,11 @@
     "deduplicateEndpointUnavailable": "Не вдалося усунути дублікати — точка доступу сервера недоступна",
     "deduplicateError": "Помилка: {{message}}",
     "notConfiguredTitle": "Файл конфігурації сервера не знайдено",
-    "notConfiguredHint": "Запусти сервер один раз — він створить INI-файл автоматично."
+    "notConfiguredHint": "Запусти сервер один раз — він створить INI-файл автоматично.",
+    "summaryWorkshopItems_few": "об'єктів Workshop",
+    "summaryWorkshopItems_many": "об'єктів Workshop",
+    "summaryMaps_few": "карт",
+    "summaryMaps_many": "карт"
   },
   "activeMods": {
     "idsEnabledTooltip": "Увімкнено {{enabled}} з {{total}} ID модів. «ID модів» — це внутрішні назви, які завантажує PZ; один об'єкт Workshop може містити кілька ID (варіанти, набори доповнень тощо).",
@@ -399,7 +499,19 @@
     "removeWorkshopDialogTitle": "Вилучити об'єкт Workshop?",
     "removeWorkshopDialogDesc": "Це вилучить об'єкт Workshop та його ID модів з INI сервера. Файли Workshop на диску не буде видалено.",
     "cancel": "Скасувати",
-    "remove": "Вилучити"
+    "remove": "Вилучити",
+    "workshopItems_few": "Об'єкти Workshop",
+    "workshopItems_many": "Об'єкти Workshop",
+    "missingDep_few": "{{count}} відсутніх залежностей",
+    "missingDep_many": "{{count}} відсутніх залежностей",
+    "duplicateId_few": "{{count}} дубльованих ID",
+    "duplicateId_many": "{{count}} дубльованих ID",
+    "duplicateTooltip_few": "Також надається об'єктами Workshop {{ids}}",
+    "duplicateTooltip_many": "Також надається об'єктами Workshop {{ids}}",
+    "restoreDismissedTooltip_few": "Повернути {{count}} відхилених пар конфліктів для цього об'єкта Workshop",
+    "restoreDismissedTooltip_many": "Повернути {{count}} відхилених пар конфліктів для цього об'єкта Workshop",
+    "dismissedCount_few": "{{count}} відхилених конфліктів",
+    "dismissedCount_many": "{{count}} відхилених конфліктів"
   },
   "loadOrder": {
     "emptyTitle": "У порядку завантаження немає модів",
@@ -419,7 +531,13 @@
     "moveDownAria": "Перемістити вниз",
     "unsavedChanges": "Незбережені зміни порядку",
     "reset": "Скинути",
-    "saveOrder": "Зберегти порядок"
+    "saveOrder": "Зберегти порядок",
+    "proposedOrder_few": "Запропонований порядок: {{count}} модів буде переміщено",
+    "proposedOrder_many": "Запропонований порядок: {{count}} модів буде переміщено",
+    "basedOnDependencies_few": "На основі {{count}} залежностей, оголошених у mod.info. Моди без залежностей зберігають твій порядок.",
+    "basedOnDependencies_many": "На основі {{count}} залежностей, оголошених у mod.info. Моди без залежностей зберігають твій порядок.",
+    "missingRequirements_few": "{{count}} потрібних модів не увімкнено, тому їх не вдалося впорядкувати (див. вкладку «Конфлікти»).",
+    "missingRequirements_many": "{{count}} потрібних модів не увімкнено, тому їх не вдалося впорядкувати (див. вкладку «Конфлікти»)."
   },
   "addModsTab": {
     "syncTitle": "Синхронізувати ID модів із завантажень",
@@ -431,7 +549,9 @@
     "removeFromQueueAria": "Вилучити {{name}} з черги",
     "writeToIni": "Записати в INI сервера",
     "noModsPendingTitle": "Немає модів в очікуванні",
-    "noModsPendingDesc": "Скористайся вкладкою «Моди сервера», щоб знайти й додати нові об'єкти Workshop, або натисни «Синхронізувати», щоб виявити нові завантаження."
+    "noModsPendingDesc": "Скористайся вкладкою «Моди сервера», щоб знайти й додати нові об'єкти Workshop, або натисни «Синхронізувати», щоб виявити нові завантаження.",
+    "queued_few": "{{count}} модів у черзі до INI",
+    "queued_many": "{{count}} модів у черзі до INI"
   },
   "presetsTab": {
     "intro": "Зберігай і відновлюй конфігурації модів.",
@@ -510,7 +630,13 @@
     "reEnableAria": "Знову увімкнути {{name}}",
     "reEnableTooltip": "Увімкнути знову (повернути до WorkshopItems=)",
     "deleteAria": "Видалити {{name}} з відстеження",
-    "deleteTooltip": "Видалити з відстеження"
+    "deleteTooltip": "Видалити з відстеження",
+    "deleteSelectedConfirm_few": "Прибрати з відстеження {{count}} вибраних деактивованих модів? Файли Workshop залишаться на диску -- ти зможеш додати їх знову пізніше.",
+    "deleteSelectedConfirm_many": "Прибрати з відстеження {{count}} вибраних деактивованих модів? Файли Workshop залишаться на диску -- ти зможеш додати їх знову пізніше.",
+    "deleteAllConfirm_few": "Прибрати з відстеження ВСІ {{count}} деактивованих модів? Файли Workshop залишаться на диску -- ти зможеш додати їх знову пізніше.",
+    "deleteAllConfirm_many": "Прибрати з відстеження ВСІ {{count}} деактивованих модів? Файли Workshop залишаться на диску -- ти зможеш додати їх знову пізніше.",
+    "genericNameNotice_few": "<1>{{count}}</1> модів мають загальні назви. Натисни <3>Оновити назви</3>, щоб їх знайти (спершу перевіряється диск, потім API Steam Workshop).",
+    "genericNameNotice_many": "<1>{{count}}</1> модів мають загальні назви. Натисни <3>Оновити назви</3>, щоб їх знайти (спершу перевіряється диск, потім API Steam Workshop)."
   },
   "removeModDialog": {
     "title": "Вилучити цей мод із сервера?",
@@ -524,7 +650,11 @@
     "description": "Це вилучає вибрані моди з INI-конфігурації сервера, тож вони припиняють завантажуватися. Файли Workshop залишаються на диску (тож повторне додавання буде миттєвим).",
     "cancel": "Скасувати",
     "remove_one": "Вилучити {{count}} мод",
-    "remove_other": "Вилучити {{count}} модів"
+    "remove_other": "Вилучити {{count}} модів",
+    "title_few": "Вилучити {{count}} модів із сервера?",
+    "title_many": "Вилучити {{count}} модів із сервера?",
+    "remove_few": "Вилучити {{count}} модів",
+    "remove_many": "Вилучити {{count}} модів"
   },
   "toasts": {
     "serverChangedSinceLoadTitle": "Active server changed",
@@ -736,6 +866,38 @@
     "scanFailedGeneric": "Сканування не вдалося",
     "scanParseFailed": "Не вдалося розібрати результати сканування",
     "comparingFileContents": "Порівняння вмісту файлів...",
-    "groupingResults": "Групування результатів..."
+    "groupingResults": "Групування результатів...",
+    "modEnabledDesc_few": "Додано до INI сервера ({{count}} ID модів). Перезапусти сервер, щоб його завантажити.",
+    "modEnabledDesc_many": "Додано до INI сервера ({{count}} ID модів). Перезапусти сервер, щоб його завантажити.",
+    "modDeletedFromDisk_few": "Видалено з диска ({{count}} ID модів прибрано з INI).",
+    "modDeletedFromDisk_many": "Видалено з диска ({{count}} ID модів прибрано з INI).",
+    "deleteDisabledFromDiskDesc_few": "Видалити з диска всі {{count}} вимкнених модів? Це вилучить кожну папку Workshop зі списку нижче.",
+    "deleteDisabledFromDiskDesc_many": "Видалити з диска всі {{count}} вимкнених модів? Це вилучить кожну папку Workshop зі списку нижче.",
+    "bulkDeleteCompleteDesc_few": "Видалено {{deleted}}/{{total}} папок модів",
+    "bulkDeleteCompleteDesc_many": "Видалено {{deleted}}/{{total}} папок модів",
+    "bulkDeleteCompleteStrippedSuffix_few": " ({{stripped}} ID модів прибрано з INI).",
+    "bulkDeleteCompleteStrippedSuffix_many": " ({{stripped}} ID модів прибрано з INI).",
+    "deleteIgnoredFromDiskDesc_few": "Видалити з диска всі {{count}} ігнорованих модів? Це вилучить кожну папку Workshop зі списку нижче ТА очистить список ігнорованих.",
+    "deleteIgnoredFromDiskDesc_many": "Видалити з диска всі {{count}} ігнорованих модів? Це вилучить кожну папку Workshop зі списку нижче ТА очистить список ігнорованих.",
+    "modsHaveUpdates_few": "Для {{count}} модів доступні оновлення",
+    "modsHaveUpdates_many": "Для {{count}} модів доступні оновлення",
+    "mapsAddedSuffix_few": " Карти: {{names}}.",
+    "mapsAddedSuffix_many": " Карти: {{names}}.",
+    "reEnabledDesc_few": "Повернуто {{count}} модів до INI{{failedSuffix}}.",
+    "reEnabledDesc_many": "Повернуто {{count}} модів до INI{{failedSuffix}}.",
+    "resolvedNames_few": "Визначено {{count}} назв",
+    "resolvedNames_many": "Визначено {{count}} назв",
+    "checkedPlaceholders_few": "Перевірено {{count}} тимчасових назв — жодної не вдалося визначити. Можливо, ці моди видалено або зроблено приватними у Steam.",
+    "checkedPlaceholders_many": "Перевірено {{count}} тимчасових назв — жодної не вдалося визначити. Можливо, ці моди видалено або зроблено приватними у Steam.",
+    "removeSuccessDesc_few": "Вилучено {{count}} модів з відстеження та конфігурації сервера",
+    "removeSuccessDesc_many": "Вилучено {{count}} модів з відстеження та конфігурації сервера",
+    "modsAddedToConfigTitle_few": "{{count}} модів додано до конфігурації сервера",
+    "modsAddedToConfigTitle_many": "{{count}} модів додано до конфігурації сервера",
+    "nothingToSortByDesc_few": "{{count}} оголошених вимог не увімкнено, тож жоден з увімкнених модів не залежить від інших.",
+    "nothingToSortByDesc_many": "{{count}} оголошених вимог не увімкнено, тож жоден з увімкнених модів не залежить від інших.",
+    "loadOrderCyclesDesc_few": "Кожна залежність, яку можна задовольнити, уже завантажується першою. {{count}} циклічних залежностей упорядкувати неможливо.",
+    "loadOrderCyclesDesc_many": "Кожна залежність, яку можна задовольнити, уже завантажується першою. {{count}} циклічних залежностей упорядкувати неможливо.",
+    "autoSortAppliedDesc_few": "{{count}} модів переміщено. Натисни «Зберегти порядок», щоб записати це в INI сервера.",
+    "autoSortAppliedDesc_many": "{{count}} модів переміщено. Натисни «Зберегти порядок», щоб записати це в INI сервера."
   }
 }

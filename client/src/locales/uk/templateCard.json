@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "modsCount_few",
+    "modsCount_many",
+    "settingsOverridden_few",
+    "settingsOverridden_many"
+  ],
   "builtin": "Вбудований",
   "custom": "Власний",
   "settingsOverridden_one": "Змінено налаштувань: {{count}}",
@@ -7,5 +13,9 @@
   "modsCount_other": "Моди: {{count}}",
   "preview": "Перегляд",
   "exportTitle": "Експортувати шаблон",
-  "deleteTitle": "Видалити шаблон"
+  "deleteTitle": "Видалити шаблон",
+  "settingsOverridden_few": "Змінено налаштувань: {{count}}",
+  "settingsOverridden_many": "Змінено налаштувань: {{count}}",
+  "modsCount_few": "Моди: {{count}}",
+  "modsCount_many": "Моди: {{count}}"
 }

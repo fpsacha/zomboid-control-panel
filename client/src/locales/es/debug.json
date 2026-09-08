@@ -45,7 +45,10 @@
       "confirmMessage_other": "Esto eliminará {{count}} ID numéricos de Workshop de Mods= (deberían figurar en WorkshopItems=). Requiere reinicio.\n\n¿Continuar?",
       "noteWithCount_one": "Quita {{count}} ID numérico de Mods=. Requiere reinicio.",
       "noteWithCount_other": "Quita {{count}} ID numéricos de Mods=. Requiere reinicio.",
-      "noteGeneric": "Quita los ID numéricos de Workshop de Mods=. Requiere reinicio."
+      "noteGeneric": "Quita los ID numéricos de Workshop de Mods=. Requiere reinicio.",
+      "labelWithCount_many": "Quitar {{count}} ID numéricos de Mods=",
+      "confirmMessage_many": "Esto eliminará {{count}} ID numéricos de Workshop de Mods= (deberían figurar en WorkshopItems=). Requiere reinicio.\n\n¿Continuar?",
+      "noteWithCount_many": "Quita {{count}} ID numéricos de Mods=. Requiere reinicio."
     },
     "modsResolved": {
       "labelWithCount": "Revisar {{count}} sin resolver",
@@ -59,7 +62,9 @@
       "confirmMessage_other": "Esto clasificará {{count}} elementos de Workshop: descargados → se añaden a Mods=; ignorados o faltantes → se eliminan de WorkshopItems=. El servidor debe reiniciarse para que los cambios surtan efecto.\n\n¿Continuar?",
       "noteWithCount_one": "Clasifica {{count}} elemento de Workshop: activa los mods descargados y descarta los ID ignorados o faltantes. Requiere reinicio.",
       "noteWithCount_other": "Clasifica {{count}} elementos de Workshop: activa los mods descargados y descarta los ID ignorados o faltantes. Requiere reinicio.",
-      "noteGeneric": "Clasifica los elementos de Workshop: activa los mods descargados y descarta los ID ignorados o faltantes. Requiere reinicio."
+      "noteGeneric": "Clasifica los elementos de Workshop: activa los mods descargados y descarta los ID ignorados o faltantes. Requiere reinicio.",
+      "confirmMessage_many": "Esto clasificará {{count}} elementos de Workshop: descargados → se añaden a Mods=; ignorados o faltantes → se eliminan de WorkshopItems=. El servidor debe reiniciarse para que los cambios surtan efecto.\n\n¿Continuar?",
+      "noteWithCount_many": "Clasifica {{count}} elementos de Workshop: activa los mods descargados y descarta los ID ignorados o faltantes. Requiere reinicio."
     },
     "modsMaps": {
       "label": "Reparar Map=",
@@ -1115,7 +1120,13 @@
           }
         }
       }
-    }
+    },
+    "checkCount_many": "{{count}} comprobaciones",
+    "numericIdsRemovedDesc_many": "Se eliminaron {{count}} entradas de Mods=.{{restartHint}}",
+    "workshopEnabled_many": "activados: {{enabled}} (ID de mod: {{count}})",
+    "workshopDroppedIgnored_many": "{{count}} ignorados",
+    "workshopNothingToChange_many": "No hay cambios que aplicar para {{count}} IDs.",
+    "sandboxRepairedFallback_many": "Se aplicaron {{count}} correcciones.{{restartHint}}"
   },
   "worldMapTab": {
     "overallFail": "Mapa del mundo degradado",
@@ -1236,7 +1247,11 @@
     "noChecksRan": "No se ejecutó ninguna comprobación.",
     "allChecksPass": "Todas las comprobaciones se han superado.",
     "zomboidDataPathLabel": "Ruta de datos de Zomboid",
-    "savePathCopyLabel": "Ruta de la partida"
+    "savePathCopyLabel": "Ruta de la partida",
+    "unitPlayer_many": "{{count}} jugadores",
+    "unitVehicle_many": "{{count}} vehículos",
+    "unitSafehouse_many": "{{count}} refugios",
+    "saveCount_many": "· {{count}} partidas guardadas"
   },
   "activityTab": {
     "title": "Registro de actividad",
@@ -1277,7 +1292,10 @@
     "copiedTitle": "Copiado",
     "copyFailedTitle": "Error al copiar",
     "copiedDesc": "Entrada de actividad copiada al portapapeles.",
-    "copyFailedDesc": "No se pudo copiar. Seleccionar la fila y pulsar Ctrl+C."
+    "copyFailedDesc": "No se pudo copiar. Seleccionar la fila y pulsar Ctrl+C.",
+    "entriesCount_many": "{{count}} entradas",
+    "successButton_many": "{{count}} correctas",
+    "failedButton_many": "{{count}} fallidas"
   },
   "logsTab": {
     "statTotal": "Total",
@@ -1379,7 +1397,9 @@
     "collectingTitle": "Recopilando datos…",
     "collectingDesc": "Las instantáneas de rendimiento se registran cada 60 segundos. Los primeros datos aparecerán en breve.",
     "exportedTitle": "Exportado",
-    "exportedDesc": "{{count}} instantáneas exportadas como CSV."
+    "exportedDesc": "{{count}} instantáneas exportadas como CSV.",
+    "acrossSamples_many": "en {{count}} muestras",
+    "sampleCount_many": "{{count}} muestras"
   },
   "healthTab": {
     "systemStatusTitle": "Estado del sistema",
@@ -1491,6 +1511,7 @@
     "selfTestTitle": "Ejecutar autoprueba del puente",
     "selfTestDesc": "Prueba un conjunto fijo de métodos del motor contra los primeros 3 objetos del catálogo — una lectura rápida de si esta build todavía habla el idioma del mod. Solo lectura, no requiere entrada.",
     "selfTestRunButton": "Ejecutar autoprueba",
-    "selfTestItemColumn": "Artículo"
+    "selfTestItemColumn": "Artículo",
+    "errorLogLabel_many": "{{count}} errores recientes"
   }
 }

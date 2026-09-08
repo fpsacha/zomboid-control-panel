@@ -1,4 +1,8 @@
 {
+  "__pendingPluralForms": [
+    "itemsCount_few",
+    "itemsCount_many"
+  ],
   "searchItemsPlaceholder": "Пошук предметів...",
   "loadingCatalog": "Завантаження каталогу...",
   "manualIdPlaceholder": "напр., Base.Axe",
@@ -49,5 +53,7 @@
     "Junk": "Мотлох",
     "Misc": "Різне",
     "Other": "Інше"
-  }
+  },
+  "itemsCount_few": "{{count}} {{category}}",
+  "itemsCount_many": "{{count}} {{category}}"
 }

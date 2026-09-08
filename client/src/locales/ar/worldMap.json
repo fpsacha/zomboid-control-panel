@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "deletePackageDialog.description_few",
+    "deletePackageDialog.description_many",
+    "deletePackageDialog.description_two",
+    "deletePackageDialog.description_zero",
+    "dropDialog.templateItemCount_few",
+    "dropDialog.templateItemCount_many",
+    "dropDialog.templateItemCount_two",
+    "dropDialog.templateItemCount_zero"
+  ],
   "permissions": {
     "noBridgeCommand": "يتطلب هذا الإجراء داخل اللعبة صلاحية bridge.command، وهذا الدور لا يملكها.",
     "noWorldEvents": "يتطلب إطلاق أحداث العالم صلاحية server.world_events، وهذا الدور لا يملكها.",
@@ -226,7 +236,11 @@
     "cancel": "إلغاء",
     "dropButton": "إسقاط",
     "dropButtonQty": "إسقاط × {{qty}}",
-    "dropButtonMulti": "إسقاط {{count}} عنصر"
+    "dropButtonMulti": "إسقاط {{count}} عنصر",
+    "templateItemCount_zero": "{{count}} من العناصر",
+    "templateItemCount_two": "{{count}} من العناصر",
+    "templateItemCount_few": "{{count}} من العناصر",
+    "templateItemCount_many": "{{count}} من العناصر"
   },
   "deletePackageDialog": {
     "title": "حذف الحزمة؟",
@@ -234,7 +248,11 @@
     "description_one": "ستُزال “{{name}}” ({{count}} عنصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا.",
     "description_other": "ستُزال “{{name}}” ({{count}} من العناصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا.",
     "cancel": "إلغاء",
-    "confirm": "حذف"
+    "confirm": "حذف",
+    "description_zero": "ستُزال “{{name}}” ({{count}} من العناصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا.",
+    "description_two": "ستُزال “{{name}}” ({{count}} من العناصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا.",
+    "description_few": "ستُزال “{{name}}” ({{count}} من العناصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا.",
+    "description_many": "ستُزال “{{name}}” ({{count}} من العناصر) من حزمك المحفوظة. لا يمكن التراجع عن هذا."
   },
   "removeVehicleDialog": {
     "title": "إزالة المركبة؟",
@@ -248,11 +266,29 @@
     "subtitle": "تظهر مواقع اللاعبين عند اتصال PanelBridge"
   },
   "airdropPresets": {
-    "military": { "label": "عسكرية", "desc": "بنادق، ذخيرة، دروع، أجهزة اتصال" },
-    "medical": { "label": "طبية", "desc": "ضمادات، مضادات حيوية، إسعافات أولية" },
-    "food": { "label": "طعام", "desc": "معلبات، ماء، وجبات ميدانية جاهزة" },
-    "building": { "label": "بناء", "desc": "ألواح خشب، مسامير، أدوات، حبال" },
-    "weapons": { "label": "أسلحة", "desc": "بنادق خرطوش، أسلحة اشتباك، حوامل" },
-    "tools": { "label": "أدوات", "desc": "فؤوس، مفاتيح ربط، شعلة لحام، شريط لاصق" }
+    "military": {
+      "label": "عسكرية",
+      "desc": "بنادق، ذخيرة، دروع، أجهزة اتصال"
+    },
+    "medical": {
+      "label": "طبية",
+      "desc": "ضمادات، مضادات حيوية، إسعافات أولية"
+    },
+    "food": {
+      "label": "طعام",
+      "desc": "معلبات، ماء، وجبات ميدانية جاهزة"
+    },
+    "building": {
+      "label": "بناء",
+      "desc": "ألواح خشب، مسامير، أدوات، حبال"
+    },
+    "weapons": {
+      "label": "أسلحة",
+      "desc": "بنادق خرطوش، أسلحة اشتباك، حوامل"
+    },
+    "tools": {
+      "label": "أدوات",
+      "desc": "فؤوس، مفاتيح ربط، شعلة لحام، شريط لاصق"
+    }
   }
 }

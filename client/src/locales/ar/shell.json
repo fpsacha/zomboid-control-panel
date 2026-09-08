@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "activeServer.playersOnline_few",
+    "activeServer.playersOnline_many",
+    "activeServer.playersOnline_two",
+    "activeServer.playersOnline_zero",
+    "modBadge.updatesAvailable_few",
+    "modBadge.updatesAvailable_many",
+    "modBadge.updatesAvailable_two",
+    "modBadge.updatesAvailable_zero"
+  ],
   "skipToContent": "تخطي إلى المحتوى",
   "brand": {
     "title": "Project Zomboid",
@@ -64,11 +74,19 @@
     "statusStopped": "الخادم متوقف",
     "statusTransitioning": "الخادم قيد البدء أو الإيقاف",
     "statusUnresponsive": "تم تشغيل الخادم لكنه لا يستجيب",
-    "statusUnknown": "حالة الخادم غير معروفة"
+    "statusUnknown": "حالة الخادم غير معروفة",
+    "playersOnline_zero": "لاعبون متصلون: {{count}}",
+    "playersOnline_two": "لاعبون متصلون: {{count}}",
+    "playersOnline_few": "لاعبون متصلون: {{count}}",
+    "playersOnline_many": "لاعبون متصلون: {{count}}"
   },
   "modBadge": {
     "updatesAvailable_one": "{{count}} تحديث مود متاح",
-    "updatesAvailable_other": "تحديثات مودات متاحة: {{count}}"
+    "updatesAvailable_other": "تحديثات مودات متاحة: {{count}}",
+    "updatesAvailable_zero": "تحديثات مودات متاحة: {{count}}",
+    "updatesAvailable_two": "تحديثات مودات متاحة: {{count}}",
+    "updatesAvailable_few": "تحديثات مودات متاحة: {{count}}",
+    "updatesAvailable_many": "تحديثات مودات متاحة: {{count}}"
   },
   "panelUpdateBadge": {
     "titleWithVersion": "يتوفر تحديث للوحة: v{{version}}",

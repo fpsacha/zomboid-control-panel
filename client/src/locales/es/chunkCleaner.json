@@ -134,7 +134,11 @@
     "safehouseUnknown": "Desconocido",
     "cancel": "Cancelar",
     "deleting": "Eliminando chunks...",
-    "confirm": "Eliminar chunks seleccionados"
+    "confirm": "Eliminar chunks seleccionados",
+    "title_many": "¿Eliminar {{count}} chunks seleccionados?",
+    "description_many": "Esto elimina permanentemente {{count}} archivos de chunk ({{size}}). Cuando los jugadores vuelvan a visitar esas áreas, el juego las reconstruye y elimina las estructuras y objetos almacenados que hubiera allí.",
+    "removeVehiclesLoaded_many": "{{count}} vehículos actualmente cargados en esta área. ",
+    "safehouseOverlap_many": "{{count}} refugios en el área de eliminación"
   },
   "serverRunningDialog": {
     "title": "Parece que el servidor está en ejecución",
@@ -146,7 +150,8 @@
     "overrideWarningTitle": "Forzar solo si hay certeza",
     "overrideWarningDesc": "Si el servidor se detuvo con una unidad systemd o un lanzador personalizado no reconocido, o si uno de los procesos anteriores no está relacionado (p. ej. otra aplicación Java), se puede forzar la eliminación. De lo contrario, detener primero el servidor.",
     "cancel": "Cancelar",
-    "forceDelete": "El servidor está detenido — forzar eliminación"
+    "forceDelete": "El servidor está detenido — forzar eliminación",
+    "matchedProcess_many": "Procesos coincidentes:"
   },
   "toasts": {
     "loadSavesFailedTitle": "No se pudieron cargar las partidas guardadas",
@@ -174,7 +179,10 @@
     "chunksDeletedPartialDesc_one": "Se eliminó {{deleted}} chunk, pero {{count}} falló. Comprueba que el archivo no esté bloqueado por otro proceso e inténtalo de nuevo.",
     "chunksDeletedPartialDesc_other": "Se eliminaron {{deleted}} chunks, pero {{count}} fallaron. Comprueba que los archivos no estén bloqueados por otro proceso e inténtalo de nuevo.",
     "activeServerChangedTitle": "Active server changed",
-    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting.",
+    "chunksDeletedDesc_many": "Se eliminaron {{count}} chunks",
+    "chunksDeletedVehicles_many": " + {{count}} vehículos de la base de datos de la partida",
+    "chunksDeletedPartialDesc_many": "Se eliminaron {{deleted}} chunks, pero {{count}} fallaron. Comprueba que los archivos no estén bloqueados por otro proceso e inténtalo de nuevo."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Celda {{gx}}, {{gy}}",
@@ -187,6 +195,9 @@
     "vehicleCount_one": "{{count}} vehículo",
     "vehicleCount_other": "{{count}} vehículos",
     "selectionCount_one": "{{count}} chunk",
-    "selectionCount_other": "{{count}} chunks"
-  }
+    "selectionCount_other": "{{count}} chunks",
+    "vehicleCount_many": "{{count}} vehículos",
+    "selectionCount_many": "{{count}} chunks"
+  },
+  "deleteButton_many": "Eliminar {{count}} chunks"
 }

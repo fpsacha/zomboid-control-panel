@@ -531,7 +531,8 @@
     "copiesKeptHelp": "Las exportaciones más antiguas se eliminan cuando un jugador supera este número. Restáuralas desde la página de Jugadores.",
     "loadFailedTitle": "No se pudieron cargar las copias de seguridad",
     "loadFailedDescription": "Esto no significa necesariamente que la lista esté vacía: la solicitud falló. Vuelve a abrir esta página para reintentarlo.",
-    "statusLoadFailed": "No se pudo comprobar si las copias de seguridad programadas están activas: este interruptor permanece desactivado hasta que cargue. Vuelve a abrir esta página para reintentarlo."
+    "statusLoadFailed": "No se pudo comprobar si las copias de seguridad programadas están activas: este interruptor permanece desactivado hasta que cargue. Vuelve a abrir esta página para reintentarlo.",
+    "backupsStored_many": "{{count}} copias de seguridad almacenadas"
   },
   "security": {
     "cardTitle": "Seguridad y autenticación",
@@ -805,7 +806,8 @@
       "cookiesFirstError": "Añade primero las cookies de Steam para escribir en la colección.",
       "sessionExpiredError": "Sesión de Steam caducada. Pega cookies nuevas arriba y vuelve a intentarlo.",
       "failedToReadCollection": "No se pudo leer la colección"
-    }
+    },
+    "inSync_many": "Sincronizado: {{count}} elementos"
   },
   "toasts": {
     "recoveryCodesGenerated": {

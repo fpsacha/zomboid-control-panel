@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "localForm.foundServers_few",
+    "localForm.foundServers_many",
+    "localForm.foundServers_two",
+    "localForm.foundServers_zero",
+    "toasts.serversFoundCount_few",
+    "toasts.serversFoundCount_many",
+    "toasts.serversFoundCount_two",
+    "toasts.serversFoundCount_zero"
+  ],
   "pageHeader": {
     "title": "الخوادم المُدارة",
     "description": "أدِر عدة خوادم Project Zomboid من لوحة واحدة",
@@ -189,7 +199,11 @@
     "passwordWillImport": "يُستورد تلقائيًا من {{iniName}}.ini — اتركه فارغًا لاستخدامه، أو اكتب كلمة مرور جديدة لتجاوزه.",
     "minMemoryLabel": "أدنى ذاكرة (غيغابايت)",
     "maxMemoryLabel": "أقصى ذاكرة (غيغابايت)",
-    "discoverNoPermission": "يتطلب الكشف عن الخوادم أو فحصها صلاحية servers.discover، وهي غير متاحة لهذا الدور."
+    "discoverNoPermission": "يتطلب الكشف عن الخوادم أو فحصها صلاحية servers.discover، وهي غير متاحة لهذا الدور.",
+    "foundServers_zero": "الخوادم التي عُثر عليها: {{count}}. انقر للاختيار:",
+    "foundServers_two": "الخوادم التي عُثر عليها: {{count}}. انقر للاختيار:",
+    "foundServers_few": "الخوادم التي عُثر عليها: {{count}}. انقر للاختيار:",
+    "foundServers_many": "الخوادم التي عُثر عليها: {{count}}. انقر للاختيار:"
   },
   "editDialog": {
     "lifecycleProviderLabel": "مزوّد دورة الحياة",
@@ -388,6 +402,10 @@
     "serverAddedTitle": "تمت إضافة الخادم",
     "serverAddedDesc": "تمت إضافة \"{{name}}\" إلى اللوحة",
     "addServerFailed": "فشل إضافة الخادم",
-    "detectionFailed": "فشل الاكتشاف"
+    "detectionFailed": "فشل الاكتشاف",
+    "serversFoundCount_zero": "الخوادم التي عُثر عليها: {{count}}",
+    "serversFoundCount_two": "الخوادم التي عُثر عليها: {{count}}",
+    "serversFoundCount_few": "الخوادم التي عُثر عليها: {{count}}",
+    "serversFoundCount_many": "الخوادم التي عُثر عليها: {{count}}"
   }
 }

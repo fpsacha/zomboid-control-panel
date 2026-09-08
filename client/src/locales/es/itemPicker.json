@@ -49,5 +49,6 @@
     "Junk": "Chatarra",
     "Misc": "Varios",
     "Other": "Otros"
-  }
+  },
+  "itemsCount_many": "{{count}} {{category}}"
 }

@@ -1,4 +1,12 @@
 {
+  "__pendingPluralForms": [
+    "deleteRoleDialog.descriptionWithMembers_few",
+    "deleteRoleDialog.descriptionWithMembers_many",
+    "matrix.capabilityCount_few",
+    "matrix.capabilityCount_many",
+    "matrix.memberCount_few",
+    "matrix.memberCount_many"
+  ],
   "pageHeader": {
     "eyebrow": "Дозволи",
     "title": "Ролі та дозволи",
@@ -28,7 +36,11 @@
     "deleteTooltip": "Видалити роль",
     "deleteSeededTooltip": "Вбудовані ролі не можна видалити з цього екрана.",
     "recoveryCapabilityHint": "Якщо забрати цю можливість в останнього, хто її має, адміністратори втратять доступ — панель відхилить таку зміну й пояснить чому.",
-    "savingCell": "Збереження…"
+    "savingCell": "Збереження…",
+    "memberCount_few": "учасників: {{count}}",
+    "memberCount_many": "учасників: {{count}}",
+    "capabilityCount_few": "можливостей: {{count}}",
+    "capabilityCount_many": "можливостей: {{count}}"
   },
   "roleFormDialog": {
     "createTitle": "Нова роль",
@@ -54,7 +66,9 @@
     "reassignPlaceholder": "Виберіть роль…",
     "cancel": "Скасувати",
     "confirm": "Видалити роль",
-    "confirming": "Видалення…"
+    "confirming": "Видалення…",
+    "descriptionWithMembers_few": "Зараз цю роль мають користувачів: {{count}}. Спершу виберіть роль, до якої їх перенести — видалення не можна скасувати.",
+    "descriptionWithMembers_many": "Зараз цю роль мають користувачів: {{count}}. Спершу виберіть роль, до якої їх перенести — видалення не можна скасувати."
   },
   "confirmSelfCapabilityLoss": {
     "title": "Це забирає доступ у вас самих",

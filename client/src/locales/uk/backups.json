@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "history.recordedCount_few",
+    "history.recordedCount_many",
+    "mainCard.allSelectedLabel_few",
+    "mainCard.allSelectedLabel_many",
+    "mainCard.selectAllLabel_few",
+    "mainCard.selectAllLabel_many",
+    "toasts.deleteFailedCount_few",
+    "toasts.deleteFailedCount_many",
+    "toasts.oldBackupsRemovedFallback_few",
+    "toasts.oldBackupsRemovedFallback_many",
+    "toasts.oldSnapshotsClearedDesc_few",
+    "toasts.oldSnapshotsClearedDesc_many"
+  ],
   "permissions": {
     "noManage": "Керування резервними копіями потребує дозволу backups.manage, якого ця роль не має.",
     "noRestore": "Відновлення з резервної копії потребує дозволу backups.restore, якого ця роль не має.",
@@ -28,7 +42,9 @@
     "label": "Історія",
     "recordedCount_one": "{{count}} записана резервна копія",
     "recordedCount_other": "Записаних резервних копій: {{count}}",
-    "latest": "Остання: {{date}}"
+    "latest": "Остання: {{date}}",
+    "recordedCount_few": "Записаних резервних копій: {{count}}",
+    "recordedCount_many": "Записаних резервних копій: {{count}}"
   },
   "statusCards": {
     "totalBackups": "Усього копій",
@@ -102,7 +118,11 @@
     "downloadAria": "Завантажити {{name}}",
     "downloadTitle": "Завантажити копію",
     "deleteAria": "Видалити {{name}}",
-    "deleteTitle": "Видалити копію"
+    "deleteTitle": "Видалити копію",
+    "selectAllLabel_few": "Вибрати все · копій: {{count}}",
+    "selectAllLabel_many": "Вибрати все · копій: {{count}}",
+    "allSelectedLabel_few": "Вибрано всі {{count}} · натисніть, щоб скасувати",
+    "allSelectedLabel_many": "Вибрано всі {{count}} · натисніть, щоб скасувати"
   },
   "snapshotDialog": {
     "title": "Знімок сервера",
@@ -193,6 +213,12 @@
     "autoUpdateFailedTitle": "Не вдалося оновити автоматичне копіювання",
     "autoUpdateFailedFallback": "Не вдалося оновити налаштування резервного копіювання",
     "loadStatusFailed": "Не вдалося завантажити стан резервних копій.",
-    "loadBackupsFailed": "Не вдалося завантажити резервні копії."
+    "loadBackupsFailed": "Не вдалося завантажити резервні копії.",
+    "oldSnapshotsClearedDesc_few": "Видалено копій: {{count}}",
+    "oldSnapshotsClearedDesc_many": "Видалено копій: {{count}}",
+    "deleteFailedCount_few": "Не вдалося видалити копій: {{count}}",
+    "deleteFailedCount_many": "Не вдалося видалити копій: {{count}}",
+    "oldBackupsRemovedFallback_few": "Видалено застарілих копій: {{count}}",
+    "oldBackupsRemovedFallback_many": "Видалено застарілих копій: {{count}}"
   }
 }

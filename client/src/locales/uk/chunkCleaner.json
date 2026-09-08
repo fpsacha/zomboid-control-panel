@@ -1,4 +1,28 @@
 {
+  "__pendingPluralForms": [
+    "canvasLabels.selectionCount_few",
+    "canvasLabels.selectionCount_many",
+    "canvasLabels.vehicleCount_few",
+    "canvasLabels.vehicleCount_many",
+    "deleteButton_few",
+    "deleteButton_many",
+    "deleteDialog.description_few",
+    "deleteDialog.description_many",
+    "deleteDialog.removeVehiclesLoaded_few",
+    "deleteDialog.removeVehiclesLoaded_many",
+    "deleteDialog.safehouseOverlap_few",
+    "deleteDialog.safehouseOverlap_many",
+    "deleteDialog.title_few",
+    "deleteDialog.title_many",
+    "serverRunningDialog.matchedProcess_few",
+    "serverRunningDialog.matchedProcess_many",
+    "toasts.chunksDeletedDesc_few",
+    "toasts.chunksDeletedDesc_many",
+    "toasts.chunksDeletedPartialDesc_few",
+    "toasts.chunksDeletedPartialDesc_many",
+    "toasts.chunksDeletedVehicles_few",
+    "toasts.chunksDeletedVehicles_many"
+  ],
   "permissions": {
     "noManage": "Очищення чанків карти потребує дозволу chunks.manage, якого ця роль не має."
   },
@@ -134,7 +158,15 @@
     "safehouseUnknown": "Невідомо",
     "cancel": "Скасувати",
     "deleting": "Видалення чанків...",
-    "confirm": "Видалити вибрані чанки"
+    "confirm": "Видалити вибрані чанки",
+    "title_few": "Видалити {{count}} вибраних чанків?",
+    "title_many": "Видалити {{count}} вибраних чанків?",
+    "description_few": "Це назавжди видалить {{count}} файлів чанків ({{size}}). Коли гравці повернуться в ці ділянки, гра відбудує їх та прибере всі споруди гравців і складені там речі.",
+    "description_many": "Це назавжди видалить {{count}} файлів чанків ({{size}}). Коли гравці повернуться в ці ділянки, гра відбудує їх та прибере всі споруди гравців і складені там речі.",
+    "removeVehiclesLoaded_few": "{{count}} транспортних засобів зараз завантажено в цій ділянці. ",
+    "removeVehiclesLoaded_many": "{{count}} транспортних засобів зараз завантажено в цій ділянці. ",
+    "safehouseOverlap_few": "{{count}} безпечних будинків у зоні видалення",
+    "safehouseOverlap_many": "{{count}} безпечних будинків у зоні видалення"
   },
   "serverRunningDialog": {
     "title": "Схоже, сервер запущено",
@@ -146,7 +178,9 @@
     "overrideWarningTitle": "Обходьте це лише тоді, коли впевнені",
     "overrideWarningDesc": "Якщо ви зупинили сервер власним systemd-юнітом чи лаунчером, який ми не розпізнаємо, або якщо один із наведених вище процесів не стосується гри (напр. інший застосунок на Java), можна видалити примусово. Інакше спершу зупиніть сервер.",
     "cancel": "Скасувати",
-    "forceDelete": "Сервер зупинено — видалити примусово"
+    "forceDelete": "Сервер зупинено — видалити примусово",
+    "matchedProcess_few": "Знайдені процеси:",
+    "matchedProcess_many": "Знайдені процеси:"
   },
   "toasts": {
     "loadSavesFailedTitle": "Не вдалося завантажити збереження",
@@ -174,7 +208,13 @@
     "chunksDeletedPartialDesc_other": "Видалено {{deleted}} чанків, але {{count}} не вдалося. Перевірте, що файли не заблоковано іншим процесом, і спробуйте ще раз.",
     "deleteChunksFailedFallback": "Не вдалося видалити чанки",
     "activeServerChangedTitle": "Active server changed",
-    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting.",
+    "chunksDeletedDesc_few": "Видалено {{count}} чанків",
+    "chunksDeletedDesc_many": "Видалено {{count}} чанків",
+    "chunksDeletedVehicles_few": " + {{count}} транспортних засобів із бази збереження",
+    "chunksDeletedVehicles_many": " + {{count}} транспортних засобів із бази збереження",
+    "chunksDeletedPartialDesc_few": "Видалено {{deleted}} чанків, але {{count}} не вдалося. Перевірте, що файли не заблоковано іншим процесом, і спробуйте ще раз.",
+    "chunksDeletedPartialDesc_many": "Видалено {{deleted}} чанків, але {{count}} не вдалося. Перевірте, що файли не заблоковано іншим процесом, і спробуйте ще раз."
   },
   "canvasLabels": {
     "chunkCell": "Чанк {{cx}}, {{cy}}  |  Комірка {{gx}}, {{gy}}",
@@ -187,6 +227,12 @@
     "vehicleCount_one": "{{count}} транспортний засіб",
     "vehicleCount_other": "{{count}} транспортних засобів",
     "selectionCount_one": "{{count}} чанк",
-    "selectionCount_other": "{{count}} чанків"
-  }
+    "selectionCount_other": "{{count}} чанків",
+    "vehicleCount_few": "{{count}} транспортних засобів",
+    "vehicleCount_many": "{{count}} транспортних засобів",
+    "selectionCount_few": "{{count}} чанків",
+    "selectionCount_many": "{{count}} чанків"
+  },
+  "deleteButton_few": "Видалити {{count}} чанків",
+  "deleteButton_many": "Видалити {{count}} чанків"
 }

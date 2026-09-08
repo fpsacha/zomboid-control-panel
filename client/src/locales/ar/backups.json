@@ -1,4 +1,30 @@
 {
+  "__pendingPluralForms": [
+    "history.recordedCount_few",
+    "history.recordedCount_many",
+    "history.recordedCount_two",
+    "history.recordedCount_zero",
+    "mainCard.allSelectedLabel_few",
+    "mainCard.allSelectedLabel_many",
+    "mainCard.allSelectedLabel_two",
+    "mainCard.allSelectedLabel_zero",
+    "mainCard.selectAllLabel_few",
+    "mainCard.selectAllLabel_many",
+    "mainCard.selectAllLabel_two",
+    "mainCard.selectAllLabel_zero",
+    "toasts.deleteFailedCount_few",
+    "toasts.deleteFailedCount_many",
+    "toasts.deleteFailedCount_two",
+    "toasts.deleteFailedCount_zero",
+    "toasts.oldBackupsRemovedFallback_few",
+    "toasts.oldBackupsRemovedFallback_many",
+    "toasts.oldBackupsRemovedFallback_two",
+    "toasts.oldBackupsRemovedFallback_zero",
+    "toasts.oldSnapshotsClearedDesc_few",
+    "toasts.oldSnapshotsClearedDesc_many",
+    "toasts.oldSnapshotsClearedDesc_two",
+    "toasts.oldSnapshotsClearedDesc_zero"
+  ],
   "permissions": {
     "noManage": "تتطلب إدارة النسخ الاحتياطية صلاحية backups.manage، وهذا الدور لا يملكها.",
     "noRestore": "تتطلب استعادة نسخة احتياطية صلاحية backups.restore، وهذا الدور لا يملكها.",
@@ -28,7 +54,11 @@
     "label": "السجل",
     "recordedCount_one": "{{count}} نسخة احتياطية مسجّلة",
     "recordedCount_other": "النسخ الاحتياطية المسجّلة: {{count}}",
-    "latest": "الأحدث: {{date}}"
+    "latest": "الأحدث: {{date}}",
+    "recordedCount_zero": "النسخ الاحتياطية المسجّلة: {{count}}",
+    "recordedCount_two": "النسخ الاحتياطية المسجّلة: {{count}}",
+    "recordedCount_few": "النسخ الاحتياطية المسجّلة: {{count}}",
+    "recordedCount_many": "النسخ الاحتياطية المسجّلة: {{count}}"
   },
   "statusCards": {
     "totalBackups": "إجمالي النسخ الاحتياطية",
@@ -102,7 +132,15 @@
     "downloadAria": "تنزيل {{name}}",
     "downloadTitle": "تنزيل النسخة الاحتياطية",
     "deleteAria": "حذف {{name}}",
-    "deleteTitle": "حذف النسخة الاحتياطية"
+    "deleteTitle": "حذف النسخة الاحتياطية",
+    "selectAllLabel_zero": "تحديد الكل · النسخ الاحتياطية: {{count}}",
+    "selectAllLabel_two": "تحديد الكل · النسخ الاحتياطية: {{count}}",
+    "selectAllLabel_few": "تحديد الكل · النسخ الاحتياطية: {{count}}",
+    "selectAllLabel_many": "تحديد الكل · النسخ الاحتياطية: {{count}}",
+    "allSelectedLabel_zero": "تم تحديد الكل ({{count}}) · انقر لإلغاء التحديد",
+    "allSelectedLabel_two": "تم تحديد الكل ({{count}}) · انقر لإلغاء التحديد",
+    "allSelectedLabel_few": "تم تحديد الكل ({{count}}) · انقر لإلغاء التحديد",
+    "allSelectedLabel_many": "تم تحديد الكل ({{count}}) · انقر لإلغاء التحديد"
   },
   "snapshotDialog": {
     "title": "لقطة الخادم",
@@ -193,6 +231,18 @@
     "autoUpdateFailedTitle": "فشل تحديث النسخ الاحتياطي التلقائي",
     "autoUpdateFailedFallback": "فشل تحديث إعدادات النسخ الاحتياطي",
     "loadStatusFailed": "فشل تحميل حالة النسخ الاحتياطي.",
-    "loadBackupsFailed": "فشل تحميل النسخ الاحتياطية."
+    "loadBackupsFailed": "فشل تحميل النسخ الاحتياطية.",
+    "oldSnapshotsClearedDesc_zero": "عدد النسخ الاحتياطية التي أُزيلت: {{count}}",
+    "oldSnapshotsClearedDesc_two": "عدد النسخ الاحتياطية التي أُزيلت: {{count}}",
+    "oldSnapshotsClearedDesc_few": "عدد النسخ الاحتياطية التي أُزيلت: {{count}}",
+    "oldSnapshotsClearedDesc_many": "عدد النسخ الاحتياطية التي أُزيلت: {{count}}",
+    "deleteFailedCount_zero": "عدد النسخ الاحتياطية التي فشل حذفها: {{count}}",
+    "deleteFailedCount_two": "عدد النسخ الاحتياطية التي فشل حذفها: {{count}}",
+    "deleteFailedCount_few": "عدد النسخ الاحتياطية التي فشل حذفها: {{count}}",
+    "deleteFailedCount_many": "عدد النسخ الاحتياطية التي فشل حذفها: {{count}}",
+    "oldBackupsRemovedFallback_zero": "عدد النسخ الاحتياطية القديمة التي أُزيلت: {{count}}",
+    "oldBackupsRemovedFallback_two": "عدد النسخ الاحتياطية القديمة التي أُزيلت: {{count}}",
+    "oldBackupsRemovedFallback_few": "عدد النسخ الاحتياطية القديمة التي أُزيلت: {{count}}",
+    "oldBackupsRemovedFallback_many": "عدد النسخ الاحتياطية القديمة التي أُزيلت: {{count}}"
   }
 }

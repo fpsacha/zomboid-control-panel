@@ -51,5 +51,6 @@
   "scanVehiclesBody": "Analysez le serveur actif via PanelBridge pour récupérer le catalogue complet de véhicules. Le serveur doit être en ligne avec le mod PanelBridge actif.",
   "scanning": "Analyse…",
   "scanItems": "Analyser les objets",
-  "scanVehicles": "Analyser les véhicules"
+  "scanVehicles": "Analyser les véhicules",
+  "resultsCount_many": "{{count}} résultats"
 }

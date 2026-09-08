@@ -63,7 +63,9 @@
     "hidden": "ocultas",
     "loaded": "cargado",
     "updatesSuspended": "actualizaciones suspendidas",
-    "pollInterval": "sondeo · 2 s"
+    "pollInterval": "sondeo · 2 s",
+    "hidingTooltip_many": "Ocultando {{count}} líneas repetitivas — clic para mostrar todas",
+    "linesHidden_many": "{{count}} líneas ocultas por el filtro · "
   },
   "rcon": {
     "linkLabel": "enlace",
@@ -100,7 +102,8 @@
     "keyboardHint": "// intro · ejecutar · ↑↓ historial",
     "noResponseFallback": "Sin respuesta",
     "noPermission": "Tu rol no tiene permiso para ejecutar comandos RCON.",
-    "disconnectedUseRecheck": "RCON no está disponible en este momento -- selecciona \"Volver a comprobar\" arriba antes de intentarlo de nuevo."
+    "disconnectedUseRecheck": "RCON no está disponible en este momento -- selecciona \"Volver a comprobar\" arriba antes de intentarlo de nuevo.",
+    "entries_many": "{{count}} entradas"
   },
   "quickCommands": {
     "players": "Jugadores",
@@ -177,7 +180,8 @@
     "searchPlaceholder": "buscar en el historial de comandos…",
     "searchAria": "Buscar en el historial de comandos",
     "emptyTitle": "Sin historial de comandos",
-    "emptyDesc": "Los comandos ejecutados se registrarán aquí."
+    "emptyDesc": "Los comandos ejecutados se registrarán aquí.",
+    "entries_many": "{{count}} entradas"
   },
   "toasts": {
     "historyUnavailableTitle": "Historial no disponible",

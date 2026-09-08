@@ -1,4 +1,30 @@
 {
+  "__pendingPluralForms": [
+    "executionHistory.clearDialogDesc_few",
+    "executionHistory.clearDialogDesc_many",
+    "executionHistory.clearDialogDesc_two",
+    "executionHistory.clearDialogDesc_zero",
+    "manualRestart.shortCountdownDialogTitle_few",
+    "manualRestart.shortCountdownDialogTitle_many",
+    "manualRestart.shortCountdownDialogTitle_two",
+    "manualRestart.shortCountdownDialogTitle_zero",
+    "statusTiles.restartTasksSub_few",
+    "statusTiles.restartTasksSub_many",
+    "statusTiles.restartTasksSub_two",
+    "statusTiles.restartTasksSub_zero",
+    "statusTiles.totalTasksSub_few",
+    "statusTiles.totalTasksSub_many",
+    "statusTiles.totalTasksSub_two",
+    "statusTiles.totalTasksSub_zero",
+    "toasts.restartInitiatedDesc_few",
+    "toasts.restartInitiatedDesc_many",
+    "toasts.restartInitiatedDesc_two",
+    "toasts.restartInitiatedDesc_zero",
+    "toasts.restartInitiatedWithWarningsDesc_few",
+    "toasts.restartInitiatedWithWarningsDesc_many",
+    "toasts.restartInitiatedWithWarningsDesc_two",
+    "toasts.restartInitiatedWithWarningsDesc_zero"
+  ],
   "pageHeader": {
     "title": "المُجدوِل",
     "description": "أتمتة مهام الخادم وعمليات إعادة التشغيل",
@@ -11,13 +37,34 @@
     "retry": "إعادة المحاولة"
   },
   "weekdays": {
-    "mon": { "short": "اثنين", "name": "الاثنين" },
-    "tue": { "short": "ثلاثاء", "name": "الثلاثاء" },
-    "wed": { "short": "أربعاء", "name": "الأربعاء" },
-    "thu": { "short": "خميس", "name": "الخميس" },
-    "fri": { "short": "جمعة", "name": "الجمعة" },
-    "sat": { "short": "سبت", "name": "السبت" },
-    "sun": { "short": "أحد", "name": "الأحد" }
+    "mon": {
+      "short": "اثنين",
+      "name": "الاثنين"
+    },
+    "tue": {
+      "short": "ثلاثاء",
+      "name": "الثلاثاء"
+    },
+    "wed": {
+      "short": "أربعاء",
+      "name": "الأربعاء"
+    },
+    "thu": {
+      "short": "خميس",
+      "name": "الخميس"
+    },
+    "fri": {
+      "short": "جمعة",
+      "name": "الجمعة"
+    },
+    "sat": {
+      "short": "سبت",
+      "name": "السبت"
+    },
+    "sun": {
+      "short": "أحد",
+      "name": "الأحد"
+    }
   },
   "commands": {
     "restartServer": "إعادة تشغيل الخادم",
@@ -91,7 +138,15 @@
     "modUpdateRestart": "إعادة التشغيل عند تحديث المودات",
     "modUpdateSub": "إعادة تشغيل تلقائية عند تحديثات المودات",
     "modUpdatePending": "قيد الانتظار",
-    "modUpdateNone": "لا شيء"
+    "modUpdateNone": "لا شيء",
+    "totalTasksSub_zero": "{{count}} من المهام إجمالًا",
+    "totalTasksSub_two": "{{count}} من المهام إجمالًا",
+    "totalTasksSub_few": "{{count}} من المهام إجمالًا",
+    "totalTasksSub_many": "{{count}} من المهام إجمالًا",
+    "restartTasksSub_zero": "{{count}} من مهام إعادة التشغيل",
+    "restartTasksSub_two": "{{count}} من مهام إعادة التشغيل",
+    "restartTasksSub_few": "{{count}} من مهام إعادة التشغيل",
+    "restartTasksSub_many": "{{count}} من مهام إعادة التشغيل"
   },
   "manualRestart": {
     "title": "إعادة تشغيل يدوية",
@@ -115,7 +170,11 @@
     "shortCountdownDialogTitle_other": "إعادة التشغيل بعد {{count}} من الدقائق؟",
     "shortCountdownDialogDesc": "قد يفاجئ العد التنازلي القصير اللاعبين في منتصف تصرفهم. أكّد إن كنت تريد فعلًا إعادة التشغيل بهذه السرعة.",
     "confirmShortRestart": "إعادة التشغيل بعد {{count}} د",
-    "countdownWarningsNote": "يرى اللاعبون تحذيرات العد التنازلي عند 15 دقيقة و10 دقائق و5 دقائق ودقيقة واحدة مع تناقص المؤقّت."
+    "countdownWarningsNote": "يرى اللاعبون تحذيرات العد التنازلي عند 15 دقيقة و10 دقائق و5 دقائق ودقيقة واحدة مع تناقص المؤقّت.",
+    "shortCountdownDialogTitle_zero": "إعادة التشغيل بعد {{count}} من الدقائق؟",
+    "shortCountdownDialogTitle_two": "إعادة التشغيل بعد {{count}} من الدقائق؟",
+    "shortCountdownDialogTitle_few": "إعادة التشغيل بعد {{count}} من الدقائق؟",
+    "shortCountdownDialogTitle_many": "إعادة التشغيل بعد {{count}} من الدقائق؟"
   },
   "quickBroadcasts": {
     "title": "بثوث سريعة",
@@ -164,7 +223,11 @@
     "emptyDesc": "ستظهر عمليات التنفيذ هنا.",
     "succeeded": "نجحت",
     "failed": "فشلت",
-    "duration": "المدة: {{seconds}} ثانية"
+    "duration": "المدة: {{seconds}} ثانية",
+    "clearDialogDesc_zero": "هل أنت متأكد من مسح سجل التنفيذ بالكامل؟ يزيل هذا كل عملية تشغيل مسجَّلة، وليس فقط الـ {{count}} المعروضة هنا. لا يمكن التراجع عن هذا الإجراء.",
+    "clearDialogDesc_two": "هل أنت متأكد من مسح سجل التنفيذ بالكامل؟ يزيل هذا كل عملية تشغيل مسجَّلة، وليس فقط الـ {{count}} المعروضة هنا. لا يمكن التراجع عن هذا الإجراء.",
+    "clearDialogDesc_few": "هل أنت متأكد من مسح سجل التنفيذ بالكامل؟ يزيل هذا كل عملية تشغيل مسجَّلة، وليس فقط الـ {{count}} المعروضة هنا. لا يمكن التراجع عن هذا الإجراء.",
+    "clearDialogDesc_many": "هل أنت متأكد من مسح سجل التنفيذ بالكامل؟ يزيل هذا كل عملية تشغيل مسجَّلة، وليس فقط الـ {{count}} المعروضة هنا. لا يمكن التراجع عن هذا الإجراء."
   },
   "cronHelp": {
     "title": "مساعدة تعابير Cron",
@@ -245,6 +308,14 @@
     "restartSucceededTitle": "اكتملت إعادة التشغيل",
     "restartResultFailedTitle": "فشلت إعادة التشغيل",
     "taskSucceededTitle": "اكتملت \"{{name}}\"",
-    "taskResultFailedTitle": "فشلت \"{{name}}\""
+    "taskResultFailedTitle": "فشلت \"{{name}}\"",
+    "restartInitiatedDesc_zero": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق",
+    "restartInitiatedDesc_two": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق",
+    "restartInitiatedDesc_few": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق",
+    "restartInitiatedDesc_many": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق",
+    "restartInitiatedWithWarningsDesc_zero": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق مع تحذيرات العد التنازلي",
+    "restartInitiatedWithWarningsDesc_two": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق مع تحذيرات العد التنازلي",
+    "restartInitiatedWithWarningsDesc_few": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق مع تحذيرات العد التنازلي",
+    "restartInitiatedWithWarningsDesc_many": "سيُعاد تشغيل الخادم بعد {{minutes}} من الدقائق مع تحذيرات العد التنازلي"
   }
 }

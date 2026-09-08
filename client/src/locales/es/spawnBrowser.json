@@ -51,5 +51,6 @@
   "scanVehiclesBody": "Escanea el servidor en ejecución vía PanelBridge para obtener el catálogo completo de vehículos. El servidor debe estar en línea con el mod de PanelBridge activo.",
   "scanning": "Escaneando…",
   "scanItems": "Escanear objetos",
-  "scanVehicles": "Escanear vehículos"
+  "scanVehicles": "Escanear vehículos",
+  "resultsCount_many": "{{count}} resultados"
 }

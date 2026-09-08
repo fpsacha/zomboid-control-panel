@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "itemsCount_few",
+    "itemsCount_many",
+    "itemsCount_two",
+    "itemsCount_zero"
+  ],
   "searchItemsPlaceholder": "بحث في العناصر...",
   "loadingCatalog": "جارٍ تحميل الكتالوج...",
   "manualIdPlaceholder": "مثال: Base.Axe",
@@ -49,5 +55,9 @@
     "Junk": "خردة",
     "Misc": "متنوعات",
     "Other": "أخرى"
-  }
+  },
+  "itemsCount_zero": "{{category}}: {{count}}",
+  "itemsCount_two": "{{category}}: {{count}}",
+  "itemsCount_few": "{{category}}: {{count}}",
+  "itemsCount_many": "{{category}}: {{count}}"
 }

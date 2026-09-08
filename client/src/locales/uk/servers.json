@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "localForm.foundServers_few",
+    "localForm.foundServers_many",
+    "toasts.serversFoundCount_few",
+    "toasts.serversFoundCount_many"
+  ],
   "pageHeader": {
     "title": "Керовані сервери",
     "description": "Керуйте кількома серверами Project Zomboid з однієї панелі",
@@ -189,7 +195,9 @@
     "passwordWillImport": "Імпортується автоматично з {{iniName}}.ini — залиште порожнім, щоб використати його, або введіть новий, щоб замінити.",
     "minMemoryLabel": "Мін. пам'ять (ГБ)",
     "maxMemoryLabel": "Макс. пам'ять (ГБ)",
-    "discoverNoPermission": "Виявлення або сканування серверів потребує дозволу servers.discover, якого ця роль не має."
+    "discoverNoPermission": "Виявлення або сканування серверів потребує дозволу servers.discover, якого ця роль не має.",
+    "foundServers_few": "Знайдено серверів: {{count}}. Натисніть, щоб вибрати:",
+    "foundServers_many": "Знайдено серверів: {{count}}. Натисніть, щоб вибрати:"
   },
   "editDialog": {
     "lifecycleProviderLabel": "Провайдер життєвого циклу",
@@ -388,6 +396,8 @@
     "serverAddedTitle": "Сервер додано",
     "serverAddedDesc": "«{{name}}» додано до панелі",
     "addServerFailed": "Не вдалося додати сервер",
-    "detectionFailed": "Виявлення не вдалося"
+    "detectionFailed": "Виявлення не вдалося",
+    "serversFoundCount_few": "Знайдено серверів: {{count}}",
+    "serversFoundCount_many": "Знайдено серверів: {{count}}"
   }
 }

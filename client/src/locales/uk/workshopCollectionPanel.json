@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "differencesToReview_few",
+    "differencesToReview_many",
+    "removedServerBulkAutoSyncDesc_few",
+    "removedServerBulkAutoSyncDesc_many",
+    "removedServerBulkNoAutoSyncDesc_few",
+    "removedServerBulkNoAutoSyncDesc_many",
+    "toReview_few",
+    "toReview_many",
+    "toastBulkCompleteDesc_few",
+    "toastBulkCompleteDesc_many",
+    "toastBulkFailureTitle_few",
+    "toastBulkFailureTitle_many"
+  ],
   "never": "ніколи",
   "justNow": "щойно",
   "secondsAgo": "{{count}} с тому",
@@ -148,5 +162,17 @@
   "openOnSteam": "Відкрити у Steam",
   "copyWorkshopId": "Копіювати ID Workshop",
   "copiedTitle": "Скопійовано",
-  "copyFailedTitle": "Не вдалося скопіювати"
+  "copyFailedTitle": "Не вдалося скопіювати",
+  "removedServerBulkAutoSyncDesc_few": "Видалено модів: {{count}}; колекція Steam оновиться слідом.",
+  "removedServerBulkAutoSyncDesc_many": "Видалено модів: {{count}}; колекція Steam оновиться слідом.",
+  "removedServerBulkNoAutoSyncDesc_few": "Видалено модів: {{count}}. Колекцію Steam залишено без змін, бо автосинхронізацію вимкнено.",
+  "removedServerBulkNoAutoSyncDesc_many": "Видалено модів: {{count}}. Колекцію Steam залишено без змін, бо автосинхронізацію вимкнено.",
+  "toastBulkCompleteDesc_few": "Оновлено модів: {{count}}.",
+  "toastBulkCompleteDesc_many": "Оновлено модів: {{count}}.",
+  "toastBulkFailureTitle_few": "Масова дія: збоїв — {{count}}",
+  "toastBulkFailureTitle_many": "Масова дія: збоїв — {{count}}",
+  "differencesToReview_few": "Відмінностей для перегляду: {{count}}",
+  "differencesToReview_many": "Відмінностей для перегляду: {{count}}",
+  "toReview_few": "{{count}} до перегляду",
+  "toReview_many": "{{count}} до перегляду"
 }

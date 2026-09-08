@@ -7,5 +7,7 @@
   "modsCount_other": "{{count}} mods",
   "preview": "Aperçu",
   "exportTitle": "Exporter le modèle",
-  "deleteTitle": "Supprimer le modèle"
+  "deleteTitle": "Supprimer le modèle",
+  "settingsOverridden_many": "{{count}} paramètres modifiés",
+  "modsCount_many": "{{count}} mods"
 }

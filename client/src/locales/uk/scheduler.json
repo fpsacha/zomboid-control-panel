@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "executionHistory.clearDialogDesc_few",
+    "executionHistory.clearDialogDesc_many",
+    "manualRestart.shortCountdownDialogTitle_few",
+    "manualRestart.shortCountdownDialogTitle_many",
+    "statusTiles.restartTasksSub_few",
+    "statusTiles.restartTasksSub_many",
+    "statusTiles.totalTasksSub_few",
+    "statusTiles.totalTasksSub_many",
+    "toasts.restartInitiatedDesc_few",
+    "toasts.restartInitiatedDesc_many",
+    "toasts.restartInitiatedWithWarningsDesc_few",
+    "toasts.restartInitiatedWithWarningsDesc_many"
+  ],
   "pageHeader": {
     "title": "Планувальник",
     "description": "Автоматизуйте серверні завдання та перезапуски",
@@ -11,13 +25,34 @@
     "retry": "Повторити"
   },
   "weekdays": {
-    "mon": { "short": "ПН", "name": "Понеділок" },
-    "tue": { "short": "ВТ", "name": "Вівторок" },
-    "wed": { "short": "СР", "name": "Середа" },
-    "thu": { "short": "ЧТ", "name": "Четвер" },
-    "fri": { "short": "ПТ", "name": "П'ятниця" },
-    "sat": { "short": "СБ", "name": "Субота" },
-    "sun": { "short": "НД", "name": "Неділя" }
+    "mon": {
+      "short": "ПН",
+      "name": "Понеділок"
+    },
+    "tue": {
+      "short": "ВТ",
+      "name": "Вівторок"
+    },
+    "wed": {
+      "short": "СР",
+      "name": "Середа"
+    },
+    "thu": {
+      "short": "ЧТ",
+      "name": "Четвер"
+    },
+    "fri": {
+      "short": "ПТ",
+      "name": "П'ятниця"
+    },
+    "sat": {
+      "short": "СБ",
+      "name": "Субота"
+    },
+    "sun": {
+      "short": "НД",
+      "name": "Неділя"
+    }
   },
   "commands": {
     "restartServer": "Перезапустити сервер",
@@ -91,7 +126,11 @@
     "modUpdateRestart": "Перезапуск після оновлення модів",
     "modUpdateSub": "Автоперезапуск при оновленні модів",
     "modUpdatePending": "Очікує",
-    "modUpdateNone": "Немає"
+    "modUpdateNone": "Немає",
+    "totalTasksSub_few": "{{count}} завдань усього",
+    "totalTasksSub_many": "{{count}} завдань усього",
+    "restartTasksSub_few": "{{count}} завдань перезапуску",
+    "restartTasksSub_many": "{{count}} завдань перезапуску"
   },
   "manualRestart": {
     "title": "Ручний перезапуск",
@@ -115,7 +154,9 @@
     "shortCountdownDialogTitle_other": "Перезапустити через {{count}} хвилин?",
     "shortCountdownDialogDesc": "Короткий відлік може застати гравців посеред дії. Підтвердьте, якщо справді хочете перезапустити так швидко.",
     "confirmShortRestart": "Перезапуск через {{count}} хв",
-    "countdownWarningsNote": "У міру відліку гравці бачать попередження за 15 хв, 10 хв, 5 хв і 1 хв."
+    "countdownWarningsNote": "У міру відліку гравці бачать попередження за 15 хв, 10 хв, 5 хв і 1 хв.",
+    "shortCountdownDialogTitle_few": "Перезапустити через {{count}} хвилин?",
+    "shortCountdownDialogTitle_many": "Перезапустити через {{count}} хвилин?"
   },
   "quickBroadcasts": {
     "title": "Швидкі оголошення",
@@ -164,7 +205,9 @@
     "emptyDesc": "Тут з'являтимуться виконання.",
     "succeeded": "Успішно",
     "failed": "Невдало",
-    "duration": "Тривалість: {{seconds}} с"
+    "duration": "Тривалість: {{seconds}} с",
+    "clearDialogDesc_few": "Ви впевнені, що хочете очистити ВСЮ історію виконання? Це видалить кожен записаний запуск, а не лише {{count}} показаних тут. Цю дію не можна скасувати.",
+    "clearDialogDesc_many": "Ви впевнені, що хочете очистити ВСЮ історію виконання? Це видалить кожен записаний запуск, а не лише {{count}} показаних тут. Цю дію не можна скасувати."
   },
   "cronHelp": {
     "title": "Довідка з cron-виразів",
@@ -245,6 +288,10 @@
     "restartSucceededTitle": "Перезапуск завершено",
     "restartResultFailedTitle": "Перезапуск не вдався",
     "taskSucceededTitle": "«{{name}}» завершено",
-    "taskResultFailedTitle": "«{{name}}» не вдалося"
+    "taskResultFailedTitle": "«{{name}}» не вдалося",
+    "restartInitiatedDesc_few": "Сервер перезапуститься через {{minutes}} хвилин",
+    "restartInitiatedDesc_many": "Сервер перезапуститься через {{minutes}} хвилин",
+    "restartInitiatedWithWarningsDesc_few": "Сервер перезапуститься через {{minutes}} хвилин з попередженнями відліку",
+    "restartInitiatedWithWarningsDesc_many": "Сервер перезапуститься через {{minutes}} хвилин з попередженнями відліку"
   }
 }

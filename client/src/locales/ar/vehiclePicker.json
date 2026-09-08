@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "seatsTitle_few",
+    "seatsTitle_many",
+    "seatsTitle_two",
+    "seatsTitle_zero",
+    "vehiclesCount_few",
+    "vehiclesCount_many",
+    "vehiclesCount_two",
+    "vehiclesCount_zero"
+  ],
   "loadingVehicles": "جارٍ تحميل المركبات...",
   "manualIdPlaceholder": "مثال: Base.CarNormal",
   "scanTitle": "فحص الخادم بحثًا عن المركبات (يتطلب خادمًا قيد التشغيل مع PanelBridge)",
@@ -36,5 +46,13 @@
     "Vans & Buses": "فانات وحافلات",
     "Emergency & Military": "طوارئ وعسكرية",
     "Trailers": "مقطورات"
-  }
+  },
+  "seatsTitle_zero": "المقاعد: {{count}}",
+  "seatsTitle_two": "المقاعد: {{count}}",
+  "seatsTitle_few": "المقاعد: {{count}}",
+  "seatsTitle_many": "المقاعد: {{count}}",
+  "vehiclesCount_zero": "المركبات: {{count}}",
+  "vehiclesCount_two": "المركبات: {{count}}",
+  "vehiclesCount_few": "المركبات: {{count}}",
+  "vehiclesCount_many": "المركبات: {{count}}"
 }

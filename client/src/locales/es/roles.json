@@ -28,7 +28,9 @@
     "recoveryCapabilityHint": "Retirar esta capacidad a quien sea su último titular deja fuera a los administradores — el panel rechaza ese cambio y explica el motivo.",
     "savingCell": "Guardando…",
     "capabilityCount_one": "{{count}} capacidad",
-    "capabilityCount_other": "{{count}} capacidades"
+    "capabilityCount_other": "{{count}} capacidades",
+    "memberCount_many": "{{count}} miembros",
+    "capabilityCount_many": "{{count}} capacidades"
   },
   "roleFormDialog": {
     "createTitle": "Nuevo rol",
@@ -54,7 +56,8 @@
     "reassignPlaceholder": "Elige un rol…",
     "cancel": "Cancelar",
     "confirm": "Eliminar rol",
-    "confirming": "Eliminando…"
+    "confirming": "Eliminando…",
+    "descriptionWithMembers_many": "{{count}} usuarios tienen actualmente este rol. Elige primero a qué rol moverlos — esta eliminación no se puede deshacer."
   },
   "confirmSelfCapabilityLoss": {
     "title": "Esto elimina tu propio acceso",

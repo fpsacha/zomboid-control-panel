@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "overlapClash_few",
+    "overlapClash_many",
+    "showMoreSections_few",
+    "showMoreSections_many"
+  ],
   "overlapKindLabel": {
     "lua-symbols": "назви функцій/подій",
     "lua-shadow": "символи",
@@ -34,5 +40,9 @@
   "imageComparison": "Порівняння зображень",
   "tooLargeToPreview": "Завеликий для попереднього перегляду",
   "fileTooLargeInline": "Файл завеликий для вбудованого порівняння",
-  "binaryFileInline": "Двійковий файл — вбудоване порівняння неможливе"
+  "binaryFileInline": "Двійковий файл — вбудоване порівняння неможливе",
+  "overlapClash_few": "конфлікти {{kind}}: {{count}}",
+  "overlapClash_many": "конфлікти {{kind}}: {{count}}",
+  "showMoreSections_few": "Показати ще {{count}} розділів...",
+  "showMoreSections_many": "Показати ще {{count}} розділів..."
 }

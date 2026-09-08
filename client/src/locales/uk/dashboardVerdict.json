@@ -1,4 +1,8 @@
 {
+  "__pendingPluralForms": [
+    "andMore_few",
+    "andMore_many"
+  ],
   "noUpdateYet": "оновлень ще не було",
   "updatedJustNow": "оновлено щойно",
   "updatedSecondsAgo": "оновлено {{count}} с тому",
@@ -6,5 +10,7 @@
   "updatedHoursAgo": "оновлено {{count}} год тому",
   "staleLink": "посилання може бути застарілим, {{label}}",
   "andMore_one": "та ще {{count}}",
-  "andMore_other": "та ще {{count}}"
+  "andMore_other": "та ще {{count}}",
+  "andMore_few": "та ще {{count}}",
+  "andMore_many": "та ще {{count}}"
 }

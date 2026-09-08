@@ -10,7 +10,8 @@
     "msgCount_other": "{{count}} mensajes",
     "live": "EN VIVO",
     "offline": "SIN CONEXIÓN",
-    "messagesAria": "Mensajes de chat"
+    "messagesAria": "Mensajes de chat",
+    "msgCount_many": "{{count}} mensajes"
   },
   "emptyState": {
     "title": "Aún no hay mensajes de chat",
@@ -39,7 +40,8 @@
     "adminOnly": "solo administradores — oculto para los jugadores normales",
     "noPlayersOnline": "no hay jugadores en línea — solo registro del servidor",
     "broadcastingTo_one": "difundiendo a {{count}} jugador",
-    "broadcastingTo_other": "difundiendo a {{count}} jugadores"
+    "broadcastingTo_other": "difundiendo a {{count}} jugadores",
+    "broadcastingTo_many": "difundiendo a {{count}} jugadores"
   },
   "playersPanel": {
     "label": "jugadores",

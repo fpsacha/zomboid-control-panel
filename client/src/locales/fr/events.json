@@ -409,31 +409,100 @@
     "requiredSuffix": " *"
   },
   "operationGroups": {
-    "territory": { "label": "Territoire", "description": "Administration des refuges et des factions." },
-    "vehicles": { "label": "Véhicules", "description": "Réparation, alarmes, sirènes et verrous de coffre." },
-    "events": { "label": "Événements", "description": "Essaims, infrastructures et séquences scriptées." },
-    "moderation": { "label": "Modération", "description": "Actions d'expulsion et de bannissement via BanSystem." }
+    "territory": {
+      "label": "Territoire",
+      "description": "Administration des refuges et des factions."
+    },
+    "vehicles": {
+      "label": "Véhicules",
+      "description": "Réparation, alarmes, sirènes et verrous de coffre."
+    },
+    "events": {
+      "label": "Événements",
+      "description": "Essaims, infrastructures et séquences scriptées."
+    },
+    "moderation": {
+      "label": "Modération",
+      "description": "Actions d'expulsion et de bannissement via BanSystem."
+    }
   },
   "operations": {
-    "getSafehouses": { "label": "Lister les refuges", "description": "Récupère tous les refuges et leurs métadonnées." },
-    "safehouseAddPlayer": { "label": "Ajouter un joueur au refuge", "description": "Ajoute un joueur à un refuge." },
-    "safehouseRemovePlayer": { "label": "Retirer un joueur du refuge", "description": "Retire un joueur d'un refuge." },
-    "safehouseSetOwner": { "label": "Définir le propriétaire du refuge", "description": "Transfère la propriété d'un refuge." },
-    "safehouseSetRespawn": { "label": "Basculer la réapparition du refuge", "description": "Active/désactive la réapparition dans le refuge pour un joueur." },
-    "getFactions": { "label": "Lister les factions", "description": "Récupère toutes les factions et leurs membres." },
-    "createFaction": { "label": "Créer une faction", "description": "Crée une nouvelle faction." },
-    "factionAddPlayer": { "label": "Ajouter un joueur à la faction", "description": "Ajoute un joueur à une faction." },
-    "factionRemovePlayer": { "label": "Retirer un joueur de la faction", "description": "Retire un joueur d'une faction." },
-    "factionSetTag": { "label": "Définir l'étiquette de la faction", "description": "Définit l'étiquette courte d'une faction." },
-    "removeFaction": { "label": "Supprimer une faction", "description": "Supprime une faction." },
-    "getVehiclesDetailed": { "label": "Lister les véhicules", "description": "Liste les véhicules chargés avec leur télémétrie." },
-    "triggerSwarmEvent": { "label": "Déclencher un essaim", "description": "Fait apparaître des zombies dans une zone rectangulaire." },
-    "runEventSequence": { "label": "Exécuter une séquence d'événements", "description": "Exécute une séquence chaînée de chat/météo/essaim/utilitaires/bruit." },
-    "getInfrastructureSnapshot": { "label": "Instantané des infrastructures", "description": "Lit l'état hydraulique/météo et un point d'échantillon optionnel." },
-    "moderationKickUser": { "label": "Expulser un utilisateur", "description": "Expulse un joueur via BanSystem." },
-    "moderationBanUser": { "label": "Bannir un utilisateur", "description": "Bannit ou débannit uniquement par nom d'utilisateur -- cela ne bannit pas son adresse IP. Utilisez la page Joueurs pour un bannissement combiné nom d'utilisateur + IP." },
-    "moderationBanIP": { "label": "Bannir une IP", "description": "Bannit ou débannit une adresse IP." },
-    "moderationBanSteamID": { "label": "Bannir un SteamID", "description": "Bannit ou débannit un SteamID." }
+    "getSafehouses": {
+      "label": "Lister les refuges",
+      "description": "Récupère tous les refuges et leurs métadonnées."
+    },
+    "safehouseAddPlayer": {
+      "label": "Ajouter un joueur au refuge",
+      "description": "Ajoute un joueur à un refuge."
+    },
+    "safehouseRemovePlayer": {
+      "label": "Retirer un joueur du refuge",
+      "description": "Retire un joueur d'un refuge."
+    },
+    "safehouseSetOwner": {
+      "label": "Définir le propriétaire du refuge",
+      "description": "Transfère la propriété d'un refuge."
+    },
+    "safehouseSetRespawn": {
+      "label": "Basculer la réapparition du refuge",
+      "description": "Active/désactive la réapparition dans le refuge pour un joueur."
+    },
+    "getFactions": {
+      "label": "Lister les factions",
+      "description": "Récupère toutes les factions et leurs membres."
+    },
+    "createFaction": {
+      "label": "Créer une faction",
+      "description": "Crée une nouvelle faction."
+    },
+    "factionAddPlayer": {
+      "label": "Ajouter un joueur à la faction",
+      "description": "Ajoute un joueur à une faction."
+    },
+    "factionRemovePlayer": {
+      "label": "Retirer un joueur de la faction",
+      "description": "Retire un joueur d'une faction."
+    },
+    "factionSetTag": {
+      "label": "Définir l'étiquette de la faction",
+      "description": "Définit l'étiquette courte d'une faction."
+    },
+    "removeFaction": {
+      "label": "Supprimer une faction",
+      "description": "Supprime une faction."
+    },
+    "getVehiclesDetailed": {
+      "label": "Lister les véhicules",
+      "description": "Liste les véhicules chargés avec leur télémétrie."
+    },
+    "triggerSwarmEvent": {
+      "label": "Déclencher un essaim",
+      "description": "Fait apparaître des zombies dans une zone rectangulaire."
+    },
+    "runEventSequence": {
+      "label": "Exécuter une séquence d'événements",
+      "description": "Exécute une séquence chaînée de chat/météo/essaim/utilitaires/bruit."
+    },
+    "getInfrastructureSnapshot": {
+      "label": "Instantané des infrastructures",
+      "description": "Lit l'état hydraulique/météo et un point d'échantillon optionnel."
+    },
+    "moderationKickUser": {
+      "label": "Expulser un utilisateur",
+      "description": "Expulse un joueur via BanSystem."
+    },
+    "moderationBanUser": {
+      "label": "Bannir un utilisateur",
+      "description": "Bannit ou débannit uniquement par nom d'utilisateur -- cela ne bannit pas son adresse IP. Utilisez la page Joueurs pour un bannissement combiné nom d'utilisateur + IP."
+    },
+    "moderationBanIP": {
+      "label": "Bannir une IP",
+      "description": "Bannit ou débannit une adresse IP."
+    },
+    "moderationBanSteamID": {
+      "label": "Bannir un SteamID",
+      "description": "Bannit ou débannit un SteamID."
+    }
   },
   "operationForms": {
     "safehouseRef": "Refuge",
@@ -535,51 +604,182 @@
     "sequenceExecutedCount_one": "{{executed}} étape exécutée",
     "sequenceExecutedCount_other": "{{executed}} étapes exécutées",
     "sequenceFailedStepsTitle": "Étapes échouées",
-    "sequenceStepIndex": "Étape {{index}}"
+    "sequenceStepIndex": "Étape {{index}}",
+    "vehiclesLoaded_many": "{{count}} véhicules chargés",
+    "safehousesCount_many": "{{count}} refuges",
+    "membersCount_many": "{{count}} membres",
+    "factionsCount_many": "{{count}} factions",
+    "sequenceExecutedCount_many": "{{executed}} étapes exécutées"
   },
   "successCopy": {
-    "rainStarted": { "title": "Pluie démarrée", "description": "La pluie est maintenant active sur le serveur." },
-    "rainStopped": { "title": "Pluie arrêtée", "description": "La pluie a été effacée." },
-    "stormTriggered": { "title": "Orage déclenché", "description": "Un orage est maintenant actif." },
-    "tropicalStormTriggered": { "title": "Tempête tropicale déclenchée", "description": "Une météo de forte intensité est maintenant active." },
-    "blizzardTriggered": { "title": "Blizzard déclenché", "description": "Un blizzard est maintenant actif." },
-    "weatherCleared": { "title": "Météo effacée", "description": "Toutes les conditions météo forcées ont été retirées." },
-    "weatherFrontGenerated": { "title": "Front météo généré", "description": "Un nouveau front météo traverse maintenant le serveur." },
-    "snowEnabled": { "title": "Chute de neige activée", "description": "Les précipitations neigeuses sont maintenant actives." },
-    "snowDisabled": { "title": "Chute de neige désactivée", "description": "Les précipitations neigeuses ont été désactivées." },
-    "climateReset": { "title": "Climat réinitialisé", "description": "Tous les réglages du climat ont été effacés." },
-    "fogUpdated": { "title": "Brouillard mis à jour", "description": "La densité du brouillard a été appliquée au serveur." },
-    "windUpdated": { "title": "Vent mis à jour", "description": "L'intensité du vent a été appliquée au serveur." },
-    "temperatureUpdated": { "title": "Température mise à jour", "description": "La température a été appliquée au serveur." },
-    "cloudsUpdated": { "title": "Couverture nuageuse mise à jour", "description": "L'intensité des nuages a été appliquée au serveur." },
-    "humidityUpdated": { "title": "Humidité mise à jour", "description": "Le taux d'humidité a été appliqué au serveur." },
-    "precipitationUpdated": { "title": "Précipitations mises à jour", "description": "L'intensité des précipitations a été appliquée au serveur." },
-    "timeUpdated": { "title": "Heure mise à jour", "description": "La date et l'heure du jeu ont été ajustées." },
-    "utilitiesRestored": { "title": "Réseaux rétablis", "description": "L'électricité et l'eau sont de nouveau en service." },
-    "utilitiesShutDown": { "title": "Réseaux coupés", "description": "L'électricité et l'eau ont été coupées." },
-    "powerRestored": { "title": "Électricité rétablie", "description": "Le service électrique est de nouveau en ligne." },
-    "waterRestored": { "title": "Eau rétablie", "description": "Le service d'eau est de nouveau en ligne." },
-    "powerShutDown": { "title": "Électricité coupée", "description": "Le service électrique a été coupé." },
-    "waterShutDown": { "title": "Eau coupée", "description": "Le service d'eau a été coupé." },
-    "helicopterTriggered": { "title": "Hélicoptère déclenché", "description": "Un événement hélicoptère est maintenant actif." },
-    "helicopterEventTriggered": { "title": "Événement hélicoptère déclenché", "description": "Un événement hélicoptère à l'échelle du serveur est maintenant actif." },
-    "helicopterEventStopped": { "title": "Événement hélicoptère arrêté", "description": "Signal d'arrêt envoyé pour l'événement hélicoptère à l'échelle du serveur." },
-    "gunshotTriggered": { "title": "Coup de feu déclenché", "description": "Un bruit de coup de feu a été créé." },
-    "alarmTriggered": { "title": "Alarme déclenchée", "description": "Une alarme a été déclenchée." },
-    "noiseCreated": { "title": "Bruit créé", "description": "Un leurre sonore personnalisé a été placé." },
-    "lightningTriggered": { "title": "Foudre déclenchée", "description": "Une frappe de foudre a été demandée." },
-    "thunderTriggered": { "title": "Tonnerre déclenché", "description": "Un événement de tonnerre est maintenant actif." },
-    "hordeSpawned": { "title": "Horde créée", "description": "Un groupe de zombies a été créé." },
-    "rearHordeSpawned": { "title": "Horde arrière créée", "description": "Un groupe de zombies est apparu derrière la cible." },
-    "zombiesCleared": { "title": "Zombies supprimés", "description": "Tous les zombies ont été retirés des cellules chargées." },
-    "zombiesClearedNear": { "title": "Zombies proches supprimés", "description": "Les zombies proches de la cible ont été retirés." },
-    "timeSpeedUpdated": { "title": "Vitesse du temps mise à jour", "description": "Le multiplicateur de temps a été modifié." },
-    "teleportComplete": { "title": "Téléportation terminée", "description": "La cible a été déplacée." },
-    "vehicleSpawned": { "title": "Véhicule créé", "description": "Véhicule livré au joueur ciblé." },
-    "announcementSent": { "title": "Annonce envoyée", "description": "Message diffusé à tous les joueurs." },
-    "climateApplied": { "title": "Climat appliqué", "description": "Tous les paramètres du climat ont été mis à jour." },
-    "visualApplied": { "title": "Paramètres visuels appliqués", "description": "Tous les paramètres visuels ont été mis à jour." },
-    "actionCompleteDefault": { "title": "Action terminée", "description": "{{action}} terminé avec succès." }
+    "rainStarted": {
+      "title": "Pluie démarrée",
+      "description": "La pluie est maintenant active sur le serveur."
+    },
+    "rainStopped": {
+      "title": "Pluie arrêtée",
+      "description": "La pluie a été effacée."
+    },
+    "stormTriggered": {
+      "title": "Orage déclenché",
+      "description": "Un orage est maintenant actif."
+    },
+    "tropicalStormTriggered": {
+      "title": "Tempête tropicale déclenchée",
+      "description": "Une météo de forte intensité est maintenant active."
+    },
+    "blizzardTriggered": {
+      "title": "Blizzard déclenché",
+      "description": "Un blizzard est maintenant actif."
+    },
+    "weatherCleared": {
+      "title": "Météo effacée",
+      "description": "Toutes les conditions météo forcées ont été retirées."
+    },
+    "weatherFrontGenerated": {
+      "title": "Front météo généré",
+      "description": "Un nouveau front météo traverse maintenant le serveur."
+    },
+    "snowEnabled": {
+      "title": "Chute de neige activée",
+      "description": "Les précipitations neigeuses sont maintenant actives."
+    },
+    "snowDisabled": {
+      "title": "Chute de neige désactivée",
+      "description": "Les précipitations neigeuses ont été désactivées."
+    },
+    "climateReset": {
+      "title": "Climat réinitialisé",
+      "description": "Tous les réglages du climat ont été effacés."
+    },
+    "fogUpdated": {
+      "title": "Brouillard mis à jour",
+      "description": "La densité du brouillard a été appliquée au serveur."
+    },
+    "windUpdated": {
+      "title": "Vent mis à jour",
+      "description": "L'intensité du vent a été appliquée au serveur."
+    },
+    "temperatureUpdated": {
+      "title": "Température mise à jour",
+      "description": "La température a été appliquée au serveur."
+    },
+    "cloudsUpdated": {
+      "title": "Couverture nuageuse mise à jour",
+      "description": "L'intensité des nuages a été appliquée au serveur."
+    },
+    "humidityUpdated": {
+      "title": "Humidité mise à jour",
+      "description": "Le taux d'humidité a été appliqué au serveur."
+    },
+    "precipitationUpdated": {
+      "title": "Précipitations mises à jour",
+      "description": "L'intensité des précipitations a été appliquée au serveur."
+    },
+    "timeUpdated": {
+      "title": "Heure mise à jour",
+      "description": "La date et l'heure du jeu ont été ajustées."
+    },
+    "utilitiesRestored": {
+      "title": "Réseaux rétablis",
+      "description": "L'électricité et l'eau sont de nouveau en service."
+    },
+    "utilitiesShutDown": {
+      "title": "Réseaux coupés",
+      "description": "L'électricité et l'eau ont été coupées."
+    },
+    "powerRestored": {
+      "title": "Électricité rétablie",
+      "description": "Le service électrique est de nouveau en ligne."
+    },
+    "waterRestored": {
+      "title": "Eau rétablie",
+      "description": "Le service d'eau est de nouveau en ligne."
+    },
+    "powerShutDown": {
+      "title": "Électricité coupée",
+      "description": "Le service électrique a été coupé."
+    },
+    "waterShutDown": {
+      "title": "Eau coupée",
+      "description": "Le service d'eau a été coupé."
+    },
+    "helicopterTriggered": {
+      "title": "Hélicoptère déclenché",
+      "description": "Un événement hélicoptère est maintenant actif."
+    },
+    "helicopterEventTriggered": {
+      "title": "Événement hélicoptère déclenché",
+      "description": "Un événement hélicoptère à l'échelle du serveur est maintenant actif."
+    },
+    "helicopterEventStopped": {
+      "title": "Événement hélicoptère arrêté",
+      "description": "Signal d'arrêt envoyé pour l'événement hélicoptère à l'échelle du serveur."
+    },
+    "gunshotTriggered": {
+      "title": "Coup de feu déclenché",
+      "description": "Un bruit de coup de feu a été créé."
+    },
+    "alarmTriggered": {
+      "title": "Alarme déclenchée",
+      "description": "Une alarme a été déclenchée."
+    },
+    "noiseCreated": {
+      "title": "Bruit créé",
+      "description": "Un leurre sonore personnalisé a été placé."
+    },
+    "lightningTriggered": {
+      "title": "Foudre déclenchée",
+      "description": "Une frappe de foudre a été demandée."
+    },
+    "thunderTriggered": {
+      "title": "Tonnerre déclenché",
+      "description": "Un événement de tonnerre est maintenant actif."
+    },
+    "hordeSpawned": {
+      "title": "Horde créée",
+      "description": "Un groupe de zombies a été créé."
+    },
+    "rearHordeSpawned": {
+      "title": "Horde arrière créée",
+      "description": "Un groupe de zombies est apparu derrière la cible."
+    },
+    "zombiesCleared": {
+      "title": "Zombies supprimés",
+      "description": "Tous les zombies ont été retirés des cellules chargées."
+    },
+    "zombiesClearedNear": {
+      "title": "Zombies proches supprimés",
+      "description": "Les zombies proches de la cible ont été retirés."
+    },
+    "timeSpeedUpdated": {
+      "title": "Vitesse du temps mise à jour",
+      "description": "Le multiplicateur de temps a été modifié."
+    },
+    "teleportComplete": {
+      "title": "Téléportation terminée",
+      "description": "La cible a été déplacée."
+    },
+    "vehicleSpawned": {
+      "title": "Véhicule créé",
+      "description": "Véhicule livré au joueur ciblé."
+    },
+    "announcementSent": {
+      "title": "Annonce envoyée",
+      "description": "Message diffusé à tous les joueurs."
+    },
+    "climateApplied": {
+      "title": "Climat appliqué",
+      "description": "Tous les paramètres du climat ont été mis à jour."
+    },
+    "visualApplied": {
+      "title": "Paramètres visuels appliqués",
+      "description": "Tous les paramètres visuels ont été mis à jour."
+    },
+    "actionCompleteDefault": {
+      "title": "Action terminée",
+      "description": "{{action}} terminé avec succès."
+    }
   },
   "toasts": {
     "actionFailedTitle": "Échec de {{action}}",

@@ -6,7 +6,8 @@
   "duplicateKeysWarning": {
     "title_one": "« {{keys}} » apparaît plus d'une fois dans ce fichier de configuration",
     "title_other": "{{count}} paramètres apparaissent plus d'une fois dans ce fichier de configuration : {{keys}}",
-    "desc": "Cet éditeur lit la dernière copie et la page Mods lit la première — les deux peuvent donc afficher des valeurs différentes pour le même paramètre."
+    "desc": "Cet éditeur lit la dernière copie et la page Mods lit la première — les deux peuvent donc afficher des valeurs différentes pour le même paramètre.",
+    "title_many": "{{count}} paramètres apparaissent plus d'une fois dans ce fichier de configuration : {{keys}}"
   },
   "serverChangedBanner": {
     "title": "Active server changed",
@@ -33,7 +34,8 @@
     "spawnsLabel_other": "Spawns · {{count}} professions",
     "regionsLabel": "Régions",
     "fileNotFoundTitle": "{{label}} : fichier introuvable",
-    "notFoundAria": "Introuvable"
+    "notFoundAria": "Introuvable",
+    "spawnsLabel_many": "Spawns · {{count}} professions"
   },
   "unresolvedReview": {
     "title": "ID Mods= non résolus",
@@ -117,7 +119,9 @@
     "uncategorizedIniLabel": "Non catégorisé / Inconnu",
     "uncategorizedIniTitle": "Clés présentes dans votre fichier INI mais absentes du schéma (nouvelles clés vanilla, clés injectées par un mod, ou personnalisées)",
     "uncategorizedSandboxLabel": "Paramètres supplémentaires",
-    "uncategorizedSandboxTitle": "Paramètres sandbox pas encore regroupés par l'éditeur"
+    "uncategorizedSandboxTitle": "Paramètres sandbox pas encore regroupés par l'éditeur",
+    "modifiedCountTitle_many": "{{count}} modifications non enregistrées",
+    "matchCount_many": "{{count}} résultats"
   },
   "uncategorizedIni": {
     "empty": "Aucune clé non catégorisée.",
@@ -125,7 +129,8 @@
     "keyCount_one": "{{count}} clé",
     "keyCount_other": "{{count}} clés",
     "description": "Clés présentes dans votre INI mais non reconnues par le schéma. Probablement des paramètres vanilla récents ou injectés par un mod. Les valeurs sont préservées à l'enregistrement — modifiez avec précaution.",
-    "undoTitle": "Annuler la modification"
+    "undoTitle": "Annuler la modification",
+    "keyCount_many": "{{count}} clés"
   },
   "uncategorizedSandbox": {
     "empty": "Aucun paramètre non catégorisé.",
@@ -134,14 +139,16 @@
     "keyCount_other": "{{count}} clés",
     "description": "Paramètres pour lesquels l'éditeur n'a pas de schéma, regroupés par la section qui les possède. Surtout des clés ajoutées par des mods. Modifiez avec précaution.",
     "mainSection": "Section principale",
-    "undoTitle": "Annuler la modification"
+    "undoTitle": "Annuler la modification",
+    "keyCount_many": "{{count}} clés"
   },
   "categoryContent": {
     "settingCount_one": "{{count}} paramètre",
     "settingCount_other": "{{count}} paramètres",
     "noneModified": "Aucun paramètre de cette catégorie ne diffère des valeurs par défaut de Project Zomboid.",
     "noneUnsaved": "Aucun paramètre non enregistré dans cette catégorie.",
-    "none": "Aucun paramètre dans cette catégorie."
+    "none": "Aucun paramètre dans cette catégorie.",
+    "settingCount_many": "{{count}} paramètres"
   },
   "iniTab": {
     "sectionLabel": "Paramètres serveur",
@@ -182,7 +189,8 @@
     "fileAriaServerFile": "Fichier serveur de la région {{index}}",
     "fileAriaMapPath": "Chemin du fichier de carte de la région {{index}}",
     "deleteAria": "Supprimer la région de spawn {{name}}",
-    "addRegion": "ajouter une région"
+    "addRegion": "ajouter une région",
+    "sectionSublabel_many": "{{count}} régions · villes et villages"
   },
   "modSettingsTab": {
     "sectionLabel": "Options sandbox des mods",
@@ -229,7 +237,9 @@
     "showAllOptions": "Afficher toutes les options",
     "noMatches": "Aucun paramètre ne correspond à « {{query}} »{{suffix}}",
     "noMatchesInModified": " dans les options modifiées",
-    "clearSearch": "Effacer la recherche"
+    "clearSearch": "Effacer la recherche",
+    "sectionSublabelLoaded_many": "{{count}} mods · en direct depuis le bridge",
+    "groupModifiedTitle_many": "{{count}} options diffèrent de leur valeur par défaut"
   },
   "stickySaveBar": {
     "unsavedChange_one": "{{count}} modification non enregistrée",
@@ -238,7 +248,8 @@
     "sandboxScope": "sandbox lua",
     "hint": "ctrl+s pour enregistrer · s'applique au rechargement",
     "discard": "ignorer",
-    "saveAndReload": "enregistrer et recharger"
+    "saveAndReload": "enregistrer et recharger",
+    "unsavedChange_many": "{{count}} modifications non enregistrées"
   },
   "backupsDialog": {
     "title": "Sauvegardes de configuration",
@@ -259,7 +270,8 @@
     "typeSandbox": "Sandbox",
     "typeSpawnPoints": "Points spawn",
     "typeSpawnRegions": "Régions spawn",
-    "sizeKb": "{{size}} Ko"
+    "sizeKb": "{{size}} Ko",
+    "totalCount_many": "{{count}} sauvegardes au total"
   },
   "templatesDialog": {
     "title": "Configs enregistrées",
@@ -276,7 +288,8 @@
     "applyTooltip": "Charger cette config (crée d'abord une sauvegarde)",
     "deleteAria": "Supprimer la config enregistrée {{name}}",
     "deleteTooltip": "Supprimer cette config enregistrée",
-    "close": "Fermer"
+    "close": "Fermer",
+    "savedCount_many": "{{count}} configs enregistrées"
   },
   "saveTemplateDialog": {
     "title": "Enregistrer la configuration actuelle",

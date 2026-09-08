@@ -17,5 +17,7 @@
   "willSave": "Se guardarán {{sandbox}} y {{ini}}. Los ajustes de identidad y conexión (nombre, puertos, contraseñas) nunca se incluyen.",
   "errorTitle": "No se pudo guardar la plantilla",
   "cancel": "Cancelar",
-  "saveTemplate": "Guardar plantilla"
+  "saveTemplate": "Guardar plantilla",
+  "sandboxSettingCount_many": "{{count}} ajustes de sandbox",
+  "iniKeyCount_many": "{{count}} claves de server.ini"
 }

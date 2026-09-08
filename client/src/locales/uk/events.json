@@ -1,4 +1,16 @@
 {
+  "__pendingPluralForms": [
+    "resultDisplay.factionsCount_few",
+    "resultDisplay.factionsCount_many",
+    "resultDisplay.membersCount_few",
+    "resultDisplay.membersCount_many",
+    "resultDisplay.safehousesCount_few",
+    "resultDisplay.safehousesCount_many",
+    "resultDisplay.sequenceExecutedCount_few",
+    "resultDisplay.sequenceExecutedCount_many",
+    "resultDisplay.vehiclesLoaded_few",
+    "resultDisplay.vehiclesLoaded_many"
+  ],
   "pageHeader": {
     "title": "Консоль подій",
     "description": "Погода, час, звуки, дії гравців та інструменти bridge",
@@ -409,31 +421,100 @@
     "requiredSuffix": " *"
   },
   "operationGroups": {
-    "territory": { "label": "Територія", "description": "Адміністрування безпечних домів і фракцій." },
-    "vehicles": { "label": "Транспорт", "description": "Ремонт, сигналізації, сирени та замки багажника." },
-    "events": { "label": "Події", "description": "Навали, інфраструктура та скриптовані послідовності." },
-    "moderation": { "label": "Модерація", "description": "Вигнання та блокування через BanSystem." }
+    "territory": {
+      "label": "Територія",
+      "description": "Адміністрування безпечних домів і фракцій."
+    },
+    "vehicles": {
+      "label": "Транспорт",
+      "description": "Ремонт, сигналізації, сирени та замки багажника."
+    },
+    "events": {
+      "label": "Події",
+      "description": "Навали, інфраструктура та скриптовані послідовності."
+    },
+    "moderation": {
+      "label": "Модерація",
+      "description": "Вигнання та блокування через BanSystem."
+    }
   },
   "operations": {
-    "getSafehouses": { "label": "Список безпечних домів", "description": "Отримати всі безпечні доми та їхні метадані." },
-    "safehouseAddPlayer": { "label": "Додати гравця до безпечного дому", "description": "Додає гравця до безпечного дому." },
-    "safehouseRemovePlayer": { "label": "Вилучити гравця з безпечного дому", "description": "Вилучає гравця з безпечного дому." },
-    "safehouseSetOwner": { "label": "Змінити власника безпечного дому", "description": "Передає право власності на безпечний дім." },
-    "safehouseSetRespawn": { "label": "Перемкнути відродження в безпечному домі", "description": "Вмикає або вимикає відродження гравця в безпечному домі." },
-    "getFactions": { "label": "Список фракцій", "description": "Отримати всі фракції та їхніх учасників." },
-    "createFaction": { "label": "Створити фракцію", "description": "Створює нову фракцію." },
-    "factionAddPlayer": { "label": "Додати гравця до фракції", "description": "Додає гравця до фракції." },
-    "factionRemovePlayer": { "label": "Вилучити гравця з фракції", "description": "Вилучає гравця з фракції." },
-    "factionSetTag": { "label": "Встановити тег фракції", "description": "Задає короткий тег фракції." },
-    "removeFaction": { "label": "Видалити фракцію", "description": "Видаляє фракцію." },
-    "getVehiclesDetailed": { "label": "Список транспорту", "description": "Перелічує завантажений транспорт із телеметрією." },
-    "triggerSwarmEvent": { "label": "Запустити навалу", "description": "Створює зомбі в прямокутній зоні." },
-    "runEventSequence": { "label": "Виконати послідовність подій", "description": "Виконує ланцюжок дій: чат / погода / навала / мережі / шум." },
-    "getInfrastructureSnapshot": { "label": "Знімок інфраструктури", "description": "Зчитує стан водопостачання та погоди й необов'язкову точку вимірювання." },
-    "moderationKickUser": { "label": "Вигнати користувача", "description": "Виганяє гравця через BanSystem." },
-    "moderationBanUser": { "label": "Заблокувати користувача", "description": "Блокує або розблоковує лише за іменем користувача — це не блокує його IP-адресу. Для спільного блокування за іменем і IP скористайтеся сторінкою «Гравці»." },
-    "moderationBanIP": { "label": "Заблокувати IP", "description": "Блокує або розблоковує IP-адресу." },
-    "moderationBanSteamID": { "label": "Заблокувати SteamID", "description": "Блокує або розблоковує SteamID." }
+    "getSafehouses": {
+      "label": "Список безпечних домів",
+      "description": "Отримати всі безпечні доми та їхні метадані."
+    },
+    "safehouseAddPlayer": {
+      "label": "Додати гравця до безпечного дому",
+      "description": "Додає гравця до безпечного дому."
+    },
+    "safehouseRemovePlayer": {
+      "label": "Вилучити гравця з безпечного дому",
+      "description": "Вилучає гравця з безпечного дому."
+    },
+    "safehouseSetOwner": {
+      "label": "Змінити власника безпечного дому",
+      "description": "Передає право власності на безпечний дім."
+    },
+    "safehouseSetRespawn": {
+      "label": "Перемкнути відродження в безпечному домі",
+      "description": "Вмикає або вимикає відродження гравця в безпечному домі."
+    },
+    "getFactions": {
+      "label": "Список фракцій",
+      "description": "Отримати всі фракції та їхніх учасників."
+    },
+    "createFaction": {
+      "label": "Створити фракцію",
+      "description": "Створює нову фракцію."
+    },
+    "factionAddPlayer": {
+      "label": "Додати гравця до фракції",
+      "description": "Додає гравця до фракції."
+    },
+    "factionRemovePlayer": {
+      "label": "Вилучити гравця з фракції",
+      "description": "Вилучає гравця з фракції."
+    },
+    "factionSetTag": {
+      "label": "Встановити тег фракції",
+      "description": "Задає короткий тег фракції."
+    },
+    "removeFaction": {
+      "label": "Видалити фракцію",
+      "description": "Видаляє фракцію."
+    },
+    "getVehiclesDetailed": {
+      "label": "Список транспорту",
+      "description": "Перелічує завантажений транспорт із телеметрією."
+    },
+    "triggerSwarmEvent": {
+      "label": "Запустити навалу",
+      "description": "Створює зомбі в прямокутній зоні."
+    },
+    "runEventSequence": {
+      "label": "Виконати послідовність подій",
+      "description": "Виконує ланцюжок дій: чат / погода / навала / мережі / шум."
+    },
+    "getInfrastructureSnapshot": {
+      "label": "Знімок інфраструктури",
+      "description": "Зчитує стан водопостачання та погоди й необов'язкову точку вимірювання."
+    },
+    "moderationKickUser": {
+      "label": "Вигнати користувача",
+      "description": "Виганяє гравця через BanSystem."
+    },
+    "moderationBanUser": {
+      "label": "Заблокувати користувача",
+      "description": "Блокує або розблоковує лише за іменем користувача — це не блокує його IP-адресу. Для спільного блокування за іменем і IP скористайтеся сторінкою «Гравці»."
+    },
+    "moderationBanIP": {
+      "label": "Заблокувати IP",
+      "description": "Блокує або розблоковує IP-адресу."
+    },
+    "moderationBanSteamID": {
+      "label": "Заблокувати SteamID",
+      "description": "Блокує або розблоковує SteamID."
+    }
   },
   "operationForms": {
     "safehouseRef": "Безпечний дім",
@@ -535,51 +616,187 @@
     "sequenceExecutedCount_one": "Виконано {{executed}} крок",
     "sequenceExecutedCount_other": "Виконано кроків: {{executed}}",
     "sequenceFailedStepsTitle": "Невдалі кроки",
-    "sequenceStepIndex": "Крок {{index}}"
+    "sequenceStepIndex": "Крок {{index}}",
+    "vehiclesLoaded_few": "Завантажено транспортних засобів: {{count}}",
+    "vehiclesLoaded_many": "Завантажено транспортних засобів: {{count}}",
+    "safehousesCount_few": "Безпечних домів: {{count}}",
+    "safehousesCount_many": "Безпечних домів: {{count}}",
+    "membersCount_few": "Учасників: {{count}}",
+    "membersCount_many": "Учасників: {{count}}",
+    "factionsCount_few": "Фракцій: {{count}}",
+    "factionsCount_many": "Фракцій: {{count}}",
+    "sequenceExecutedCount_few": "Виконано кроків: {{executed}}",
+    "sequenceExecutedCount_many": "Виконано кроків: {{executed}}"
   },
   "successCopy": {
-    "rainStarted": { "title": "Дощ почався", "description": "Дощ тепер активний на сервері." },
-    "rainStopped": { "title": "Дощ зупинено", "description": "Опади припинено." },
-    "stormTriggered": { "title": "Шторм запущено", "description": "Подія шторму тепер активна." },
-    "tropicalStormTriggered": { "title": "Тропічний шторм запущено", "description": "Погода високої інтенсивності тепер активна." },
-    "blizzardTriggered": { "title": "Хуртовину запущено", "description": "Подія хуртовини тепер активна." },
-    "weatherCleared": { "title": "Погоду очищено", "description": "Усі примусові погодні умови скасовано." },
-    "weatherFrontGenerated": { "title": "Атмосферний фронт згенеровано", "description": "Новий атмосферний фронт тепер рухається через сервер." },
-    "snowEnabled": { "title": "Снігопад увімкнено", "description": "Снігові опади тепер активні." },
-    "snowDisabled": { "title": "Снігопад вимкнено", "description": "Снігові опади вимкнено." },
-    "climateReset": { "title": "Клімат скинуто", "description": "Усі перевизначення клімату скасовано." },
-    "fogUpdated": { "title": "Туман оновлено", "description": "Щільність туману застосовано на сервері." },
-    "windUpdated": { "title": "Вітер оновлено", "description": "Силу вітру застосовано на сервері." },
-    "temperatureUpdated": { "title": "Температуру оновлено", "description": "Температуру застосовано на сервері." },
-    "cloudsUpdated": { "title": "Хмарність оновлено", "description": "Щільність хмарності застосовано на сервері." },
-    "humidityUpdated": { "title": "Вологість оновлено", "description": "Рівень вологості застосовано на сервері." },
-    "precipitationUpdated": { "title": "Опади оновлено", "description": "Інтенсивність опадів застосовано на сервері." },
-    "timeUpdated": { "title": "Час оновлено", "description": "Ігрові дату й час скориговано." },
-    "utilitiesRestored": { "title": "Мережі відновлено", "description": "Електрика та вода знову працюють." },
-    "utilitiesShutDown": { "title": "Мережі вимкнено", "description": "Електрику та воду відключено." },
-    "powerRestored": { "title": "Електрику відновлено", "description": "Електропостачання знову працює." },
-    "waterRestored": { "title": "Воду відновлено", "description": "Водопостачання знову працює." },
-    "powerShutDown": { "title": "Електрику вимкнено", "description": "Електропостачання відключено." },
-    "waterShutDown": { "title": "Воду вимкнено", "description": "Водопостачання відключено." },
-    "helicopterTriggered": { "title": "Гелікоптер запущено", "description": "Подія з гелікоптером тепер активна." },
-    "helicopterEventTriggered": { "title": "Подію з гелікоптером запущено", "description": "Подія з гелікоптером на всьому сервері тепер активна." },
-    "helicopterEventStopped": { "title": "Подію з гелікоптером зупинено", "description": "Сигнал зупинки надіслано для загальносерверної події з гелікоптером." },
-    "gunshotTriggered": { "title": "Постріл відтворено", "description": "Створено звук пострілу." },
-    "alarmTriggered": { "title": "Сигналізацію ввімкнено", "description": "Сигналізацію спрацьовано." },
-    "noiseCreated": { "title": "Шум створено", "description": "Розміщено власну звукову приманку." },
-    "lightningTriggered": { "title": "Блискавку викликано", "description": "Викликано удар блискавки." },
-    "thunderTriggered": { "title": "Грім запущено", "description": "Подія грому тепер активна." },
-    "hordeSpawned": { "title": "Орду створено", "description": "Створено групу зомбі." },
-    "rearHordeSpawned": { "title": "Орду позаду створено", "description": "Групу зомбі створено позаду цілі." },
-    "zombiesCleared": { "title": "Зомбі прибрано", "description": "Усіх зомбі прибрано із завантажених комірок." },
-    "zombiesClearedNear": { "title": "Найближчих зомбі прибрано", "description": "Зомбі поблизу цілі прибрано." },
-    "timeSpeedUpdated": { "title": "Швидкість часу оновлено", "description": "Множник часу змінено." },
-    "teleportComplete": { "title": "Телепортацію завершено", "description": "Ціль переміщено." },
-    "vehicleSpawned": { "title": "Транспорт створено", "description": "Транспорт доставлено гравцеві-цілі." },
-    "announcementSent": { "title": "Оголошення надіслано", "description": "Повідомлення розіслано всім гравцям." },
-    "climateApplied": { "title": "Клімат застосовано", "description": "Усі параметри клімату оновлено." },
-    "visualApplied": { "title": "Візуальні налаштування застосовано", "description": "Усі візуальні параметри оновлено." },
-    "actionCompleteDefault": { "title": "Дію завершено", "description": "{{action}} — виконано успішно." }
+    "rainStarted": {
+      "title": "Дощ почався",
+      "description": "Дощ тепер активний на сервері."
+    },
+    "rainStopped": {
+      "title": "Дощ зупинено",
+      "description": "Опади припинено."
+    },
+    "stormTriggered": {
+      "title": "Шторм запущено",
+      "description": "Подія шторму тепер активна."
+    },
+    "tropicalStormTriggered": {
+      "title": "Тропічний шторм запущено",
+      "description": "Погода високої інтенсивності тепер активна."
+    },
+    "blizzardTriggered": {
+      "title": "Хуртовину запущено",
+      "description": "Подія хуртовини тепер активна."
+    },
+    "weatherCleared": {
+      "title": "Погоду очищено",
+      "description": "Усі примусові погодні умови скасовано."
+    },
+    "weatherFrontGenerated": {
+      "title": "Атмосферний фронт згенеровано",
+      "description": "Новий атмосферний фронт тепер рухається через сервер."
+    },
+    "snowEnabled": {
+      "title": "Снігопад увімкнено",
+      "description": "Снігові опади тепер активні."
+    },
+    "snowDisabled": {
+      "title": "Снігопад вимкнено",
+      "description": "Снігові опади вимкнено."
+    },
+    "climateReset": {
+      "title": "Клімат скинуто",
+      "description": "Усі перевизначення клімату скасовано."
+    },
+    "fogUpdated": {
+      "title": "Туман оновлено",
+      "description": "Щільність туману застосовано на сервері."
+    },
+    "windUpdated": {
+      "title": "Вітер оновлено",
+      "description": "Силу вітру застосовано на сервері."
+    },
+    "temperatureUpdated": {
+      "title": "Температуру оновлено",
+      "description": "Температуру застосовано на сервері."
+    },
+    "cloudsUpdated": {
+      "title": "Хмарність оновлено",
+      "description": "Щільність хмарності застосовано на сервері."
+    },
+    "humidityUpdated": {
+      "title": "Вологість оновлено",
+      "description": "Рівень вологості застосовано на сервері."
+    },
+    "precipitationUpdated": {
+      "title": "Опади оновлено",
+      "description": "Інтенсивність опадів застосовано на сервері."
+    },
+    "timeUpdated": {
+      "title": "Час оновлено",
+      "description": "Ігрові дату й час скориговано."
+    },
+    "utilitiesRestored": {
+      "title": "Мережі відновлено",
+      "description": "Електрика та вода знову працюють."
+    },
+    "utilitiesShutDown": {
+      "title": "Мережі вимкнено",
+      "description": "Електрику та воду відключено."
+    },
+    "powerRestored": {
+      "title": "Електрику відновлено",
+      "description": "Електропостачання знову працює."
+    },
+    "waterRestored": {
+      "title": "Воду відновлено",
+      "description": "Водопостачання знову працює."
+    },
+    "powerShutDown": {
+      "title": "Електрику вимкнено",
+      "description": "Електропостачання відключено."
+    },
+    "waterShutDown": {
+      "title": "Воду вимкнено",
+      "description": "Водопостачання відключено."
+    },
+    "helicopterTriggered": {
+      "title": "Гелікоптер запущено",
+      "description": "Подія з гелікоптером тепер активна."
+    },
+    "helicopterEventTriggered": {
+      "title": "Подію з гелікоптером запущено",
+      "description": "Подія з гелікоптером на всьому сервері тепер активна."
+    },
+    "helicopterEventStopped": {
+      "title": "Подію з гелікоптером зупинено",
+      "description": "Сигнал зупинки надіслано для загальносерверної події з гелікоптером."
+    },
+    "gunshotTriggered": {
+      "title": "Постріл відтворено",
+      "description": "Створено звук пострілу."
+    },
+    "alarmTriggered": {
+      "title": "Сигналізацію ввімкнено",
+      "description": "Сигналізацію спрацьовано."
+    },
+    "noiseCreated": {
+      "title": "Шум створено",
+      "description": "Розміщено власну звукову приманку."
+    },
+    "lightningTriggered": {
+      "title": "Блискавку викликано",
+      "description": "Викликано удар блискавки."
+    },
+    "thunderTriggered": {
+      "title": "Грім запущено",
+      "description": "Подія грому тепер активна."
+    },
+    "hordeSpawned": {
+      "title": "Орду створено",
+      "description": "Створено групу зомбі."
+    },
+    "rearHordeSpawned": {
+      "title": "Орду позаду створено",
+      "description": "Групу зомбі створено позаду цілі."
+    },
+    "zombiesCleared": {
+      "title": "Зомбі прибрано",
+      "description": "Усіх зомбі прибрано із завантажених комірок."
+    },
+    "zombiesClearedNear": {
+      "title": "Найближчих зомбі прибрано",
+      "description": "Зомбі поблизу цілі прибрано."
+    },
+    "timeSpeedUpdated": {
+      "title": "Швидкість часу оновлено",
+      "description": "Множник часу змінено."
+    },
+    "teleportComplete": {
+      "title": "Телепортацію завершено",
+      "description": "Ціль переміщено."
+    },
+    "vehicleSpawned": {
+      "title": "Транспорт створено",
+      "description": "Транспорт доставлено гравцеві-цілі."
+    },
+    "announcementSent": {
+      "title": "Оголошення надіслано",
+      "description": "Повідомлення розіслано всім гравцям."
+    },
+    "climateApplied": {
+      "title": "Клімат застосовано",
+      "description": "Усі параметри клімату оновлено."
+    },
+    "visualApplied": {
+      "title": "Візуальні налаштування застосовано",
+      "description": "Усі візуальні параметри оновлено."
+    },
+    "actionCompleteDefault": {
+      "title": "Дію завершено",
+      "description": "{{action}} — виконано успішно."
+    }
   },
   "toasts": {
     "actionFailedTitle": "{{action}} — не вдалося",

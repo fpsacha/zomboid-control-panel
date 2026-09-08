@@ -28,7 +28,9 @@
     "recoveryCapabilityHint": "Retirer le dernier détenteur de cette capacité verrouillerait les administrateurs hors du panneau — celui-ci refuse ce changement et vous explique pourquoi.",
     "savingCell": "Enregistrement…",
     "capabilityCount_one": "{{count}} capacité",
-    "capabilityCount_other": "{{count}} capacités"
+    "capabilityCount_other": "{{count}} capacités",
+    "memberCount_many": "{{count}} membres",
+    "capabilityCount_many": "{{count}} capacités"
   },
   "roleFormDialog": {
     "createTitle": "Nouveau rôle",
@@ -54,7 +56,8 @@
     "reassignPlaceholder": "Choisissez un rôle…",
     "cancel": "Annuler",
     "confirm": "Supprimer le rôle",
-    "confirming": "Suppression…"
+    "confirming": "Suppression…",
+    "descriptionWithMembers_many": "{{count}} utilisateurs détiennent actuellement ce rôle. Choisissez d'abord un rôle vers lequel les déplacer — la suppression est définitive."
   },
   "confirmSelfCapabilityLoss": {
     "title": "Cela retire votre propre accès",

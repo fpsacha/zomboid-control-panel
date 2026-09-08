@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "deleteRoleDialog.descriptionWithMembers_few",
+    "deleteRoleDialog.descriptionWithMembers_many",
+    "deleteRoleDialog.descriptionWithMembers_two",
+    "deleteRoleDialog.descriptionWithMembers_zero",
+    "matrix.capabilityCount_few",
+    "matrix.capabilityCount_many",
+    "matrix.capabilityCount_two",
+    "matrix.capabilityCount_zero",
+    "matrix.memberCount_few",
+    "matrix.memberCount_many",
+    "matrix.memberCount_two",
+    "matrix.memberCount_zero"
+  ],
   "pageHeader": {
     "eyebrow": "الأذونات",
     "title": "الأدوار والصلاحيات",
@@ -28,7 +42,15 @@
     "deleteTooltip": "حذف الدور",
     "deleteSeededTooltip": "لا يمكن حذف الأدوار المدمجة من هذه الشاشة.",
     "recoveryCapabilityHint": "إزالة آخر جهة تملك هذه الصلاحية تحجب المسؤولين عن الدخول — ولذلك ترفض اللوحة هذا التغيير وتوضّح لك السبب.",
-    "savingCell": "جارٍ الحفظ…"
+    "savingCell": "جارٍ الحفظ…",
+    "memberCount_zero": "عدد الأعضاء: {{count}}",
+    "memberCount_two": "عدد الأعضاء: {{count}}",
+    "memberCount_few": "عدد الأعضاء: {{count}}",
+    "memberCount_many": "عدد الأعضاء: {{count}}",
+    "capabilityCount_zero": "عدد الصلاحيات: {{count}}",
+    "capabilityCount_two": "عدد الصلاحيات: {{count}}",
+    "capabilityCount_few": "عدد الصلاحيات: {{count}}",
+    "capabilityCount_many": "عدد الصلاحيات: {{count}}"
   },
   "roleFormDialog": {
     "createTitle": "دور جديد",
@@ -54,7 +76,11 @@
     "reassignPlaceholder": "اختر دورًا…",
     "cancel": "إلغاء",
     "confirm": "حذف الدور",
-    "confirming": "جارٍ الحذف…"
+    "confirming": "جارٍ الحذف…",
+    "descriptionWithMembers_zero": "عدد المستخدمين الذين يحملون هذا الدور حاليًا: {{count}}. اختر أولًا دورًا تنقلهم إليه — فالحذف لا يمكن التراجع عنه.",
+    "descriptionWithMembers_two": "عدد المستخدمين الذين يحملون هذا الدور حاليًا: {{count}}. اختر أولًا دورًا تنقلهم إليه — فالحذف لا يمكن التراجع عنه.",
+    "descriptionWithMembers_few": "عدد المستخدمين الذين يحملون هذا الدور حاليًا: {{count}}. اختر أولًا دورًا تنقلهم إليه — فالحذف لا يمكن التراجع عنه.",
+    "descriptionWithMembers_many": "عدد المستخدمين الذين يحملون هذا الدور حاليًا: {{count}}. اختر أولًا دورًا تنقلهم إليه — فالحذف لا يمكن التراجع عنه."
   },
   "confirmSelfCapabilityLoss": {
     "title": "هذا يزيل وصولك أنت",

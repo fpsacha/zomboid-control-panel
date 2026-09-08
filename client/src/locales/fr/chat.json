@@ -10,7 +10,8 @@
     "msgCount_other": "{{count}} messages",
     "live": "EN DIRECT",
     "offline": "HORS LIGNE",
-    "messagesAria": "Messages du chat"
+    "messagesAria": "Messages du chat",
+    "msgCount_many": "{{count}} messages"
   },
   "emptyState": {
     "title": "Aucun message pour le moment",
@@ -39,7 +40,8 @@
     "adminOnly": "admins uniquement — masqué pour les joueurs",
     "noPlayersOnline": "aucun joueur en ligne — journal serveur uniquement",
     "broadcastingTo_one": "diffusion à {{count}} joueur",
-    "broadcastingTo_other": "diffusion à {{count}} joueurs"
+    "broadcastingTo_other": "diffusion à {{count}} joueurs",
+    "broadcastingTo_many": "diffusion à {{count}} joueurs"
   },
   "playersPanel": {
     "label": "joueurs",

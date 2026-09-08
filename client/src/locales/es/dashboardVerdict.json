@@ -6,5 +6,6 @@
   "updatedHoursAgo": "actualizado hace {{count}}h",
   "staleLink": "el enlace podría estar desactualizado, {{label}}",
   "andMore_one": "y {{count}} más",
-  "andMore_other": "y {{count}} más"
+  "andMore_other": "y {{count}} más",
+  "andMore_many": "y {{count}} más"
 }

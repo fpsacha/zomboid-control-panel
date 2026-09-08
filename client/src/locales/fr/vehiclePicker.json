@@ -36,5 +36,7 @@
     "Vans & Buses": "Fourgons et bus",
     "Emergency & Military": "Urgence et militaire",
     "Trailers": "Remorques"
-  }
+  },
+  "seatsTitle_many": "{{count}} places",
+  "vehiclesCount_many": "{{count}} véhicules"
 }

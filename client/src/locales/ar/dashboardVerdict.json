@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "andMore_few",
+    "andMore_many",
+    "andMore_two",
+    "andMore_zero"
+  ],
   "noUpdateYet": "لا يوجد تحديث بعد",
   "updatedJustNow": "تم التحديث الآن",
   "updatedSecondsAgo": "تم التحديث منذ {{count}} ث",
@@ -6,5 +12,9 @@
   "updatedHoursAgo": "تم التحديث منذ {{count}} س",
   "staleLink": "قد يكون الرابط قديمًا، {{label}}",
   "andMore_one": "و{{count}} إضافي",
-  "andMore_other": "و{{count}} إضافيين"
+  "andMore_other": "و{{count}} إضافيين",
+  "andMore_zero": "و{{count}} إضافيين",
+  "andMore_two": "و{{count}} إضافيين",
+  "andMore_few": "و{{count}} إضافيين",
+  "andMore_many": "و{{count}} إضافيين"
 }

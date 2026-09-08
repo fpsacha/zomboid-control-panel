@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "history.entries_few",
+    "history.entries_many",
+    "rcon.entries_few",
+    "rcon.entries_many",
+    "serverLog.hidingTooltip_few",
+    "serverLog.hidingTooltip_many",
+    "serverLog.linesHidden_few",
+    "serverLog.linesHidden_many"
+  ],
   "pageHeader": {
     "title": "Консоль",
     "description": "Вивід журналу сервера та команди RCON"
@@ -63,7 +73,11 @@
     "hidden": "приховано",
     "loaded": "завантажено",
     "updatesSuspended": "оновлення призупинено",
-    "pollInterval": "опитування · 2с"
+    "pollInterval": "опитування · 2с",
+    "hidingTooltip_few": "Приховано повторюваних рядків: {{count}} — натисніть, щоб показати всі",
+    "hidingTooltip_many": "Приховано повторюваних рядків: {{count}} — натисніть, щоб показати всі",
+    "linesHidden_few": "{{count}} рядків приховано фільтром · ",
+    "linesHidden_many": "{{count}} рядків приховано фільтром · "
   },
   "rcon": {
     "linkLabel": "зв'язок",
@@ -100,7 +114,9 @@
     "keyboardHint": "// enter · виконати · ↑↓ історія",
     "noResponseFallback": "Немає відповіді",
     "noPermission": "Ваша роль не має дозволу виконувати команди RCON.",
-    "disconnectedUseRecheck": "RCON зараз недоступний — натисніть «перевірити ще раз» вище, перш ніж пробувати знову."
+    "disconnectedUseRecheck": "RCON зараз недоступний — натисніть «перевірити ще раз» вище, перш ніж пробувати знову.",
+    "entries_few": "{{count}} записів",
+    "entries_many": "{{count}} записів"
   },
   "quickCommands": {
     "players": "Гравці",
@@ -115,20 +131,53 @@
     "toggleLabel": "розсилка",
     "toggleSubtitle": "повідомлення всім онлайн",
     "templates": {
-      "restart15": { "label": "Перезапуск 15хв", "message": "ПЕРЕЗАПУСК СЕРВЕРА через 15 хвилин - знайдіть безпечне місце!" },
-      "restart5": { "label": "Перезапуск 5хв", "message": "ПЕРЕЗАПУСК СЕРВЕРА через 5 хвилин - збережіть свій прогрес!" },
-      "restart1": { "label": "Перезапуск 1хв", "message": "ПЕРЕЗАПУСК СЕРВЕРА через 1 хвилину - скоро від'єднання!" },
-      "maintenance": { "label": "Технічні роботи", "message": "Сервер переходить у РЕЖИМ ТЕХНІЧНИХ РОБІТ - будь ласка, від'єднайтеся" },
-      "backOnline": { "label": "Знову онлайн", "message": "Технічні роботи на сервері завершено - з поверненням!" },
-      "saveWarning": { "label": "Попередження про збереження", "message": "Сервер зберігається - можливі короткочасні лаги" }
+      "restart15": {
+        "label": "Перезапуск 15хв",
+        "message": "ПЕРЕЗАПУСК СЕРВЕРА через 15 хвилин - знайдіть безпечне місце!"
+      },
+      "restart5": {
+        "label": "Перезапуск 5хв",
+        "message": "ПЕРЕЗАПУСК СЕРВЕРА через 5 хвилин - збережіть свій прогрес!"
+      },
+      "restart1": {
+        "label": "Перезапуск 1хв",
+        "message": "ПЕРЕЗАПУСК СЕРВЕРА через 1 хвилину - скоро від'єднання!"
+      },
+      "maintenance": {
+        "label": "Технічні роботи",
+        "message": "Сервер переходить у РЕЖИМ ТЕХНІЧНИХ РОБІТ - будь ласка, від'єднайтеся"
+      },
+      "backOnline": {
+        "label": "Знову онлайн",
+        "message": "Технічні роботи на сервері завершено - з поверненням!"
+      },
+      "saveWarning": {
+        "label": "Попередження про збереження",
+        "message": "Сервер зберігається - можливі короткочасні лаги"
+      }
     },
     "channelTagAria": "Тег каналу",
     "channels": {
-      "all": { "label": "Усі гравці", "description": "Без тегу — звичайна розсилка" },
-      "admin": { "label": "Тег [ADMIN]", "description": "Позначає повідомлення як адміністраторське" },
-      "say": { "label": "Тег [SAY]", "description": "Косметична позначка локального чату" },
-      "faction": { "label": "Тег [FACTION]", "description": "Косметична позначка фракції" },
-      "safehouse": { "label": "Тег [SAFEHOUSE]", "description": "Косметична позначка сховку" }
+      "all": {
+        "label": "Усі гравці",
+        "description": "Без тегу — звичайна розсилка"
+      },
+      "admin": {
+        "label": "Тег [ADMIN]",
+        "description": "Позначає повідомлення як адміністраторське"
+      },
+      "say": {
+        "label": "Тег [SAY]",
+        "description": "Косметична позначка локального чату"
+      },
+      "faction": {
+        "label": "Тег [FACTION]",
+        "description": "Косметична позначка фракції"
+      },
+      "safehouse": {
+        "label": "Тег [SAFEHOUSE]",
+        "description": "Косметична позначка сховку"
+      }
     },
     "messageAria": "Повідомлення розсилки",
     "placeholderAll": "Напишіть повідомлення, яке побачать гравці…",
@@ -144,7 +193,9 @@
     "searchPlaceholder": "Пошук в історії команд...",
     "searchAria": "Пошук в історії команд",
     "emptyTitle": "Історії команд немає",
-    "emptyDesc": "Виконані вами команди записуватимуться тут."
+    "emptyDesc": "Виконані вами команди записуватимуться тут.",
+    "entries_few": "{{count}} записів",
+    "entries_many": "{{count}} записів"
   },
   "toasts": {
     "historyUnavailableTitle": "Історія недоступна",

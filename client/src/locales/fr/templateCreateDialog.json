@@ -17,5 +17,7 @@
   "willSave": "Enregistrera {{sandbox}} et {{ini}}. Les paramètres d'identité et de connexion (nom, ports, mots de passe) ne sont jamais inclus.",
   "errorTitle": "Impossible d'enregistrer le modèle",
   "cancel": "Annuler",
-  "saveTemplate": "Enregistrer le modèle"
+  "saveTemplate": "Enregistrer le modèle",
+  "sandboxSettingCount_many": "{{count}} paramètres sandbox",
+  "iniKeyCount_many": "{{count}} clés server.ini"
 }

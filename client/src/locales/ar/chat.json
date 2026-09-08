@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "chatWindow.msgCount_few",
+    "chatWindow.msgCount_many",
+    "chatWindow.msgCount_two",
+    "chatWindow.msgCount_zero",
+    "footer.broadcastingTo_few",
+    "footer.broadcastingTo_many",
+    "footer.broadcastingTo_two",
+    "footer.broadcastingTo_zero"
+  ],
   "pageHeader": {
     "title": "الدردشة داخل اللعبة",
     "description": "أرسل رسائل إلى جميع اللاعبين المتصلين وتابع دردشتهم في الوقت الفعلي.",
@@ -10,7 +20,11 @@
     "msgCount_other": "الرسائل: {{count}}",
     "live": "مباشر",
     "offline": "غير متصل",
-    "messagesAria": "رسائل الدردشة"
+    "messagesAria": "رسائل الدردشة",
+    "msgCount_zero": "الرسائل: {{count}}",
+    "msgCount_two": "الرسائل: {{count}}",
+    "msgCount_few": "الرسائل: {{count}}",
+    "msgCount_many": "الرسائل: {{count}}"
   },
   "emptyState": {
     "title": "لا توجد رسائل دردشة بعد",
@@ -39,7 +53,11 @@
     "adminOnly": "للمسؤولين فقط — مخفي عن اللاعبين العاديين",
     "noPlayersOnline": "لا لاعبين متصلين — سجل الخادم فقط",
     "broadcastingTo_one": "البث إلى {{count}} لاعب",
-    "broadcastingTo_other": "البث إلى {{count}} من اللاعبين"
+    "broadcastingTo_other": "البث إلى {{count}} من اللاعبين",
+    "broadcastingTo_zero": "البث إلى {{count}} من اللاعبين",
+    "broadcastingTo_two": "البث إلى {{count}} من اللاعبين",
+    "broadcastingTo_few": "البث إلى {{count}} من اللاعبين",
+    "broadcastingTo_many": "البث إلى {{count}} من اللاعبين"
   },
   "playersPanel": {
     "label": "اللاعبون",

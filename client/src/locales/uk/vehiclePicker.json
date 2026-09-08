@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "seatsTitle_few",
+    "seatsTitle_many",
+    "vehiclesCount_few",
+    "vehiclesCount_many"
+  ],
   "loadingVehicles": "Завантаження транспорту...",
   "manualIdPlaceholder": "напр., Base.CarNormal",
   "scanTitle": "Сканувати сервер на наявність транспорту (потрібен запущений сервер із PanelBridge)",
@@ -36,5 +42,9 @@
     "Vans & Buses": "Фургони та автобуси",
     "Emergency & Military": "Екстрені служби та військові",
     "Trailers": "Причепи"
-  }
+  },
+  "seatsTitle_few": "місць: {{count}}",
+  "seatsTitle_many": "місць: {{count}}",
+  "vehiclesCount_few": "транспортних засобів: {{count}}",
+  "vehiclesCount_many": "транспортних засобів: {{count}}"
 }

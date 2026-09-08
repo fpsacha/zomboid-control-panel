@@ -57,7 +57,8 @@
     "loadedDesc_other": "Se encontraron {{count}} servidores con {{players}} jugadores conectados",
     "fetchFailedFallback": "No se pudieron obtener los servidores",
     "unknownError": "Error desconocido",
-    "apiKeyMissing": "Falta la clave de API de Steam"
+    "apiKeyMissing": "Falta la clave de API de Steam",
+    "loadedDesc_many": "Se encontraron {{count}} servidores con {{players}} jugadores conectados"
   },
   "serverList": {
     "title": "Lista de servidores",

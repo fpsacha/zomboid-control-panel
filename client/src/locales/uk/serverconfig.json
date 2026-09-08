@@ -1,4 +1,32 @@
 {
+  "__pendingPluralForms": [
+    "activeServerStrip.spawnsLabel_few",
+    "activeServerStrip.spawnsLabel_many",
+    "backupsDialog.totalCount_few",
+    "backupsDialog.totalCount_many",
+    "categoriesNav.matchCount_few",
+    "categoriesNav.matchCount_many",
+    "categoriesNav.modifiedCountTitle_few",
+    "categoriesNav.modifiedCountTitle_many",
+    "categoryContent.settingCount_few",
+    "categoryContent.settingCount_many",
+    "duplicateKeysWarning.title_few",
+    "duplicateKeysWarning.title_many",
+    "modSettingsTab.groupModifiedTitle_few",
+    "modSettingsTab.groupModifiedTitle_many",
+    "modSettingsTab.sectionSublabelLoaded_few",
+    "modSettingsTab.sectionSublabelLoaded_many",
+    "spawnRegionsTab.sectionSublabel_few",
+    "spawnRegionsTab.sectionSublabel_many",
+    "stickySaveBar.unsavedChange_few",
+    "stickySaveBar.unsavedChange_many",
+    "templatesDialog.savedCount_few",
+    "templatesDialog.savedCount_many",
+    "uncategorizedIni.keyCount_few",
+    "uncategorizedIni.keyCount_many",
+    "uncategorizedSandbox.keyCount_few",
+    "uncategorizedSandbox.keyCount_many"
+  ],
   "loading": "завантаження конфігурації…",
   "loadErrorTitle": "Не вдалося повністю завантажити дані конфігурації",
   "retry": "Повторити",
@@ -9,7 +37,9 @@
   "duplicateKeysWarning": {
     "title_one": "«{{keys}}» трапляється в цьому файлі конфігурації більше одного разу",
     "title_other": "У цьому файлі конфігурації повторюються налаштування ({{count}}): {{keys}}",
-    "desc": "Цей редактор читає останню копію, а сторінка «Моди» — першу, тож вони можуть показувати різні значення того самого налаштування."
+    "desc": "Цей редактор читає останню копію, а сторінка «Моди» — першу, тож вони можуть показувати різні значення того самого налаштування.",
+    "title_few": "У цьому файлі конфігурації повторюються налаштування ({{count}}): {{keys}}",
+    "title_many": "У цьому файлі конфігурації повторюються налаштування ({{count}}): {{keys}}"
   },
   "serverChangedBanner": {
     "title": "Active server changed",
@@ -33,7 +63,9 @@
     "spawnsLabel_other": "Спавн · {{count}} проф.",
     "regionsLabel": "Регіони",
     "fileNotFoundTitle": "{{label}}: файл не знайдено",
-    "notFoundAria": "Не знайдено"
+    "notFoundAria": "Не знайдено",
+    "spawnsLabel_few": "Спавн · {{count}} проф.",
+    "spawnsLabel_many": "Спавн · {{count}} проф."
   },
   "unresolvedReview": {
     "title": "Нерозпізнані ID у Mods=",
@@ -117,7 +149,11 @@
     "uncategorizedIniLabel": "Без категорії / невідомі",
     "uncategorizedIniTitle": "Ключі, наявні у вашому файлі INI, але відсутні в схемі (новіші ванільні ключі, додані модами або власні)",
     "uncategorizedSandboxLabel": "Додаткові налаштування",
-    "uncategorizedSandboxTitle": "Налаштування пісочниці, які редактор ще не згрупував"
+    "uncategorizedSandboxTitle": "Налаштування пісочниці, які редактор ще не згрупував",
+    "modifiedCountTitle_few": "Незбережених змін: {{count}}",
+    "modifiedCountTitle_many": "Незбережених змін: {{count}}",
+    "matchCount_few": "Збігів: {{count}}",
+    "matchCount_many": "Збігів: {{count}}"
   },
   "uncategorizedIni": {
     "empty": "Немає ключів без категорії.",
@@ -125,7 +161,9 @@
     "keyCount_one": "{{count}} ключ",
     "keyCount_other": "Ключів: {{count}}",
     "description": "Ключі, наявні у вашому INI, але не розпізнані схемою. Найімовірніше, це новіші ванільні налаштування або додані модами. Значення зберігаються під час збереження — редагуйте обережно.",
-    "undoTitle": "Скасувати зміну"
+    "undoTitle": "Скасувати зміну",
+    "keyCount_few": "Ключів: {{count}}",
+    "keyCount_many": "Ключів: {{count}}"
   },
   "uncategorizedSandbox": {
     "empty": "Немає налаштувань без категорії.",
@@ -134,14 +172,18 @@
     "keyCount_other": "Ключів: {{count}}",
     "description": "Налаштування, для яких у редактора немає схеми, згруповані за секцією, якій вони належать. Здебільшого це ключі, додані модами. Редагуйте обережно.",
     "mainSection": "Головна секція",
-    "undoTitle": "Скасувати зміну"
+    "undoTitle": "Скасувати зміну",
+    "keyCount_few": "Ключів: {{count}}",
+    "keyCount_many": "Ключів: {{count}}"
   },
   "categoryContent": {
     "settingCount_one": "{{count}} налаштування",
     "settingCount_other": "Налаштувань: {{count}}",
     "noneModified": "Жодне налаштування в цій категорії не відрізняється від типових значень Project Zomboid.",
     "noneUnsaved": "У цій категорії немає незбережених налаштувань.",
-    "none": "У цій категорії немає налаштувань."
+    "none": "У цій категорії немає налаштувань.",
+    "settingCount_few": "Налаштувань: {{count}}",
+    "settingCount_many": "Налаштувань: {{count}}"
   },
   "iniTab": {
     "sectionLabel": "Налаштування сервера",
@@ -182,7 +224,9 @@
     "fileAriaServerFile": "Файл сервера для регіону {{index}}",
     "fileAriaMapPath": "Шлях до файлу карти для регіону {{index}}",
     "deleteAria": "Видалити регіон спавну {{name}}",
-    "addRegion": "додати регіон"
+    "addRegion": "додати регіон",
+    "sectionSublabel_few": "Регіонів: {{count}} · міста й містечка",
+    "sectionSublabel_many": "Регіонів: {{count}} · міста й містечка"
   },
   "modSettingsTab": {
     "sectionLabel": "Параметри пісочниці від модів",
@@ -229,7 +273,11 @@
     "showAllOptions": "Показати всі параметри",
     "noMatches": "Немає налаштувань, що відповідають «{{query}}»{{suffix}}",
     "noMatchesInModified": " серед змінених параметрів",
-    "clearSearch": "Очистити пошук"
+    "clearSearch": "Очистити пошук",
+    "sectionSublabelLoaded_few": "Модів: {{count}} · наживо з PanelBridge",
+    "sectionSublabelLoaded_many": "Модів: {{count}} · наживо з PanelBridge",
+    "groupModifiedTitle_few": "Параметрів, що відрізняються від типових: {{count}}",
+    "groupModifiedTitle_many": "Параметрів, що відрізняються від типових: {{count}}"
   },
   "stickySaveBar": {
     "unsavedChange_one": "{{count}} незбережена зміна",
@@ -238,7 +286,9 @@
     "sandboxScope": "sandbox lua",
     "hint": "ctrl+s — зберегти · застосується після перезавантаження",
     "discard": "відхилити",
-    "saveAndReload": "зберегти й перезавантажити"
+    "saveAndReload": "зберегти й перезавантажити",
+    "unsavedChange_few": "Незбережених змін: {{count}}",
+    "unsavedChange_many": "Незбережених змін: {{count}}"
   },
   "backupsDialog": {
     "title": "Резервні копії конфігурації",
@@ -259,7 +309,9 @@
     "typeSandbox": "Sandbox",
     "typeSpawnPoints": "SpawnPoints",
     "typeSpawnRegions": "SpawnRegions",
-    "sizeKb": "{{size}} КБ"
+    "sizeKb": "{{size}} КБ",
+    "totalCount_few": "Усього резервних копій: {{count}}",
+    "totalCount_many": "Усього резервних копій: {{count}}"
   },
   "templatesDialog": {
     "title": "Збережені конфігурації",
@@ -276,7 +328,9 @@
     "applyTooltip": "Завантажити цю конфігурацію (спершу створює резервну копію)",
     "deleteAria": "Видалити збережену конфігурацію {{name}}",
     "deleteTooltip": "Видалити цю збережену конфігурацію",
-    "close": "Закрити"
+    "close": "Закрити",
+    "savedCount_few": "Збережених конфігурацій: {{count}}",
+    "savedCount_many": "Збережених конфігурацій: {{count}}"
   },
   "saveTemplateDialog": {
     "title": "Зберегти поточну конфігурацію",

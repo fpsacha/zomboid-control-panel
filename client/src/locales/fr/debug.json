@@ -45,7 +45,10 @@
       "confirmMessage_other": "Ceci retirera {{count}} ID Workshop numériques de Mods= (ils appartiennent à WorkshopItems=). Redémarrage requis.\n\nContinuer ?",
       "noteWithCount_one": "Retire {{count}} ID numérique de Mods=. Redémarrage requis.",
       "noteWithCount_other": "Retire {{count}} ID numériques de Mods=. Redémarrage requis.",
-      "noteGeneric": "Retire les ID Workshop numériques de Mods=. Redémarrage requis."
+      "noteGeneric": "Retire les ID Workshop numériques de Mods=. Redémarrage requis.",
+      "labelWithCount_many": "Retirer {{count}} ID numériques de Mods=",
+      "confirmMessage_many": "Ceci retirera {{count}} ID Workshop numériques de Mods= (ils appartiennent à WorkshopItems=). Redémarrage requis.\n\nContinuer ?",
+      "noteWithCount_many": "Retire {{count}} ID numériques de Mods=. Redémarrage requis."
     },
     "modsResolved": {
       "labelWithCount": "Examiner {{count}} non résolus",
@@ -59,7 +62,9 @@
       "confirmMessage_other": "Ceci va trier {{count}} éléments Workshop : téléchargés → ajoutés à Mods= ; ignorés ou manquants → retirés de WorkshopItems=. Le serveur doit redémarrer pour que les changements prennent effet.\n\nContinuer ?",
       "noteWithCount_one": "Trie {{count}} élément Workshop : active les mods téléchargés, retire les ID ignorés/manquants. Redémarrage requis.",
       "noteWithCount_other": "Trie {{count}} éléments Workshop : active les mods téléchargés, retire les ID ignorés/manquants. Redémarrage requis.",
-      "noteGeneric": "Trie les éléments Workshop : active les mods téléchargés, retire les ID ignorés/manquants. Redémarrage requis."
+      "noteGeneric": "Trie les éléments Workshop : active les mods téléchargés, retire les ID ignorés/manquants. Redémarrage requis.",
+      "confirmMessage_many": "Ceci va trier {{count}} éléments Workshop : téléchargés → ajoutés à Mods= ; ignorés ou manquants → retirés de WorkshopItems=. Le serveur doit redémarrer pour que les changements prennent effet.\n\nContinuer ?",
+      "noteWithCount_many": "Trie {{count}} éléments Workshop : active les mods téléchargés, retire les ID ignorés/manquants. Redémarrage requis."
     },
     "modsMaps": {
       "label": "Réparer Map=",
@@ -1115,7 +1120,13 @@
           }
         }
       }
-    }
+    },
+    "checkCount_many": "{{count}} vérifications",
+    "numericIdsRemovedDesc_many": "{{count}} entrées retirées de Mods=.{{restartHint}}",
+    "workshopEnabled_many": "{{enabled}} activé(s) ({{count}} IDs de mod ajoutés)",
+    "workshopDroppedIgnored_many": "{{count}} ignorés",
+    "workshopNothingToChange_many": "Rien à changer pour {{count}} ID.",
+    "sandboxRepairedFallback_many": "{{count}} corrections appliquées.{{restartHint}}"
   },
   "worldMapTab": {
     "overallFail": "Carte du monde dégradée",
@@ -1236,7 +1247,11 @@
     "noChecksRan": "Aucune vérification exécutée.",
     "allChecksPass": "Toutes les vérifications réussissent.",
     "zomboidDataPathLabel": "Chemin de données Zomboid",
-    "savePathCopyLabel": "Chemin de sauvegarde"
+    "savePathCopyLabel": "Chemin de sauvegarde",
+    "unitPlayer_many": "{{count}} joueurs",
+    "unitVehicle_many": "{{count}} véhicules",
+    "unitSafehouse_many": "{{count}} refuges",
+    "saveCount_many": "· {{count}} sauvegardes"
   },
   "activityTab": {
     "title": "Journal d'activité",
@@ -1277,7 +1292,10 @@
     "copiedTitle": "Copié",
     "copyFailedTitle": "Échec de la copie",
     "copiedDesc": "Entrée d'activité copiée dans le presse-papiers.",
-    "copyFailedDesc": "Impossible de copier. Sélectionnez la ligne et appuyez sur Ctrl+C."
+    "copyFailedDesc": "Impossible de copier. Sélectionnez la ligne et appuyez sur Ctrl+C.",
+    "entriesCount_many": "{{count}} entrées",
+    "successButton_many": "{{count}} réussites",
+    "failedButton_many": "{{count}} échecs"
   },
   "logsTab": {
     "statTotal": "Total",
@@ -1379,7 +1397,9 @@
     "collectingTitle": "Collecte de données...",
     "collectingDesc": "Les instantanés de performance sont enregistrés toutes les 60 secondes. Les premières données apparaîtront bientôt.",
     "exportedTitle": "Exporté",
-    "exportedDesc": "{{count}} instantanés exportés en CSV."
+    "exportedDesc": "{{count}} instantanés exportés en CSV.",
+    "acrossSamples_many": "sur {{count}} échantillons",
+    "sampleCount_many": "{{count}} échantillons"
   },
   "healthTab": {
     "systemStatusTitle": "État du système",
@@ -1491,6 +1511,7 @@
     "selfTestTitle": "Lancer l'autotest du pont",
     "selfTestDesc": "Teste un ensemble fixe de méthodes du moteur sur les 3 premiers objets du catalogue — un aperçu rapide pour savoir si cette build parle encore le langage du mod. Lecture seule, aucune saisie nécessaire.",
     "selfTestRunButton": "Lancer l'autotest",
-    "selfTestItemColumn": "Article"
+    "selfTestItemColumn": "Article",
+    "errorLogLabel_many": "{{count}} erreurs récentes"
   }
 }

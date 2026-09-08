@@ -34,5 +34,7 @@
   "imageComparison": "Comparaison d'images",
   "tooLargeToPreview": "Trop volumineux pour un aperçu",
   "fileTooLargeInline": "Fichier trop volumineux pour une comparaison en ligne",
-  "binaryFileInline": "Fichier binaire — comparaison en ligne impossible"
+  "binaryFileInline": "Fichier binaire — comparaison en ligne impossible",
+  "overlapClash_many": "{{count}} conflits de {{kind}}",
+  "showMoreSections_many": "Afficher {{count}} sections de plus..."
 }

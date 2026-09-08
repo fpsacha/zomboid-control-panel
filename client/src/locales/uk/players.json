@@ -1,4 +1,12 @@
 {
+  "__pendingPluralForms": [
+    "roster.reviewBanned_few",
+    "roster.reviewBanned_many",
+    "roster.seePreviouslySeen_few",
+    "roster.seePreviouslySeen_many",
+    "summary.onlineCaption_few",
+    "summary.onlineCaption_many"
+  ],
   "pageHeader": {
     "title": "Гравці",
     "description": "Керуйте підключеними гравцями та їхніми дозволами",
@@ -33,7 +41,9 @@
     "rosterTip": "Гравці, з якими ви вже перетиналися раніше, а зараз офлайн. Той, хто зараз онлайн, тут не враховується, доки не відключиться — саме тому тут може бути 0, поки вище активна картка гравця.",
     "bannedLabel": "Забанені SteamID",
     "bannedManage": "керувати",
-    "bannedAria": "Переглянути {{count}} забанених SteamID"
+    "bannedAria": "Переглянути {{count}} забанених SteamID",
+    "onlineCaption_few": "гравців",
+    "onlineCaption_many": "гравців"
   },
   "roster": {
     "headerLabel": "реєстр",
@@ -89,7 +99,11 @@
     "removeAllowedTitle": "Видалити дозволений Steam ID {{steamId}}",
     "manualTargetLabel": "› Ручна ціль",
     "manualTargetLabelText": "Ручна ціль",
-    "manualTargetPlaceholder": "Введіть ім'я користувача…"
+    "manualTargetPlaceholder": "Введіть ім'я користувача…",
+    "seePreviouslySeen_few": "Переглянути {{count}} раніше бачених гравців",
+    "seePreviouslySeen_many": "Переглянути {{count}} раніше бачених гравців",
+    "reviewBanned_few": "Переглянути {{count}} забанених SteamID",
+    "reviewBanned_many": "Переглянути {{count}} забанених SteamID"
   },
   "dossier": {
     "subheaderLabel": "досьє",

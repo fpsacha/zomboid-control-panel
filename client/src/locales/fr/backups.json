@@ -28,7 +28,8 @@
     "label": "Historique",
     "recordedCount_one": "{{count}} sauvegarde enregistrée",
     "recordedCount_other": "{{count}} sauvegardes enregistrées",
-    "latest": "Dernière : {{date}}"
+    "latest": "Dernière : {{date}}",
+    "recordedCount_many": "{{count}} sauvegardes enregistrées"
   },
   "statusCards": {
     "totalBackups": "Sauvegardes au total",
@@ -98,7 +99,9 @@
     "downloadAria": "Télécharger {{name}}",
     "downloadTitle": "Télécharger la sauvegarde",
     "deleteAria": "Supprimer {{name}}",
-    "deleteTitle": "Supprimer la sauvegarde"
+    "deleteTitle": "Supprimer la sauvegarde",
+    "selectAllLabel_many": "Tout sélectionner · {{count}} sauvegardes",
+    "allSelectedLabel_many": "Les {{count}} sauvegardes sélectionnées · cliquer pour désélectionner"
   },
   "snapshotDialog": {
     "title": "Instantané du serveur",
@@ -189,7 +192,10 @@
     "autoUpdateFailedTitle": "Échec de la mise à jour des sauvegardes automatiques",
     "autoUpdateFailedFallback": "Échec de la mise à jour des paramètres de sauvegarde",
     "loadStatusFailed": "Échec du chargement de l'état des sauvegardes.",
-    "loadBackupsFailed": "Échec du chargement des sauvegardes."
+    "loadBackupsFailed": "Échec du chargement des sauvegardes.",
+    "oldSnapshotsClearedDesc_many": "{{count}} sauvegardes supprimées",
+    "deleteFailedCount_many": "Échec de la suppression de {{count}} sauvegardes",
+    "oldBackupsRemovedFallback_many": "{{count}} sauvegardes anciennes supprimées"
   },
   "restoreProgress": {
     "title": "Restauration de {{name}}…",

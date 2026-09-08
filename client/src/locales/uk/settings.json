@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "backups.backupsStored_few",
+    "backups.backupsStored_many",
+    "workshopSync.inSync_few",
+    "workshopSync.inSync_many"
+  ],
   "ariaLabels": {
     "allowPrivateLan": "Дозволити приватні та LAN джерела",
     "enablePublicIp": "Увімкнути визначення публічної IP-адреси",
@@ -531,7 +537,9 @@
     "autoExportLabel": "Експортувати персонажа, коли гравець заходить на сервер",
     "autoExportDesc": "Виконується приблизно через десять секунд після завантаження гравця, щоб одного персонажа можна було відновити без відкату всього світу. Потрібне підключення PanelBridge.",
     "copiesKeptLabel": "Кількість копій на гравця",
-    "copiesKeptHelp": "Найстаріші експорти видаляються, коли гравець перевищує цю кількість. Відновлюйте їх на сторінці «Гравці»."
+    "copiesKeptHelp": "Найстаріші експорти видаляються, коли гравець перевищує цю кількість. Відновлюйте їх на сторінці «Гравці».",
+    "backupsStored_few": "{{count}} резервних копій",
+    "backupsStored_many": "{{count}} резервних копій"
   },
   "security": {
     "cardTitle": "Безпека та автентифікація",
@@ -805,7 +813,9 @@
       "cookiesFirstError": "Спершу додайте кукі Steam, щоб писати в колекцію.",
       "sessionExpiredError": "Сесія Steam завершилася. Вставте нові кукі вище й спробуйте ще раз.",
       "failedToReadCollection": "Не вдалося прочитати колекцію"
-    }
+    },
+    "inSync_few": "Синхронізовано — {{count}} елементів",
+    "inSync_many": "Синхронізовано — {{count}} елементів"
   },
   "toasts": {
     "recoveryCodesGenerated": {

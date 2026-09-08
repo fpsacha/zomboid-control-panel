@@ -134,7 +134,11 @@
     "safehouseUnknown": "Inconnu",
     "cancel": "Annuler",
     "deleting": "Suppression des chunks...",
-    "confirm": "Supprimer les chunks sélectionnés"
+    "confirm": "Supprimer les chunks sélectionnés",
+    "title_many": "Supprimer les {{count}} chunks sélectionnés ?",
+    "description_many": "Ceci supprime définitivement {{count}} fichiers de chunks ({{size}}). Quand des joueurs reviendront dans ces zones, le jeu les reconstruira et effacera toute structure ou tout objet stocké par les joueurs.",
+    "removeVehiclesLoaded_many": "{{count}} véhicules actuellement chargés dans cette zone. ",
+    "safehouseOverlap_many": "{{count}} refuges dans la zone de suppression"
   },
   "serverRunningDialog": {
     "title": "Le serveur semble en cours d'exécution",
@@ -146,7 +150,8 @@
     "overrideWarningTitle": "Ne forcez que si vous êtes certain",
     "overrideWarningDesc": "Si vous avez arrêté le serveur avec une unité systemd ou un lanceur personnalisé que nous ne reconnaissons pas, ou si l'un des processus ci-dessus n'est pas lié (par ex. une autre application Java), vous pouvez forcer la suppression. Sinon, arrêtez d'abord le serveur.",
     "cancel": "Annuler",
-    "forceDelete": "Le serveur est arrêté — forcer la suppression"
+    "forceDelete": "Le serveur est arrêté — forcer la suppression",
+    "matchedProcess_many": "Processus correspondants :"
   },
   "toasts": {
     "loadSavesFailedTitle": "Impossible de charger les mondes",
@@ -174,7 +179,10 @@
     "chunksDeletedPartialDesc_one": "{{deleted}} chunk supprimé, mais {{count}} a échoué. Vérifiez que le fichier n'est pas verrouillé par un autre processus, puis réessayez.",
     "chunksDeletedPartialDesc_other": "{{deleted}} chunks supprimés, mais {{count}} ont échoué. Vérifiez que les fichiers ne sont pas verrouillés par un autre processus, puis réessayez.",
     "activeServerChangedTitle": "Active server changed",
-    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting."
+    "activeServerChangedDesc": "The active server changed while chunks were loaded. The scan was cleared -- pick a save again before deleting.",
+    "chunksDeletedDesc_many": "{{count}} chunks supprimés",
+    "chunksDeletedVehicles_many": " + {{count}} véhicules retirés de la base de la sauvegarde",
+    "chunksDeletedPartialDesc_many": "{{deleted}} chunks supprimés, mais {{count}} ont échoué. Vérifiez que les fichiers ne sont pas verrouillés par un autre processus, puis réessayez."
   },
   "canvasLabels": {
     "chunkCell": "Chunk {{cx}}, {{cy}}  |  Cellule {{gx}}, {{gy}}",
@@ -187,6 +195,9 @@
     "vehicleCount_one": "{{count}} véhicule",
     "vehicleCount_other": "{{count}} véhicules",
     "selectionCount_one": "{{count}} chunk",
-    "selectionCount_other": "{{count}} chunks"
-  }
+    "selectionCount_other": "{{count}} chunks",
+    "vehicleCount_many": "{{count}} véhicules",
+    "selectionCount_many": "{{count}} chunks"
+  },
+  "deleteButton_many": "Supprimer {{count}} chunks"
 }

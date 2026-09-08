@@ -1,4 +1,12 @@
 {
+  "__pendingPluralForms": [
+    "backupFilesCreated_few",
+    "backupFilesCreated_many",
+    "iniKeysUpdated_few",
+    "iniKeysUpdated_many",
+    "sandboxSettingsUpdated_few",
+    "sandboxSettingsUpdated_many"
+  ],
   "appliedTitle": "Шаблон застосовано",
   "iniKeysUpdated_one": "Оновлено ключів INI: {{count}}. ",
   "iniKeysUpdated_other": "Оновлено ключів INI: {{count}}. ",
@@ -15,5 +23,11 @@
   "applyIniChanges": "Застосувати зміни server.ini",
   "applyFailedTitle": "Не вдалося застосувати",
   "cancel": "Скасувати",
-  "applyTemplate": "Застосувати шаблон"
+  "applyTemplate": "Застосувати шаблон",
+  "iniKeysUpdated_few": "Оновлено ключів INI: {{count}}. ",
+  "iniKeysUpdated_many": "Оновлено ключів INI: {{count}}. ",
+  "sandboxSettingsUpdated_few": "Оновлено налаштувань Sandbox: {{count}}. ",
+  "sandboxSettingsUpdated_many": "Оновлено налаштувань Sandbox: {{count}}. ",
+  "backupFilesCreated_few": "Створено файлів резервних копій: {{count}}. ",
+  "backupFilesCreated_many": "Створено файлів резервних копій: {{count}}. "
 }

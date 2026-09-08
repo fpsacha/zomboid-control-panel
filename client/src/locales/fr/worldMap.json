@@ -226,7 +226,8 @@
     "cancel": "Annuler",
     "dropButton": "Larguer",
     "dropButtonQty": "Larguer × {{qty}}",
-    "dropButtonMulti": "Larguer {{count}} objets"
+    "dropButtonMulti": "Larguer {{count}} objets",
+    "templateItemCount_many": "{{count}} objets"
   },
   "deletePackageDialog": {
     "title": "Supprimer le colis ?",
@@ -234,7 +235,8 @@
     "description_one": "« {{name}} » ({{count}} objet) sera retiré de vos colis enregistrés. Cette action est irréversible.",
     "description_other": "« {{name}} » ({{count}} objets) sera retiré de vos colis enregistrés. Cette action est irréversible.",
     "cancel": "Annuler",
-    "confirm": "Supprimer"
+    "confirm": "Supprimer",
+    "description_many": "« {{name}} » ({{count}} objets) sera retiré de vos colis enregistrés. Cette action est irréversible."
   },
   "canvasAria": "Carte du monde montrant le comté de Knox avec les positions des joueurs. Utilisez les flèches pour vous déplacer, plus/moins pour zoomer.",
   "emptyState": {

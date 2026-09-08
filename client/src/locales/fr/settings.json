@@ -531,7 +531,8 @@
     "copiesKeptHelp": "Les exports les plus anciens sont supprimés une fois ce nombre dépassé par un joueur. Restaurez-les depuis la page Joueurs.",
     "loadFailedTitle": "Impossible de charger les sauvegardes",
     "loadFailedDescription": "Il ne s'agit pas forcément d'une liste vide — la requête a échoué. Rouvrez cette page pour réessayer.",
-    "statusLoadFailed": "Impossible de vérifier si les sauvegardes planifiées sont actives — ce commutateur est désactivé tant que le chargement n’a pas abouti. Rouvrez cette page pour réessayer."
+    "statusLoadFailed": "Impossible de vérifier si les sauvegardes planifiées sont actives — ce commutateur est désactivé tant que le chargement n’a pas abouti. Rouvrez cette page pour réessayer.",
+    "backupsStored_many": "{{count}} sauvegardes stockées"
   },
   "security": {
     "cardTitle": "Sécurité et authentification",
@@ -805,7 +806,8 @@
       "cookiesFirstError": "Ajoutez d'abord les cookies Steam pour écrire dans la collection.",
       "sessionExpiredError": "Session Steam expirée. Collez de nouveaux cookies ci-dessus et réessayez.",
       "failedToReadCollection": "Échec de la lecture de la collection"
-    }
+    },
+    "inSync_many": "Synchronisé — {{count}} éléments"
   },
   "toasts": {
     "recoveryCodesGenerated": {

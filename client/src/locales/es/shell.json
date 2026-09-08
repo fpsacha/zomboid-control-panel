@@ -64,11 +64,13 @@
     "statusStopped": "El servidor está detenido",
     "statusTransitioning": "El servidor se está iniciando o deteniendo",
     "statusUnresponsive": "El servidor se inició pero no responde",
-    "statusUnknown": "Estado del servidor desconocido"
+    "statusUnknown": "Estado del servidor desconocido",
+    "playersOnline_many": "{{count}} jugadores conectados"
   },
   "modBadge": {
     "updatesAvailable_one": "{{count}} actualización de mod disponible",
-    "updatesAvailable_other": "{{count}} actualizaciones de mods disponibles"
+    "updatesAvailable_other": "{{count}} actualizaciones de mods disponibles",
+    "updatesAvailable_many": "{{count}} actualizaciones de mods disponibles"
   },
   "panelUpdateBadge": {
     "titleWithVersion": "Actualización del panel disponible: v{{version}}",

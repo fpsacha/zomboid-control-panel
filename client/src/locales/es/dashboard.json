@@ -28,7 +28,8 @@
       "STEAMCMD_EXIT_CODE": "SteamCMD terminó con el código {{code}}.",
       "STEAM_OPERATION_IN_PROGRESS": "Ya había una instalación o actualización de Steam en curso para {{path}}, así que la actualización automática se abandonó para no interferir con ella.",
       "UNKNOWN": "Ocurrió un error inesperado durante la actualización automática."
-    }
+    },
+    "scheduledDescription_many": "El servidor se reiniciará en {{count}} minutos."
   },
   "errors": {
     "failedToConnect": "No se pudo conectar con el servidor.",
@@ -128,19 +129,58 @@
     }
   },
   "successCopy": {
-    "startServer": { "title": "Iniciando servidor", "description": "Consultar el tablero para ver el estado en vivo." },
-    "startServerScriptBackup": { "title": "Iniciando servidor — script de inicio respaldado", "description": "El panel detectó cambios en tu script de inicio y guardó tu versión antes de regenerarlo." },
-    "stopServer": { "title": "Servidor detenido", "description": "Sesión cerrada correctamente." },
-    "stopServerRequested": { "title": "Apagado solicitado", "description": "El servidor está guardando y cerrando de forma ordenada — puede tardar un momento en un mundo grande. La insignia de estado se actualizará una vez que se confirme la detención." },
-    "forceStopServer": { "title": "Servidor detenido a la fuerza", "description": "Se guardó el mundo y luego se detuvo el proceso del juego." },
-    "forceStopSaveFailed": { "title": "Servidor detenido a la fuerza — guardado fallido", "description": "El guardado previo a la detención fue rechazado. El progreso reciente podría perderse." },
-    "forceStopSaveTimedOut": { "title": "Servidor detenido a la fuerza — el guardado tardó demasiado", "description": "El guardado previo a la detención no respondió en 3 segundos. El progreso reciente podría perderse." },
-    "forceStopSaveSkipped": { "title": "Servidor detenido a la fuerza — no se intentó guardar", "description": "RCON no estaba conectado, así que no se intentó guardar antes de detener. El progreso reciente podría perderse." },
-    "restartServer": { "title": "Reinicio programado", "description": "El servidor se reiniciará en breve." },
-    "restartServerNow": { "title": "Reinicio iniciado", "description": "Comando de reinicio forzado enviado." },
-    "saveWorld": { "title": "Mundo guardado", "description": "Estado actual escrito en disco." },
-    "createBackup": { "title": "Copia de seguridad iniciada", "description": "Generando un nuevo punto de recuperación." },
-    "connectRcon": { "title": "RCON conectado", "description": "Control remoto de comandos listo." },
+    "startServer": {
+      "title": "Iniciando servidor",
+      "description": "Consultar el tablero para ver el estado en vivo."
+    },
+    "startServerScriptBackup": {
+      "title": "Iniciando servidor — script de inicio respaldado",
+      "description": "El panel detectó cambios en tu script de inicio y guardó tu versión antes de regenerarlo."
+    },
+    "stopServer": {
+      "title": "Servidor detenido",
+      "description": "Sesión cerrada correctamente."
+    },
+    "stopServerRequested": {
+      "title": "Apagado solicitado",
+      "description": "El servidor está guardando y cerrando de forma ordenada — puede tardar un momento en un mundo grande. La insignia de estado se actualizará una vez que se confirme la detención."
+    },
+    "forceStopServer": {
+      "title": "Servidor detenido a la fuerza",
+      "description": "Se guardó el mundo y luego se detuvo el proceso del juego."
+    },
+    "forceStopSaveFailed": {
+      "title": "Servidor detenido a la fuerza — guardado fallido",
+      "description": "El guardado previo a la detención fue rechazado. El progreso reciente podría perderse."
+    },
+    "forceStopSaveTimedOut": {
+      "title": "Servidor detenido a la fuerza — el guardado tardó demasiado",
+      "description": "El guardado previo a la detención no respondió en 3 segundos. El progreso reciente podría perderse."
+    },
+    "forceStopSaveSkipped": {
+      "title": "Servidor detenido a la fuerza — no se intentó guardar",
+      "description": "RCON no estaba conectado, así que no se intentó guardar antes de detener. El progreso reciente podría perderse."
+    },
+    "restartServer": {
+      "title": "Reinicio programado",
+      "description": "El servidor se reiniciará en breve."
+    },
+    "restartServerNow": {
+      "title": "Reinicio iniciado",
+      "description": "Comando de reinicio forzado enviado."
+    },
+    "saveWorld": {
+      "title": "Mundo guardado",
+      "description": "Estado actual escrito en disco."
+    },
+    "createBackup": {
+      "title": "Copia de seguridad iniciada",
+      "description": "Generando un nuevo punto de recuperación."
+    },
+    "connectRcon": {
+      "title": "RCON conectado",
+      "description": "Control remoto de comandos listo."
+    },
     "defaultTitle": "Acción completada",
     "defaultDescription": "Se completó correctamente: {{action}}."
   },
@@ -163,7 +203,8 @@
     "modUpdatesWaiting_one": "{{count}} actualización de mod pendiente",
     "modUpdatesWaiting_other": "{{count}} actualizaciones de mod pendientes",
     "reviewMods": "Revisar mods",
-    "noBackups": "Sin copias de seguridad"
+    "noBackups": "Sin copias de seguridad",
+    "modUpdatesWaiting_many": "{{count}} actualizaciones de mod pendientes"
   },
   "panelUpdateBanner": {
     "applyFailed": "Error al aplicar",
@@ -222,7 +263,8 @@
       "killed": "mató",
       "banned": "baneó",
       "kicked": "expulsó"
-    }
+    },
+    "eventsCount_many": "{{count}} eventos"
   },
   "telemetry": {
     "heading": "Telemetría del servidor",
@@ -282,7 +324,12 @@
     "backupsStoredLast_other": "{{count}} almacenadas, última {{age}}",
     "scheduleNoneActive": "ninguna activa",
     "scheduleActive_one": "{{count}} activa",
-    "scheduleActive_other": "{{count}} activas"
+    "scheduleActive_other": "{{count}} activas",
+    "modsToUpdate_many": "{{count}} pendientes de actualizar",
+    "modsTracked_many": "{{count}} rastreados",
+    "backupsStored_many": "{{count}} almacenadas",
+    "backupsStoredLast_many": "{{count}} almacenadas, última {{age}}",
+    "scheduleActive_many": "{{count}} activas"
   },
   "age": {
     "justNow": "justo ahora",
@@ -298,7 +345,13 @@
     "forHours_one": "durante {{count}}h",
     "forHours_other": "durante {{count}}h",
     "forDays_one": "durante {{count}}d",
-    "forDays_other": "durante {{count}}d"
+    "forDays_other": "durante {{count}}d",
+    "minutesAgo_many": "hace {{count}}m",
+    "hoursAgo_many": "hace {{count}}h",
+    "daysAgo_many": "hace {{count}}d",
+    "forMinutes_many": "durante {{count}}m",
+    "forHours_many": "durante {{count}}h",
+    "forDays_many": "durante {{count}}d"
   },
   "eta": {
     "anyMoment": "en cualquier momento",
@@ -308,17 +361,32 @@
     "inHours_other": "en {{count}}h",
     "inHoursMinutes": "en {{hours}}h {{minutes}}m",
     "inDays_one": "en {{count}}d",
-    "inDays_other": "en {{count}}d"
+    "inDays_other": "en {{count}}d",
+    "inMinutes_many": "en {{count}}m",
+    "inHours_many": "en {{count}}h",
+    "inDays_many": "en {{count}}d"
   },
   "wipeDialog": {
     "title": "Borrar servidor por completo",
     "description": "Seleccionar qué datos eliminar de <b>{{serverName}}</b>. El servidor debe estar detenido.",
     "defaultServerName": "el servidor activo",
     "targets": {
-      "map": { "label": "Mapa y terreno", "desc": "Chunks, terreno, edificios, población de zombis, regiones iso." },
-      "players": { "label": "Jugadores y vehículos", "desc": "Partidas guardadas de jugadores, inventarios, posiciones, datos de vehículos." },
-      "world": { "label": "Estado del mundo", "desc": "Diccionario del mundo, metadatos, erosión, estados de objetos del juego, radio." },
-      "accounts": { "label": "Cuentas y baneos", "desc": "Cuentas de usuario, contraseñas, roles, lista blanca y listas de baneo. Todos deberán volver a registrarse en su próxima conexión." }
+      "map": {
+        "label": "Mapa y terreno",
+        "desc": "Chunks, terreno, edificios, población de zombis, regiones iso."
+      },
+      "players": {
+        "label": "Jugadores y vehículos",
+        "desc": "Partidas guardadas de jugadores, inventarios, posiciones, datos de vehículos."
+      },
+      "world": {
+        "label": "Estado del mundo",
+        "desc": "Diccionario del mundo, metadatos, erosión, estados de objetos del juego, radio."
+      },
+      "accounts": {
+        "label": "Cuentas y baneos",
+        "desc": "Cuentas de usuario, contraseñas, roles, lista blanca y listas de baneo. Todos deberán volver a registrarse en su próxima conexión."
+      }
     },
     "notice": "Seleccionar mapa, jugadores o mundo elimina esos datos de forma permanente — no hay forma de deshacerlo salvo que hagas una copia de seguridad primero, más abajo. Seleccionar cuentas elimina permanentemente la lista blanca y las listas de baneo; todos deberán volver a registrarse en su próxima conexión. El .ini del servidor y los ajustes de sandbox se almacenan por separado y no se verán afectados.",
     "backupLabel": "Crear copia de seguridad antes de borrar",

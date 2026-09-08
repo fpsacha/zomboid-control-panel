@@ -1,4 +1,22 @@
 {
+  "__pendingPluralForms": [
+    "history.entries_few",
+    "history.entries_many",
+    "history.entries_two",
+    "history.entries_zero",
+    "rcon.entries_few",
+    "rcon.entries_many",
+    "rcon.entries_two",
+    "rcon.entries_zero",
+    "serverLog.hidingTooltip_few",
+    "serverLog.hidingTooltip_many",
+    "serverLog.hidingTooltip_two",
+    "serverLog.hidingTooltip_zero",
+    "serverLog.linesHidden_few",
+    "serverLog.linesHidden_many",
+    "serverLog.linesHidden_two",
+    "serverLog.linesHidden_zero"
+  ],
   "pageHeader": {
     "title": "وحدة التحكم",
     "description": "مخرجات سجل الخادم وأوامر RCON"
@@ -63,7 +81,15 @@
     "hidden": "مخفي",
     "loaded": "محمَّل",
     "updatesSuspended": "التحديثات معلَّقة",
-    "pollInterval": "استطلاع · كل ثانيتين"
+    "pollInterval": "استطلاع · كل ثانيتين",
+    "hidingTooltip_zero": "أسطر متكررة مخفية: {{count}} — انقر لعرض الكل",
+    "hidingTooltip_two": "أسطر متكررة مخفية: {{count}} — انقر لعرض الكل",
+    "hidingTooltip_few": "أسطر متكررة مخفية: {{count}} — انقر لعرض الكل",
+    "hidingTooltip_many": "أسطر متكررة مخفية: {{count}} — انقر لعرض الكل",
+    "linesHidden_zero": "أسطر مخفية بالتصفية: {{count}} · ",
+    "linesHidden_two": "أسطر مخفية بالتصفية: {{count}} · ",
+    "linesHidden_few": "أسطر مخفية بالتصفية: {{count}} · ",
+    "linesHidden_many": "أسطر مخفية بالتصفية: {{count}} · "
   },
   "rcon": {
     "linkLabel": "الوصلة",
@@ -100,7 +126,11 @@
     "keyboardHint": "// enter · تنفيذ · ↑↓ السجل",
     "noResponseFallback": "لا يوجد رد",
     "noPermission": "دورك لا يملك صلاحية تنفيذ أوامر RCON.",
-    "disconnectedUseRecheck": "تعذّر الوصول إلى RCON حاليًا — اختر «إعادة فحص» أعلاه قبل المحاولة مجددًا."
+    "disconnectedUseRecheck": "تعذّر الوصول إلى RCON حاليًا — اختر «إعادة فحص» أعلاه قبل المحاولة مجددًا.",
+    "entries_zero": "الإدخالات: {{count}}",
+    "entries_two": "الإدخالات: {{count}}",
+    "entries_few": "الإدخالات: {{count}}",
+    "entries_many": "الإدخالات: {{count}}"
   },
   "quickCommands": {
     "players": "اللاعبون",
@@ -115,20 +145,53 @@
     "toggleLabel": "بث",
     "toggleSubtitle": "مراسلة كل المتصلين",
     "templates": {
-      "restart15": { "label": "إعادة تشغيل بعد 15 د", "message": "إعادة تشغيل الخادم بعد 15 دقيقة - الرجاء التوجه إلى مكان آمن!" },
-      "restart5": { "label": "إعادة تشغيل بعد 5 د", "message": "إعادة تشغيل الخادم بعد 5 دقائق - احفظ تقدمك!" },
-      "restart1": { "label": "إعادة تشغيل بعد دقيقة", "message": "إعادة تشغيل الخادم بعد دقيقة واحدة - سيتم قطع الاتصال قريبًا!" },
-      "maintenance": { "label": "صيانة", "message": "الخادم يدخل وضع الصيانة - الرجاء قطع الاتصال" },
-      "backOnline": { "label": "عاد للعمل", "message": "اكتملت صيانة الخادم - أهلًا بعودتكم!" },
-      "saveWarning": { "label": "تنبيه حفظ", "message": "الخادم يحفظ البيانات - يُتوقع تأخر بسيط" }
+      "restart15": {
+        "label": "إعادة تشغيل بعد 15 د",
+        "message": "إعادة تشغيل الخادم بعد 15 دقيقة - الرجاء التوجه إلى مكان آمن!"
+      },
+      "restart5": {
+        "label": "إعادة تشغيل بعد 5 د",
+        "message": "إعادة تشغيل الخادم بعد 5 دقائق - احفظ تقدمك!"
+      },
+      "restart1": {
+        "label": "إعادة تشغيل بعد دقيقة",
+        "message": "إعادة تشغيل الخادم بعد دقيقة واحدة - سيتم قطع الاتصال قريبًا!"
+      },
+      "maintenance": {
+        "label": "صيانة",
+        "message": "الخادم يدخل وضع الصيانة - الرجاء قطع الاتصال"
+      },
+      "backOnline": {
+        "label": "عاد للعمل",
+        "message": "اكتملت صيانة الخادم - أهلًا بعودتكم!"
+      },
+      "saveWarning": {
+        "label": "تنبيه حفظ",
+        "message": "الخادم يحفظ البيانات - يُتوقع تأخر بسيط"
+      }
     },
     "channelTagAria": "وسم القناة",
     "channels": {
-      "all": { "label": "كل اللاعبين", "description": "بلا وسم — بث عادي" },
-      "admin": { "label": "وسم [ADMIN]", "description": "يضع علامة على الرسالة بأنها من مسؤول" },
-      "say": { "label": "وسم [SAY]", "description": "تسمية شكلية للدردشة المحلية" },
-      "faction": { "label": "وسم [FACTION]", "description": "تسمية شكلية للفصيل" },
-      "safehouse": { "label": "وسم [SAFEHOUSE]", "description": "تسمية شكلية للملاذ الآمن" }
+      "all": {
+        "label": "كل اللاعبين",
+        "description": "بلا وسم — بث عادي"
+      },
+      "admin": {
+        "label": "وسم [ADMIN]",
+        "description": "يضع علامة على الرسالة بأنها من مسؤول"
+      },
+      "say": {
+        "label": "وسم [SAY]",
+        "description": "تسمية شكلية للدردشة المحلية"
+      },
+      "faction": {
+        "label": "وسم [FACTION]",
+        "description": "تسمية شكلية للفصيل"
+      },
+      "safehouse": {
+        "label": "وسم [SAFEHOUSE]",
+        "description": "تسمية شكلية للملاذ الآمن"
+      }
     },
     "messageAria": "رسالة البث",
     "placeholderAll": "اكتب الرسالة التي يجب أن يراها اللاعبون…",
@@ -144,7 +207,11 @@
     "searchPlaceholder": "ابحث في سجل الأوامر...",
     "searchAria": "البحث في سجل الأوامر",
     "emptyTitle": "لا يوجد سجل أوامر",
-    "emptyDesc": "ستُسجَّل هنا الأوامر التي تنفّذها."
+    "emptyDesc": "ستُسجَّل هنا الأوامر التي تنفّذها.",
+    "entries_zero": "الإدخالات: {{count}}",
+    "entries_two": "الإدخالات: {{count}}",
+    "entries_few": "الإدخالات: {{count}}",
+    "entries_many": "الإدخالات: {{count}}"
   },
   "toasts": {
     "historyUnavailableTitle": "السجل غير متاح",

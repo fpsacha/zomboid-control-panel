@@ -63,7 +63,9 @@
     "hidden": "masquées",
     "loaded": "chargées",
     "updatesSuspended": "mises à jour suspendues",
-    "pollInterval": "sondage · 2s"
+    "pollInterval": "sondage · 2s",
+    "hidingTooltip_many": "{{count}} lignes répétitives masquées — cliquez pour tout afficher",
+    "linesHidden_many": "{{count}} lignes masquées par le filtre · "
   },
   "rcon": {
     "linkLabel": "liaison",
@@ -100,7 +102,8 @@
     "keyboardHint": "// entrée · exécuter · ↑↓ historique",
     "noResponseFallback": "Aucune réponse",
     "noPermission": "Votre rôle n'a pas la permission d'exécuter des commandes RCON.",
-    "disconnectedUseRecheck": "RCON est actuellement inaccessible -- sélectionnez « Revérifier » ci-dessus avant de réessayer."
+    "disconnectedUseRecheck": "RCON est actuellement inaccessible -- sélectionnez « Revérifier » ci-dessus avant de réessayer.",
+    "entries_many": "{{count}} entrées"
   },
   "quickCommands": {
     "players": "Joueurs",
@@ -177,7 +180,8 @@
     "searchPlaceholder": "Rechercher dans l'historique des commandes...",
     "searchAria": "Rechercher dans l'historique des commandes",
     "emptyTitle": "Aucun historique de commandes",
-    "emptyDesc": "Les commandes que vous exécutez seront enregistrées ici."
+    "emptyDesc": "Les commandes que vous exécutez seront enregistrées ici.",
+    "entries_many": "{{count}} entrées"
   },
   "toasts": {
     "historyUnavailableTitle": "Historique indisponible",

@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "resultsCount_few",
+    "resultsCount_many",
+    "resultsCount_two",
+    "resultsCount_zero"
+  ],
   "giveItemsTitle": "إعطاء عناصر",
   "spawnVehicleTitle": "استدعاء مركبة",
   "givingTo": "الإعطاء إلى",
@@ -51,5 +57,9 @@
   "scanVehiclesBody": "افحص الخادم قيد التشغيل عبر PanelBridge لجلب كتالوج المركبات الكامل. يجب أن يكون الخادم متصلاً مع تفعيل مود PanelBridge.",
   "scanning": "جارٍ الفحص…",
   "scanItems": "فحص العناصر",
-  "scanVehicles": "فحص المركبات"
+  "scanVehicles": "فحص المركبات",
+  "resultsCount_zero": "النتائج: {{count}}",
+  "resultsCount_two": "النتائج: {{count}}",
+  "resultsCount_few": "النتائج: {{count}}",
+  "resultsCount_many": "النتائج: {{count}}"
 }

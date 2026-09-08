@@ -38,11 +38,19 @@ const namespaces = [
 
 const targetLanguages = LANGUAGES.map((l) => l.code).filter((code) => code !== SOURCE_LANGUAGE)
 
+// bug-hunt-2026-09-08 (Arabic plural sweep, step 2): a top-level key
+// starting with `__` is reserved tooling data, not a translatable string --
+// e.g. `__pendingPluralForms` (scripts/i18n-populate-missing-plural-forms.mjs),
+// the greppable marker on a language's mechanically-copied plural forms
+// that still need real grammar. i18next never looks these up (nothing in
+// the app calls t('__pendingPluralForms')), so they're invisible at
+// runtime; excluded here so a namespace that legitimately needs the marker
+// isn't flagged as having a stray "extra" key English doesn't have.
 function collectKeyPaths(obj: unknown, prefix = ''): string[] {
   if (obj === null || typeof obj !== 'object') return [prefix]
-  return Object.entries(obj as Record<string, unknown>).flatMap(([key, value]) =>
-    collectKeyPaths(value, prefix ? `${prefix}.${key}` : key),
-  )
+  return Object.entries(obj as Record<string, unknown>)
+    .filter(([key]) => !(prefix === '' && key.startsWith('__')))
+    .flatMap(([key, value]) => collectKeyPaths(value, prefix ? `${prefix}.${key}` : key))
 }
 
 function getAtPath(obj: unknown, path: string): unknown {

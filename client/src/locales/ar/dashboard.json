@@ -1,4 +1,74 @@
 {
+  "__pendingPluralForms": [
+    "age.daysAgo_few",
+    "age.daysAgo_many",
+    "age.daysAgo_two",
+    "age.daysAgo_zero",
+    "age.forDays_few",
+    "age.forDays_many",
+    "age.forDays_two",
+    "age.forDays_zero",
+    "age.forHours_few",
+    "age.forHours_many",
+    "age.forHours_two",
+    "age.forHours_zero",
+    "age.forMinutes_few",
+    "age.forMinutes_many",
+    "age.forMinutes_two",
+    "age.forMinutes_zero",
+    "age.hoursAgo_few",
+    "age.hoursAgo_many",
+    "age.hoursAgo_two",
+    "age.hoursAgo_zero",
+    "age.minutesAgo_few",
+    "age.minutesAgo_many",
+    "age.minutesAgo_two",
+    "age.minutesAgo_zero",
+    "autoUpdateResult.scheduledDescription_few",
+    "autoUpdateResult.scheduledDescription_many",
+    "autoUpdateResult.scheduledDescription_two",
+    "autoUpdateResult.scheduledDescription_zero",
+    "eta.inDays_few",
+    "eta.inDays_many",
+    "eta.inDays_two",
+    "eta.inDays_zero",
+    "eta.inHours_few",
+    "eta.inHours_many",
+    "eta.inHours_two",
+    "eta.inHours_zero",
+    "eta.inMinutes_few",
+    "eta.inMinutes_many",
+    "eta.inMinutes_two",
+    "eta.inMinutes_zero",
+    "liveActivity.eventsCount_few",
+    "liveActivity.eventsCount_many",
+    "liveActivity.eventsCount_two",
+    "liveActivity.eventsCount_zero",
+    "verdict.modUpdatesWaiting_few",
+    "verdict.modUpdatesWaiting_many",
+    "verdict.modUpdatesWaiting_two",
+    "verdict.modUpdatesWaiting_zero",
+    "workItems.backupsStoredLast_few",
+    "workItems.backupsStoredLast_many",
+    "workItems.backupsStoredLast_two",
+    "workItems.backupsStoredLast_zero",
+    "workItems.backupsStored_few",
+    "workItems.backupsStored_many",
+    "workItems.backupsStored_two",
+    "workItems.backupsStored_zero",
+    "workItems.modsToUpdate_few",
+    "workItems.modsToUpdate_many",
+    "workItems.modsToUpdate_two",
+    "workItems.modsToUpdate_zero",
+    "workItems.modsTracked_few",
+    "workItems.modsTracked_many",
+    "workItems.modsTracked_two",
+    "workItems.modsTracked_zero",
+    "workItems.scheduleActive_few",
+    "workItems.scheduleActive_many",
+    "workItems.scheduleActive_two",
+    "workItems.scheduleActive_zero"
+  ],
   "loading": "جارٍ تأسيس الاتصال…",
   "autoUpdateResult": {
     "scheduledTitle": "تمت جدولة التحديث التلقائي",
@@ -28,7 +98,11 @@
       "STEAMCMD_EXIT_CODE": "أنهى SteamCMD عمله بالرمز {{code}}.",
       "STEAM_OPERATION_IN_PROGRESS": "كانت هناك عملية تثبيت أو تحديث من Steam جارية بالفعل للمسار {{path}}، لذا أُلغي التحديث التلقائي تفاديًا للتعارض معها.",
       "UNKNOWN": "حدث خطأ غير متوقّع أثناء التحديث التلقائي."
-    }
+    },
+    "scheduledDescription_zero": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة.",
+    "scheduledDescription_two": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة.",
+    "scheduledDescription_few": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة.",
+    "scheduledDescription_many": "سيُعاد تشغيل الخادم خلال {{count}} دقيقة."
   },
   "errors": {
     "failedToConnect": "فشل الاتصال بالخادم.",
@@ -128,19 +202,58 @@
     }
   },
   "successCopy": {
-    "startServer": { "title": "جارٍ تشغيل الخادم", "description": "راقب لوحة المعلومات لمتابعة الحالة المباشرة." },
-    "startServerScriptBackup": { "title": "جارٍ تشغيل الخادم — تم نسخ سكربت البدء احتياطيًا", "description": "رصدت اللوحة تغييرات في سكربت البدء الخاص بك وحفظت نسختك قبل إعادة توليده." },
-    "stopServer": { "title": "تم إيقاف الخادم", "description": "أُغلقت الجلسة بشكل سليم." },
-    "stopServerRequested": { "title": "تم طلب الإيقاف", "description": "يقوم الخادم بالحفظ والإغلاق بشكل سليم — وقد يستغرق ذلك لحظات في العوالم الكبيرة. ستتحدّث شارة الحالة بمجرد تأكيد التوقّف." },
-    "forceStopServer": { "title": "تم إيقاف الخادم قسرًا", "description": "حُفظ العالم، ثم أُوقفت عملية اللعبة." },
-    "forceStopSaveFailed": { "title": "تم إيقاف الخادم قسرًا — فشل الحفظ", "description": "رُفض الحفظ الذي يسبق الإيقاف. قد يُفقد التقدّم الأخير." },
-    "forceStopSaveTimedOut": { "title": "تم إيقاف الخادم قسرًا — انتهت مهلة الحفظ", "description": "لم يستجب الحفظ الذي يسبق الإيقاف خلال 3 ثوانٍ. قد يُفقد التقدّم الأخير." },
-    "forceStopSaveSkipped": { "title": "تم إيقاف الخادم قسرًا — لم تُجرَ أي محاولة حفظ", "description": "لم يكن RCON متصلًا، لذا لم تُجرَ أي محاولة حفظ قبل الإيقاف. قد يُفقد التقدّم الأخير." },
-    "restartServer": { "title": "تمت جدولة إعادة التشغيل", "description": "سيُعاد تشغيل الخادم قريبًا." },
-    "restartServerNow": { "title": "بدأت إعادة التشغيل", "description": "أُرسل أمر إعادة التشغيل الفوري." },
-    "saveWorld": { "title": "تم حفظ العالم", "description": "كُتبت الحالة الحالية على القرص." },
-    "createBackup": { "title": "بدأت النسخة الاحتياطية", "description": "جارٍ تجهيز نقطة استعادة جديدة." },
-    "connectRcon": { "title": "تم توصيل RCON", "description": "التحكّم بالأوامر عن بُعد جاهز." },
+    "startServer": {
+      "title": "جارٍ تشغيل الخادم",
+      "description": "راقب لوحة المعلومات لمتابعة الحالة المباشرة."
+    },
+    "startServerScriptBackup": {
+      "title": "جارٍ تشغيل الخادم — تم نسخ سكربت البدء احتياطيًا",
+      "description": "رصدت اللوحة تغييرات في سكربت البدء الخاص بك وحفظت نسختك قبل إعادة توليده."
+    },
+    "stopServer": {
+      "title": "تم إيقاف الخادم",
+      "description": "أُغلقت الجلسة بشكل سليم."
+    },
+    "stopServerRequested": {
+      "title": "تم طلب الإيقاف",
+      "description": "يقوم الخادم بالحفظ والإغلاق بشكل سليم — وقد يستغرق ذلك لحظات في العوالم الكبيرة. ستتحدّث شارة الحالة بمجرد تأكيد التوقّف."
+    },
+    "forceStopServer": {
+      "title": "تم إيقاف الخادم قسرًا",
+      "description": "حُفظ العالم، ثم أُوقفت عملية اللعبة."
+    },
+    "forceStopSaveFailed": {
+      "title": "تم إيقاف الخادم قسرًا — فشل الحفظ",
+      "description": "رُفض الحفظ الذي يسبق الإيقاف. قد يُفقد التقدّم الأخير."
+    },
+    "forceStopSaveTimedOut": {
+      "title": "تم إيقاف الخادم قسرًا — انتهت مهلة الحفظ",
+      "description": "لم يستجب الحفظ الذي يسبق الإيقاف خلال 3 ثوانٍ. قد يُفقد التقدّم الأخير."
+    },
+    "forceStopSaveSkipped": {
+      "title": "تم إيقاف الخادم قسرًا — لم تُجرَ أي محاولة حفظ",
+      "description": "لم يكن RCON متصلًا، لذا لم تُجرَ أي محاولة حفظ قبل الإيقاف. قد يُفقد التقدّم الأخير."
+    },
+    "restartServer": {
+      "title": "تمت جدولة إعادة التشغيل",
+      "description": "سيُعاد تشغيل الخادم قريبًا."
+    },
+    "restartServerNow": {
+      "title": "بدأت إعادة التشغيل",
+      "description": "أُرسل أمر إعادة التشغيل الفوري."
+    },
+    "saveWorld": {
+      "title": "تم حفظ العالم",
+      "description": "كُتبت الحالة الحالية على القرص."
+    },
+    "createBackup": {
+      "title": "بدأت النسخة الاحتياطية",
+      "description": "جارٍ تجهيز نقطة استعادة جديدة."
+    },
+    "connectRcon": {
+      "title": "تم توصيل RCON",
+      "description": "التحكّم بالأوامر عن بُعد جاهز."
+    },
     "defaultTitle": "اكتمل الإجراء",
     "defaultDescription": "تم تنفيذ {{action}} بنجاح."
   },
@@ -163,7 +276,11 @@
     "modUpdatesWaiting_one": "{{count}} تحديث مود بالانتظار",
     "modUpdatesWaiting_other": "تحديثات مودات بالانتظار: {{count}}",
     "reviewMods": "مراجعة المودات",
-    "noBackups": "لا توجد نسخ احتياطية"
+    "noBackups": "لا توجد نسخ احتياطية",
+    "modUpdatesWaiting_zero": "تحديثات مودات بالانتظار: {{count}}",
+    "modUpdatesWaiting_two": "تحديثات مودات بالانتظار: {{count}}",
+    "modUpdatesWaiting_few": "تحديثات مودات بالانتظار: {{count}}",
+    "modUpdatesWaiting_many": "تحديثات مودات بالانتظار: {{count}}"
   },
   "panelUpdateBanner": {
     "applyFailed": "فشل التطبيق",
@@ -222,7 +339,11 @@
       "killed": "قتل",
       "banned": "حُظر",
       "kicked": "طُرد"
-    }
+    },
+    "eventsCount_zero": "الأحداث: {{count}}",
+    "eventsCount_two": "الأحداث: {{count}}",
+    "eventsCount_few": "الأحداث: {{count}}",
+    "eventsCount_many": "الأحداث: {{count}}"
   },
   "telemetry": {
     "heading": "قياسات الخادم",
@@ -282,7 +403,27 @@
     "backupsStoredLast_other": "{{count}} محفوظة، آخرها {{age}}",
     "scheduleNoneActive": "لا شيء نشط",
     "scheduleActive_one": "{{count}} نشطة",
-    "scheduleActive_other": "{{count}} نشطة"
+    "scheduleActive_other": "{{count}} نشطة",
+    "modsToUpdate_zero": "{{count}} بحاجة إلى تحديث",
+    "modsToUpdate_two": "{{count}} بحاجة إلى تحديث",
+    "modsToUpdate_few": "{{count}} بحاجة إلى تحديث",
+    "modsToUpdate_many": "{{count}} بحاجة إلى تحديث",
+    "modsTracked_zero": "{{count}} قيد التتبّع",
+    "modsTracked_two": "{{count}} قيد التتبّع",
+    "modsTracked_few": "{{count}} قيد التتبّع",
+    "modsTracked_many": "{{count}} قيد التتبّع",
+    "backupsStored_zero": "{{count}} محفوظة",
+    "backupsStored_two": "{{count}} محفوظة",
+    "backupsStored_few": "{{count}} محفوظة",
+    "backupsStored_many": "{{count}} محفوظة",
+    "backupsStoredLast_zero": "{{count}} محفوظة، آخرها {{age}}",
+    "backupsStoredLast_two": "{{count}} محفوظة، آخرها {{age}}",
+    "backupsStoredLast_few": "{{count}} محفوظة، آخرها {{age}}",
+    "backupsStoredLast_many": "{{count}} محفوظة، آخرها {{age}}",
+    "scheduleActive_zero": "{{count}} نشطة",
+    "scheduleActive_two": "{{count}} نشطة",
+    "scheduleActive_few": "{{count}} نشطة",
+    "scheduleActive_many": "{{count}} نشطة"
   },
   "age": {
     "justNow": "الآن",
@@ -298,7 +439,31 @@
     "forHours_one": "لمدة {{count}} س",
     "forHours_other": "لمدة {{count}} س",
     "forDays_one": "لمدة {{count}} ي",
-    "forDays_other": "لمدة {{count}} ي"
+    "forDays_other": "لمدة {{count}} ي",
+    "minutesAgo_zero": "منذ {{count}} د",
+    "minutesAgo_two": "منذ {{count}} د",
+    "minutesAgo_few": "منذ {{count}} د",
+    "minutesAgo_many": "منذ {{count}} د",
+    "hoursAgo_zero": "منذ {{count}} س",
+    "hoursAgo_two": "منذ {{count}} س",
+    "hoursAgo_few": "منذ {{count}} س",
+    "hoursAgo_many": "منذ {{count}} س",
+    "daysAgo_zero": "منذ {{count}} ي",
+    "daysAgo_two": "منذ {{count}} ي",
+    "daysAgo_few": "منذ {{count}} ي",
+    "daysAgo_many": "منذ {{count}} ي",
+    "forMinutes_zero": "لمدة {{count}} د",
+    "forMinutes_two": "لمدة {{count}} د",
+    "forMinutes_few": "لمدة {{count}} د",
+    "forMinutes_many": "لمدة {{count}} د",
+    "forHours_zero": "لمدة {{count}} س",
+    "forHours_two": "لمدة {{count}} س",
+    "forHours_few": "لمدة {{count}} س",
+    "forHours_many": "لمدة {{count}} س",
+    "forDays_zero": "لمدة {{count}} ي",
+    "forDays_two": "لمدة {{count}} ي",
+    "forDays_few": "لمدة {{count}} ي",
+    "forDays_many": "لمدة {{count}} ي"
   },
   "eta": {
     "anyMoment": "في أي لحظة",
@@ -308,17 +473,41 @@
     "inHours_other": "خلال {{count}} س",
     "inHoursMinutes": "خلال {{hours}} س {{minutes}} د",
     "inDays_one": "خلال {{count}} ي",
-    "inDays_other": "خلال {{count}} ي"
+    "inDays_other": "خلال {{count}} ي",
+    "inMinutes_zero": "خلال {{count}} د",
+    "inMinutes_two": "خلال {{count}} د",
+    "inMinutes_few": "خلال {{count}} د",
+    "inMinutes_many": "خلال {{count}} د",
+    "inHours_zero": "خلال {{count}} س",
+    "inHours_two": "خلال {{count}} س",
+    "inHours_few": "خلال {{count}} س",
+    "inHours_many": "خلال {{count}} س",
+    "inDays_zero": "خلال {{count}} ي",
+    "inDays_two": "خلال {{count}} ي",
+    "inDays_few": "خلال {{count}} ي",
+    "inDays_many": "خلال {{count}} ي"
   },
   "wipeDialog": {
     "title": "مسح الخادم",
     "description": "حدّد البيانات التي تريد حذفها من <b>{{serverName}}</b>. يجب أن يكون الخادم متوقّفًا.",
     "defaultServerName": "الخادم النشط",
     "targets": {
-      "map": { "label": "الخريطة والتضاريس", "desc": "الأجزاء (chunks)، التضاريس، المباني، أعداد الزومبي، مناطق iso." },
-      "players": { "label": "اللاعبون والمركبات", "desc": "ملفات حفظ اللاعبين، والحقائب، والمواقع، وبيانات المركبات." },
-      "world": { "label": "حالة العالم", "desc": "قاموس العالم، والبيانات الوصفية، والتعرية، وحالات كائنات اللعبة، والراديو." },
-      "accounts": { "label": "الحسابات وحالات الحظر", "desc": "حسابات المستخدمين، وكلمات المرور، والأدوار، والقائمة البيضاء وقوائم الحظر. سيُعيد الجميع التسجيل عند الاتصال التالي." }
+      "map": {
+        "label": "الخريطة والتضاريس",
+        "desc": "الأجزاء (chunks)، التضاريس، المباني، أعداد الزومبي، مناطق iso."
+      },
+      "players": {
+        "label": "اللاعبون والمركبات",
+        "desc": "ملفات حفظ اللاعبين، والحقائب، والمواقع، وبيانات المركبات."
+      },
+      "world": {
+        "label": "حالة العالم",
+        "desc": "قاموس العالم، والبيانات الوصفية، والتعرية، وحالات كائنات اللعبة، والراديو."
+      },
+      "accounts": {
+        "label": "الحسابات وحالات الحظر",
+        "desc": "حسابات المستخدمين، وكلمات المرور، والأدوار، والقائمة البيضاء وقوائم الحظر. سيُعيد الجميع التسجيل عند الاتصال التالي."
+      }
     },
     "notice": "اختيار الخريطة أو اللاعبين أو العالم يحذف تلك البيانات نهائيًا — ولا يمكن التراجع ما لم تنشئ نسخة احتياطية أولًا أدناه. واختيار الحسابات يحذف القائمة البيضاء وقوائم الحظر نهائيًا؛ وسيُعيد الجميع التسجيل عند الاتصال التالي. أما ملف .ini الخاص بالخادم وإعدادات sandbox فتُخزَّن بشكل منفصل ولن تتأثر.",
     "backupLabel": "أنشئ نسخة احتياطية قبل المسح",

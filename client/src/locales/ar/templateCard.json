@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "modsCount_few",
+    "modsCount_many",
+    "modsCount_two",
+    "modsCount_zero",
+    "settingsOverridden_few",
+    "settingsOverridden_many",
+    "settingsOverridden_two",
+    "settingsOverridden_zero"
+  ],
   "builtin": "مدمج",
   "custom": "مخصص",
   "settingsOverridden_one": "تم تجاوز {{count}} إعداد",
@@ -7,5 +17,13 @@
   "modsCount_other": "{{count}} مودات",
   "preview": "معاينة",
   "exportTitle": "تصدير القالب",
-  "deleteTitle": "حذف القالب"
+  "deleteTitle": "حذف القالب",
+  "settingsOverridden_zero": "تم تجاوز {{count}} إعدادات",
+  "settingsOverridden_two": "تم تجاوز {{count}} إعدادات",
+  "settingsOverridden_few": "تم تجاوز {{count}} إعدادات",
+  "settingsOverridden_many": "تم تجاوز {{count}} إعدادات",
+  "modsCount_zero": "{{count}} مودات",
+  "modsCount_two": "{{count}} مودات",
+  "modsCount_few": "{{count}} مودات",
+  "modsCount_many": "{{count}} مودات"
 }

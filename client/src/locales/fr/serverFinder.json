@@ -57,7 +57,8 @@
     "loadedDesc_other": "{{count}} serveurs trouvés avec {{players}} joueurs en ligne",
     "fetchFailedFallback": "Échec de la récupération des serveurs",
     "unknownError": "Erreur inconnue",
-    "apiKeyMissing": "Clé API Steam manquante"
+    "apiKeyMissing": "Clé API Steam manquante",
+    "loadedDesc_many": "{{count}} serveurs trouvés avec {{players}} joueurs en ligne"
   },
   "serverList": {
     "title": "Liste des serveurs",

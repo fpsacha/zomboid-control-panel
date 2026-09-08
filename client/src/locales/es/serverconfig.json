@@ -6,7 +6,8 @@
   "duplicateKeysWarning": {
     "title_one": "«{{keys}}» aparece más de una vez en este archivo de configuración",
     "title_other": "{{count}} ajustes aparecen más de una vez en este archivo de configuración: {{keys}}",
-    "desc": "Este editor lee la última copia y la página de mods lee la primera, por lo que ambos pueden mostrar valores distintos para el mismo ajuste."
+    "desc": "Este editor lee la última copia y la página de mods lee la primera, por lo que ambos pueden mostrar valores distintos para el mismo ajuste.",
+    "title_many": "{{count}} ajustes aparecen más de una vez en este archivo de configuración: {{keys}}"
   },
   "serverChangedBanner": {
     "title": "Active server changed",
@@ -33,7 +34,8 @@
     "spawnsLabel_other": "Apariciones · {{count}} perfiles",
     "regionsLabel": "Regiones",
     "fileNotFoundTitle": "{{label}}: archivo no encontrado",
-    "notFoundAria": "No encontrado"
+    "notFoundAria": "No encontrado",
+    "spawnsLabel_many": "Apariciones · {{count}} perfiles"
   },
   "unresolvedReview": {
     "title": "IDs de Mods= sin resolver",
@@ -117,7 +119,9 @@
     "uncategorizedIniLabel": "Sin categorizar / Desconocido",
     "uncategorizedIniTitle": "Claves presentes en el archivo INI pero ausentes del esquema (claves nuevas del juego base, añadidas por mods, o personalizadas)",
     "uncategorizedSandboxLabel": "Ajustes adicionales",
-    "uncategorizedSandboxTitle": "Ajustes de Sandbox aún no agrupados por el editor"
+    "uncategorizedSandboxTitle": "Ajustes de Sandbox aún no agrupados por el editor",
+    "modifiedCountTitle_many": "{{count}} cambios sin guardar",
+    "matchCount_many": "{{count}} coincidencias"
   },
   "uncategorizedIni": {
     "empty": "No hay claves sin categorizar.",
@@ -125,7 +129,8 @@
     "keyCount_one": "{{count}} clave",
     "keyCount_other": "{{count}} claves",
     "description": "Claves presentes en el INI pero no reconocidas por el esquema. Probablemente ajustes nuevos del juego base o añadidos por mods. Los valores se conservan al guardar; edita con cuidado.",
-    "undoTitle": "Deshacer cambio"
+    "undoTitle": "Deshacer cambio",
+    "keyCount_many": "{{count}} claves"
   },
   "uncategorizedSandbox": {
     "empty": "No hay ajustes sin categorizar.",
@@ -134,14 +139,16 @@
     "keyCount_other": "{{count}} claves",
     "description": "Ajustes para los que el editor no tiene esquema, agrupados por la sección a la que pertenecen. Mayormente claves añadidas por mods. Edita con cuidado.",
     "mainSection": "Sección principal",
-    "undoTitle": "Deshacer cambio"
+    "undoTitle": "Deshacer cambio",
+    "keyCount_many": "{{count}} claves"
   },
   "categoryContent": {
     "settingCount_one": "{{count}} ajuste",
     "settingCount_other": "{{count}} ajustes",
     "noneModified": "Ningún ajuste de esta categoría difiere de los valores predeterminados de Project Zomboid.",
     "noneUnsaved": "No hay ajustes sin guardar en esta categoría.",
-    "none": "No hay ajustes en esta categoría."
+    "none": "No hay ajustes en esta categoría.",
+    "settingCount_many": "{{count}} ajustes"
   },
   "iniTab": {
     "sectionLabel": "Ajustes del servidor",
@@ -182,7 +189,8 @@
     "fileAriaServerFile": "Archivo del servidor de la región {{index}}",
     "fileAriaMapPath": "Ruta del archivo de mapa de la región {{index}}",
     "deleteAria": "Eliminar región de aparición {{name}}",
-    "addRegion": "añadir región"
+    "addRegion": "añadir región",
+    "sectionSublabel_many": "{{count}} regiones · ciudades y pueblos"
   },
   "modSettingsTab": {
     "sectionLabel": "Opciones de sandbox de mods",
@@ -229,7 +237,9 @@
     "showAllOptions": "Mostrar todas las opciones",
     "noMatches": "Ningún ajuste coincide con «{{query}}»{{suffix}}",
     "noMatchesInModified": " en las opciones modificadas",
-    "clearSearch": "Borrar búsqueda"
+    "clearSearch": "Borrar búsqueda",
+    "sectionSublabelLoaded_many": "{{count}} mods · en vivo desde puente",
+    "groupModifiedTitle_many": "{{count}} opciones difieren del valor predeterminado"
   },
   "stickySaveBar": {
     "unsavedChange_one": "{{count}} cambio sin guardar",
@@ -238,7 +248,8 @@
     "sandboxScope": "sandbox lua",
     "hint": "ctrl+s para guardar · se aplica al recargar",
     "discard": "descartar",
-    "saveAndReload": "guardar y recargar"
+    "saveAndReload": "guardar y recargar",
+    "unsavedChange_many": "{{count}} cambios sin guardar"
   },
   "backupsDialog": {
     "title": "Copias de seguridad de configuración",
@@ -259,7 +270,8 @@
     "typeSandbox": "Sandbox",
     "typeSpawnPoints": "SpawnPoints",
     "typeSpawnRegions": "SpawnRegions",
-    "sizeKb": "{{size}} KB"
+    "sizeKb": "{{size}} KB",
+    "totalCount_many": "{{count}} copias de seguridad en total"
   },
   "templatesDialog": {
     "title": "Configs guardadas",
@@ -276,7 +288,8 @@
     "applyTooltip": "Cargar esta config (crea una copia de seguridad antes)",
     "deleteAria": "Eliminar config guardada {{name}}",
     "deleteTooltip": "Eliminar esta config guardada",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "savedCount_many": "{{count}} configs guardadas"
   },
   "saveTemplateDialog": {
     "title": "Guardar configuración actual",

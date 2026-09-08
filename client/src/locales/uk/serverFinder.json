@@ -1,4 +1,8 @@
 {
+  "__pendingPluralForms": [
+    "toasts.loadedDesc_few",
+    "toasts.loadedDesc_many"
+  ],
   "pageHeader": {
     "title": "Огляд публічних серверів",
     "description": "Шукайте в публічному списку серверів Project Zomboid і копіюйте адресу сервера, щоб швидко приєднатися",
@@ -57,7 +61,9 @@
     "loadedDesc_other": "Знайдено серверів: {{count}}, гравців онлайн: {{players}}",
     "fetchFailedFallback": "Не вдалося отримати сервери",
     "unknownError": "Невідома помилка",
-    "apiKeyMissing": "Відсутній ключ Steam API"
+    "apiKeyMissing": "Відсутній ключ Steam API",
+    "loadedDesc_few": "Знайдено серверів: {{count}}, гравців онлайн: {{players}}",
+    "loadedDesc_many": "Знайдено серверів: {{count}}, гравців онлайн: {{players}}"
   },
   "serverList": {
     "title": "Список серверів",

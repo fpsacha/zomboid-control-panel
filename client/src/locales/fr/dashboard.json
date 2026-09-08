@@ -28,7 +28,8 @@
       "STEAMCMD_EXIT_CODE": "SteamCMD s'est terminé avec le code {{code}}.",
       "STEAM_OPERATION_IN_PROGRESS": "Une installation ou mise à jour Steam était déjà en cours pour {{path}} ; la mise à jour automatique a donc été abandonnée pour éviter tout conflit.",
       "UNKNOWN": "Une erreur inattendue s'est produite pendant la mise à jour automatique."
-    }
+    },
+    "scheduledDescription_many": "Le serveur redémarrera dans {{count}} minutes."
   },
   "errors": {
     "failedToConnect": "Échec de la connexion au serveur.",
@@ -128,19 +129,58 @@
     }
   },
   "successCopy": {
-    "startServer": { "title": "Démarrage du serveur", "description": "Surveillez le tableau de bord pour l'état en direct." },
-    "startServerScriptBackup": { "title": "Démarrage du serveur — script de démarrage sauvegardé", "description": "Le panneau a détecté des modifications du script de démarrage et a sauvegardé votre version avant de le régénérer." },
-    "stopServer": { "title": "Serveur arrêté", "description": "Session terminée proprement." },
-    "stopServerRequested": { "title": "Arrêt demandé", "description": "Le serveur sauvegarde et s'arrête proprement — cela peut prendre un moment sur un grand monde. Le badge de statut se mettra à jour une fois l'arrêt confirmé." },
-    "forceStopServer": { "title": "Arrêt forcé du serveur", "description": "Le monde a été sauvegardé, puis le processus du jeu a été arrêté." },
-    "forceStopSaveFailed": { "title": "Arrêt forcé du serveur — échec de la sauvegarde", "description": "La sauvegarde préalable à l'arrêt a été refusée. La progression récente pourrait être perdue." },
-    "forceStopSaveTimedOut": { "title": "Arrêt forcé du serveur — délai de sauvegarde dépassé", "description": "La sauvegarde préalable à l'arrêt n'a pas répondu en 3 secondes. La progression récente pourrait être perdue." },
-    "forceStopSaveSkipped": { "title": "Arrêt forcé du serveur — aucune sauvegarde tentée", "description": "RCON n'était pas connecté, donc aucune sauvegarde n'a été tentée avant l'arrêt. La progression récente pourrait être perdue." },
-    "restartServer": { "title": "Redémarrage programmé", "description": "Le serveur redémarrera sous peu." },
-    "restartServerNow": { "title": "Redémarrage déclenché", "description": "Commande de redémarrage forcé envoyée." },
-    "saveWorld": { "title": "Monde enregistré", "description": "État actuel écrit sur le disque." },
-    "createBackup": { "title": "Sauvegarde démarrée", "description": "Création d'un nouveau point de récupération." },
-    "connectRcon": { "title": "RCON connecté", "description": "Contrôle des commandes à distance prêt." },
+    "startServer": {
+      "title": "Démarrage du serveur",
+      "description": "Surveillez le tableau de bord pour l'état en direct."
+    },
+    "startServerScriptBackup": {
+      "title": "Démarrage du serveur — script de démarrage sauvegardé",
+      "description": "Le panneau a détecté des modifications du script de démarrage et a sauvegardé votre version avant de le régénérer."
+    },
+    "stopServer": {
+      "title": "Serveur arrêté",
+      "description": "Session terminée proprement."
+    },
+    "stopServerRequested": {
+      "title": "Arrêt demandé",
+      "description": "Le serveur sauvegarde et s'arrête proprement — cela peut prendre un moment sur un grand monde. Le badge de statut se mettra à jour une fois l'arrêt confirmé."
+    },
+    "forceStopServer": {
+      "title": "Arrêt forcé du serveur",
+      "description": "Le monde a été sauvegardé, puis le processus du jeu a été arrêté."
+    },
+    "forceStopSaveFailed": {
+      "title": "Arrêt forcé du serveur — échec de la sauvegarde",
+      "description": "La sauvegarde préalable à l'arrêt a été refusée. La progression récente pourrait être perdue."
+    },
+    "forceStopSaveTimedOut": {
+      "title": "Arrêt forcé du serveur — délai de sauvegarde dépassé",
+      "description": "La sauvegarde préalable à l'arrêt n'a pas répondu en 3 secondes. La progression récente pourrait être perdue."
+    },
+    "forceStopSaveSkipped": {
+      "title": "Arrêt forcé du serveur — aucune sauvegarde tentée",
+      "description": "RCON n'était pas connecté, donc aucune sauvegarde n'a été tentée avant l'arrêt. La progression récente pourrait être perdue."
+    },
+    "restartServer": {
+      "title": "Redémarrage programmé",
+      "description": "Le serveur redémarrera sous peu."
+    },
+    "restartServerNow": {
+      "title": "Redémarrage déclenché",
+      "description": "Commande de redémarrage forcé envoyée."
+    },
+    "saveWorld": {
+      "title": "Monde enregistré",
+      "description": "État actuel écrit sur le disque."
+    },
+    "createBackup": {
+      "title": "Sauvegarde démarrée",
+      "description": "Création d'un nouveau point de récupération."
+    },
+    "connectRcon": {
+      "title": "RCON connecté",
+      "description": "Contrôle des commandes à distance prêt."
+    },
     "defaultTitle": "Action terminée",
     "defaultDescription": "{{action}} terminé avec succès."
   },
@@ -163,7 +203,8 @@
     "modUpdatesWaiting_one": "{{count}} mise à jour de mod en attente",
     "modUpdatesWaiting_other": "{{count}} mises à jour de mods en attente",
     "reviewMods": "Vérifier les mods",
-    "noBackups": "Aucune sauvegarde"
+    "noBackups": "Aucune sauvegarde",
+    "modUpdatesWaiting_many": "{{count}} mises à jour de mods en attente"
   },
   "panelUpdateBanner": {
     "applyFailed": "Échec de l'application",
@@ -222,7 +263,8 @@
       "killed": "a tué",
       "banned": "a été banni",
       "kicked": "a été expulsé"
-    }
+    },
+    "eventsCount_many": "{{count}} événements"
   },
   "telemetry": {
     "heading": "Télémétrie du serveur",
@@ -282,7 +324,12 @@
     "backupsStoredLast_other": "{{count}} stockées, dernière {{age}}",
     "scheduleNoneActive": "aucune active",
     "scheduleActive_one": "{{count}} active",
-    "scheduleActive_other": "{{count}} actives"
+    "scheduleActive_other": "{{count}} actives",
+    "modsToUpdate_many": "{{count}} à mettre à jour",
+    "modsTracked_many": "{{count}} suivis",
+    "backupsStored_many": "{{count}} stockées",
+    "backupsStoredLast_many": "{{count}} stockées, dernière {{age}}",
+    "scheduleActive_many": "{{count}} actives"
   },
   "age": {
     "justNow": "à l'instant",
@@ -298,7 +345,13 @@
     "forHours_one": "depuis {{count}} h",
     "forHours_other": "depuis {{count}} h",
     "forDays_one": "depuis {{count}} j",
-    "forDays_other": "depuis {{count}} j"
+    "forDays_other": "depuis {{count}} j",
+    "minutesAgo_many": "il y a {{count}} min",
+    "hoursAgo_many": "il y a {{count}} h",
+    "daysAgo_many": "il y a {{count}} j",
+    "forMinutes_many": "depuis {{count}} min",
+    "forHours_many": "depuis {{count}} h",
+    "forDays_many": "depuis {{count}} j"
   },
   "eta": {
     "anyMoment": "d'un instant à l'autre",
@@ -308,17 +361,32 @@
     "inHours_other": "dans {{count}} h",
     "inHoursMinutes": "dans {{hours}} h {{minutes}} min",
     "inDays_one": "dans {{count}} j",
-    "inDays_other": "dans {{count}} j"
+    "inDays_other": "dans {{count}} j",
+    "inMinutes_many": "dans {{count}} min",
+    "inHours_many": "dans {{count}} h",
+    "inDays_many": "dans {{count}} j"
   },
   "wipeDialog": {
     "title": "Effacer le serveur",
     "description": "Sélectionnez les données à supprimer de <b>{{serverName}}</b>. Le serveur doit être arrêté.",
     "defaultServerName": "le serveur actif",
     "targets": {
-      "map": { "label": "Carte et terrain", "desc": "Chunks, terrain, bâtiments, population de zombies, régions iso." },
-      "players": { "label": "Joueurs et véhicules", "desc": "Sauvegardes des joueurs, inventaires, positions, données des véhicules." },
-      "world": { "label": "État du monde", "desc": "Dictionnaire du monde, métadonnées, érosion, états des objets du jeu, radio." },
-      "accounts": { "label": "Comptes et bannissements", "desc": "Comptes utilisateurs, mots de passe, rôles, listes blanches et de bannissement. Tout le monde se réinscrit à la prochaine connexion." }
+      "map": {
+        "label": "Carte et terrain",
+        "desc": "Chunks, terrain, bâtiments, population de zombies, régions iso."
+      },
+      "players": {
+        "label": "Joueurs et véhicules",
+        "desc": "Sauvegardes des joueurs, inventaires, positions, données des véhicules."
+      },
+      "world": {
+        "label": "État du monde",
+        "desc": "Dictionnaire du monde, métadonnées, érosion, états des objets du jeu, radio."
+      },
+      "accounts": {
+        "label": "Comptes et bannissements",
+        "desc": "Comptes utilisateurs, mots de passe, rôles, listes blanches et de bannissement. Tout le monde se réinscrit à la prochaine connexion."
+      }
     },
     "notice": "Sélectionner carte, joueurs ou monde supprime définitivement ces données — impossible d'annuler, sauf si vous créez d'abord une sauvegarde ci-dessous. Sélectionner comptes supprime définitivement les listes blanches et de bannissement ; tout le monde devra se réinscrire à la prochaine connexion. Les paramètres .ini et sandbox du serveur sont stockés séparément et ne seront pas affectés.",
     "backupLabel": "Sauvegarder avant d'effacer",

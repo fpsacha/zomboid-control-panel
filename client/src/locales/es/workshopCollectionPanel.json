@@ -148,5 +148,11 @@
   "openOnSteam": "Abrir en Steam",
   "copyWorkshopId": "Copiar ID de Workshop",
   "copiedTitle": "Copiado",
-  "copyFailedTitle": "Error al copiar"
+  "copyFailedTitle": "Error al copiar",
+  "removedServerBulkAutoSyncDesc_many": "{{count}} mods eliminados; la colección de Steam se actualizará.",
+  "removedServerBulkNoAutoSyncDesc_many": "{{count}} mods eliminados. La colección de Steam no se modificó porque la sincronización automática está desactivada.",
+  "toastBulkCompleteDesc_many": "{{count}} mods actualizados.",
+  "toastBulkFailureTitle_many": "Acción masiva: {{count}} fallos",
+  "differencesToReview_many": "{{count}} diferencias por revisar",
+  "toReview_many": "{{count}} por revisar"
 }

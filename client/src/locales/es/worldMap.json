@@ -226,7 +226,8 @@
     "cancel": "Cancelar",
     "dropButton": "Enviar",
     "dropButtonQty": "Enviar × {{qty}}",
-    "dropButtonMulti": "Enviar {{count}} objetos"
+    "dropButtonMulti": "Enviar {{count}} objetos",
+    "templateItemCount_many": "{{count}} objetos"
   },
   "deletePackageDialog": {
     "title": "¿Eliminar paquete?",
@@ -234,7 +235,8 @@
     "description_one": "“{{name}}” ({{count}} objeto) se eliminará de los paquetes guardados. Esto no se puede deshacer.",
     "description_other": "“{{name}}” ({{count}} objetos) se eliminará de los paquetes guardados. Esto no se puede deshacer.",
     "cancel": "Cancelar",
-    "confirm": "Eliminar"
+    "confirm": "Eliminar",
+    "description_many": "“{{name}}” ({{count}} objetos) se eliminará de los paquetes guardados. Esto no se puede deshacer."
   },
   "canvasAria": "Mapa del mundo con el condado de Knox y las posiciones de los jugadores. Usar las teclas de flecha para desplazar, más/menos para hacer zoom.",
   "emptyState": {

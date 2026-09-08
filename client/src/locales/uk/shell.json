@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "activeServer.playersOnline_few",
+    "activeServer.playersOnline_many",
+    "modBadge.updatesAvailable_few",
+    "modBadge.updatesAvailable_many"
+  ],
   "skipToContent": "Перейти до вмісту",
   "brand": {
     "title": "Project Zomboid",
@@ -64,11 +70,15 @@
     "statusStopped": "Сервер зупинено",
     "statusTransitioning": "Сервер запускається або зупиняється",
     "statusUnresponsive": "Сервер запущено, але він не відповідає",
-    "statusUnknown": "Стан сервера невідомий"
+    "statusUnknown": "Стан сервера невідомий",
+    "playersOnline_few": "{{count}} гравців онлайн",
+    "playersOnline_many": "{{count}} гравців онлайн"
   },
   "modBadge": {
     "updatesAvailable_one": "Доступне {{count}} оновлення мода",
-    "updatesAvailable_other": "Доступно оновлень модів: {{count}}"
+    "updatesAvailable_other": "Доступно оновлень модів: {{count}}",
+    "updatesAvailable_few": "Доступно оновлень модів: {{count}}",
+    "updatesAvailable_many": "Доступно оновлень модів: {{count}}"
   },
   "panelUpdateBadge": {
     "titleWithVersion": "Доступне оновлення панелі: v{{version}}",

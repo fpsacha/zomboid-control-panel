@@ -39,7 +39,8 @@
     "importCollection": "Importer une collection",
     "autoRestartSettings": "Paramètres de redémarrage automatique",
     "autoRestart": "Redémarrage automatique",
-    "autoRestartAria": "Activer/désactiver le redémarrage automatique lors d'une mise à jour de mod"
+    "autoRestartAria": "Activer/désactiver le redémarrage automatique lors d'une mise à jour de mod",
+    "updatesCount_many": "{{count}} mises à jour"
   },
   "restartPending": {
     "title": "Redémarrage en attente",
@@ -54,13 +55,15 @@
     "reported_one": "{{count}} mise à jour de mod signalée par Steam — indicateurs désynchronisés",
     "reported_other": "{{count}} mises à jour de mods signalées par Steam — indicateurs désynchronisés",
     "desc": "Le dossier Workshop contient des fichiers plus récents que ce que le panneau a enregistré. Lancez une vérification pour mettre à jour l'état de chaque mod.",
-    "checkNow": "Vérifier maintenant"
+    "checkNow": "Vérifier maintenant",
+    "reported_many": "{{count}} mises à jour de mods signalées par Steam — indicateurs désynchronisés"
   },
   "removedFromWorkshop": {
     "title_one": "{{count}} mod n'existe plus sur le Workshop Steam",
     "title_other": "{{count}} mods n'existent plus sur le Workshop Steam",
     "desc": "Steam a confirmé que ces éléments ont été supprimés ou rendus privés. Ils continueront à échouer aux vérifications de mise à jour et peuvent bloquer le prochain redémarrage du serveur tant qu'ils ne sont pas supprimés.",
-    "removeAria": "Supprimer {{name}} du serveur"
+    "removeAria": "Supprimer {{name}} du serveur",
+    "title_many": "{{count}} mods n'existent plus sur le Workshop Steam"
   },
   "steamApiIssue": {
     "label": "Le Workshop Steam n'a pas pu être contacté lors de la dernière vérification — utilisation des fichiers locaux uniquement pour l'instant. Nouvelle tentative automatique.",
@@ -70,12 +73,14 @@
   "unknownWorkshopResult": {
     "label_one": "{{count}} élément a reçu une réponse non reconnue de Steam lors de cette vérification :",
     "label_other": "{{count}} éléments ont reçu une réponse non reconnue de Steam lors de cette vérification :",
-    "item": "{{id}} (code {{code}})"
+    "item": "{{id}} (code {{code}})",
+    "label_many": "{{count}} éléments ont reçu une réponse non reconnue de Steam lors de cette vérification :"
   },
   "duplicateKeysWarning": {
     "title_one": "\"{{keys}}\" apparaît plus d'une fois dans ce fichier de configuration",
     "title_other": "{{count}} paramètres apparaissent plus d'une fois dans ce fichier de configuration : {{keys}}",
-    "desc": "Cette page lit la première copie et l'éditeur de configuration du serveur lit la dernière — les deux peuvent donc afficher des valeurs différentes pour le même paramètre."
+    "desc": "Cette page lit la première copie et l'éditeur de configuration du serveur lit la dernière — les deux peuvent donc afficher des valeurs différentes pour le même paramètre.",
+    "title_many": "{{count}} paramètres apparaissent plus d'une fois dans ce fichier de configuration : {{keys}}"
   },
   "nav": {
     "aria": "Sections de gestion des mods",
@@ -179,7 +184,8 @@
     "addModIds_other": "Ajouter {{count}} ID de mods",
     "addWorkshopIdOnly": "Ajouter uniquement l'ID Workshop",
     "addWorkshopId": "Ajouter l'ID Workshop",
-    "discoverFirst": "Découvrir d'abord"
+    "discoverFirst": "Découvrir d'abord",
+    "addModIds_many": "Ajouter {{count}} ID de mods"
   },
   "restartSettingsDialog": {
     "title": "Paramètres de redémarrage automatique",
@@ -273,7 +279,8 @@
     "deleteFromDisk": "Supprimer du disque",
     "workshopModFallback": "Mod Workshop {{id}}",
     "deleteAllFromDisk": "Tout supprimer du disque",
-    "clearAllIgnored": "Effacer tous les mods ignorés"
+    "clearAllIgnored": "Effacer tous les mods ignorés",
+    "count_many": "{{count}} mods ignorés"
   },
   "serverConfigTab": {
     "summaryMods": "mods",
@@ -290,7 +297,9 @@
     "deduplicateEndpointUnavailable": "Échec de la déduplication — endpoint serveur indisponible",
     "deduplicateError": "Erreur : {{message}}",
     "notConfiguredTitle": "Fichier de configuration du serveur introuvable",
-    "notConfiguredHint": "Démarrez le serveur une fois — il créera automatiquement le fichier INI."
+    "notConfiguredHint": "Démarrez le serveur une fois — il créera automatiquement le fichier INI.",
+    "summaryWorkshopItems_many": "objets Workshop",
+    "summaryMaps_many": "cartes"
   },
   "activeMods": {
     "idsEnabledTooltip": "{{enabled}} des {{total}} ID de mods sont actuellement activés. Les « ID de mods » sont les noms internes que PZ charge — un seul objet Workshop peut en fournir plusieurs (variantes, extensions, etc.).",
@@ -399,7 +408,13 @@
     "removeWorkshopDialogTitle": "Retirer l'objet Workshop ?",
     "removeWorkshopDialogDesc": "Ceci retirera l'objet Workshop et ses ID de mods de l'INI du serveur. Les fichiers Workshop sur le disque ne seront pas supprimés.",
     "cancel": "Annuler",
-    "remove": "Retirer"
+    "remove": "Retirer",
+    "workshopItems_many": "objets Workshop",
+    "missingDep_many": "{{count}} dépendances manquantes",
+    "duplicateId_many": "{{count}} ID en double",
+    "duplicateTooltip_many": "Également fourni par les objets Workshop {{ids}}",
+    "restoreDismissedTooltip_many": "Restaurer {{count}} paires de conflit ignorées pour cet objet Workshop",
+    "dismissedCount_many": "{{count}} conflits ignorés"
   },
   "loadOrder": {
     "emptyTitle": "Aucun mod dans l'ordre de chargement",
@@ -419,7 +434,10 @@
     "moveDownAria": "Descendre",
     "unsavedChanges": "Modifications d'ordre non enregistrées",
     "reset": "Réinitialiser",
-    "saveOrder": "Enregistrer l'ordre"
+    "saveOrder": "Enregistrer l'ordre",
+    "proposedOrder_many": "Ordre proposé : {{count}} mods seraient déplacés",
+    "basedOnDependencies_many": "Basé sur {{count}} dépendances déclarées dans mod.info. Les mods sans dépendance conservent votre ordre.",
+    "missingRequirements_many": "{{count}} mods requis ne sont pas activés et n'ont pas pu être ordonnés (voir l'onglet Conflits)."
   },
   "addModsTab": {
     "syncTitle": "Synchroniser les ID de mods depuis les téléchargements",
@@ -431,7 +449,8 @@
     "removeFromQueueAria": "Retirer {{name}} de la file d'attente",
     "writeToIni": "Écrire dans l'INI du serveur",
     "noModsPendingTitle": "Aucun mod en attente",
-    "noModsPendingDesc": "Utilisez l'onglet Mods du serveur pour trouver et ajouter de nouveaux objets Workshop, ou cliquez sur Synchroniser pour détecter de nouveaux téléchargements."
+    "noModsPendingDesc": "Utilisez l'onglet Mods du serveur pour trouver et ajouter de nouveaux objets Workshop, ou cliquez sur Synchroniser pour détecter de nouveaux téléchargements.",
+    "queued_many": "{{count}} mods en attente pour l'INI"
   },
   "presetsTab": {
     "intro": "Enregistrez et restaurez des configurations de mods.",
@@ -510,7 +529,10 @@
     "reEnableAria": "Réactiver {{name}}",
     "reEnableTooltip": "Réactiver (rajouter à WorkshopItems=)",
     "deleteAria": "Supprimer {{name}} du suivi",
-    "deleteTooltip": "Supprimer du suivi"
+    "deleteTooltip": "Supprimer du suivi",
+    "deleteSelectedConfirm_many": "Retirer {{count}} mods désactivés sélectionnés du suivi ? Les fichiers Workshop restent sur le disque -- vous pourrez les rajouter plus tard.",
+    "deleteAllConfirm_many": "Retirer TOUS les {{count}} mods désactivés du suivi ? Les fichiers Workshop restent sur le disque -- vous pourrez les rajouter plus tard.",
+    "genericNameNotice_many": "<1>{{count}}</1> mods affichent un nom générique. Cliquez sur <3>Actualiser les noms</3> pour les rechercher (vérifie d'abord le disque, puis l'API Steam Workshop)."
   },
   "removeModDialog": {
     "title": "Retirer ce mod du serveur ?",
@@ -524,7 +546,9 @@
     "description": "Ceci retire les mods sélectionnés de la configuration INI du serveur pour qu'ils ne se chargent plus. Les fichiers Workshop restent sur le disque (le rajout ultérieur est donc instantané).",
     "cancel": "Annuler",
     "remove_one": "Retirer {{count}} mod",
-    "remove_other": "Retirer {{count}} mods"
+    "remove_other": "Retirer {{count}} mods",
+    "title_many": "Retirer {{count}} mods du serveur ?",
+    "remove_many": "Retirer {{count}} mods"
   },
   "toasts": {
     "serverChangedSinceLoadTitle": "Active server changed",
@@ -736,6 +760,22 @@
     "scanFailedGeneric": "Échec de l'analyse",
     "scanParseFailed": "Échec de l'analyse des résultats",
     "comparingFileContents": "Comparaison du contenu des fichiers...",
-    "groupingResults": "Regroupement des résultats..."
+    "groupingResults": "Regroupement des résultats...",
+    "modEnabledDesc_many": "Ajouté à l'INI du serveur ({{count}} ID de mods). Redémarrez le serveur pour le charger.",
+    "modDeletedFromDisk_many": "Supprimé du disque ({{count}} ID de mods retirés de l'INI).",
+    "deleteDisabledFromDiskDesc_many": "Supprimer les {{count}} mods désactivés du disque ? Ceci retire chaque dossier Workshop listé ci-dessous.",
+    "bulkDeleteCompleteDesc_many": "{{deleted}}/{{total}} dossiers de mod supprimés",
+    "bulkDeleteCompleteStrippedSuffix_many": " ({{stripped}} ID de mods retirés de l'INI).",
+    "deleteIgnoredFromDiskDesc_many": "Supprimer les {{count}} mods ignorés du disque ? Ceci retire chaque dossier Workshop listé ci-dessous ET vide la liste des ignorés.",
+    "modsHaveUpdates_many": "{{count}} mods ont des mises à jour disponibles",
+    "mapsAddedSuffix_many": " Cartes : {{names}}.",
+    "reEnabledDesc_many": "{{count}} mods rajoutés à l'INI{{failedSuffix}}.",
+    "resolvedNames_many": "{{count}} noms résolus",
+    "checkedPlaceholders_many": "{{count}} noms génériques vérifiés — aucun n'a pu être résolu. Les mods sont peut-être supprimés ou privés sur Steam.",
+    "removeSuccessDesc_many": "{{count}} mods retirés du suivi et de la config serveur",
+    "modsAddedToConfigTitle_many": "{{count}} mods ajoutés à la config serveur",
+    "nothingToSortByDesc_many": "{{count}} exigences déclarées ne sont pas activées, donc aucun des mods activés ne dépend d'un autre.",
+    "loadOrderCyclesDesc_many": "Chaque dépendance satisfiable se charge déjà en premier. {{count}} dépendances circulaires ne peuvent pas être ordonnées.",
+    "autoSortAppliedDesc_many": "{{count}} mods repositionnés. Cliquez sur Enregistrer l'ordre pour l'écrire dans l'INI du serveur."
   }
 }

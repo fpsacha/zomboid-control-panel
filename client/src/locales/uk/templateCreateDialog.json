@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "iniKeyCount_few",
+    "iniKeyCount_many",
+    "sandboxSettingCount_few",
+    "sandboxSettingCount_many"
+  ],
   "failedToReadConfig": "Не вдалося прочитати поточну конфігурацію сервера.",
   "failedToSave": "Не вдалося зберегти шаблон",
   "toastSavedTitle": "Шаблон збережено",
@@ -17,5 +23,9 @@
   "willSave": "Буде збережено {{sandbox}} та {{ini}}. Налаштування ідентичності та підключення (назва, порти, паролі) ніколи не включаються.",
   "errorTitle": "Шаблон не збережено",
   "cancel": "Скасувати",
-  "saveTemplate": "Зберегти шаблон"
+  "saveTemplate": "Зберегти шаблон",
+  "sandboxSettingCount_few": "{{count}} налаштувань Sandbox",
+  "sandboxSettingCount_many": "{{count}} налаштувань Sandbox",
+  "iniKeyCount_few": "{{count}} ключів server.ini",
+  "iniKeyCount_many": "{{count}} ключів server.ini"
 }

@@ -64,11 +64,13 @@
     "statusStopped": "Le serveur est arrêté",
     "statusTransitioning": "Le serveur démarre ou s'arrête",
     "statusUnresponsive": "Le serveur a démarré mais ne répond pas",
-    "statusUnknown": "État du serveur inconnu"
+    "statusUnknown": "État du serveur inconnu",
+    "playersOnline_many": "{{count}} joueurs en ligne"
   },
   "modBadge": {
     "updatesAvailable_one": "{{count}} mise à jour de mod disponible",
-    "updatesAvailable_other": "{{count}} mises à jour de mods disponibles"
+    "updatesAvailable_other": "{{count}} mises à jour de mods disponibles",
+    "updatesAvailable_many": "{{count}} mises à jour de mods disponibles"
   },
   "panelUpdateBadge": {
     "titleWithVersion": "Mise à jour du panneau disponible : v{{version}}",

@@ -33,7 +33,8 @@
     "rosterTip": "Joueurs avec qui vous vous êtes déjà connecté, actuellement hors ligne. Quelqu'un en ligne à l'instant n'est pas compté ici tant qu'il ne s'est pas déconnecté — c'est pourquoi ce nombre peut afficher 0 alors qu'une carte joueur est active au-dessus.",
     "bannedLabel": "SteamID bannis",
     "bannedManage": "gérer",
-    "bannedAria": "Voir les {{count}} SteamID bannis"
+    "bannedAria": "Voir les {{count}} SteamID bannis",
+    "onlineCaption_many": "joueurs"
   },
   "roster": {
     "headerLabel": "effectif",
@@ -89,7 +90,9 @@
     "removeAllowedTitle": "Retirer le Steam ID autorisé {{steamId}}",
     "manualTargetLabel": "› Cible manuelle",
     "manualTargetLabelText": "Cible manuelle",
-    "manualTargetPlaceholder": "Entrer un nom d'utilisateur…"
+    "manualTargetPlaceholder": "Entrer un nom d'utilisateur…",
+    "seePreviouslySeen_many": "Voir {{count}} joueurs déjà vus",
+    "reviewBanned_many": "Examiner {{count}} SteamID bannis"
   },
   "dossier": {
     "subheaderLabel": "dossier",

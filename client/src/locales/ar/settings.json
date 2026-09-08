@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "backups.backupsStored_few",
+    "backups.backupsStored_many",
+    "backups.backupsStored_two",
+    "backups.backupsStored_zero",
+    "workshopSync.inSync_few",
+    "workshopSync.inSync_many",
+    "workshopSync.inSync_two",
+    "workshopSync.inSync_zero"
+  ],
   "ariaLabels": {
     "allowPrivateLan": "السماح بالأصول الخاصة وأصول الشبكة المحلية",
     "enablePublicIp": "تفعيل البحث عن عنوان IP العام",
@@ -531,7 +541,11 @@
     "autoExportLabel": "تصدير الشخصية عند انضمام لاعب",
     "autoExportDesc": "يعمل بعد نحو عشر ثوانٍ من تحميل اللاعب، فيمكن استعادة شخصية واحدة دون إرجاع العالم كله. ويتطلب اتصال PanelBridge.",
     "copiesKeptLabel": "عدد النسخ المحفوظة لكل لاعب",
-    "copiesKeptHelp": "تُحذف أقدم عمليات التصدير عندما يتجاوز اللاعب هذا العدد. واستعدها من صفحة اللاعبين."
+    "copiesKeptHelp": "تُحذف أقدم عمليات التصدير عندما يتجاوز اللاعب هذا العدد. واستعدها من صفحة اللاعبين.",
+    "backupsStored_zero": "النسخ الاحتياطية المخزَّنة: {{count}}",
+    "backupsStored_two": "النسخ الاحتياطية المخزَّنة: {{count}}",
+    "backupsStored_few": "النسخ الاحتياطية المخزَّنة: {{count}}",
+    "backupsStored_many": "النسخ الاحتياطية المخزَّنة: {{count}}"
   },
   "security": {
     "cardTitle": "الأمان والمصادقة",
@@ -805,7 +819,11 @@
       "cookiesFirstError": "أضف ملفات تعريف ارتباط Steam أولًا للكتابة إلى المجموعة.",
       "sessionExpiredError": "انتهت جلسة Steam. الصق ملفات تعريف ارتباط جديدة أعلاه وحاول من جديد.",
       "failedToReadCollection": "فشلت قراءة المجموعة"
-    }
+    },
+    "inSync_zero": "متزامن — العناصر: {{count}}",
+    "inSync_two": "متزامن — العناصر: {{count}}",
+    "inSync_few": "متزامن — العناصر: {{count}}",
+    "inSync_many": "متزامن — العناصر: {{count}}"
   },
   "toasts": {
     "recoveryCodesGenerated": {

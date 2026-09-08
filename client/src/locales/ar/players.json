@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "roster.reviewBanned_few",
+    "roster.reviewBanned_many",
+    "roster.reviewBanned_two",
+    "roster.reviewBanned_zero",
+    "roster.seePreviouslySeen_few",
+    "roster.seePreviouslySeen_many",
+    "roster.seePreviouslySeen_two",
+    "roster.seePreviouslySeen_zero",
+    "summary.onlineCaption_few",
+    "summary.onlineCaption_many",
+    "summary.onlineCaption_two",
+    "summary.onlineCaption_zero"
+  ],
   "pageHeader": {
     "title": "اللاعبون",
     "description": "إدارة اللاعبين المتصلين وصلاحياتهم",
@@ -33,7 +47,11 @@
     "rosterTip": "اللاعبون الذين اتصلت بهم من قبل، وهم الآن غير متصلين. اللاعب المتصل حاليًا لا يُحتسب هنا حتى يقطع الاتصال — لهذا قد تظهر القيمة 0 بينما توجد بطاقة لاعب نشطة أعلاه.",
     "bannedLabel": "معرّفات Steam المحظورة",
     "bannedManage": "إدارة",
-    "bannedAria": "عرض {{count}} من معرّفات Steam المحظورة"
+    "bannedAria": "عرض {{count}} من معرّفات Steam المحظورة",
+    "onlineCaption_zero": "لاعبين",
+    "onlineCaption_two": "لاعبين",
+    "onlineCaption_few": "لاعبين",
+    "onlineCaption_many": "لاعبين"
   },
   "roster": {
     "headerLabel": "القائمة",
@@ -89,7 +107,15 @@
     "removeAllowedTitle": "إزالة معرّف Steam المسموح به {{steamId}}",
     "manualTargetLabel": "› هدف يدوي",
     "manualTargetLabelText": "هدف يدوي",
-    "manualTargetPlaceholder": "أدخل اسم المستخدم…"
+    "manualTargetPlaceholder": "أدخل اسم المستخدم…",
+    "seePreviouslySeen_zero": "عرض {{count}} لاعبين شوهدوا سابقًا",
+    "seePreviouslySeen_two": "عرض {{count}} لاعبين شوهدوا سابقًا",
+    "seePreviouslySeen_few": "عرض {{count}} لاعبين شوهدوا سابقًا",
+    "seePreviouslySeen_many": "عرض {{count}} لاعبين شوهدوا سابقًا",
+    "reviewBanned_zero": "مراجعة {{count}} معرّفات Steam محظورة",
+    "reviewBanned_two": "مراجعة {{count}} معرّفات Steam محظورة",
+    "reviewBanned_few": "مراجعة {{count}} معرّفات Steam محظورة",
+    "reviewBanned_many": "مراجعة {{count}} معرّفات Steam محظورة"
   },
   "dossier": {
     "subheaderLabel": "الملف",

@@ -1,4 +1,26 @@
 {
+  "__pendingPluralForms": [
+    "resultDisplay.factionsCount_few",
+    "resultDisplay.factionsCount_many",
+    "resultDisplay.factionsCount_two",
+    "resultDisplay.factionsCount_zero",
+    "resultDisplay.membersCount_few",
+    "resultDisplay.membersCount_many",
+    "resultDisplay.membersCount_two",
+    "resultDisplay.membersCount_zero",
+    "resultDisplay.safehousesCount_few",
+    "resultDisplay.safehousesCount_many",
+    "resultDisplay.safehousesCount_two",
+    "resultDisplay.safehousesCount_zero",
+    "resultDisplay.sequenceExecutedCount_few",
+    "resultDisplay.sequenceExecutedCount_many",
+    "resultDisplay.sequenceExecutedCount_two",
+    "resultDisplay.sequenceExecutedCount_zero",
+    "resultDisplay.vehiclesLoaded_few",
+    "resultDisplay.vehiclesLoaded_many",
+    "resultDisplay.vehiclesLoaded_two",
+    "resultDisplay.vehiclesLoaded_zero"
+  ],
   "pageHeader": {
     "title": "وحدة تحكم الأحداث",
     "description": "الطقس والوقت والأصوات وإجراءات اللاعبين وأدوات الجسر",
@@ -409,31 +431,100 @@
     "requiredSuffix": " *"
   },
   "operationGroups": {
-    "territory": { "label": "الأراضي", "description": "إدارة الملاذات الآمنة والفصائل." },
-    "vehicles": { "label": "المركبات", "description": "الإصلاح والإنذارات والصفارات وأقفال الصندوق." },
-    "events": { "label": "الأحداث", "description": "الأسراب والبنية التحتية والتسلسلات المبرمجة." },
-    "moderation": { "label": "الإشراف", "description": "إجراءات الطرد والحظر عبر BanSystem." }
+    "territory": {
+      "label": "الأراضي",
+      "description": "إدارة الملاذات الآمنة والفصائل."
+    },
+    "vehicles": {
+      "label": "المركبات",
+      "description": "الإصلاح والإنذارات والصفارات وأقفال الصندوق."
+    },
+    "events": {
+      "label": "الأحداث",
+      "description": "الأسراب والبنية التحتية والتسلسلات المبرمجة."
+    },
+    "moderation": {
+      "label": "الإشراف",
+      "description": "إجراءات الطرد والحظر عبر BanSystem."
+    }
   },
   "operations": {
-    "getSafehouses": { "label": "عرض الملاذات الآمنة", "description": "جلب كل الملاذات الآمنة وبياناتها الوصفية." },
-    "safehouseAddPlayer": { "label": "إضافة لاعب إلى ملاذ آمن", "description": "يضيف لاعبًا إلى ملاذ آمن." },
-    "safehouseRemovePlayer": { "label": "إزالة لاعب من ملاذ آمن", "description": "يزيل لاعبًا من ملاذ آمن." },
-    "safehouseSetOwner": { "label": "تعيين مالك الملاذ الآمن", "description": "ينقل ملكية ملاذ آمن." },
-    "safehouseSetRespawn": { "label": "تبديل الظهور في الملاذ الآمن", "description": "تفعيل/تعطيل ظهور اللاعب من جديد داخل الملاذ الآمن." },
-    "getFactions": { "label": "عرض الفصائل", "description": "جلب كل الفصائل وأعضائها." },
-    "createFaction": { "label": "إنشاء فصيل", "description": "ينشئ فصيلًا جديدًا." },
-    "factionAddPlayer": { "label": "إضافة لاعب إلى فصيل", "description": "يضيف لاعبًا إلى فصيل." },
-    "factionRemovePlayer": { "label": "إزالة لاعب من فصيل", "description": "يزيل لاعبًا من فصيل." },
-    "factionSetTag": { "label": "تعيين وسم الفصيل", "description": "يحدد الوسم القصير للفصيل." },
-    "removeFaction": { "label": "حذف فصيل", "description": "يحذف الفصيل." },
-    "getVehiclesDetailed": { "label": "عرض المركبات", "description": "يسرد المركبات المحمَّلة مع بيانات القياس عن بُعد." },
-    "triggerSwarmEvent": { "label": "إطلاق حدث سرب", "description": "يستدعي الزومبي في منطقة مستطيلة." },
-    "runEventSequence": { "label": "تنفيذ تسلسل أحداث", "description": "ينفّذ تسلسلًا مترابطًا من الدردشة/الطقس/السرب/المرافق/الضجيج." },
-    "getInfrastructureSnapshot": { "label": "لقطة البنية التحتية", "description": "يقرأ حالة المياه والطقس ونقطة عيّنة اختيارية." },
-    "moderationKickUser": { "label": "طرد مستخدم", "description": "يطرد لاعبًا عبر BanSystem." },
-    "moderationBanUser": { "label": "حظر مستخدم", "description": "يحظر أو يرفع الحظر باسم المستخدم فقط -- وهذا لا يحظر عنوان IP الخاص به. استخدم صفحة اللاعبين لحظر مشترك لاسم المستخدم وعنوان IP معًا." },
-    "moderationBanIP": { "label": "حظر عنوان IP", "description": "يحظر أو يرفع حظر عنوان IP." },
-    "moderationBanSteamID": { "label": "حظر معرّف Steam", "description": "يحظر أو يرفع حظر معرّف Steam." }
+    "getSafehouses": {
+      "label": "عرض الملاذات الآمنة",
+      "description": "جلب كل الملاذات الآمنة وبياناتها الوصفية."
+    },
+    "safehouseAddPlayer": {
+      "label": "إضافة لاعب إلى ملاذ آمن",
+      "description": "يضيف لاعبًا إلى ملاذ آمن."
+    },
+    "safehouseRemovePlayer": {
+      "label": "إزالة لاعب من ملاذ آمن",
+      "description": "يزيل لاعبًا من ملاذ آمن."
+    },
+    "safehouseSetOwner": {
+      "label": "تعيين مالك الملاذ الآمن",
+      "description": "ينقل ملكية ملاذ آمن."
+    },
+    "safehouseSetRespawn": {
+      "label": "تبديل الظهور في الملاذ الآمن",
+      "description": "تفعيل/تعطيل ظهور اللاعب من جديد داخل الملاذ الآمن."
+    },
+    "getFactions": {
+      "label": "عرض الفصائل",
+      "description": "جلب كل الفصائل وأعضائها."
+    },
+    "createFaction": {
+      "label": "إنشاء فصيل",
+      "description": "ينشئ فصيلًا جديدًا."
+    },
+    "factionAddPlayer": {
+      "label": "إضافة لاعب إلى فصيل",
+      "description": "يضيف لاعبًا إلى فصيل."
+    },
+    "factionRemovePlayer": {
+      "label": "إزالة لاعب من فصيل",
+      "description": "يزيل لاعبًا من فصيل."
+    },
+    "factionSetTag": {
+      "label": "تعيين وسم الفصيل",
+      "description": "يحدد الوسم القصير للفصيل."
+    },
+    "removeFaction": {
+      "label": "حذف فصيل",
+      "description": "يحذف الفصيل."
+    },
+    "getVehiclesDetailed": {
+      "label": "عرض المركبات",
+      "description": "يسرد المركبات المحمَّلة مع بيانات القياس عن بُعد."
+    },
+    "triggerSwarmEvent": {
+      "label": "إطلاق حدث سرب",
+      "description": "يستدعي الزومبي في منطقة مستطيلة."
+    },
+    "runEventSequence": {
+      "label": "تنفيذ تسلسل أحداث",
+      "description": "ينفّذ تسلسلًا مترابطًا من الدردشة/الطقس/السرب/المرافق/الضجيج."
+    },
+    "getInfrastructureSnapshot": {
+      "label": "لقطة البنية التحتية",
+      "description": "يقرأ حالة المياه والطقس ونقطة عيّنة اختيارية."
+    },
+    "moderationKickUser": {
+      "label": "طرد مستخدم",
+      "description": "يطرد لاعبًا عبر BanSystem."
+    },
+    "moderationBanUser": {
+      "label": "حظر مستخدم",
+      "description": "يحظر أو يرفع الحظر باسم المستخدم فقط -- وهذا لا يحظر عنوان IP الخاص به. استخدم صفحة اللاعبين لحظر مشترك لاسم المستخدم وعنوان IP معًا."
+    },
+    "moderationBanIP": {
+      "label": "حظر عنوان IP",
+      "description": "يحظر أو يرفع حظر عنوان IP."
+    },
+    "moderationBanSteamID": {
+      "label": "حظر معرّف Steam",
+      "description": "يحظر أو يرفع حظر معرّف Steam."
+    }
   },
   "operationForms": {
     "safehouseRef": "الملاذ الآمن",
@@ -535,51 +626,197 @@
     "sequenceExecutedCount_one": "{{executed}} خطوة نُفِّذت",
     "sequenceExecutedCount_other": "الخطوات المنفَّذة: {{executed}}",
     "sequenceFailedStepsTitle": "الخطوات الفاشلة",
-    "sequenceStepIndex": "الخطوة {{index}}"
+    "sequenceStepIndex": "الخطوة {{index}}",
+    "vehiclesLoaded_zero": "المركبات المحمَّلة: {{count}}",
+    "vehiclesLoaded_two": "المركبات المحمَّلة: {{count}}",
+    "vehiclesLoaded_few": "المركبات المحمَّلة: {{count}}",
+    "vehiclesLoaded_many": "المركبات المحمَّلة: {{count}}",
+    "safehousesCount_zero": "الملاذات الآمنة: {{count}}",
+    "safehousesCount_two": "الملاذات الآمنة: {{count}}",
+    "safehousesCount_few": "الملاذات الآمنة: {{count}}",
+    "safehousesCount_many": "الملاذات الآمنة: {{count}}",
+    "membersCount_zero": "عدد الأعضاء: {{count}}",
+    "membersCount_two": "عدد الأعضاء: {{count}}",
+    "membersCount_few": "عدد الأعضاء: {{count}}",
+    "membersCount_many": "عدد الأعضاء: {{count}}",
+    "factionsCount_zero": "الفصائل: {{count}}",
+    "factionsCount_two": "الفصائل: {{count}}",
+    "factionsCount_few": "الفصائل: {{count}}",
+    "factionsCount_many": "الفصائل: {{count}}",
+    "sequenceExecutedCount_zero": "الخطوات المنفَّذة: {{executed}}",
+    "sequenceExecutedCount_two": "الخطوات المنفَّذة: {{executed}}",
+    "sequenceExecutedCount_few": "الخطوات المنفَّذة: {{executed}}",
+    "sequenceExecutedCount_many": "الخطوات المنفَّذة: {{executed}}"
   },
   "successCopy": {
-    "rainStarted": { "title": "بدأ المطر", "description": "المطر نشط الآن على الخادم." },
-    "rainStopped": { "title": "توقف المطر", "description": "تمت تصفية هطول المطر." },
-    "stormTriggered": { "title": "أُطلقت العاصفة", "description": "حدث عاصفة نشط الآن." },
-    "tropicalStormTriggered": { "title": "أُطلقت العاصفة المدارية", "description": "طقس شديد الحدة نشط الآن." },
-    "blizzardTriggered": { "title": "أُطلقت العاصفة الثلجية", "description": "حدث عاصفة ثلجية نشط الآن." },
-    "weatherCleared": { "title": "تمت تصفية الطقس", "description": "أُزيلت كل حالات الطقس المفروضة." },
-    "weatherFrontGenerated": { "title": "تولّدت جبهة جوية", "description": "جبهة جوية جديدة تعبر الخادم الآن." },
-    "snowEnabled": { "title": "فُعِّل تساقط الثلج", "description": "هطول الثلج نشط الآن." },
-    "snowDisabled": { "title": "عُطِّل تساقط الثلج", "description": "أُوقف هطول الثلج." },
-    "climateReset": { "title": "أُعيد ضبط المناخ", "description": "أُزيلت كل تجاوزات المناخ." },
-    "fogUpdated": { "title": "حُدِّث الضباب", "description": "طُبِّقت كثافة الضباب على الخادم." },
-    "windUpdated": { "title": "حُدِّثت الرياح", "description": "طُبِّقت شدة الرياح على الخادم." },
-    "temperatureUpdated": { "title": "حُدِّثت الحرارة", "description": "طُبِّقت الحرارة على الخادم." },
-    "cloudsUpdated": { "title": "حُدِّث الغطاء السحابي", "description": "طُبِّقت شدة الغيوم على الخادم." },
-    "humidityUpdated": { "title": "حُدِّثت الرطوبة", "description": "طُبِّق مستوى الرطوبة على الخادم." },
-    "precipitationUpdated": { "title": "حُدِّث الهطول", "description": "طُبِّقت شدة الهطول على الخادم." },
-    "timeUpdated": { "title": "حُدِّث الوقت", "description": "عُدِّل تاريخ اللعبة ووقتها." },
-    "utilitiesRestored": { "title": "استُعيدت المرافق", "description": "عادت الكهرباء والماء للعمل." },
-    "utilitiesShutDown": { "title": "قُطعت المرافق", "description": "قُطعت الكهرباء والماء." },
-    "powerRestored": { "title": "استُعيدت الكهرباء", "description": "عادت خدمة الكهرباء للعمل." },
-    "waterRestored": { "title": "استُعيد الماء", "description": "عادت خدمة الماء للعمل." },
-    "powerShutDown": { "title": "قُطعت الكهرباء", "description": "قُطعت خدمة الكهرباء." },
-    "waterShutDown": { "title": "قُطع الماء", "description": "قُطعت خدمة الماء." },
-    "helicopterTriggered": { "title": "أُطلقت المروحية", "description": "حدث مروحية نشط الآن." },
-    "helicopterEventTriggered": { "title": "أُطلق حدث المروحية", "description": "حدث مروحية على مستوى الخادم نشط الآن." },
-    "helicopterEventStopped": { "title": "أُوقف حدث المروحية", "description": "أُرسلت إشارة إيقاف حدث المروحية على مستوى الخادم." },
-    "gunshotTriggered": { "title": "أُطلقت طلقة نارية", "description": "أُنشئ صوت طلقة نارية." },
-    "alarmTriggered": { "title": "أُطلق الإنذار", "description": "تم إطلاق إنذار." },
-    "noiseCreated": { "title": "أُنشئ الضجيج", "description": "وُضع طُعم صوتي مخصص." },
-    "lightningTriggered": { "title": "أُطلق البرق", "description": "استُدعيت صاعقة برق." },
-    "thunderTriggered": { "title": "أُطلق الرعد", "description": "حدث رعد نشط الآن." },
-    "hordeSpawned": { "title": "ظهر الحشد", "description": "أُنشئت مجموعة زومبي." },
-    "rearHordeSpawned": { "title": "ظهر حشد خلفي", "description": "ظهرت مجموعة زومبي خلف الهدف." },
-    "zombiesCleared": { "title": "أُزيل الزومبي", "description": "أُزيل كل الزومبي من الخلايا المحمَّلة." },
-    "zombiesClearedNear": { "title": "أُزيل الزومبي القريبون", "description": "أُزيل الزومبي القريبون من الهدف." },
-    "timeSpeedUpdated": { "title": "حُدِّثت سرعة الوقت", "description": "تغيّر مضاعف الوقت." },
-    "teleportComplete": { "title": "اكتمل النقل الآني", "description": "نُقل الهدف." },
-    "vehicleSpawned": { "title": "ظهرت المركبة", "description": "سُلِّمت المركبة إلى اللاعب الهدف." },
-    "announcementSent": { "title": "أُرسل الإعلان", "description": "بُثّت الرسالة إلى كل اللاعبين." },
-    "climateApplied": { "title": "طُبِّق المناخ", "description": "حُدِّثت كل معاملات المناخ." },
-    "visualApplied": { "title": "طُبِّقت الإعدادات المرئية", "description": "حُدِّثت كل المعاملات المرئية." },
-    "actionCompleteDefault": { "title": "اكتمل الإجراء", "description": "{{action}} اكتمل بنجاح." }
+    "rainStarted": {
+      "title": "بدأ المطر",
+      "description": "المطر نشط الآن على الخادم."
+    },
+    "rainStopped": {
+      "title": "توقف المطر",
+      "description": "تمت تصفية هطول المطر."
+    },
+    "stormTriggered": {
+      "title": "أُطلقت العاصفة",
+      "description": "حدث عاصفة نشط الآن."
+    },
+    "tropicalStormTriggered": {
+      "title": "أُطلقت العاصفة المدارية",
+      "description": "طقس شديد الحدة نشط الآن."
+    },
+    "blizzardTriggered": {
+      "title": "أُطلقت العاصفة الثلجية",
+      "description": "حدث عاصفة ثلجية نشط الآن."
+    },
+    "weatherCleared": {
+      "title": "تمت تصفية الطقس",
+      "description": "أُزيلت كل حالات الطقس المفروضة."
+    },
+    "weatherFrontGenerated": {
+      "title": "تولّدت جبهة جوية",
+      "description": "جبهة جوية جديدة تعبر الخادم الآن."
+    },
+    "snowEnabled": {
+      "title": "فُعِّل تساقط الثلج",
+      "description": "هطول الثلج نشط الآن."
+    },
+    "snowDisabled": {
+      "title": "عُطِّل تساقط الثلج",
+      "description": "أُوقف هطول الثلج."
+    },
+    "climateReset": {
+      "title": "أُعيد ضبط المناخ",
+      "description": "أُزيلت كل تجاوزات المناخ."
+    },
+    "fogUpdated": {
+      "title": "حُدِّث الضباب",
+      "description": "طُبِّقت كثافة الضباب على الخادم."
+    },
+    "windUpdated": {
+      "title": "حُدِّثت الرياح",
+      "description": "طُبِّقت شدة الرياح على الخادم."
+    },
+    "temperatureUpdated": {
+      "title": "حُدِّثت الحرارة",
+      "description": "طُبِّقت الحرارة على الخادم."
+    },
+    "cloudsUpdated": {
+      "title": "حُدِّث الغطاء السحابي",
+      "description": "طُبِّقت شدة الغيوم على الخادم."
+    },
+    "humidityUpdated": {
+      "title": "حُدِّثت الرطوبة",
+      "description": "طُبِّق مستوى الرطوبة على الخادم."
+    },
+    "precipitationUpdated": {
+      "title": "حُدِّث الهطول",
+      "description": "طُبِّقت شدة الهطول على الخادم."
+    },
+    "timeUpdated": {
+      "title": "حُدِّث الوقت",
+      "description": "عُدِّل تاريخ اللعبة ووقتها."
+    },
+    "utilitiesRestored": {
+      "title": "استُعيدت المرافق",
+      "description": "عادت الكهرباء والماء للعمل."
+    },
+    "utilitiesShutDown": {
+      "title": "قُطعت المرافق",
+      "description": "قُطعت الكهرباء والماء."
+    },
+    "powerRestored": {
+      "title": "استُعيدت الكهرباء",
+      "description": "عادت خدمة الكهرباء للعمل."
+    },
+    "waterRestored": {
+      "title": "استُعيد الماء",
+      "description": "عادت خدمة الماء للعمل."
+    },
+    "powerShutDown": {
+      "title": "قُطعت الكهرباء",
+      "description": "قُطعت خدمة الكهرباء."
+    },
+    "waterShutDown": {
+      "title": "قُطع الماء",
+      "description": "قُطعت خدمة الماء."
+    },
+    "helicopterTriggered": {
+      "title": "أُطلقت المروحية",
+      "description": "حدث مروحية نشط الآن."
+    },
+    "helicopterEventTriggered": {
+      "title": "أُطلق حدث المروحية",
+      "description": "حدث مروحية على مستوى الخادم نشط الآن."
+    },
+    "helicopterEventStopped": {
+      "title": "أُوقف حدث المروحية",
+      "description": "أُرسلت إشارة إيقاف حدث المروحية على مستوى الخادم."
+    },
+    "gunshotTriggered": {
+      "title": "أُطلقت طلقة نارية",
+      "description": "أُنشئ صوت طلقة نارية."
+    },
+    "alarmTriggered": {
+      "title": "أُطلق الإنذار",
+      "description": "تم إطلاق إنذار."
+    },
+    "noiseCreated": {
+      "title": "أُنشئ الضجيج",
+      "description": "وُضع طُعم صوتي مخصص."
+    },
+    "lightningTriggered": {
+      "title": "أُطلق البرق",
+      "description": "استُدعيت صاعقة برق."
+    },
+    "thunderTriggered": {
+      "title": "أُطلق الرعد",
+      "description": "حدث رعد نشط الآن."
+    },
+    "hordeSpawned": {
+      "title": "ظهر الحشد",
+      "description": "أُنشئت مجموعة زومبي."
+    },
+    "rearHordeSpawned": {
+      "title": "ظهر حشد خلفي",
+      "description": "ظهرت مجموعة زومبي خلف الهدف."
+    },
+    "zombiesCleared": {
+      "title": "أُزيل الزومبي",
+      "description": "أُزيل كل الزومبي من الخلايا المحمَّلة."
+    },
+    "zombiesClearedNear": {
+      "title": "أُزيل الزومبي القريبون",
+      "description": "أُزيل الزومبي القريبون من الهدف."
+    },
+    "timeSpeedUpdated": {
+      "title": "حُدِّثت سرعة الوقت",
+      "description": "تغيّر مضاعف الوقت."
+    },
+    "teleportComplete": {
+      "title": "اكتمل النقل الآني",
+      "description": "نُقل الهدف."
+    },
+    "vehicleSpawned": {
+      "title": "ظهرت المركبة",
+      "description": "سُلِّمت المركبة إلى اللاعب الهدف."
+    },
+    "announcementSent": {
+      "title": "أُرسل الإعلان",
+      "description": "بُثّت الرسالة إلى كل اللاعبين."
+    },
+    "climateApplied": {
+      "title": "طُبِّق المناخ",
+      "description": "حُدِّثت كل معاملات المناخ."
+    },
+    "visualApplied": {
+      "title": "طُبِّقت الإعدادات المرئية",
+      "description": "حُدِّثت كل المعاملات المرئية."
+    },
+    "actionCompleteDefault": {
+      "title": "اكتمل الإجراء",
+      "description": "{{action}} اكتمل بنجاح."
+    }
   },
   "toasts": {
     "actionFailedTitle": "فشل {{action}}",

@@ -7,5 +7,7 @@
   "modsCount_other": "{{count}} mods",
   "preview": "Vista previa",
   "exportTitle": "Exportar plantilla",
-  "deleteTitle": "Eliminar plantilla"
+  "deleteTitle": "Eliminar plantilla",
+  "settingsOverridden_many": "{{count}} ajustes anulados",
+  "modsCount_many": "{{count}} mods"
 }

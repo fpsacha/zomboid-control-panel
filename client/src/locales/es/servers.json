@@ -189,7 +189,8 @@
     "selectScannedConfigAria": "Usar el servidor detectado {{name}}",
     "discoverNoPermission": "Detectar o buscar servidores requiere el permiso servers.discover, del cual este rol no dispone.",
     "installPathPlaceholderWindows": "Ruta a la carpeta del servidor de PZ que contiene StartServer64.bat",
-    "installPathPlaceholderPosix": "Ruta a la carpeta del servidor de PZ que contiene start-server.sh"
+    "installPathPlaceholderPosix": "Ruta a la carpeta del servidor de PZ que contiene start-server.sh",
+    "foundServers_many": "Se encontraron {{count}} servidores. Haz clic para seleccionar:"
   },
   "editDialog": {
     "lifecycleProviderLabel": "Proveedor del ciclo de vida",
@@ -388,6 +389,7 @@
     "serverAddedTitle": "Servidor añadido",
     "serverAddedDesc": "«{{name}}» añadido al panel",
     "addServerFailed": "No se pudo añadir el servidor",
-    "detectionFailed": "Error de detección"
+    "detectionFailed": "Error de detección",
+    "serversFoundCount_many": "{{count}} servidores encontrados"
   }
 }

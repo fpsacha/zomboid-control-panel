@@ -11,13 +11,34 @@
     "retry": "Réessayer"
   },
   "weekdays": {
-    "mon": { "short": "LUN", "name": "Lundi" },
-    "tue": { "short": "MAR", "name": "Mardi" },
-    "wed": { "short": "MER", "name": "Mercredi" },
-    "thu": { "short": "JEU", "name": "Jeudi" },
-    "fri": { "short": "VEN", "name": "Vendredi" },
-    "sat": { "short": "SAM", "name": "Samedi" },
-    "sun": { "short": "DIM", "name": "Dimanche" }
+    "mon": {
+      "short": "LUN",
+      "name": "Lundi"
+    },
+    "tue": {
+      "short": "MAR",
+      "name": "Mardi"
+    },
+    "wed": {
+      "short": "MER",
+      "name": "Mercredi"
+    },
+    "thu": {
+      "short": "JEU",
+      "name": "Jeudi"
+    },
+    "fri": {
+      "short": "VEN",
+      "name": "Vendredi"
+    },
+    "sat": {
+      "short": "SAM",
+      "name": "Samedi"
+    },
+    "sun": {
+      "short": "DIM",
+      "name": "Dimanche"
+    }
   },
   "commands": {
     "restartServer": "Redémarrer le serveur",
@@ -91,7 +112,9 @@
     "modUpdateRestart": "Redémarrage sur mise à jour de mod",
     "modUpdateSub": "Redémarrage automatique lors des mises à jour de mods",
     "modUpdatePending": "En attente",
-    "modUpdateNone": "Aucun"
+    "modUpdateNone": "Aucun",
+    "totalTasksSub_many": "{{count}} tâches au total",
+    "restartTasksSub_many": "{{count}} tâches de redémarrage"
   },
   "manualRestart": {
     "title": "Redémarrage manuel",
@@ -115,7 +138,8 @@
     "shortCountdownDialogTitle_other": "Redémarrer dans {{count}} minutes ?",
     "shortCountdownDialogDesc": "Un délai trop court peut surprendre des joueurs en pleine action. Confirmez si vous voulez vraiment redémarrer aussi vite.",
     "confirmShortRestart": "Redémarrer dans {{count}} min",
-    "countdownWarningsNote": "Les joueurs voient des avertissements de compte à rebours à 15 min, 10 min, 5 min et 1 min à mesure que le minuteur avance."
+    "countdownWarningsNote": "Les joueurs voient des avertissements de compte à rebours à 15 min, 10 min, 5 min et 1 min à mesure que le minuteur avance.",
+    "shortCountdownDialogTitle_many": "Redémarrer dans {{count}} minutes ?"
   },
   "quickBroadcasts": {
     "title": "Diffusions rapides",
@@ -164,7 +188,8 @@
     "emptyDesc": "Les exécutions apparaîtront ici.",
     "succeeded": "Réussi",
     "failed": "Échoué",
-    "duration": "Durée : {{seconds}} s"
+    "duration": "Durée : {{seconds}} s",
+    "clearDialogDesc_many": "Voulez-vous vraiment effacer TOUT l'historique d'exécution ? Cela supprime chaque exécution enregistrée, pas seulement les {{count}} affichées ici. Cette action est irréversible."
   },
   "cronHelp": {
     "title": "Aide sur les expressions cron",
@@ -245,6 +270,8 @@
     "restartSucceededTitle": "Redémarrage terminé",
     "restartResultFailedTitle": "Échec du redémarrage",
     "taskSucceededTitle": "\"{{name}}\" terminée",
-    "taskResultFailedTitle": "\"{{name}}\" échouée"
+    "taskResultFailedTitle": "\"{{name}}\" échouée",
+    "restartInitiatedDesc_many": "Le serveur redémarrera dans {{minutes}} minutes",
+    "restartInitiatedWithWarningsDesc_many": "Le serveur redémarrera dans {{minutes}} minutes avec avertissements de compte à rebours"
   }
 }

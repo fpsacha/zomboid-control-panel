@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "overlapClash_few",
+    "overlapClash_many",
+    "overlapClash_two",
+    "overlapClash_zero",
+    "showMoreSections_few",
+    "showMoreSections_many",
+    "showMoreSections_two",
+    "showMoreSections_zero"
+  ],
   "overlapKindLabel": {
     "lua-symbols": "أسماء الدوال/الأحداث",
     "lua-shadow": "الرموز",
@@ -34,5 +44,13 @@
   "imageComparison": "مقارنة الصور",
   "tooLargeToPreview": "أكبر من أن يُعاين",
   "fileTooLargeInline": "الملف أكبر من أن يُقارن ضمن الصفحة",
-  "binaryFileInline": "ملف ثنائي — تتعذّر المقارنة ضمن الصفحة"
+  "binaryFileInline": "ملف ثنائي — تتعذّر المقارنة ضمن الصفحة",
+  "overlapClash_zero": "تعارضات {{kind}}: {{count}}",
+  "overlapClash_two": "تعارضات {{kind}}: {{count}}",
+  "overlapClash_few": "تعارضات {{kind}}: {{count}}",
+  "overlapClash_many": "تعارضات {{kind}}: {{count}}",
+  "showMoreSections_zero": "عرض {{count}} من الأقسام الإضافية...",
+  "showMoreSections_two": "عرض {{count}} من الأقسام الإضافية...",
+  "showMoreSections_few": "عرض {{count}} من الأقسام الإضافية...",
+  "showMoreSections_many": "عرض {{count}} من الأقسام الإضافية..."
 }

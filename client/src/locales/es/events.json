@@ -604,7 +604,12 @@
     "sequenceExecutedCount_one": "{{executed}} paso ejecutado",
     "sequenceExecutedCount_other": "{{executed}} pasos ejecutados",
     "sequenceFailedStepsTitle": "Pasos fallidos",
-    "sequenceStepIndex": "Paso {{index}}"
+    "sequenceStepIndex": "Paso {{index}}",
+    "vehiclesLoaded_many": "{{count}} vehículos cargados",
+    "safehousesCount_many": "{{count}} refugios",
+    "membersCount_many": "{{count}} miembros",
+    "factionsCount_many": "{{count}} facciones",
+    "sequenceExecutedCount_many": "{{executed}} pasos ejecutados"
   },
   "successCopy": {
     "rainStarted": {

@@ -1,4 +1,14 @@
 {
+  "__pendingPluralForms": [
+    "iniKeyCount_few",
+    "iniKeyCount_many",
+    "iniKeyCount_two",
+    "iniKeyCount_zero",
+    "sandboxSettingCount_few",
+    "sandboxSettingCount_many",
+    "sandboxSettingCount_two",
+    "sandboxSettingCount_zero"
+  ],
   "failedToReadConfig": "فشلت قراءة إعدادات الخادم الحالية.",
   "failedToSave": "فشل حفظ القالب",
   "toastSavedTitle": "تم حفظ القالب",
@@ -17,5 +27,13 @@
   "willSave": "سيتم حفظ {{sandbox}} و{{ini}}. أما إعدادات الهوية والاتصال (الاسم والمنافذ وكلمات المرور) فلا تُضمَّن أبدًا.",
   "errorTitle": "تعذّر حفظ القالب",
   "cancel": "إلغاء",
-  "saveTemplate": "حفظ القالب"
+  "saveTemplate": "حفظ القالب",
+  "sandboxSettingCount_zero": "{{count}} من إعدادات sandbox",
+  "sandboxSettingCount_two": "{{count}} من إعدادات sandbox",
+  "sandboxSettingCount_few": "{{count}} من إعدادات sandbox",
+  "sandboxSettingCount_many": "{{count}} من إعدادات sandbox",
+  "iniKeyCount_zero": "{{count}} من مفاتيح server.ini",
+  "iniKeyCount_two": "{{count}} من مفاتيح server.ini",
+  "iniKeyCount_few": "{{count}} من مفاتيح server.ini",
+  "iniKeyCount_many": "{{count}} من مفاتيح server.ini"
 }

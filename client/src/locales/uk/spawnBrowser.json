@@ -1,4 +1,8 @@
 {
+  "__pendingPluralForms": [
+    "resultsCount_few",
+    "resultsCount_many"
+  ],
   "giveItemsTitle": "Видати предмети",
   "spawnVehicleTitle": "Створити транспорт",
   "givingTo": "Видати гравцеві",
@@ -51,5 +55,7 @@
   "scanVehiclesBody": "Проскануйте запущений сервер через PanelBridge, щоб отримати повний каталог транспорту. Сервер має бути онлайн з активним модом PanelBridge.",
   "scanning": "Сканування…",
   "scanItems": "Сканувати предмети",
-  "scanVehicles": "Сканувати транспорт"
+  "scanVehicles": "Сканувати транспорт",
+  "resultsCount_few": "результатів: {{count}}",
+  "resultsCount_many": "результатів: {{count}}"
 }

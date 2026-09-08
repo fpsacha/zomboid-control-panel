@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "toasts.loadedDesc_few",
+    "toasts.loadedDesc_many",
+    "toasts.loadedDesc_two",
+    "toasts.loadedDesc_zero"
+  ],
   "pageHeader": {
     "title": "تصفح الخوادم العامة",
     "description": "ابحث في قائمة خوادم Project Zomboid العامة وانسخ عنوان خادم للانضمام بسرعة",
@@ -57,7 +63,11 @@
     "loadedDesc_other": "عدد الخوادم التي عُثر عليها: {{count}}، وعدد اللاعبين المتصلين: {{players}}",
     "fetchFailedFallback": "فشل جلب الخوادم",
     "unknownError": "خطأ غير معروف",
-    "apiKeyMissing": "مفتاح Steam API مفقود"
+    "apiKeyMissing": "مفتاح Steam API مفقود",
+    "loadedDesc_zero": "عدد الخوادم التي عُثر عليها: {{count}}، وعدد اللاعبين المتصلين: {{players}}",
+    "loadedDesc_two": "عدد الخوادم التي عُثر عليها: {{count}}، وعدد اللاعبين المتصلين: {{players}}",
+    "loadedDesc_few": "عدد الخوادم التي عُثر عليها: {{count}}، وعدد اللاعبين المتصلين: {{players}}",
+    "loadedDesc_many": "عدد الخوادم التي عُثر عليها: {{count}}، وعدد اللاعبين المتصلين: {{players}}"
   },
   "serverList": {
     "title": "قائمة الخوادم",

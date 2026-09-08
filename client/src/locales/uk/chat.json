@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "chatWindow.msgCount_few",
+    "chatWindow.msgCount_many",
+    "footer.broadcastingTo_few",
+    "footer.broadcastingTo_many"
+  ],
   "pageHeader": {
     "title": "Чат у грі",
     "description": "Надсилайте оголошення всім підключеним гравцям і стежте за їхнім чатом у реальному часі.",
@@ -10,7 +16,9 @@
     "msgCount_other": "{{count}} повідом.",
     "live": "НАЖИВО",
     "offline": "ОФЛАЙН",
-    "messagesAria": "Повідомлення чату"
+    "messagesAria": "Повідомлення чату",
+    "msgCount_few": "{{count}} повідом.",
+    "msgCount_many": "{{count}} повідом."
   },
   "emptyState": {
     "title": "Повідомлень у чаті ще немає",
@@ -39,7 +47,9 @@
     "adminOnly": "лише для адмінів — приховано від звичайних гравців",
     "noPlayersOnline": "немає гравців онлайн — лише журнал сервера",
     "broadcastingTo_one": "оголошення для {{count}} гравця",
-    "broadcastingTo_other": "оголошення для {{count}} гравців"
+    "broadcastingTo_other": "оголошення для {{count}} гравців",
+    "broadcastingTo_few": "оголошення для {{count}} гравців",
+    "broadcastingTo_many": "оголошення для {{count}} гравців"
   },
   "playersPanel": {
     "label": "гравці",

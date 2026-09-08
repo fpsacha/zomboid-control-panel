@@ -1,4 +1,10 @@
 {
+  "__pendingPluralForms": [
+    "deletePackageDialog.description_few",
+    "deletePackageDialog.description_many",
+    "dropDialog.templateItemCount_few",
+    "dropDialog.templateItemCount_many"
+  ],
   "permissions": {
     "noBridgeCommand": "Ця внутрішньоігрова дія потребує дозволу bridge.command, якого ця роль не має.",
     "noWorldEvents": "Запуск подій світу потребує дозволу server.world_events, якого ця роль не має.",
@@ -226,7 +232,9 @@
     "cancel": "Скасувати",
     "dropButton": "Скинути",
     "dropButtonQty": "Скинути × {{qty}}",
-    "dropButtonMulti": "Скинути {{count}} предметів"
+    "dropButtonMulti": "Скинути {{count}} предметів",
+    "templateItemCount_few": "{{count}} предметів",
+    "templateItemCount_many": "{{count}} предметів"
   },
   "deletePackageDialog": {
     "title": "Видалити пакунок?",
@@ -234,7 +242,9 @@
     "description_one": "«{{name}}» ({{count}} предмет) буде вилучено з ваших збережених пакунків. Це не можна скасувати.",
     "description_other": "«{{name}}» ({{count}} предметів) буде вилучено з ваших збережених пакунків. Це не можна скасувати.",
     "cancel": "Скасувати",
-    "confirm": "Видалити"
+    "confirm": "Видалити",
+    "description_few": "«{{name}}» ({{count}} предметів) буде вилучено з ваших збережених пакунків. Це не можна скасувати.",
+    "description_many": "«{{name}}» ({{count}} предметів) буде вилучено з ваших збережених пакунків. Це не можна скасувати."
   },
   "removeVehicleDialog": {
     "title": "Прибрати транспорт?",
@@ -248,11 +258,29 @@
     "subtitle": "Позиції гравців з'являються, коли підключено PanelBridge"
   },
   "airdropPresets": {
-    "military": { "label": "Військовий", "desc": "Гвинтівки, набої, броня, зв'язок" },
-    "medical": { "label": "Медичний", "desc": "Бинти, антибіотики, аптечки" },
-    "food": { "label": "Їжа", "desc": "Консерви, вода, сухпайки" },
-    "building": { "label": "Будівництво", "desc": "Дошки, цвяхи, інструменти, мотузка" },
-    "weapons": { "label": "Зброя", "desc": "Дробовики, зброя ближнього бою, кобури" },
-    "tools": { "label": "Інструменти", "desc": "Сокири, ключі, газовий пальник, скотч" }
+    "military": {
+      "label": "Військовий",
+      "desc": "Гвинтівки, набої, броня, зв'язок"
+    },
+    "medical": {
+      "label": "Медичний",
+      "desc": "Бинти, антибіотики, аптечки"
+    },
+    "food": {
+      "label": "Їжа",
+      "desc": "Консерви, вода, сухпайки"
+    },
+    "building": {
+      "label": "Будівництво",
+      "desc": "Дошки, цвяхи, інструменти, мотузка"
+    },
+    "weapons": {
+      "label": "Зброя",
+      "desc": "Дробовики, зброя ближнього бою, кобури"
+    },
+    "tools": {
+      "label": "Інструменти",
+      "desc": "Сокири, ключі, газовий пальник, скотч"
+    }
   }
 }

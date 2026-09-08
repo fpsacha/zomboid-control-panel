@@ -15,5 +15,8 @@
   "applyIniChanges": "Appliquer les changements server.ini",
   "applyFailedTitle": "Échec de l'application",
   "cancel": "Annuler",
-  "applyTemplate": "Appliquer le modèle"
+  "applyTemplate": "Appliquer le modèle",
+  "iniKeysUpdated_many": "{{count}} clés INI mises à jour. ",
+  "sandboxSettingsUpdated_many": "{{count}} paramètres sandbox mis à jour. ",
+  "backupFilesCreated_many": "{{count}} fichiers de sauvegarde créés. "
 }

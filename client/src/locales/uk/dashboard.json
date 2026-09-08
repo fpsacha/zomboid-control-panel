@@ -1,4 +1,40 @@
 {
+  "__pendingPluralForms": [
+    "age.daysAgo_few",
+    "age.daysAgo_many",
+    "age.forDays_few",
+    "age.forDays_many",
+    "age.forHours_few",
+    "age.forHours_many",
+    "age.forMinutes_few",
+    "age.forMinutes_many",
+    "age.hoursAgo_few",
+    "age.hoursAgo_many",
+    "age.minutesAgo_few",
+    "age.minutesAgo_many",
+    "autoUpdateResult.scheduledDescription_few",
+    "autoUpdateResult.scheduledDescription_many",
+    "eta.inDays_few",
+    "eta.inDays_many",
+    "eta.inHours_few",
+    "eta.inHours_many",
+    "eta.inMinutes_few",
+    "eta.inMinutes_many",
+    "liveActivity.eventsCount_few",
+    "liveActivity.eventsCount_many",
+    "verdict.modUpdatesWaiting_few",
+    "verdict.modUpdatesWaiting_many",
+    "workItems.backupsStoredLast_few",
+    "workItems.backupsStoredLast_many",
+    "workItems.backupsStored_few",
+    "workItems.backupsStored_many",
+    "workItems.modsToUpdate_few",
+    "workItems.modsToUpdate_many",
+    "workItems.modsTracked_few",
+    "workItems.modsTracked_many",
+    "workItems.scheduleActive_few",
+    "workItems.scheduleActive_many"
+  ],
   "loading": "Встановлення зв'язку…",
   "autoUpdateResult": {
     "scheduledTitle": "Автоматичне оновлення заплановано",
@@ -28,7 +64,9 @@
       "STEAMCMD_EXIT_CODE": "SteamCMD завершився з кодом {{code}}.",
       "STEAM_OPERATION_IN_PROGRESS": "Встановлення або оновлення Steam уже виконувалося для {{path}}, тому автоматичне оновлення скасовано, щоб уникнути конфлікту.",
       "UNKNOWN": "Під час автоматичного оновлення сталася неочікувана помилка."
-    }
+    },
+    "scheduledDescription_few": "Сервер перезапуститься через {{count}} хвилин.",
+    "scheduledDescription_many": "Сервер перезапуститься через {{count}} хвилин."
   },
   "errors": {
     "failedToConnect": "Не вдалося підключитися до сервера.",
@@ -128,19 +166,58 @@
     }
   },
   "successCopy": {
-    "startServer": { "title": "Сервер запускається", "description": "Стежте за станом у реальному часі на головній панелі." },
-    "startServerScriptBackup": { "title": "Сервер запускається — скрипт запуску збережено", "description": "Панель виявила зміни у вашому скрипті запуску та зберегла вашу версію перед його перегенеруванням." },
-    "stopServer": { "title": "Сервер зупинено", "description": "Сесію коректно завершено." },
-    "stopServerRequested": { "title": "Запит на зупинку надіслано", "description": "Сервер зберігається й коректно завершує роботу — на великому світі це може зайняти трохи часу. Значок стану оновиться, щойно зупинку буде підтверджено." },
-    "forceStopServer": { "title": "Сервер примусово зупинено", "description": "Світ було збережено, після чого процес гри зупинено." },
-    "forceStopSaveFailed": { "title": "Сервер примусово зупинено — збереження не вдалося", "description": "Збереження перед зупинкою було відхилено. Нещодавній прогрес може бути втрачено." },
-    "forceStopSaveTimedOut": { "title": "Сервер примусово зупинено — час збереження вичерпано", "description": "Збереження перед зупинкою не відповіло протягом 3 секунд. Нещодавній прогрес може бути втрачено." },
-    "forceStopSaveSkipped": { "title": "Сервер примусово зупинено — збереження не виконувалося", "description": "RCON не було підключено, тому перед зупинкою збереження не виконувалося. Нещодавній прогрес може бути втрачено." },
-    "restartServer": { "title": "Перезапуск заплановано", "description": "Сервер невдовзі перезапуститься." },
-    "restartServerNow": { "title": "Перезапуск запущено", "description": "Команду жорсткого перезапуску надіслано." },
-    "saveWorld": { "title": "Світ збережено", "description": "Поточний стан записано на диск." },
-    "createBackup": { "title": "Резервне копіювання розпочато", "description": "Створюється нова точка відновлення." },
-    "connectRcon": { "title": "RCON підключено", "description": "Віддалене керування командами готове." },
+    "startServer": {
+      "title": "Сервер запускається",
+      "description": "Стежте за станом у реальному часі на головній панелі."
+    },
+    "startServerScriptBackup": {
+      "title": "Сервер запускається — скрипт запуску збережено",
+      "description": "Панель виявила зміни у вашому скрипті запуску та зберегла вашу версію перед його перегенеруванням."
+    },
+    "stopServer": {
+      "title": "Сервер зупинено",
+      "description": "Сесію коректно завершено."
+    },
+    "stopServerRequested": {
+      "title": "Запит на зупинку надіслано",
+      "description": "Сервер зберігається й коректно завершує роботу — на великому світі це може зайняти трохи часу. Значок стану оновиться, щойно зупинку буде підтверджено."
+    },
+    "forceStopServer": {
+      "title": "Сервер примусово зупинено",
+      "description": "Світ було збережено, після чого процес гри зупинено."
+    },
+    "forceStopSaveFailed": {
+      "title": "Сервер примусово зупинено — збереження не вдалося",
+      "description": "Збереження перед зупинкою було відхилено. Нещодавній прогрес може бути втрачено."
+    },
+    "forceStopSaveTimedOut": {
+      "title": "Сервер примусово зупинено — час збереження вичерпано",
+      "description": "Збереження перед зупинкою не відповіло протягом 3 секунд. Нещодавній прогрес може бути втрачено."
+    },
+    "forceStopSaveSkipped": {
+      "title": "Сервер примусово зупинено — збереження не виконувалося",
+      "description": "RCON не було підключено, тому перед зупинкою збереження не виконувалося. Нещодавній прогрес може бути втрачено."
+    },
+    "restartServer": {
+      "title": "Перезапуск заплановано",
+      "description": "Сервер невдовзі перезапуститься."
+    },
+    "restartServerNow": {
+      "title": "Перезапуск запущено",
+      "description": "Команду жорсткого перезапуску надіслано."
+    },
+    "saveWorld": {
+      "title": "Світ збережено",
+      "description": "Поточний стан записано на диск."
+    },
+    "createBackup": {
+      "title": "Резервне копіювання розпочато",
+      "description": "Створюється нова точка відновлення."
+    },
+    "connectRcon": {
+      "title": "RCON підключено",
+      "description": "Віддалене керування командами готове."
+    },
     "defaultTitle": "Дію виконано",
     "defaultDescription": "{{action}} — успішно завершено."
   },
@@ -163,7 +240,9 @@
     "modUpdatesWaiting_one": "{{count}} оновлення мода очікує",
     "modUpdatesWaiting_other": "{{count}} оновлень модів очікують",
     "reviewMods": "Переглянути моди",
-    "noBackups": "Немає резервних копій"
+    "noBackups": "Немає резервних копій",
+    "modUpdatesWaiting_few": "{{count}} оновлень модів очікують",
+    "modUpdatesWaiting_many": "{{count}} оновлень модів очікують"
   },
   "panelUpdateBanner": {
     "applyFailed": "Не вдалося застосувати",
@@ -222,7 +301,9 @@
       "killed": "убив",
       "banned": "заблоковано",
       "kicked": "вигнано"
-    }
+    },
+    "eventsCount_few": "{{count}} подій",
+    "eventsCount_many": "{{count}} подій"
   },
   "telemetry": {
     "heading": "Телеметрія сервера",
@@ -282,7 +363,17 @@
     "backupsStoredLast_other": "{{count}} збережено, остання {{age}}",
     "scheduleNoneActive": "немає активних",
     "scheduleActive_one": "{{count}} активне",
-    "scheduleActive_other": "{{count}} активних"
+    "scheduleActive_other": "{{count}} активних",
+    "modsToUpdate_few": "{{count}} до оновлення",
+    "modsToUpdate_many": "{{count}} до оновлення",
+    "modsTracked_few": "{{count}} відстежується",
+    "modsTracked_many": "{{count}} відстежується",
+    "backupsStored_few": "{{count}} збережено",
+    "backupsStored_many": "{{count}} збережено",
+    "backupsStoredLast_few": "{{count}} збережено, остання {{age}}",
+    "backupsStoredLast_many": "{{count}} збережено, остання {{age}}",
+    "scheduleActive_few": "{{count}} активних",
+    "scheduleActive_many": "{{count}} активних"
   },
   "age": {
     "justNow": "щойно",
@@ -298,7 +389,19 @@
     "forHours_one": "вже {{count}} год",
     "forHours_other": "вже {{count}} год",
     "forDays_one": "вже {{count}} дн",
-    "forDays_other": "вже {{count}} дн"
+    "forDays_other": "вже {{count}} дн",
+    "minutesAgo_few": "{{count}} хв тому",
+    "minutesAgo_many": "{{count}} хв тому",
+    "hoursAgo_few": "{{count}} год тому",
+    "hoursAgo_many": "{{count}} год тому",
+    "daysAgo_few": "{{count}} дн тому",
+    "daysAgo_many": "{{count}} дн тому",
+    "forMinutes_few": "вже {{count}} хв",
+    "forMinutes_many": "вже {{count}} хв",
+    "forHours_few": "вже {{count}} год",
+    "forHours_many": "вже {{count}} год",
+    "forDays_few": "вже {{count}} дн",
+    "forDays_many": "вже {{count}} дн"
   },
   "eta": {
     "anyMoment": "будь-якої миті",
@@ -308,17 +411,35 @@
     "inHours_other": "через {{count}} год",
     "inHoursMinutes": "через {{hours}} год {{minutes}} хв",
     "inDays_one": "через {{count}} дн",
-    "inDays_other": "через {{count}} дн"
+    "inDays_other": "через {{count}} дн",
+    "inMinutes_few": "через {{count}} хв",
+    "inMinutes_many": "через {{count}} хв",
+    "inHours_few": "через {{count}} год",
+    "inHours_many": "через {{count}} год",
+    "inDays_few": "через {{count}} дн",
+    "inDays_many": "через {{count}} дн"
   },
   "wipeDialog": {
     "title": "Очистити сервер",
     "description": "Виберіть, які дані видалити з <b>{{serverName}}</b>. Сервер має бути зупинений.",
     "defaultServerName": "активного сервера",
     "targets": {
-      "map": { "label": "Карта та ландшафт", "desc": "Чанки, ландшафт, будівлі, популяція зомбі, iso-регіони." },
-      "players": { "label": "Гравці та транспорт", "desc": "Збереження гравців, інвентарі, позиції, дані транспорту." },
-      "world": { "label": "Стан світу", "desc": "Словник світу, метадані, ерозія, стани ігрових об'єктів, радіо." },
-      "accounts": { "label": "Облікові записи та блокування", "desc": "Облікові записи користувачів, паролі, ролі, білий список і списки блокувань. Усі реєструються заново під час наступного входу." }
+      "map": {
+        "label": "Карта та ландшафт",
+        "desc": "Чанки, ландшафт, будівлі, популяція зомбі, iso-регіони."
+      },
+      "players": {
+        "label": "Гравці та транспорт",
+        "desc": "Збереження гравців, інвентарі, позиції, дані транспорту."
+      },
+      "world": {
+        "label": "Стан світу",
+        "desc": "Словник світу, метадані, ерозія, стани ігрових об'єктів, радіо."
+      },
+      "accounts": {
+        "label": "Облікові записи та блокування",
+        "desc": "Облікові записи користувачів, паролі, ролі, білий список і списки блокувань. Усі реєструються заново під час наступного входу."
+      }
     },
     "notice": "Вибір карти, гравців або світу назавжди видаляє ці дані — скасувати неможливо, якщо ви спершу не створите резервну копію нижче. Вибір облікових записів назавжди видаляє білий список і списки блокувань; усі реєструються заново під час наступного входу. Налаштування сервера у файлі .ini та налаштування sandbox зберігаються окремо й не постраждають.",
     "backupLabel": "Створити резервну копію перед очищенням",

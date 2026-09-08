@@ -1,4 +1,58 @@
 {
+  "__pendingPluralForms": [
+    "activeServerStrip.spawnsLabel_few",
+    "activeServerStrip.spawnsLabel_many",
+    "activeServerStrip.spawnsLabel_two",
+    "activeServerStrip.spawnsLabel_zero",
+    "backupsDialog.totalCount_few",
+    "backupsDialog.totalCount_many",
+    "backupsDialog.totalCount_two",
+    "backupsDialog.totalCount_zero",
+    "categoriesNav.matchCount_few",
+    "categoriesNav.matchCount_many",
+    "categoriesNav.matchCount_two",
+    "categoriesNav.matchCount_zero",
+    "categoriesNav.modifiedCountTitle_few",
+    "categoriesNav.modifiedCountTitle_many",
+    "categoriesNav.modifiedCountTitle_two",
+    "categoriesNav.modifiedCountTitle_zero",
+    "categoryContent.settingCount_few",
+    "categoryContent.settingCount_many",
+    "categoryContent.settingCount_two",
+    "categoryContent.settingCount_zero",
+    "duplicateKeysWarning.title_few",
+    "duplicateKeysWarning.title_many",
+    "duplicateKeysWarning.title_two",
+    "duplicateKeysWarning.title_zero",
+    "modSettingsTab.groupModifiedTitle_few",
+    "modSettingsTab.groupModifiedTitle_many",
+    "modSettingsTab.groupModifiedTitle_two",
+    "modSettingsTab.groupModifiedTitle_zero",
+    "modSettingsTab.sectionSublabelLoaded_few",
+    "modSettingsTab.sectionSublabelLoaded_many",
+    "modSettingsTab.sectionSublabelLoaded_two",
+    "modSettingsTab.sectionSublabelLoaded_zero",
+    "spawnRegionsTab.sectionSublabel_few",
+    "spawnRegionsTab.sectionSublabel_many",
+    "spawnRegionsTab.sectionSublabel_two",
+    "spawnRegionsTab.sectionSublabel_zero",
+    "stickySaveBar.unsavedChange_few",
+    "stickySaveBar.unsavedChange_many",
+    "stickySaveBar.unsavedChange_two",
+    "stickySaveBar.unsavedChange_zero",
+    "templatesDialog.savedCount_few",
+    "templatesDialog.savedCount_many",
+    "templatesDialog.savedCount_two",
+    "templatesDialog.savedCount_zero",
+    "uncategorizedIni.keyCount_few",
+    "uncategorizedIni.keyCount_many",
+    "uncategorizedIni.keyCount_two",
+    "uncategorizedIni.keyCount_zero",
+    "uncategorizedSandbox.keyCount_few",
+    "uncategorizedSandbox.keyCount_many",
+    "uncategorizedSandbox.keyCount_two",
+    "uncategorizedSandbox.keyCount_zero"
+  ],
   "loading": "جارٍ تحميل التهيئة…",
   "loadErrorTitle": "تعذّر تحميل بيانات التهيئة بالكامل",
   "retry": "إعادة المحاولة",
@@ -9,7 +63,11 @@
   "duplicateKeysWarning": {
     "title_one": "\"{{keys}}\" يظهر أكثر من مرة في ملف التهيئة هذا",
     "title_other": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}",
-    "desc": "يقرأ هذا المحرر النسخة الأخيرة بينما تقرأ صفحة المودات النسخة الأولى، لذا قد يعرض الاثنان قيمتين مختلفتين للإعداد نفسه."
+    "desc": "يقرأ هذا المحرر النسخة الأخيرة بينما تقرأ صفحة المودات النسخة الأولى، لذا قد يعرض الاثنان قيمتين مختلفتين للإعداد نفسه.",
+    "title_zero": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}",
+    "title_two": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}",
+    "title_few": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}",
+    "title_many": "عدد الإعدادات التي تظهر أكثر من مرة في ملف التهيئة هذا: {{count}} — {{keys}}"
   },
   "serverChangedBanner": {
     "title": "Active server changed",
@@ -33,7 +91,11 @@
     "spawnsLabel_other": "الظهور · المهن: {{count}}",
     "regionsLabel": "المناطق",
     "fileNotFoundTitle": "{{label}}: الملف غير موجود",
-    "notFoundAria": "غير موجود"
+    "notFoundAria": "غير موجود",
+    "spawnsLabel_zero": "الظهور · المهن: {{count}}",
+    "spawnsLabel_two": "الظهور · المهن: {{count}}",
+    "spawnsLabel_few": "الظهور · المهن: {{count}}",
+    "spawnsLabel_many": "الظهور · المهن: {{count}}"
   },
   "unresolvedReview": {
     "title": "معرّفات Mods= غير المحلولة",
@@ -117,7 +179,15 @@
     "uncategorizedIniLabel": "غير مصنَّف / غير معروف",
     "uncategorizedIniTitle": "مفاتيح موجودة في ملف INI لديك لكنها غير موجودة في المخطط (مفاتيح أحدث من اللعبة الأصلية، أو مفاتيح أضافها مود، أو مفاتيح مخصصة)",
     "uncategorizedSandboxLabel": "إعدادات إضافية",
-    "uncategorizedSandboxTitle": "إعدادات Sandbox التي لم يجمّعها المحرر في فئات بعد"
+    "uncategorizedSandboxTitle": "إعدادات Sandbox التي لم يجمّعها المحرر في فئات بعد",
+    "modifiedCountTitle_zero": "تغييرات غير محفوظة: {{count}}",
+    "modifiedCountTitle_two": "تغييرات غير محفوظة: {{count}}",
+    "modifiedCountTitle_few": "تغييرات غير محفوظة: {{count}}",
+    "modifiedCountTitle_many": "تغييرات غير محفوظة: {{count}}",
+    "matchCount_zero": "النتائج: {{count}}",
+    "matchCount_two": "النتائج: {{count}}",
+    "matchCount_few": "النتائج: {{count}}",
+    "matchCount_many": "النتائج: {{count}}"
   },
   "uncategorizedIni": {
     "empty": "لا توجد مفاتيح غير مصنَّفة.",
@@ -125,7 +195,11 @@
     "keyCount_one": "{{count}} مفتاح",
     "keyCount_other": "مفاتيح: {{count}}",
     "description": "مفاتيح موجودة في ملف INI لديك لكن المخطط لا يتعرّف عليها. غالبًا إعدادات أحدث من اللعبة الأصلية أو أضافها مود. تُحفظ قيمها كما هي عند الحفظ — عدّلها بحذر.",
-    "undoTitle": "التراجع عن التغيير"
+    "undoTitle": "التراجع عن التغيير",
+    "keyCount_zero": "مفاتيح: {{count}}",
+    "keyCount_two": "مفاتيح: {{count}}",
+    "keyCount_few": "مفاتيح: {{count}}",
+    "keyCount_many": "مفاتيح: {{count}}"
   },
   "uncategorizedSandbox": {
     "empty": "لا توجد إعدادات غير مصنَّفة.",
@@ -134,14 +208,22 @@
     "keyCount_other": "مفاتيح: {{count}}",
     "description": "إعدادات لا يملك المحرر مخططًا لها، مجمَّعة حسب القسم الذي ينتمي إليه كل منها. معظمها مفاتيح أضافتها المودات. عدّلها بحذر.",
     "mainSection": "القسم الرئيسي",
-    "undoTitle": "التراجع عن التغيير"
+    "undoTitle": "التراجع عن التغيير",
+    "keyCount_zero": "مفاتيح: {{count}}",
+    "keyCount_two": "مفاتيح: {{count}}",
+    "keyCount_few": "مفاتيح: {{count}}",
+    "keyCount_many": "مفاتيح: {{count}}"
   },
   "categoryContent": {
     "settingCount_one": "{{count}} إعداد",
     "settingCount_other": "إعدادات: {{count}}",
     "noneModified": "لا يختلف أي إعداد في هذه الفئة عن القيم الافتراضية في Project Zomboid.",
     "noneUnsaved": "لا توجد إعدادات غير محفوظة في هذه الفئة.",
-    "none": "لا توجد إعدادات في هذه الفئة."
+    "none": "لا توجد إعدادات في هذه الفئة.",
+    "settingCount_zero": "إعدادات: {{count}}",
+    "settingCount_two": "إعدادات: {{count}}",
+    "settingCount_few": "إعدادات: {{count}}",
+    "settingCount_many": "إعدادات: {{count}}"
   },
   "iniTab": {
     "sectionLabel": "إعدادات الخادم",
@@ -182,7 +264,11 @@
     "fileAriaServerFile": "ملف الخادم للمنطقة {{index}}",
     "fileAriaMapPath": "مسار ملف الخريطة للمنطقة {{index}}",
     "deleteAria": "حذف منطقة الظهور {{name}}",
-    "addRegion": "إضافة منطقة"
+    "addRegion": "إضافة منطقة",
+    "sectionSublabel_zero": "المناطق: {{count}} · مدن وبلدات",
+    "sectionSublabel_two": "المناطق: {{count}} · مدن وبلدات",
+    "sectionSublabel_few": "المناطق: {{count}} · مدن وبلدات",
+    "sectionSublabel_many": "المناطق: {{count}} · مدن وبلدات"
   },
   "modSettingsTab": {
     "sectionLabel": "خيارات Sandbox للمودات",
@@ -229,7 +315,15 @@
     "showAllOptions": "عرض جميع الخيارات",
     "noMatches": "لا يوجد إعداد يطابق “{{query}}”{{suffix}}",
     "noMatchesInModified": " ضمن الخيارات المعدَّلة",
-    "clearSearch": "مسح البحث"
+    "clearSearch": "مسح البحث",
+    "sectionSublabelLoaded_zero": "المودات: {{count}} · مباشر من الجسر",
+    "sectionSublabelLoaded_two": "المودات: {{count}} · مباشر من الجسر",
+    "sectionSublabelLoaded_few": "المودات: {{count}} · مباشر من الجسر",
+    "sectionSublabelLoaded_many": "المودات: {{count}} · مباشر من الجسر",
+    "groupModifiedTitle_zero": "خيارات تختلف عن القيمة الافتراضية: {{count}}",
+    "groupModifiedTitle_two": "خيارات تختلف عن القيمة الافتراضية: {{count}}",
+    "groupModifiedTitle_few": "خيارات تختلف عن القيمة الافتراضية: {{count}}",
+    "groupModifiedTitle_many": "خيارات تختلف عن القيمة الافتراضية: {{count}}"
   },
   "stickySaveBar": {
     "unsavedChange_one": "{{count}} تغيير غير محفوظ",
@@ -238,7 +332,11 @@
     "sandboxScope": "sandbox lua",
     "hint": "ctrl+s للحفظ · يُطبَّق عند إعادة التحميل",
     "discard": "تجاهل",
-    "saveAndReload": "حفظ وإعادة تحميل"
+    "saveAndReload": "حفظ وإعادة تحميل",
+    "unsavedChange_zero": "تغييرات غير محفوظة: {{count}}",
+    "unsavedChange_two": "تغييرات غير محفوظة: {{count}}",
+    "unsavedChange_few": "تغييرات غير محفوظة: {{count}}",
+    "unsavedChange_many": "تغييرات غير محفوظة: {{count}}"
   },
   "backupsDialog": {
     "title": "النسخ الاحتياطية للتهيئة",
@@ -259,7 +357,11 @@
     "typeSandbox": "Sandbox",
     "typeSpawnPoints": "SpawnPoints",
     "typeSpawnRegions": "SpawnRegions",
-    "sizeKb": "{{size}}KB"
+    "sizeKb": "{{size}}KB",
+    "totalCount_zero": "إجمالي النسخ الاحتياطية: {{count}}",
+    "totalCount_two": "إجمالي النسخ الاحتياطية: {{count}}",
+    "totalCount_few": "إجمالي النسخ الاحتياطية: {{count}}",
+    "totalCount_many": "إجمالي النسخ الاحتياطية: {{count}}"
   },
   "templatesDialog": {
     "title": "التهيئات المحفوظة",
@@ -276,7 +378,11 @@
     "applyTooltip": "تحميل هذه التهيئة (يُنشئ نسخة احتياطية أولًا)",
     "deleteAria": "حذف التهيئة المحفوظة {{name}}",
     "deleteTooltip": "حذف هذه التهيئة المحفوظة",
-    "close": "إغلاق"
+    "close": "إغلاق",
+    "savedCount_zero": "عدد التهيئات المحفوظة: {{count}}",
+    "savedCount_two": "عدد التهيئات المحفوظة: {{count}}",
+    "savedCount_few": "عدد التهيئات المحفوظة: {{count}}",
+    "savedCount_many": "عدد التهيئات المحفوظة: {{count}}"
   },
   "saveTemplateDialog": {
     "title": "حفظ التهيئة الحالية",

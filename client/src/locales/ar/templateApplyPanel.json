@@ -1,4 +1,18 @@
 {
+  "__pendingPluralForms": [
+    "backupFilesCreated_few",
+    "backupFilesCreated_many",
+    "backupFilesCreated_two",
+    "backupFilesCreated_zero",
+    "iniKeysUpdated_few",
+    "iniKeysUpdated_many",
+    "iniKeysUpdated_two",
+    "iniKeysUpdated_zero",
+    "sandboxSettingsUpdated_few",
+    "sandboxSettingsUpdated_many",
+    "sandboxSettingsUpdated_two",
+    "sandboxSettingsUpdated_zero"
+  ],
   "appliedTitle": "تم تطبيق القالب",
   "iniKeysUpdated_one": "تم تحديث {{count}} مفتاح INI. ",
   "iniKeysUpdated_other": "مفاتيح INI المُحدَّثة: {{count}}. ",
@@ -15,5 +29,17 @@
   "applyIniChanges": "تطبيق تغييرات server.ini",
   "applyFailedTitle": "فشل التطبيق",
   "cancel": "إلغاء",
-  "applyTemplate": "تطبيق القالب"
+  "applyTemplate": "تطبيق القالب",
+  "iniKeysUpdated_zero": "مفاتيح INI المُحدَّثة: {{count}}. ",
+  "iniKeysUpdated_two": "مفاتيح INI المُحدَّثة: {{count}}. ",
+  "iniKeysUpdated_few": "مفاتيح INI المُحدَّثة: {{count}}. ",
+  "iniKeysUpdated_many": "مفاتيح INI المُحدَّثة: {{count}}. ",
+  "sandboxSettingsUpdated_zero": "إعدادات sandbox المُحدَّثة: {{count}}. ",
+  "sandboxSettingsUpdated_two": "إعدادات sandbox المُحدَّثة: {{count}}. ",
+  "sandboxSettingsUpdated_few": "إعدادات sandbox المُحدَّثة: {{count}}. ",
+  "sandboxSettingsUpdated_many": "إعدادات sandbox المُحدَّثة: {{count}}. ",
+  "backupFilesCreated_zero": "ملفات النسخ الاحتياطي المُنشأة: {{count}}. ",
+  "backupFilesCreated_two": "ملفات النسخ الاحتياطي المُنشأة: {{count}}. ",
+  "backupFilesCreated_few": "ملفات النسخ الاحتياطي المُنشأة: {{count}}. ",
+  "backupFilesCreated_many": "ملفات النسخ الاحتياطي المُنشأة: {{count}}. "
 }

@@ -49,5 +49,6 @@
     "Junk": "Rebuts",
     "Misc": "Divers",
     "Other": "Autre"
-  }
+  },
+  "itemsCount_many": "{{count}} {{category}}"
 }
