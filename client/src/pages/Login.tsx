@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { useAuth } from '../contexts/AuthContext'
 import { rawErrorMessageIntentional, getUserErrorMessage } from '../lib/errorMessage'
-import { ApiError } from '../lib/api'
+import { apiFetch, handleResponse } from '../lib/api'
 import { Button, buttonVariants } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -204,9 +204,13 @@ export default function Login() {
       // A token file, when present, stays the primary path; otherwise fall back
       // to a saved recovery code so no host access is needed.
       const useRecoveryCode = !resetAvailable && recoveryCodesAvailable
-      const res = await fetch(
-        useRecoveryCode ? '/api/auth/recover-with-code' : '/api/auth/reset-password',
-        {
+      // 2026-09-08 (auth-transport-parity): was a raw fetch() manually
+      // rebuilding an ApiError from status/code -- apiFetch/handleResponse
+      // does the same thing via buildResponseError, plus the fetchWithRetry
+      // timeout and consistent NETWORK_ERROR/TIMEOUT classification this
+      // route never had before.
+      const data = await handleResponse<{ message: string }>(
+        await apiFetch(useRecoveryCode ? '/auth/recover-with-code' : '/auth/reset-password', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(
@@ -214,16 +218,8 @@ export default function Login() {
               ? { code: resetToken, newPassword }
               : { token: resetToken, newPassword },
           ),
-        },
+        }),
       )
-      const data = await res.json()
-      // 2026-08-26: this fetch bypasses lib/api.ts's handleResponse(), so
-      // preserving status/code here is what lets getUserErrorMessage()
-      // below translate this failure -- auth.js already ships registered
-      // codes for this exact route (RESET_TOKEN_EXPIRED, RESET_TOKEN_INVALID,
-      // RECOVERY_CODE_FIELDS_REQUIRED, RATE_LIMIT_RESET, etc.) that a plain
-      // Error would have discarded before they ever reached it.
-      if (!res.ok) throw new ApiError(data.error || t('errors.resetFailed'), { status: res.status, code: data.code })
       setResetSuccess(data.message)
       setResetToken('')
       setNewPassword('')
@@ -289,14 +285,10 @@ export default function Login() {
     setResetSuccess('')
     setCreatingLocalReset(true)
     try {
-      const res = await fetch('/api/auth/reset-token/local', { method: 'POST' })
-      const data = await res.json()
-      // 2026-08-26: same reason as handleReset above -- this bypasses
-      // handleResponse(), so status/code must be preserved here for
-      // getUserErrorMessage() to translate LOCAL_RESET_NOT_LOCAL /
-      // LOCAL_RESET_BEHIND_PROXY / LOCAL_RESET_TOKEN_CREATE_FAILED instead
-      // of always showing raw English.
-      if (!res.ok) throw new ApiError(data.error || t('errors.couldNotCreateToken'), { status: res.status, code: data.code })
+      // 2026-09-08 (auth-transport-parity): same swap as handleReset above.
+      const data = await handleResponse<{ message?: string }>(
+        await apiFetch('/auth/reset-token/local', { method: 'POST' }),
+      )
 
       setResetAvailable(true)
       setLocalResetSupported(true)

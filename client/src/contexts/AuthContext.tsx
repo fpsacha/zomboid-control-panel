@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { clearAccessToken, getAccessToken, setAccessToken } from '../lib/authToken'
-import { ApiError } from '../lib/api'
+import { ApiError, apiFetch, handleResponse } from '../lib/api'
 import { getUserErrorMessage } from '../lib/errorMessage'
 
 interface User {
@@ -41,15 +41,6 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 const CORS_LOGIN_MESSAGE = 'Connection blocked by browser origin policy. For first-time reverse-proxy setup, set CORS_ORIGINS to this URL in the panel environment and restart it. Otherwise open the panel from a local/LAN address; after setup, manage origins in Settings > Remote Access.'
 
-async function getErrorPayload(response: Response): Promise<{ error?: string; code?: string } | null> {
-  try {
-    const data = await response.json()
-    return data && typeof data === 'object' ? (data as { error?: string; code?: string }) : null
-  } catch {
-    return null
-  }
-}
-
 export const LOGIN_FAILED_MESSAGE = "We couldn't sign you in. Check your username and password and try again."
 
 // Exported solely so its 5xx-vs-auth-failure branch can be unit tested
@@ -63,6 +54,23 @@ export function getLoginErrorMessage(error: unknown): string {
   if (error instanceof Error && /cors|origin policy|failed to fetch/i.test(error.message)) {
     return CORS_LOGIN_MESSAGE
   }
+  // 2026-09-08 (auth-transport-parity): login() now goes through
+  // lib/api.ts's shared apiFetch/fetchWithRetry instead of a raw fetch() --
+  // that path already converts a browser-level CORS rejection (a TypeError,
+  // usually "Failed to fetch") into an ApiError coded NETWORK_ERROR with a
+  // different message ("Unable to reach the server...") before it ever
+  // reaches this function, so neither check above can match it anymore. The
+  // failure this branch exists to catch is unchanged; only its shape is.
+  if (error instanceof ApiError && error.code === 'NETWORK_ERROR') {
+    return CORS_LOGIN_MESSAGE
+  }
+  // 2026-09-08 (auth-transport-parity): login() now goes through
+  // lib/api.ts's shared apiFetch/fetchWithRetry instead of a raw fetch() --
+  // that path already converts a browser-level CORS rejection (a TypeError,
+  // usually "Failed to fetch") into an ApiError coded NETWORK_ERROR with a
+  // different message ("Unable to reach the server...") before it ever
+  // reaches this function, so neither check above can match it anymore. The
+  // failure this branch exists to catch is unchanged; only its shape is.
   // 2026-08-26: the enumeration ruling (revealing WHY authentication failed
   // -- wrong username vs. wrong password vs. locked account -- is an
   // account-enumeration oracle) only applies to an actual auth failure
@@ -194,24 +202,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string, rememberMe = true) => {
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Send/receive cookies
-        body: JSON.stringify({ username, password, rememberMe }),
-      })
-
-      if (!res.ok) {
-        // 2026-08-26: this fetch bypasses lib/api.ts's handleResponse(), so
-        // constructing an ApiError (not a plain Error) here is what lets
-        // getLoginErrorMessage() below tell a genuine 5xx apart from an
-        // actual auth failure -- a plain Error would discard res.status
-        // before that distinction could ever be made.
-        const data = await getErrorPayload(res)
-        throw new ApiError(data?.error || LOGIN_FAILED_MESSAGE, { status: res.status, code: data?.code })
-      }
-
-      const data = await res.json()
+      // 2026-09-08 (auth-transport-parity): was a raw fetch() constructing
+      // its own ApiError by hand on failure -- that got the status/code
+      // distinction getLoginErrorMessage() needs, but missed everything else
+      // the shared transport already does for every other route (Retry-After
+      // parsing, the fetchWithRetry timeout, consistent NETWORK_ERROR/TIMEOUT
+      // classification). apiFetch/handleResponse throws an equivalent-or-
+      // better ApiError on failure via the same buildResponseError() every
+      // other call site uses.
+      const data = await handleResponse<{ accessToken: string; user: AuthState['user'] }>(
+        await apiFetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Send/receive cookies
+          body: JSON.stringify({ username, password, rememberMe }),
+        }),
+      )
       setAccessToken(data.accessToken)
       setState({
         user: data.user,
@@ -228,36 +234,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const setup = useCallback(async (username: string, password: string, rememberMe = true, panelPort = '3001', setupToken = '') => {
-    const res = await fetch('/api/auth/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ username, password, rememberMe, panelPort, setupToken }),
-    })
-
-    if (!res.ok) {
-      const data = await res.json()
+    let data: { accessToken: string; user: AuthState['user'] }
+    try {
+      // 2026-09-08 (auth-transport-parity): see login()'s own comment above
+      // -- same swap, same reasoning.
+      data = await handleResponse(
+        await apiFetch('/auth/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ username, password, rememberMe, panelPort, setupToken }),
+        }),
+      )
+    } catch (error) {
       // Setup.tsx recognizes this exact message and swaps in a localized,
       // token-specific explanation instead of the generic setup-failed copy.
-      // Untouched by the ApiError conversion below: its own copy (see
+      // Untouched by the ApiError rethrow below: its own copy (see
       // setup.json's invalidSetupToken) is more specific than the
       // registered SETUP_TOKEN_REQUIRED translation, so it must keep
       // winning ahead of getUserErrorMessage() rather than being replaced
       // by it.
-      if (data.code === 'SETUP_TOKEN_REQUIRED') {
+      if (error instanceof ApiError && error.code === 'SETUP_TOKEN_REQUIRED') {
         throw new Error('SETUP_TOKEN_REQUIRED')
       }
-      // 2026-08-26: this fetch bypasses lib/api.ts's handleResponse(), so
-      // an ApiError (not a plain Error) is what lets Setup.tsx's
-      // getUserErrorMessage() call translate a coded failure or wrap an
-      // uncoded 5xx instead of always showing this raw fallback text.
-      throw new ApiError(data.error || "We couldn't create the admin account. Try again.", {
-        status: res.status,
-        code: data.code,
-      })
+      if (error instanceof ApiError) throw error
+      throw new ApiError("We couldn't create the admin account. Try again.")
     }
-
-    const data = await res.json()
     setAccessToken(data.accessToken)
     setState({
       user: data.user,

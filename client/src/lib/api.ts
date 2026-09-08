@@ -457,7 +457,13 @@ export function apiFetch(endpoint: string, options?: RequestInit) {
   return fetchWithRetry(`${API_BASE}${endpoint}`, options);
 }
 
-async function handleResponse<T = any>(response: Response): Promise<T> {
+// Exported so AuthContext.tsx/Login.tsx's pre-auth calls (login, setup,
+// password reset -- routes with no token yet, so every other *Api object's
+// own convenience wrapper doesn't apply) can go through the same envelope
+// (buildResponseError's classification, Retry-After parsing, the fetchWithRetry
+// timeout/replay logic) instead of hand-rolling ApiError construction after a
+// raw fetch(), as they did before 2026-09-08's auth-transport-parity fix.
+export async function handleResponse<T = any>(response: Response): Promise<T> {
   const data = await parseResponseBody(response);
   if (!response.ok) {
     throw buildResponseError(response, data);
