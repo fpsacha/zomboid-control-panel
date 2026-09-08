@@ -36,6 +36,7 @@
     "inactive": "Inactif",
     "remote": "Distant",
     "updateAvailable": "Mise à jour disponible",
+    "updateStatusUnknown": "Update status unknown",
     "optionsAria": "Options pour {{name}}",
     "edit": "Modifier",
     "setActive": "Activer",

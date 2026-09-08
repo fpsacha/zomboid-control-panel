@@ -42,6 +42,7 @@
     "inactive": "Неактивний",
     "remote": "Віддалений",
     "updateAvailable": "Доступне оновлення",
+    "updateStatusUnknown": "Update status unknown",
     "optionsAria": "Параметри для {{name}}",
     "edit": "Редагувати",
     "setActive": "Зробити активним",

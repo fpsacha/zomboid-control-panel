@@ -3448,6 +3448,15 @@ export interface UpdateCheckerStatus {
   updateAvailable: UpdateStatus | null;
   gameVersion: string | null;
   lastCheck: string | null;
+  // Set on every checkForUpdates() failure path, cleared on any check that
+  // reaches a real answer -- see updateChecker.js's own comment. Paired with
+  // updateAvailable (which is written ONLY on success, so it retains the
+  // last real result across a later failure) to derive three states without
+  // a fourth field: updateAvailable === null -> never succeeded;
+  // updateAvailable !== null && lastError !== null -> succeeded, then a
+  // later attempt failed (keep showing the stale-but-real result);
+  // updateAvailable !== null && lastError === null -> succeeded cleanly.
+  lastError: string | null;
   intervalMinutes: number;
   isChecking: boolean;
   lastAutoUpdateResult: AutoUpdateResult | null;

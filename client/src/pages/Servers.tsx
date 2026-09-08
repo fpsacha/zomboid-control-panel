@@ -407,6 +407,16 @@ export default function Servers() {
   const [confirmClearInstall, setConfirmClearInstall] = useState(false)
   const [steamcmdPath, setSteamcmdPath] = useState('')
   const [updateInfo, setUpdateInfo] = useState<UpdateStatus | null>(null)
+  // 2026-09-08: does the game-update checker have ANY real answer on record,
+  // as opposed to updateInfo simply being null because there is no update
+  // (or none has been reported over a socket event yet)? Derived from
+  // getStatus()'s own updateAvailable field being non-null -- see api.ts's
+  // UpdateCheckerStatus comment for why that field, not lastCheck, is the
+  // one that's success-only. Deliberately NOT read off updateInfo itself:
+  // the socket handlers below already null updateInfo out on a clean
+  // "checked, no update" result, which must not read as "never checked."
+  const [updateCheckEverSucceeded, setUpdateCheckEverSucceeded] = useState(false)
+  const [updateCheckLastError, setUpdateCheckLastError] = useState<string | null>(null)
   const [gameVersion, setGameVersion] = useState<string | null>(null)
   const [availableBranches, setAvailableBranches] = useState<Array<{name: string, description: string, buildId?: string | null, timeUpdated?: string | null}>>([
     { name: 'public', description: t('branches.public') },
@@ -602,6 +612,8 @@ export default function Servers() {
       if (status.updateAvailable?.updateAvailable) {
         setUpdateInfo(status.updateAvailable)
       }
+      setUpdateCheckEverSucceeded(status.updateAvailable != null)
+      setUpdateCheckLastError(status.lastError ?? null)
       if (status.gameVersion) {
         setGameVersion(status.gameVersion)
       }
@@ -692,11 +704,19 @@ export default function Servers() {
   useEffect(() => {
     if (!socket) return
 
+    // Both events are only ever emitted from checkForUpdates()'s success
+    // path (server/services/updateChecker.js) -- receiving either one here
+    // is itself proof a check just succeeded, independent of whether THIS
+    // particular result says an update is available.
     const handleUpdateAvailable = (data: UpdateStatus) => {
       setUpdateInfo(data.updateAvailable ? data : null)
+      setUpdateCheckEverSucceeded(true)
+      setUpdateCheckLastError(null)
     }
     const handleUpdateCheck = (data: UpdateStatus) => {
       setUpdateInfo(data.updateAvailable ? data : null)
+      setUpdateCheckEverSucceeded(true)
+      setUpdateCheckLastError(null)
     }
 
     socket.on('server:updateAvailable', handleUpdateAvailable)
@@ -1807,6 +1827,14 @@ export default function Servers() {
         <div className="grid gap-4 md:grid-cols-2 stagger-in">
           {servers.map(server => {
             const hasUpdate = updateInfo?.updateAvailable && server.isActive
+            // Never-succeeded is scoped to the active server, same as
+            // hasUpdate above -- there is exactly one UpdateChecker instance
+            // server-side, tracking whichever server is currently active.
+            // Deliberately independent of lastError: a check that has never
+            // run yet (both fields still at their initial null/false) must
+            // read the same as one that has actively failed -- either way,
+            // there is no real answer to show.
+            const updateStatusUnknown = server.isActive && !updateCheckEverSucceeded
             return (
             <Card
               key={server.id}
@@ -1903,6 +1931,15 @@ export default function Servers() {
                       {hasUpdate && (
                         <Badge variant="warning" className="text-xs">
                           <RefreshCw className="w-3 h-3 me-1" /> {t('card.updateAvailable')}
+                        </Badge>
+                      )}
+                      {updateStatusUnknown && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs text-muted-foreground"
+                          title={updateCheckLastError ?? undefined}
+                        >
+                          <AlertCircle className="w-3 h-3 me-1" /> {t('card.updateStatusUnknown')}
                         </Badge>
                       )}
                     </CardTitle>

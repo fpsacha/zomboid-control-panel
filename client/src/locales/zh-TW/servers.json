@@ -36,6 +36,7 @@
     "inactive": "未啟用",
     "remote": "遠端",
     "updateAvailable": "有可用更新",
+    "updateStatusUnknown": "Update status unknown",
     "optionsAria": "{{name}} 的選項",
     "edit": "編輯",
     "setActive": "設為活動",

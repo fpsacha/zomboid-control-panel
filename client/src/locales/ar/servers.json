@@ -46,6 +46,7 @@
     "inactive": "غير نشط",
     "remote": "بعيد",
     "updateAvailable": "يتوفر تحديث",
+    "updateStatusUnknown": "Update status unknown",
     "optionsAria": "خيارات {{name}}",
     "edit": "تعديل",
     "setActive": "تعيينه نشطًا",
