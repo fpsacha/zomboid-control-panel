@@ -557,10 +557,26 @@ export class LinuxServiceLifecycle {
           : `Managed service ${this.serviceName} failed ownership validation`,
       };
     }
-    if (action === "start" && current.running) {
+    // current.running is inspect()'s raw boolean, which folds an exec-level
+    // failure (missing binary, EACCES, timeout on rc-service specifically --
+    // see inspect()'s own comment on why this can't happen for systemd,
+    // whose `registered` check already catches it above) into plain
+    // `false`, indistinguishable from a genuine "not running" answer.
+    // status()'s scanFailed already guards against trusting that collapse
+    // (2026-08-31 fix, see linuxServiceLifecycle.test.js's "OpenRC status()
+    // scanFailed" suite) -- but these two shortcuts read `current` directly
+    // and never went through that fix, so a transient rc-service exec
+    // failure landing on a Stop request reported {confirmed:true, "Server
+    // is already stopped"} without ever having checked anything. Skipping
+    // the shortcut when the state is unknown falls through to the real
+    // start/stop attempt below, which genuinely execs the command and
+    // reports confirmed:false honestly if that fails too -- never a free
+    // pass to declare victory over an answer we never actually got.
+    const stateUnknown = current.activeState === "unknown";
+    if (action === "start" && current.running && !stateUnknown) {
       return { success: true, confirmed: true, message: "Server is already running" };
     }
-    if (action === "stop" && !current.running) {
+    if (action === "stop" && !current.running && !stateUnknown) {
       return { success: true, confirmed: true, message: "Server is already stopped" };
     }
 

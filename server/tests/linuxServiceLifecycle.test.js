@@ -357,4 +357,79 @@ describe("Linux managed-service lifecycle", () => {
       expect(status.running).toBe(false);
     });
   });
+
+  // 2026-09-08 harden-updater dispatch: status()'s scanFailed fix above only
+  // protects callers who ask status() the question -- run()'s own
+  // "already stopped"/"already running" shortcuts read inspect()'s raw
+  // `current.running` directly and never went through that fix, so the same
+  // exec-level failure that status() correctly reports as scanFailed instead
+  // came out of run() as a full {confirmed:true} claim, with no stop/start
+  // command ever actually attempted.
+  describe("run() stop/start shortcuts under an OpenRC exec-level failure (2026-09-08 reporting-site fix)", () => {
+    function openrcLifecycle(execFile) {
+      return new LinuxServiceLifecycle(server, "openrc", {
+        platform: "linux",
+        containerized: false,
+        fileExists: () => true,
+        readFile: () => `X-Zomboid-Panel-Server-ID: ${server.id}`,
+        execFile,
+      });
+    }
+
+    it("does not confirm a stop when the pre-check rc-service exec itself fails -- falls through to a real stop attempt instead", async () => {
+      const execFile = vi.fn(async () => ({
+        code: 1,
+        stdout: "",
+        stderr: "",
+        execFailed: true,
+      }));
+
+      const result = await openrcLifecycle(execFile).run("stop");
+
+      expect(result.confirmed).toBe(false);
+      expect(result.success).toBe(false);
+      // The shortcut must not have short-circuited before the real command --
+      // inspect()'s own probe plus a genuine "rc-service ... stop" attempt is
+      // two calls, not one.
+      expect(execFile).toHaveBeenCalledTimes(2);
+      expect(execFile).toHaveBeenCalledWith("rc-service", [
+        "--user",
+        "zomboid-panel-server-alpha-1",
+        "stop",
+      ]);
+    });
+
+    it("does not confirm already-running when the pre-check rc-service exec itself fails -- falls through to a real start attempt instead", async () => {
+      const execFile = vi.fn(async () => ({
+        code: 1,
+        stdout: "",
+        stderr: "",
+        execFailed: true,
+      }));
+
+      const result = await openrcLifecycle(execFile).run("start");
+
+      expect(result.confirmed).toBe(false);
+      expect(result.success).toBe(false);
+      expect(execFile).toHaveBeenCalledTimes(2);
+    });
+
+    it("still takes the fast confirmed-stopped shortcut when rc-service genuinely answers non-zero (no regression on the legitimate fast path)", async () => {
+      const execFile = vi.fn(async () => ({
+        code: 3,
+        stdout: "stopped",
+        stderr: "",
+      }));
+
+      const result = await openrcLifecycle(execFile).run("stop");
+
+      expect(result).toEqual({
+        success: true,
+        confirmed: true,
+        message: "Server is already stopped",
+      });
+      // Shortcut taken -- only the one inspect() probe, no stop command issued.
+      expect(execFile).toHaveBeenCalledTimes(1);
+    });
+  });
 });
