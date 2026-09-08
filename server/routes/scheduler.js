@@ -366,11 +366,24 @@ router.put('/tasks/:id', async (req, res) => {
     if (command !== undefined && (typeof command !== 'string' || command.length > 2000)) {
       return res.status(400).json({ error: 'Invalid command (max 2000 characters)', code: ErrorCode.SCHEDULER_INVALID_COMMAND });
     }
+
+    // Fetched here (not just below, where the original code fetched it only
+    // for the merged-reschedule step) because the enabled-arming check right
+    // below needs the task's STORED command to classify -- see that check's
+    // own comment for why.
+    const tasksBeforeUpdate = await getScheduledTasks();
+    const previousTaskRecord = Array.isArray(tasksBeforeUpdate)
+      ? tasksBeforeUpdate.find((task) => String(task.id) === String(taskId))
+      : null;
+    const previousTask = previousTaskRecord
+      ? { ...previousTaskRecord }
+      : null;
+
     // Only gate on the command's required capability when THIS request is
-    // actually setting the command -- a caller who only toggles enabled/
-    // name/serverId on a task someone else created shouldn't need any
-    // particular capability just because that task's untouched, pre-existing
-    // command happens to need one.
+    // actually setting the command -- a caller who only toggles name/
+    // serverId on a task someone else created shouldn't need any particular
+    // capability just because that task's untouched, pre-existing command
+    // happens to need one.
     if (command !== undefined) {
       const allowed = await requireCapabilityInline(
         requiredCapabilityForScheduledCommand(command),
@@ -387,6 +400,31 @@ router.put('/tasks/:id', async (req, res) => {
     }
     const normalizedEnabled =
       enabled === undefined ? undefined : (enabled === true || enabled === 1 ? 1 : 0);
+
+    // Arming: turning a task on is what makes its STORED command fire later
+    // with no live user context to check against (the cron path is
+    // deliberately unchecked -- see the router-level comment). POST
+    // /tasks/:id/run's own comment names the two enforcement halves that
+    // close this class of escalation -- create/edit-time and run-now-time --
+    // but enabling a previously-created, currently-disabled task is a THIRD
+    // way to make a stored command live that neither half covers: it isn't
+    // editing `command` (skips the check above) and it isn't a manual
+    // run-now (skips that route's check too). Someone holding only
+    // automation.manage (required for this whole router, checked above) but
+    // not e.g. server.control could otherwise re-enable a restart/broadcast
+    // task someone else set up while they legitimately held that capability,
+    // and have it fire on schedule without ever holding it themselves.
+    // Skipped when `command` is ALSO in this request: already checked above
+    // against the fresh value, and re-checking against previousTask's STALE
+    // command here would check the wrong string.
+    if (command === undefined && normalizedEnabled === 1) {
+      const allowed = await requireCapabilityInline(
+        requiredCapabilityForScheduledCommand(previousTaskRecord?.command),
+        req,
+        res,
+      );
+      if (!allowed) return;
+    }
 
     // Validate cron expression before saving to prevent DB/scheduler inconsistency
     if (cronExpression && !cron.validate(cronExpression)) {
@@ -412,14 +450,6 @@ router.put('/tasks/:id', async (req, res) => {
         return res.status(400).json({ error: 'Target server not found', code: ErrorCode.SCHEDULER_TARGET_SERVER_NOT_FOUND });
       }
     }
-
-    const tasksBeforeUpdate = await getScheduledTasks();
-    const previousTaskRecord = Array.isArray(tasksBeforeUpdate)
-      ? tasksBeforeUpdate.find((task) => String(task.id) === String(taskId))
-      : null;
-    const previousTask = previousTaskRecord
-      ? { ...previousTaskRecord }
-      : null;
 
     const updated = await updateScheduledTask(taskId, name, cronExpression, command, normalizedEnabled, serverId);
     if (!updated) {

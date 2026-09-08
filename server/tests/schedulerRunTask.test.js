@@ -471,6 +471,131 @@ describe("rcon.execute gate on raw scheduled commands", () => {
       expect(response.status).not.toHaveBeenCalledWith(403);
       expect(updateScheduledTask).toHaveBeenCalled();
     });
+
+    // The third arming path Run-now's own comment doesn't cover: neither
+    // editing `command` nor manually triggering it, just flipping a
+    // previously-disabled task's `enabled` bit so its STORED command starts
+    // firing on schedule -- which happens with zero capability check at fire
+    // time (the cron path is deliberately unchecked). Someone who only holds
+    // automation.manage could otherwise re-enable a restart/save task set up
+    // by someone who once held server.control, without ever holding it
+    // themselves.
+    it("refuses to enable a disabled task whose STORED command is 'restart' for automation.manage alone", async () => {
+      const { updateScheduledTask } = await import("../database/init.js");
+      updateScheduledTask.mockClear();
+      getScheduledTasks.mockResolvedValue([
+        { id: 13, name: "Nightly restart", command: "restart", enabled: 0 },
+      ]);
+      const response = createResponse();
+
+      await getUpdateHandler()(
+        {
+          user: { role: "automation_only" },
+          params: { id: "13" },
+          body: { enabled: true },
+          app: { get: () => ({ scheduleTask: vi.fn(), cancelTask: vi.fn() }) },
+        },
+        response,
+      );
+
+      expect(response.status).toHaveBeenCalledWith(403);
+      expect(updateScheduledTask).not.toHaveBeenCalled();
+    });
+
+    it("allows enabling that same 'restart' task when the CURRENT caller holds server.control", async () => {
+      const { updateScheduledTask } = await import("../database/init.js");
+      updateScheduledTask.mockClear();
+      getScheduledTasks.mockResolvedValue([
+        { id: 14, name: "Nightly restart", command: "restart", enabled: 0 },
+      ]);
+      updateScheduledTask.mockResolvedValue({
+        id: 14,
+        name: "Nightly restart",
+        cron_expression: "0 3 * * *",
+        command: "restart",
+        enabled: 1,
+        server_id: null,
+      });
+      const response = createResponse();
+
+      await getUpdateHandler()(
+        {
+          user: { role: "automation_and_control" },
+          params: { id: "14" },
+          body: { enabled: true },
+          app: { get: () => ({ scheduleTask: vi.fn(), cancelTask: vi.fn() }) },
+        },
+        response,
+      );
+
+      expect(response.status).not.toHaveBeenCalledWith(403);
+      expect(updateScheduledTask).toHaveBeenCalled();
+    });
+
+    it("does not require server.control just to DISABLE a 'restart' task -- turning it off arms nothing", async () => {
+      const { updateScheduledTask } = await import("../database/init.js");
+      updateScheduledTask.mockClear();
+      getScheduledTasks.mockResolvedValue([
+        { id: 15, name: "Nightly restart", command: "restart", enabled: 1 },
+      ]);
+      updateScheduledTask.mockResolvedValue({
+        id: 15,
+        name: "Nightly restart",
+        cron_expression: "0 3 * * *",
+        command: "restart",
+        enabled: 0,
+        server_id: null,
+      });
+      const response = createResponse();
+
+      await getUpdateHandler()(
+        {
+          user: { role: "automation_only" },
+          params: { id: "15" },
+          body: { enabled: false },
+          app: { get: () => ({ scheduleTask: vi.fn(), cancelTask: vi.fn() }) },
+        },
+        response,
+      );
+
+      expect(response.status).not.toHaveBeenCalledWith(403);
+      expect(updateScheduledTask).toHaveBeenCalled();
+    });
+
+    it("checks the FRESH command, not the stale stored one, when both command and enabled:true are in the same request", async () => {
+      const { updateScheduledTask } = await import("../database/init.js");
+      updateScheduledTask.mockClear();
+      // Stored command is the raw-gated shape; the request is replacing it
+      // with 'restart' in the same call. If the arming check used the STALE
+      // previousTask.command instead of skipping in favor of the check
+      // already run against the request body, this would 403 on rcon.execute
+      // instead of the correct server.control.
+      getScheduledTasks.mockResolvedValue([
+        { id: 16, name: "Task", command: 'banuser "someone"', enabled: 0 },
+      ]);
+      updateScheduledTask.mockResolvedValue({
+        id: 16,
+        name: "Task",
+        cron_expression: "0 3 * * *",
+        command: "restart",
+        enabled: 1,
+        server_id: null,
+      });
+      const response = createResponse();
+
+      await getUpdateHandler()(
+        {
+          user: { role: "automation_and_control" },
+          params: { id: "16" },
+          body: { command: "restart", enabled: true },
+          app: { get: () => ({ scheduleTask: vi.fn(), cancelTask: vi.fn() }) },
+        },
+        response,
+      );
+
+      expect(response.status).not.toHaveBeenCalledWith(403);
+      expect(updateScheduledTask).toHaveBeenCalled();
+    });
   });
 
   describe("POST /api/scheduler/tasks/:id/run", () => {
