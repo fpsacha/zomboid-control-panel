@@ -67,6 +67,85 @@ describe("Scheduler.runTaskNow command dispatch", () => {
     expect(rconService.execute).not.toHaveBeenCalledWith("restart", expect.anything());
   });
 
+  // scheduler-logscheduleexecution-callers-may-pass-unverified-outcomes,
+  // god-dispatched 2026-09-09: executeTask()'s "restart" branch used to
+  // only re-throw performRestart()'s failure for the one exact message
+  // "Restart already in progress" -- every OTHER failure (RCON down, a
+  // held lifecycle lock, the new instance never coming back up, ...) fell
+  // through silently, so runTaskNow() below logged success:true "Completed
+  // successfully" to Schedule History for a restart that had actually
+  // failed. Exactly the "confident answer built on an unconfirmed
+  // observation" shape this hunt was named for.
+  it("logs a real failure, not a false success, when performRestart fails for a reason OTHER than 'already in progress'", async () => {
+    const { scheduler } = makeScheduler();
+    scheduler.performRestart = vi.fn().mockResolvedValue({
+      success: false,
+      message: "RCON not available: connection failed",
+    });
+
+    const result = await scheduler.runTaskNow({
+      id: 20,
+      name: "Nightly restart",
+      command: "restart",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.message).toMatch(/RCON not available/);
+    expect(logScheduleExecution).toHaveBeenCalledWith(
+      20,
+      "Nightly restart",
+      "restart",
+      false,
+      expect.stringMatching(/RCON not available/),
+      expect.any(Number),
+    );
+    expect(logScheduleExecution).not.toHaveBeenCalledWith(
+      20,
+      "Nightly restart",
+      "restart",
+      true,
+      expect.anything(),
+      expect.any(Number),
+    );
+  });
+
+  // The lifecycle-lock-busy guard is the sharper case: lifecycleInProgressResponse()
+  // spreads an `error` field, not `message` -- the old string-equality check
+  // against `result.message` could never match this shape even by
+  // coincidence, so this specific failure had NO Schedule History entry at
+  // all before this fix, only the fabricated success.
+  it("logs a real failure when performRestart refuses because another lifecycle operation already holds the lock (error field, not message)", async () => {
+    const { scheduler } = makeScheduler();
+    scheduler.performRestart = vi.fn().mockResolvedValue({
+      success: false,
+      error: "A 'start' operation for 'DoomerZ' is already in progress",
+    });
+
+    const result = await scheduler.runTaskNow({
+      id: 21,
+      name: "Nightly restart",
+      command: "restart",
+    });
+
+    expect(result.success).toBe(false);
+    expect(logScheduleExecution).toHaveBeenCalledWith(
+      21,
+      "Nightly restart",
+      "restart",
+      false,
+      expect.stringMatching(/already in progress/),
+      expect.any(Number),
+    );
+    expect(logScheduleExecution).not.toHaveBeenCalledWith(
+      21,
+      "Nightly restart",
+      "restart",
+      true,
+      expect.anything(),
+      expect.any(Number),
+    );
+  });
+
   it("routes 'save' through rconService.save()", async () => {
     const { scheduler, rconService } = makeScheduler();
 

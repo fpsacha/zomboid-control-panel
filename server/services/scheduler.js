@@ -593,12 +593,33 @@ export class Scheduler {
           rconService,
           serverManager,
         });
-        // If restart was skipped (already in progress), throw to mark task as failed
-        if (
-          !result.success &&
-          result.message === "Restart already in progress"
-        ) {
-          throw new Error("Restart skipped - already in progress");
+        // scheduler-logscheduleexecution-callers-may-pass-unverified-outcomes,
+        // god-dispatched 2026-09-09: used to only throw for the one
+        // "Restart already in progress" message, letting every OTHER
+        // performRestart() failure (RCON unreachable, process scan failed,
+        // container restart failed, old server never confirmed stopped, the
+        // new one never came back up, the lifecycle lock already held by a
+        // different in-flight operation, ...) fall through here silently.
+        // With no throw, this function returns normally and runTaskNow()
+        // below unconditionally logs success:true "Completed successfully"
+        // -- exactly the 63a32640 shape (a confident, unverified verdict
+        // written to the audit trail) god named this hunt after, except
+        // here it's worse: for most of those failures performRestart()
+        // ALREADY wrote its own true `false` entry to Schedule History
+        // moments earlier, so the record for one execution would show a
+        // real failure immediately followed by a fabricated success. And
+        // the lifecycle-lock-busy guard specifically returns `error`, not
+        // `message` (see lifecycleInProgressResponse()) -- the old
+        // string-equality check could never have matched it even by
+        // accident, so that path had NO failure entry at all, only the
+        // fabricated success. Throwing on any `!result.success` guarantees
+        // runTaskNow's catch logs a false entry every time -- occasionally
+        // a harmless duplicate of one performRestart() already wrote, never
+        // a contradiction of one.
+        if (!result.success) {
+          throw new Error(
+            result.message || result.error || "Restart failed",
+          );
         }
       } else if (commandKind === "save") {
         const saved = await rconService.save({ skipLog: true });
