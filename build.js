@@ -537,14 +537,6 @@ echo.
   set "EXITCODE=!ERRORLEVEL!"
   call :stamp "Panel exited with code !EXITCODE!"
 
-  if exist "%APPLYING%" (
-    if !ROLLBACK_RETRY_COUNT! GEQ !MAX_ROLLBACK_RETRIES! goto rollback_retry_exhausted
-    set /a ROLLBACK_RETRY_COUNT+=1
-    call :stamp "Apply: startup handshake failed; rolling back bundle, retry !ROLLBACK_RETRY_COUNT! of !MAX_ROLLBACK_RETRIES! [startup_handshake_failed]"
-    call :rollback_update
-    goto run_loop
-  )
-
   rem Exit code 75 = panel requested restart-for-update.
   if "!EXITCODE!"=="75" (
     echo.
@@ -558,11 +550,27 @@ echo.
   rem retrying is guaranteed to fail identically every time, so this stops
   rem here instead of entering the crash-loop backoff -- retrying (and
   rem eventually "giving up") would misrepresent a working refusal as a
-  rem string of crashes.
+  rem string of crashes. Checked BEFORE the "%APPLYING%" handshake check
+  rem below on purpose (2026-09-08, windows-presence-check-precedes-exit-
+  rem code-branches): a stale/orphaned lock can coincide with an update
+  rem window, and a lock refusal says NOTHING about whether the just-swapped
+  rem binary is broken. The old order treated exit 78 as a failed handshake
+  rem and rolled back a perfectly good update -- which does not even clear
+  rem the lock, so the relaunched (rolled-back) binary would hit the exact
+  rem same refusal AND the update would be lost for nothing. Mirrors
+  rem Start.sh's equivalent ordering (see its own comment on this).
   if "!EXITCODE!"=="78" (
     echo.
     pause
     exit /b 78
+  )
+
+  if exist "%APPLYING%" (
+    if !ROLLBACK_RETRY_COUNT! GEQ !MAX_ROLLBACK_RETRIES! goto rollback_retry_exhausted
+    set /a ROLLBACK_RETRY_COUNT+=1
+    call :stamp "Apply: startup handshake failed; rolling back bundle, retry !ROLLBACK_RETRY_COUNT! of !MAX_ROLLBACK_RETRIES! [startup_handshake_failed]"
+    call :rollback_update
+    goto run_loop
   )
 
   rem If a marker appeared during runtime (panel wrote it but then crashed
@@ -1299,8 +1307,12 @@ restore_interrupted_update() {
 # itself once, no matter how much later an unrelated crash happens.
 #
 # See the call site (below, in the main loop) for why this runs AFTER the
-# exit==75/78 checks, not before them like Start.bat's equivalent -- that
-# ordering is load-bearing on Linux specifically, not a style choice.
+# exit==75/78 checks. Start.bat's equivalent (the "%APPLYING%" check in
+# run_loop) used to run BEFORE those checks -- fixed 2026-09-08
+# (windows-presence-check-precedes-exit-code-branches) once this Linux
+# ordering exposed it as a real, if rare, defect: an exit-78 lock refusal
+# during an update window was being misread as a failed startup handshake
+# and rolling back a perfectly good update.
 rollback_failed_update() {
   echo "Update never completed its startup handshake; rolling back to the previous build."
   local restore_ok=1

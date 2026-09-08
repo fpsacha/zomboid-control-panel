@@ -583,6 +583,55 @@ describe.skipIf(!!skipReason)(
     );
 
     it(
+      "does not roll back a just-applied update when the freshly-swapped binary refuses to start on a stale lock (code 78)",
+      async () => {
+        // windows-presence-check-precedes-exit-code-branches, god-dispatched
+        // 2026-09-08. Before this fix, run_loop checked `if exist
+        // "%APPLYING%"` BEFORE inspecting the exit code at all, so this exact
+        // scenario -- the swap succeeds, the brand-new binary launches, and
+        // THEN immediately refuses because a stale/orphaned single-instance
+        // lock (unrelated to the update) happens to still be held -- was
+        // misread as "the new binary never completed its startup handshake"
+        // and triggered :rollback_update. That both discarded a perfectly
+        // good update AND accomplished nothing: rolling back does not touch
+        // the lock, so the restored old binary would hit the identical
+        // refusal on relaunch. A lock refusal says nothing about whether the
+        // new binary works.
+        //
+        // setupPendingUpdate stages a swap; :apply_update runs it (renaming
+        // the staged exe/client into place and moving .update-pending to
+        // .update-applying) BEFORE the first launch, so exitCodes=[78] here
+        // is the exit code of the ALREADY-SWAPPED binary, not the old one.
+        const dir = freshScenarioDir("stale-lock-during-update-window");
+        await writeStartBatInto(dir);
+        setupStub(dir, [78], [0]);
+        setupPendingUpdate(dir);
+
+        const result = await runSupervisor(
+          dir,
+          { PANEL_SUPERVISOR_BACKOFF_SECONDS: "0" },
+          140000,
+        );
+
+        expect(countLaunches(result.stdout)).toBe(1);
+        expect(result.status).toBe(78);
+        const log = readSupervisorLog(dir);
+        expect(log).not.toMatch(/startup_handshake_failed/i);
+        expect(log).not.toMatch(/rolling back/i);
+        expect(log).not.toMatch(/rollback complete/i);
+        // The swap itself must stand: the new client stays activated, not
+        // reverted to the pre-update copy.
+        expect(
+          fs.readFileSync(
+            path.join(dir, "client", "dist", "index.html"),
+            "utf8",
+          ),
+        ).toBe("new-client");
+      },
+      155000,
+    );
+
+    it(
       "does not assert a URL it cannot actually know -- the panel prints its own real one",
       async () => {
         // Start.bat used to print "Open your browser to: http://localhost:3001"
