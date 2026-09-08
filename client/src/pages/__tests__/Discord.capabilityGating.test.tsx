@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import Discord from '../Discord'
@@ -158,5 +158,39 @@ describe('Discord.tsx: every mutating control gates on integrations.manage', () 
     // Verify Token / Save Changes stay disabled here for reasons unrelated
     // to capability (no token typed yet / canSaveConfig's own validation) --
     // covered by their own existing tests, not this file's concern.
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above stopped
+  // at not.toBeDisabled() for all 5 buttons -- none were ever clicked, so a
+  // regression in any one handler's own body (as opposed to the shared
+  // canManageIntegrations disabled expression) would have sat green. Each
+  // button's real destination is a distinct mock, proven individually.
+  // Wipe Discord Setup goes last -- its handler clears every field and
+  // resets setupStep, which would otherwise destabilize the DOM this test
+  // still needs for the other four.
+  it('reaches each of the 5 real APIs when clicked, holding integrations.manage', async () => {
+    mockCan = () => true
+    await setUpConfiguredRunningBot()
+
+    renderDiscord()
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Stop Bot' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send Test' }))
+    await waitFor(() => expect(sendTestMessage).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Events' }))
+    await waitFor(() => expect(updateWebhookEvents).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Permissions' }))
+    await waitFor(() => expect(updatePermissions).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop Bot' }))
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Wipe Discord Setup' }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Wipe Discord Settings' }))
+    await waitFor(() => expect(resetConfig).toHaveBeenCalledTimes(1))
   })
 })
