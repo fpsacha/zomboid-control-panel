@@ -437,6 +437,34 @@ describe('Players.tsx: capability gating', () => {
     expect(screen.getByRole('button', { name: /^Teleport\b/ })).not.toBeDisabled()
   })
 
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): the test above stopped
+  // at not.toBeDisabled() for all three Enable buttons and Heal -- none were
+  // ever clicked, so a regression in handleGodMode/handleInvisible/
+  // handleNoclip/handleHealPlayer's own bodies (as opposed to the shared
+  // canGmTools disabled expression) would have sat green. All four are
+  // direct sendCommand calls with no intervening dialog.
+  it('the GM-tools four each reach sendCommand with their own verb when clicked, holding only players.gm_tools', async () => {
+    mockCan = (capability) => capability === 'players.gm_tools'
+    await setUpFixtures()
+    sendCommand.mockResolvedValue({ success: true, data: {} } as Awaited<ReturnType<typeof panelBridgeApi.sendCommand>>)
+    renderPlayers()
+    await selectTestPlayer()
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Powers' }), { button: 0 })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Heal' })).toBeInTheDocument(), { timeout: 3000 })
+
+    const [godModeBtn, invisibleBtn, noclipBtn] = screen.getAllByRole('button', { name: 'Enable' })
+    fireEvent.click(godModeBtn)
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('setGodMode', { username: 'TestPlayer', enabled: true }))
+    fireEvent.click(invisibleBtn)
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('setInvisible', { username: 'TestPlayer', enabled: true }))
+    fireEvent.click(noclipBtn)
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('setNoclip', { username: 'TestPlayer', enabled: true }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Heal' }))
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('healPlayer', { username: 'TestPlayer' }))
+  })
+
   // bug-hunt-2026-08-27: Radix's DropdownMenuItem composes the caller's
   // onClick with its own select handler and runs it UNCONDITIONALLY --
   // the internal disabled check only guards Radix's own side effect, never
