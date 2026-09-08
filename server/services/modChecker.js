@@ -1327,31 +1327,42 @@ export class ModChecker extends EventEmitter {
       // content cache, not something scoped per configured panel server --
       // on a host that has ever run more than one server through the same
       // SteamCMD install, it can carry entries for servers that aren't this
-      // one at all. Prefer the active server's own .ini WorkshopItems= list;
-      // when that can't be read yet (a brand-new server before its first
-      // full config write, a custom launcher the panel doesn't manage the
-      // ini for, a transient error), fall back to this server's own tracked
-      // mods (getTrackedMods() is already server-scoped, unlike the ACF) --
-      // but only when there's at least one real signal to trust. With
-      // neither, there's no way to tell what belongs to this server at all,
-      // so this falls all the way back to no filtering rather than
-      // confidently reporting zero updates for a modChecker that simply
-      // hasn't been wired to a live server config yet. A real user hit the
-      // wrong-server version of this: "My mods list insists I have 24
+      // one at all. A real user hit this: "My mods list insists I have 24
       // updates ready despite the fact I setup a NEW server and these are
-      // all freshly installed" -- his own new server's real, current mods
-      // were being compared against whatever a PREVIOUS server had left in
-      // the same shared ACF.
+      // all freshly installed" -- his new server's real, current mods were
+      // being compared against whatever a PREVIOUS server had left in the
+      // same shared ACF.
+      //
+      // Relevance is the UNION of the active server's .ini WorkshopItems=
+      // list and its own tracked mods (getTrackedMods() is already
+      // server-scoped, unlike the ACF) -- deliberately not "prefer the ini,
+      // only fall back to tracked when the ini is unreadable": a mod that
+      // was just tracked (added via the UI, downloaded) but whose ini
+      // hasn't been regenerated yet is a normal, transient state, and
+      // treating "not yet in the ini" as "not relevant" would silently
+      // suppress a real update for it -- a failure mode no user would ever
+      // think to report, unlike the noisy phantom-mod flood this whole fix
+      // exists for. The accepted tradeoff, ruled on explicitly: a mod the
+      // operator deliberately removed from the ini but never explicitly
+      // untracked can still report an update it can't actually apply until
+      // restart -- narrower and more visible (an operator SEES a stale
+      // "restart pending" for a specific named mod they recognize) than the
+      // wrong-server flood this fix closes, and the existing "remove from
+      // tracking" action is the way out of it. With NEITHER the ini NOR any
+      // tracked mods, there's no signal for what belongs to this server at
+      // all, so this falls all the way back to no filtering rather than
+      // confidently reporting zero updates for a modChecker that simply
+      // hasn't been wired to a live server config yet.
       const iniWorkshopIds = await this.getConfiguredWorkshopIds();
       const trackedWorkshopIds = new Set(
         trackedMods.map((mod) => String(mod?.workshop_id ?? "")).filter(Boolean),
       );
+      const relevantWorkshopIdsUnion = new Set([
+        ...(iniWorkshopIds || []),
+        ...trackedWorkshopIds,
+      ]);
       const relevantWorkshopIds =
-        iniWorkshopIds && iniWorkshopIds.size > 0
-          ? iniWorkshopIds
-          : trackedWorkshopIds.size > 0
-            ? trackedWorkshopIds
-            : null;
+        relevantWorkshopIdsUnion.size > 0 ? relevantWorkshopIdsUnion : null;
 
       // Query Steam Web API for latest timestamps.
       // Include tracked mods that aren't in the ACF (e.g. INI lists the ID
@@ -1509,41 +1520,16 @@ export class ModChecker extends EventEmitter {
 
       this.lastCheck = new Date();
 
-      // Drop "phantom" updates for tracked mods that are no longer listed in
-      // the server's INI (WorkshopItems). They can't be applied — restarting
-      // won't pull a mod the server isn't subscribed to — so flagging them
-      // creates a permanent "Restart Pending" loop (see issue: removed-from-INI
-      // mod gets stuck in update-restart cycle and never resolves).
-      try {
-        const iniWorkshopIds = await this.getConfiguredWorkshopIds();
-        if (iniWorkshopIds && iniWorkshopIds.size > 0) {
-          const before = updatedMods.length;
-          const filtered = updatedMods.filter((m) =>
-            iniWorkshopIds.has(String(m.workshopId)),
-          );
-          const skipped = before - filtered.length;
-          if (skipped > 0) {
-            const skippedNames = updatedMods
-              .filter((m) => !iniWorkshopIds.has(String(m.workshopId)))
-              .map((m) => `${m.name} (${m.workshopId})`)
-              .join(", ");
-            log.info(
-              `Skipping ${skipped} phantom update(s) for mods not in server INI: ${skippedNames}`,
-            );
-          }
-          updatedMods.length = 0;
-          updatedMods.push(...filtered);
-        } else {
-          log.debug(
-            "Could not read server INI workshop IDs — not filtering phantom updates",
-          );
-        }
-      } catch (filterErr) {
-        log.warn(
-          `Failed to filter updates against INI config: ${filterErr.message}`,
-        );
-      }
-
+      // The old "drop phantom updates not listed in the server's INI" pass
+      // used to live here, as a post-hoc filter over `updatedMods` re-reading
+      // the ini a second time. It's now redundant, not just moved: both
+      // comparison loops above already skip anything relevantWorkshopIds
+      // rules out (ini first, this server's own tracked mods as fallback)
+      // BEFORE pushing into updatedMods or auto-tracking it via
+      // addTrackedMod() -- catching the original "removed from INI, stuck in
+      // a Restart Pending loop" case AND, further up the fallback chain, the
+      // "mods belong to a different server on this host" case a real user
+      // hit (see relevantWorkshopIds' own comment above).
       this.modsNeedingUpdate = updatedMods;
 
       // Batch-mark every mod we successfully queried as "just checked".
@@ -1783,25 +1769,30 @@ export class ModChecker extends EventEmitter {
         .filter(Boolean),
     );
     const workshopInfo = await this.getWorkshopInfo();
-    // Only count updates for mods that are actually listed in the server INI.
-    // Mods downloaded into the Workshop folder but absent from WorkshopItems=
-    // can't be applied by a restart, so reporting them here triggers the
-    // "flags out of sync" banner in the UI (see the phantom-update filter
-    // applied in checkForUpdates).
+    // Only count updates for mods that actually belong to the ACTIVE server.
+    // Same UNION-of-ini-and-tracked relevance as checkForUpdates() (see its
+    // own comment for the full reasoning, including the deliberate tradeoff
+    // on a tracked-but-ini-absent mod): mods downloaded into the (possibly
+    // host-shared) Workshop folder but neither configured nor tracked for
+    // THIS server either trigger the "flags out of sync" banner for nothing,
+    // or -- the shape a real user hit -- flood a brand-new server with
+    // "updates ready" for mods belonging to a previous server on the host.
     let iniWorkshopIds = null;
     try {
       iniWorkshopIds = await this.getConfiguredWorkshopIds();
     } catch {
-      /* fall through — leave null to skip filter */
+      /* fall through — leave null, union still has trackedWorkshopIds */
     }
+    const relevantWorkshopIdsUnion = new Set([
+      ...(iniWorkshopIds || []),
+      ...trackedWorkshopIds,
+    ]);
+    const relevantWorkshopIds =
+      relevantWorkshopIdsUnion.size > 0 ? relevantWorkshopIdsUnion : null;
     const modsWithUpdates = Object.entries(workshopInfo).filter(
       ([id, info]) => {
         if (!info.needsUpdate) return false;
-        if (
-          iniWorkshopIds &&
-          iniWorkshopIds.size > 0 &&
-          !iniWorkshopIds.has(String(id))
-        )
+        if (relevantWorkshopIds && !relevantWorkshopIds.has(String(id)))
           return false;
         return true;
       },
