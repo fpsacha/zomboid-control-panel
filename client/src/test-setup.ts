@@ -20,4 +20,26 @@ import { configure } from '@testing-library/react'
 // involved, which is why a contention-induced failure's real cause is easy
 // to miss. A timeout AFTER this change is a real bug to investigate, never
 // something to explain away as "just needs a bigger number."
-configure({ asyncUtilTimeout: 60000 })
+//
+// 2026-09-08 (backups-stale-progress-test-flaky-under-load): that policy is
+// still right, but this value being EQUAL to testTimeout has a cost the
+// original change didn't anticipate -- when a waitFor()/findBy* condition
+// is never met, vitest's own 60000ms ceiling and this one arrive at the
+// same instant, and vitest wins the race. The result is a bare "Test timed
+// out in 60000ms" with no RTL error naming the query or dumping the DOM --
+// exactly what a genuine unmet-condition hang and a load-caused slowdown
+// both look like, with nothing in the report to tell them apart. That
+// ambiguity is why Backups.staleProgressTimeout.test.tsx's one-time gate
+// failure couldn't be diagnosed after the fact: three full-suite
+// reproduction attempts and a trace through every candidate for a
+// swallowed-error hang came back clean, and the failure itself carried no
+// evidence either way.
+//
+// Kept meaningfully BELOW testTimeout instead: a real unmet condition now
+// fails first, with RTL's own diagnostic error and DOM dump, while a bare
+// vitest-level timeout past this value means the hang is somewhere that is
+// NOT an RTL query -- two distinguishable failure shapes instead of one.
+// 45000 is still far more slack than any genuine async update in this
+// suite needs; this isn't tightening the ceiling the original comment
+// defended, just uncoupling it from testTimeout's.
+configure({ asyncUtilTimeout: 45000 })
