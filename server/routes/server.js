@@ -27,6 +27,7 @@ import {
   getActiveSteamOperations,
   clearActiveSteamOperation,
   hasActiveSteamOperation,
+  recordActiveSteamOperationPid,
   STEAM_OPERATION_IDLE_TIMEOUT_MS,
 } from "../services/activeSteamOperations.js";
 import { normalizeMemoryGb } from "../utils/memory.js";
@@ -2863,7 +2864,6 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
       spawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
     }
     const steamcmd = spawn(steamcmdExe, steamcmdArgs, spawnOpts);
-    activeSteamOperations.get(normalizedPath).pid = steamcmd.pid;
     // A signal-killed process reports code=null to the close handler below,
     // not the exit code INSTALL_FAILED_EXIT_CODE's message names -- tracked
     // so that branch can say "stalled and was stopped" instead of the
@@ -3031,7 +3031,7 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
               ...(bareMetalCommand ? { command: bareMetalCommand } : {}),
             },
           });
-          activeSteamOperations.delete(normalizedPath);
+          clearActiveSteamOperation(normalizedPath);
           return;
         }
 
@@ -3295,6 +3295,12 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
       });
     });
 
+    // All of steamcmd's own listeners are attached synchronously above --
+    // this await, unlike one placed between spawn() and those .on() calls,
+    // cannot lose an early 'close'/'error'/data event to a gap where
+    // nothing was listening yet.
+    await recordActiveSteamOperationPid(normalizedPath, steamcmd.pid);
+
     // Return immediately - progress is sent via Socket.IO
     res.json({
       success: true,
@@ -3304,7 +3310,7 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     });
   } catch (error) {
     if (activeOperationPath) {
-      activeSteamOperations.delete(activeOperationPath);
+      clearActiveSteamOperation(activeOperationPath);
     }
     log.error(`Installation error: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -4117,7 +4123,6 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
       updateSpawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
     }
     const steamcmd = spawn(steamcmdExe, steamcmdArgs, updateSpawnOpts);
-    activeSteamOperations.get(normalizedPath).pid = steamcmd.pid;
     activeSteamOperations.get(normalizedPath).watchdog = setInterval(() => {
       const activeOperation = activeSteamOperations.get(normalizedPath);
       if (!activeOperation) return;
@@ -4252,13 +4257,19 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
       log.error(`SteamCMD error: ${error.message}`);
     });
 
+    // All of steamcmd's own listeners are attached synchronously above --
+    // this await, unlike one placed between spawn() and those .on() calls,
+    // cannot lose an early 'close'/'error'/data event to a gap where
+    // nothing was listening yet.
+    await recordActiveSteamOperationPid(normalizedPath, steamcmd.pid);
+
     res.json({
       success: true,
       message: `Server ${operation} started`,
     });
   } catch (error) {
     if (activeOperationPath) {
-      activeSteamOperations.delete(activeOperationPath);
+      clearActiveSteamOperation(activeOperationPath);
     }
     log.error(`Steam update failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });

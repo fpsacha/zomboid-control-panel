@@ -10,6 +10,7 @@ import {
   hasActiveSteamOperation,
   getActiveSteamOperations,
   clearActiveSteamOperation,
+  recordActiveSteamOperationPid,
 } from "./activeSteamOperations.js";
 import { acquireLifecycleLock } from "./lifecycleCoordinator.js";
 
@@ -714,11 +715,20 @@ export class UpdateChecker {
 
       let code;
       try {
-        code = await new Promise((resolve, reject) => {
-          const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, ...loginArgs, "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
+        const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, ...loginArgs, "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
+        // Listeners attached synchronously, in the same tick as spawn --
+        // 'error'/'close' can fire on any subsequent macrotask, so an
+        // await between spawn() and .once() here (e.g. persisting the pid
+        // first) risks losing an event that fires in that gap: an
+        // EventEmitter never buffers an event for a listener that wasn't
+        // there yet. The persistence write below runs concurrently with
+        // this promise instead, not before it.
+        const exitPromise = new Promise((resolve, reject) => {
           child.once("error", reject);
           child.once("close", resolve);
         });
+        await recordActiveSteamOperationPid(candidateInstallPath, child.pid);
+        code = await exitPromise;
       } finally {
         // Released as soon as SteamCMD itself is done, not tied to the
         // OUTER finally below -- that one also covers the (possibly slow)

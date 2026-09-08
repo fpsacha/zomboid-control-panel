@@ -59,6 +59,7 @@ import { Scheduler } from "./services/scheduler.js";
 import { DiscordBot } from "./services/discordBot.js";
 import { BackupService } from "./services/backupService.js";
 import { UpdateChecker } from "./services/updateChecker.js";
+import { rehydrateActiveSteamOperationsFromDisk } from "./services/activeSteamOperations.js";
 import {
   PanelUpdateChecker,
   createUpdateDataBackup,
@@ -3074,6 +3075,19 @@ async function start() {
     await initDatabase();
     await refreshCorsConfig();
     log.info("Database ready");
+
+    // Rehydrate any Steam operation (install/update/auto-update) that was
+    // still recorded as in-flight when this process last exited -- if that
+    // was a genuine crash (not a clean shutdown, which never leaves one
+    // behind) rather than the operation actually finishing, an orphaned
+    // SteamCMD could still be writing to the install directory right now.
+    // Must run before anything in this process could ever call
+    // startServer() or start a second Steam operation on the same path --
+    // both check the same in-memory guard this seeds. See
+    // activeSteamOperations.js's own header for why: the alternative is the
+    // JVM launching over a half-written install, a corrupted server, not a
+    // retryable failure.
+    await rehydrateActiveSteamOperationsFromDisk();
 
     // ── Authentication ──
     await authService.init();
