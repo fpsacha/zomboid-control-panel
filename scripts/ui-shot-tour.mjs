@@ -39,6 +39,9 @@
 //            via the same localStorage key client/src/i18n/index.ts reads
 //            on boot (LANGUAGE_STORAGE_KEY = 'zcp-language'). Omit for the
 //            default English sweep -- existing behavior, unaffected.
+//            BASE VIEWS ONLY under a non-English --lang -- see "WHAT --lang
+//            DOES NOT COVER" below before trusting a sub-view capture (or
+//            its absence) in another locale.
 //   --keep-server   Don't kill the throwaway server on exit (debugging).
 //            Spawned detached so it survives this script's own process
 //            exiting, not just surviving the finally block's own
@@ -175,6 +178,34 @@
 //     different execution mode: a separate browser context opened and
 //     captured BEFORE bootstrapAccount() runs (scoped, not built, as
 //     ui-tour-never-drives-interactive-state).
+//
+// WHAT --lang DOES NOT COVER (bug-hunt-2026-09-08, Arabic render pass):
+// under a non-English --lang, this tool reliably captures BASE views only
+// (dashboard, players, console, chat, events, world-map, server-config,
+// mods, templates, scheduler, backups, chunks, servers, server-setup,
+// discord, settings -- i.e. every VIEWS entry with no interact()). Every
+// interact() in this file drives the page with a HARDCODED ENGLISH STRING
+// -- clickTabByRole(page, 'Performance'), getByRole('button', { name:
+// 'Add Remote Server' }), getByPlaceholder('...'), getByLabel('...'),
+// getByText('Kate') -- and under a translated locale the element's real
+// accessible name/placeholder/label is the TRANSLATED string, so the
+// English-literal lookup times out and that whole sub-view fails outright
+// (confirmed: `debug:performance --lang ar` failed 4/4 with `locator.click:
+// Timeout... waiting for getByRole('tab', { name: 'Performance' })`).
+// Concretely this means every `debug:*`, most `players:*`, `console:rcon`,
+// `console:rcon-drop-mid-session`, `events:*`, `scheduler:timezone-open`,
+// `servers:add-remote*`/`servers:duplicate-edit`/`servers:remote-card`,
+// and every `settings:*` sub-tab CANNOT be captured under --lang today.
+// NOT fixed here deliberately: translating clickTabByRole's own lookup
+// (map each tab to its real i18n key, e.g. `tabs.performance` in Debug.tsx,
+// and read the target locale's JSON) would close that one call shape but
+// leave every getByRole(name)/getByPlaceholder/getByLabel/getByText call in
+// every OTHER interact() just as broken -- a partial fix here is worse than
+// this note, because it would make the remaining failures look like this
+// tool's own bug rather than the known, structural limitation it actually
+// is. If you need a sub-view in a non-English locale, drive it by hand for
+// now (or extend interact()'s locators to read from the same locale JSON
+// client/src/i18n loads, consistently, for the whole file at once).
 //
 // BEFORE YOU SHIP A UI FIX (ui-tour-never-drives-interactive-state,
 // 2026-08-31): this hunt found three real states -- a permission-denied
