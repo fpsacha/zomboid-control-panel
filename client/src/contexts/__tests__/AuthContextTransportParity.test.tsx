@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { AuthProvider, useAuth, LOGIN_FAILED_MESSAGE } from '../AuthContext'
+import { rawErrorMessageIntentional } from '../../lib/errorMessage'
 
 // 2026-09-08 (auth-transport-parity): login()/setup() used to construct their
 // own ApiError by hand after a raw fetch() that bypassed lib/api.ts's shared
@@ -49,6 +50,16 @@ function baseFetchRouter(overrides: Record<string, () => Response>) {
   })
 }
 
+// rawErrorMessageIntentional(), not getUserErrorMessage(), on purpose: these
+// harnesses exist to inspect the EXACT string login()/setup() themselves
+// produce (the account-enumeration collapse, the SETUP_TOKEN_REQUIRED plain-
+// Error passthrough, the CORS wording) -- several of those assertions check
+// for a specific substring a registered code translation could legitimately
+// override (NETWORK_ERROR, RATE_LIMIT_LOGIN both have one). Running the
+// captured message through getUserErrorMessage() here would make the test
+// assert on the DISPLAY layer's translation choice instead of on what
+// AuthContext actually threw, which is the one thing this whole file exists
+// to pin down.
 function LoginHarness() {
   const { login } = useAuth()
   const [message, setMessage] = useState<string | null>(null)
@@ -56,7 +67,7 @@ function LoginHarness() {
     <div>
       <button
         onClick={() => {
-          login('someone', 'wrong').catch((e) => setMessage(e.message))
+          login('someone', 'wrong').catch((e) => setMessage(rawErrorMessageIntentional(e, 'unknown error')))
         }}
       >
         go
@@ -73,7 +84,7 @@ function SetupHarness() {
     <div>
       <button
         onClick={() => {
-          setup('admin', 'password123').catch((e) => setMessage(e.message))
+          setup('admin', 'password123').catch((e) => setMessage(rawErrorMessageIntentional(e, 'unknown error')))
         }}
       >
         go
