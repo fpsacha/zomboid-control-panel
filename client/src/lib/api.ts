@@ -18,6 +18,15 @@ export class ApiError extends Error {
    * from the chunk-cleanup endpoints (issue #5).
    */
   data?: unknown;
+  /**
+   * Seconds the server said to wait before retrying (parsed from the
+   * response's `Retry-After` header), when the failing response carried
+   * one. Every rate limiter in this app (express-rate-limit with
+   * standardHeaders: true) already sends this on a 429 -- undefined here
+   * previously meant the client discarded it, not that the server never
+   * sent it, so "try again later" never said when.
+   */
+  retryAfterSeconds?: number;
 
   constructor(
     message: string,
@@ -28,6 +37,7 @@ export class ApiError extends Error {
       isTimeout?: boolean;
       isNetworkError?: boolean;
       data?: unknown;
+      retryAfterSeconds?: number;
     },
   ) {
     super(message);
@@ -38,6 +48,7 @@ export class ApiError extends Error {
     this.isTimeout = Boolean(options?.isTimeout);
     this.isNetworkError = Boolean(options?.isNetworkError);
     this.data = options?.data;
+    this.retryAfterSeconds = options?.retryAfterSeconds;
   }
 }
 
@@ -228,7 +239,36 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 }
 
-function buildResponseError(response: Response, payload?: unknown): ApiError {
+// `Retry-After` is either delta-seconds (the shape express-rate-limit's
+// standardHeaders mode sends) or an HTTP-date (the other RFC 7231-permitted
+// form, used by some infra like nginx/Cloudflare in front of the panel).
+// Returns null when absent or unparseable rather than 0 -- 0 would read as
+// "retry immediately," a false claim we have no basis for making.
+function parseRetryAfterSeconds(response: Response): number | null {
+  const header = response.headers.get("retry-after");
+  if (!header) return null;
+  const asDeltaSeconds = Number(header);
+  if (Number.isFinite(asDeltaSeconds) && asDeltaSeconds >= 0) {
+    return Math.round(asDeltaSeconds);
+  }
+  const dateMs = Date.parse(header);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(0, Math.round((dateMs - Date.now()) / 1000));
+  }
+  return null;
+}
+
+function formatRetryAfter(seconds: number): string {
+  if (seconds <= 0) return "a moment";
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+}
+
+// Exported for its own regression test only (Retry-After parsing/formatting)
+// -- not part of this module's public surface for callers, who should keep
+// going through apiFetch/the *Api objects.
+export function buildResponseError(response: Response, payload?: unknown): ApiError {
   const messageFromPayload =
     payload &&
     typeof payload === "object" &&
@@ -244,6 +284,19 @@ function buildResponseError(response: Response, payload?: unknown): ApiError {
           ? payload.trim()
           : getStatusMessage(response.status);
 
+  // Every rate limiter in this app sends Retry-After on a 429
+  // (express-rate-limit, standardHeaders: true) -- previously discarded
+  // here, so "too many requests, try again later" never said how long
+  // later. The server-provided message (messageFromPayload, above) already
+  // says WHAT happened; this appends WHEN, rather than replacing either
+  // that message or getStatusMessage's own generic fallback -- both keep
+  // meaning what they already meant, just completed.
+  const retryAfterSeconds = parseRetryAfterSeconds(response);
+  const message =
+    retryAfterSeconds !== null
+      ? `${messageFromPayload} Try again in ${formatRetryAfter(retryAfterSeconds)}.`
+      : messageFromPayload;
+
   // Prefer the server-provided `code` over a generic HTTP_<status> tag so
   // callers can switch on application-level codes like `server_running`.
   const codeFromPayload =
@@ -254,7 +307,7 @@ function buildResponseError(response: Response, payload?: unknown): ApiError {
       ? (payload as { code: string }).code
       : `HTTP_${response.status}`;
 
-  return new ApiError(messageFromPayload, {
+  return new ApiError(message, {
     status: response.status,
     code: codeFromPayload,
     isRetryable:
@@ -262,6 +315,7 @@ function buildResponseError(response: Response, payload?: unknown): ApiError {
       response.status === 429 ||
       response.status === 408,
     data: payload,
+    retryAfterSeconds: retryAfterSeconds ?? undefined,
   });
 }
 
