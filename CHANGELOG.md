@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The "Fix Path" button did nothing when clicked**, unless a restart happened to already be pending.
 - **Non-Steam (GOG) installs got a red "Update Check Failed" error clicking Check Updates** - the panel now explains plainly that Workshop update checking doesn't apply, instead of throwing an error (#148).
+- **A brand-new server could report mod updates that actually belonged to a previous server on the same host** - freshly installed mods showing dozens of "updates ready" that weren't real.
 
 **PanelBridge (in-game mod)**
 
