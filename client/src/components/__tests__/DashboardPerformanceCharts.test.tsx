@@ -121,3 +121,61 @@ describe('DashboardPerformanceCharts -- swap row', () => {
     expect(row.querySelector('.bg-destructive')).toBeInTheDocument()
   })
 })
+
+// bug-hunt-2026-09-08 (operator screenshot, Arabic UI): "23.8 / 31.3"
+// rendered as "31.3 / 23.8" -- the Unicode bidi algorithm treats
+// `number space slash space number` as a run of neutrals inside an RTL
+// paragraph and lays the pair out right-to-left. jsdom does not implement
+// bidi visual reordering at all (it is a text-shaping behaviour, not
+// something exposed on the DOM), so this cannot assert the actual on-screen
+// order the way a real browser would render it -- what it CAN and must
+// assert is the mechanism real browsers use to prevent the reorder: the
+// used/total text is isolated inside a <bdi> element, in used-then-total
+// source order. A test that only checked getByText('23.8 / 31.3') exists
+// would keep passing even if someone silently dropped the <bdi> wrapper
+// (or swapped the args to `used / total`) -- this asserts the wrapper
+// AND the order together, which is the actual contract.
+describe('DashboardPerformanceCharts -- RTL bidi isolation on used/total values', () => {
+  it('wraps the host memory used/total value in <bdi>, used before total', () => {
+    render(
+      <DashboardPerformanceCharts
+        performanceHistory={[point({ hostMemUsedGB: 2.3, hostMemTotalGB: 16 })]}
+      />
+    )
+    const row = screen.getByText('Host memory').closest('div')!
+    const bdi = row.querySelector('bdi')
+    expect(bdi).toBeInTheDocument()
+    expect(bdi).toHaveTextContent('2.3 / 16')
+  })
+
+  it('wraps the disk used/total value in <bdi>, used before total', () => {
+    render(
+      <DashboardPerformanceCharts
+        performanceHistory={[point({ hostDiskUsedGB: 24, hostDiskTotalGB: 31 })]}
+      />
+    )
+    const row = screen.getByText('Disk').closest('div')!
+    const bdi = row.querySelector('bdi')
+    expect(bdi).toBeInTheDocument()
+    expect(bdi).toHaveTextContent('24 / 31')
+  })
+
+  it('wraps the swap used/total value in <bdi>, used before total', () => {
+    render(<DashboardPerformanceCharts performanceHistory={[point({ hostSwapUsedGB: 1.5, hostSwapTotalGB: 4 })]} />)
+    const row = screen.getByText('Host swap').closest('div')!
+    const bdi = row.querySelector('bdi')
+    expect(bdi).toBeInTheDocument()
+    expect(bdi).toHaveTextContent('1.5 / 4')
+  })
+
+  it('wraps the PZ memory used/ceiling value in <bdi>, used before ceiling', () => {
+    render(
+      <DashboardPerformanceCharts
+        performanceHistory={[point({ pzMemMB: 2048 })]}
+        maxMemoryGB={8}
+      />
+    )
+    const bdi = screen.getByText('2.0 / 8').closest('bdi')
+    expect(bdi).toBeInTheDocument()
+  })
+})

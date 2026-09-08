@@ -227,7 +227,14 @@ function DashboardPerformanceCharts({
 
             <div className="flex items-baseline justify-end gap-1 whitespace-nowrap">
               <span className={cn('text-[15px] font-medium leading-none tabular-nums', TONE_VALUE[tone])}>
-                {m.value}
+                {/* bug-hunt-2026-09-08 (operator screenshot, Arabic UI):
+                    "23.8 / 31.3" rendered as "31.3 / 23.8" -- not our layout,
+                    the Unicode bidi algorithm reorders a `number / number`
+                    neutral run inside an RTL paragraph. <bdi> isolates it
+                    from the surrounding direction regardless of which
+                    locale is active; this is the codebase's one idiom for
+                    it, see [[bidi-isolate-numeric-pairs]]. */}
+                <bdi>{m.value}</bdi>
               </span>
               {m.unit && (
                 <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground/55">
