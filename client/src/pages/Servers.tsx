@@ -2019,7 +2019,11 @@ export default function Servers() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t('card.memory')}</p>
-                        <p className="font-mono text-xs text-foreground/90 tabular-nums">{server.minMemory}–{server.maxMemory} GB</p>
+                        {/* bug-hunt-2026-09-08 (Arabic render pass): confirmed
+                            reversed in a real render (a 2-4 GB server showed
+                            "4-2") -- bdi isolates the min-max pair regardless
+                            of locale. */}
+                        <p className="font-mono text-xs text-foreground/90 tabular-nums"><bdi>{server.minMemory}–{server.maxMemory} GB</bdi></p>
                       </div>
                     </div>
                   )}

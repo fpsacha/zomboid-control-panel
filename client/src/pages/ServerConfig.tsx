@@ -414,8 +414,14 @@ const IniSettingRow = memo(({
                 />
                 {(setting.min !== undefined || setting.max !== undefined) && (
                   <div className="text-xs text-muted-foreground/60 text-end mt-0.5">
+                    {/* bug-hunt-2026-09-08 (Arabic render pass): rangeMinMax's
+                        "{{min}} – {{max}}" is a bare-punctuation number pair,
+                        the exact bidi-vulnerable shape -- confirmed reversed
+                        in Arabic (a 1-100 field showed "100 - 1"). A lone
+                        min or max has no second number to reorder against,
+                        so those two branches don't need it. */}
                     {setting.min !== undefined && setting.max !== undefined
-                      ? t('row.rangeMinMax', { min: setting.min, max: setting.max })
+                      ? <bdi>{t('row.rangeMinMax', { min: setting.min, max: setting.max })}</bdi>
                       : setting.min !== undefined
                       ? t('row.rangeMin', { min: setting.min })
                       : t('row.rangeMax', { max: setting.max })}
@@ -618,7 +624,7 @@ export const SandboxSettingRow = memo(({
                 {(setting.min !== undefined || setting.max !== undefined) && (
                   <div className="text-xs text-muted-foreground/60 text-end mt-0.5">
                     {setting.min !== undefined && setting.max !== undefined
-                      ? t('row.rangeMinMax', { min: setting.min, max: setting.max })
+                      ? <bdi>{t('row.rangeMinMax', { min: setting.min, max: setting.max })}</bdi>
                       : setting.min !== undefined
                       ? t('row.rangeMin', { min: setting.min })
                       : t('row.rangeMax', { max: setting.max })}
@@ -4025,7 +4031,7 @@ export default function ServerConfig() {
                                       )}
                                       {opt.min !== undefined && opt.max !== undefined && (
                                         <span className="text-xs text-muted-foreground/60 whitespace-nowrap">
-                                          {opt.min}–{opt.max}
+                                          <bdi>{opt.min}–{opt.max}</bdi>
                                         </span>
                                       )}
                                       {isModified && (
