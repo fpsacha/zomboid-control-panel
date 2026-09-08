@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import i18n from '@/i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -14,12 +14,25 @@ import ServerFinder from '../ServerFinder'
 // 500 (server/routes/serverFinder.js), so this was a strict prerequisite for
 // the generic-500 wrapper to ever reach this route at all, not just polish.
 
+// bug-hunt-2026-09-08 (test hygiene, split from the unbounded-waitFor sweep
+// so it wasn't confused with that class): every fetch mock below returns a
+// retryable 5xx, and apiFetch() -> fetchWithRetry() retries a GET 3 times
+// with real exponential backoff (baseDelay 1000ms doubling to a 5000ms cap)
+// before fetchServers()'s catch block ever runs -- 3 tests each burning
+// ~2.3-3s of REAL wall-clock time waiting on timers nothing here asserts on.
+// Correct, just slow: it would have failed exactly as correctly if the code
+// broke, only slowly. Fake timers (the same `shouldAdvanceTime: true` +
+// advanceTimersByTimeAsync idiom Servers.fetchRetryManualVsMount.test.tsx
+// already uses for this identical backoff) collapse that to milliseconds
+// without touching what's asserted.
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
+  vi.useFakeTimers({ shouldAdvanceTime: true })
 })
 
 afterEach(() => {
   void i18n.changeLanguage('en')
+  vi.useRealTimers()
 })
 
 function renderServerFinder() {
@@ -47,6 +60,11 @@ describe('ServerFinder.tsx fetchServers: preserves status so a real failure gets
     } as Response)
 
     renderServerFinder()
+    // fetchWithRetry's own backoff: baseDelay 1000ms doubling to a 5000ms
+    // cap across up to 3 retries -- 15s of fake-clock advance comfortably
+    // covers all 4 attempts (1 initial + 3 retries) plus their delays,
+    // same bound Servers.fetchRetryManualVsMount.test.tsx uses for this.
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
 
     expect(await screen.findByText(/Steam API request failed/)).toBeInTheDocument()
     expect(await screen.findByText(/wasn't expected/)).toBeInTheDocument()
@@ -61,6 +79,7 @@ describe('ServerFinder.tsx fetchServers: preserves status so a real failure gets
     } as Response)
 
     renderServerFinder()
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
 
     expect(await screen.findByText(/n'était pas attendu/)).toBeInTheDocument()
   })
@@ -82,6 +101,7 @@ describe('ServerFinder.tsx fetchServers: preserves status so a real failure gets
     } as unknown as Response)
 
     renderServerFinder()
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
 
     expect(await screen.findByText(/HTTP 502/)).toBeInTheDocument()
     expect(screen.queryByText(/Unexpected token/)).not.toBeInTheDocument()
