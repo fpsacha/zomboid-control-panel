@@ -523,16 +523,24 @@ export default function Mods() {
     modSearchTimerRef.current = setTimeout(() => setDeferredModManagerSearch(value), 300)
   }, [])
 
-  const fetchData = useCallback(async () => {
+  // 2026-09-08 (retry-stacking sweep): `manual` distinguishes the Retry
+  // button (a human already watching this exact failure) from every other
+  // caller of this function -- mount, socket-triggered refreshes, and the
+  // ~30 post-action refetches elsewhere in this file all keep the default
+  // automatic retry, which is the right tolerance for a transient blip
+  // nobody is staring at. Same shape as Servers.tsx's fetchServers(); see
+  // its own comment for the full reasoning.
+  const fetchData = useCallback(async (opts?: { manual?: boolean }) => {
+    const retries = opts?.manual ? { retries: 0 } : undefined
     setFetchError(null)
     try {
       // Use allSettled so one failure doesn't break everything
       const results = await Promise.allSettled([
-        modsApi.getTrackedMods(),
-        modsApi.getStatus(),
-        modsApi.getCurrentConfig(),
-        modsApi.getIgnoredMods(),
-        modsApi.getIgnoredModPairs()
+        modsApi.getTrackedMods(retries),
+        modsApi.getStatus(retries),
+        modsApi.getCurrentConfig(retries),
+        modsApi.getIgnoredMods(retries),
+        modsApi.getIgnoredModPairs(retries)
       ])
 
       // mods.js gates every one of these five behind mods.manage as a
@@ -2571,7 +2579,7 @@ export default function Mods() {
             <AlertTitle>{t('fetchError.title')}</AlertTitle>
             <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="min-w-0 break-words" dir="auto">{fetchError}</span>
-              <Button variant="outline" size="sm" onClick={fetchData} className="self-start">
+              <Button variant="outline" size="sm" onClick={() => fetchData({ manual: true })} className="self-start">
                 <RefreshCw className="me-2 h-4 w-4" /> {t('fetchError.retry')}
               </Button>
             </AlertDescription>

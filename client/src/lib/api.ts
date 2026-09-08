@@ -1017,19 +1017,22 @@ export const schedulerApi = {
 
 // Mods API
 export const modsApi = {
-  getStatus: (options?: RequestInit) => apiGet("/mods/status", options),
-  getTrackedMods: (options?: RequestInit) => apiGet("/mods/tracked", options),
+  getStatus: (options?: { retries?: number }) =>
+    apiGet("/mods/status", undefined, options?.retries),
+  getTrackedMods: (options?: { retries?: number }) =>
+    apiGet("/mods/tracked", undefined, options?.retries),
   trackMod: (workshopId: string) => apiPost("/mods/track", { workshopId }),
   untrackMod: (workshopId: string) => apiDelete(`/mods/track/${workshopId}`),
 
   // Ignored mods (prevent auto-re-tracking)
-  getIgnoredMods: () => apiGet("/mods/ignored"),
+  getIgnoredMods: (options?: { retries?: number }) =>
+    apiGet("/mods/ignored", undefined, options?.retries),
   unignoreMod: (workshopId: string) => apiDelete(`/mods/ignored/${workshopId}`),
   clearAllIgnoredMods: () => apiDelete("/mods/ignored"),
 
   // Ignored mod-conflict pairs (false positives on the variant detector)
-  getIgnoredModPairs: () =>
-    apiGet("/mods/ignored-pairs") as Promise<
+  getIgnoredModPairs: (options?: { retries?: number }) =>
+    apiGet("/mods/ignored-pairs", undefined, options?.retries) as Promise<
       Array<{
         mod_a: string;
         mod_b: string;
@@ -1083,7 +1086,8 @@ export const modsApi = {
   ) => apiPost("/mods/write-to-ini", { mods, mapFolders }),
 
   // Get current mod configuration from .ini file
-  getCurrentConfig: () => apiGet("/mods/current-config"),
+  getCurrentConfig: (options?: { retries?: number }) =>
+    apiGet("/mods/current-config", undefined, options?.retries),
 
   // Add a single mod to server .ini file (appends to existing)
   addToIni: (workshopId: string, modId?: string) =>
