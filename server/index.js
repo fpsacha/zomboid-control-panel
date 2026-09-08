@@ -165,11 +165,27 @@ process.stderr?.on?.("error", (err) => {
 // closed) is still swallowed — it's benign and would otherwise loop forever.
 function fatalExit(label, err) {
   log.error(`${label}:`, err);
+  // gracefulShutdown() (SIGTERM/SIGINT) and the Windows Supervisor restart
+  // path (60f4de4f) both close out every open player session via
+  // panelBridge.stop() -> trackPlayerActivity([]) before the process goes
+  // down. This is the third process-exit path and was missing that call: a
+  // hard crash (uncaughtException/unhandledRejection) with players online
+  // left their last_session_start dangling in the DB, silently discarded --
+  // not stuck open forever, just clobbered by a fresh "connect" the next
+  // time trackPlayerActivity's diff sees them still online post-restart --
+  // the same playtime-loss pattern already closed on the other two paths.
+  try {
+    if (panelBridge?.isRunning) panelBridge.stop();
+  } catch (stopErr) {
+    log.error("Failed to close player sessions during fatal exit:", stopErr);
+  }
   Promise.race([
     flushWrites().catch(() => {}),
     new Promise((resolve) => setTimeout(resolve, 3000)),
   ]).finally(() => process.exit(1));
 }
+
+export { fatalExit };
 
 process.on("uncaughtException", (error) => {
   if (error && error.code === "EPIPE") return;
