@@ -1691,6 +1691,16 @@ app.post("/api/panel/restart", requireRole("admin"), async (req, res) => {
         setTimeout(() => process.exit(75), 500);
         return;
       } catch (err) {
+        // The Linux staged-update branch below resets this on every one of
+        // its own failure paths; this branch didn't, so a failure here (the
+        // marker write, the setSetting/flushWrites awaits above it, or
+        // panelBridge.stop()) left isApplying stuck true forever in this
+        // still-running process -- since nothing failed badly enough to
+        // reach the process.exit(75) that would have made the flag moot.
+        // Every later restart attempt then hit the guard above and was
+        // rejected with "An update apply is already in progress" even
+        // though nothing was: the panel telling the user something untrue.
+        checker.isApplying = false;
         log.error(`Could not write supervisor marker: ${err.message}`);
         return res.status(500).json({ error: sanitizeError(err.message) });
       }
