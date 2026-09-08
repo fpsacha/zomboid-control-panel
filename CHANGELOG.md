@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.20] - 2026-09-09
+
+**TL;DR:**
+
+- **Two separate ways a Windows update could be thrown away after it had already worked.** In one, a perfectly good update was rolled back because the panel was simply already running; in the other, the swap succeeded and the panel then told you the downloaded file had vanished and to download it again - which never helped, because re-downloading produced the identical file. Both fixed (#149).
+- A scheduled restart that actually failed - server unreachable, container restart failed, or another operation already in progress - could be recorded in Schedule History as "Completed successfully".
+- The Backups page could show a confident "Off - no scheduled backups" before it had loaded, and let you click the toggle while showing it.
+- Start, Stop and Force-stop on the Dashboard stopped looking busy the moment the request was accepted, rather than when the server actually finished.
+
+### Fixed
+
+**Panel updater (Windows)**
+
+- **An update that applied correctly could be rolled back and lost because the panel was already running.** A single-instance lock refusal from the freshly-updated program was misread as "the new version failed to start", so the supervisor restored the old one - and since rolling back does not release the lock, the restored version hit exactly the same refusal. The result was a lost update *and* a panel that still would not start. The Windows launcher now checks the exit reason before deciding an update failed, matching what the Linux launcher already did.
+- **After a failed update the panel said the prepared file "has disappeared - download the update again", which was wrong, and following that advice could never work.** The file was gone because it had been correctly installed and then correctly rolled back. Re-downloading the same version reproduces the same failure exactly, so this message sent people through the same 70 MB download over and over. The panel now explains what actually happened and no longer suggests re-downloading in this case; the "re-download" advice remains where it is genuinely correct, such as antivirus quarantine. (#149)
+- **The panel reported "cause: unknown" for this failure while the real reason was written in its own update log.** That specific outcome had never been mapped to an explanation, so it fell through to "unknown". It is now reported as its own distinct cause, and the update log panel also includes the program's own error log, so the underlying reason is visible rather than merely referenced.
+
+**Scheduler**
+
+- **A scheduled restart that failed could be recorded as "Completed successfully" in Schedule History.** Only one specific failure was passed on; every other one - RCON unreachable, the process scan failing, a container restart failing, the old server never confirming it stopped, the new one never coming back, or another operation already holding the lock - was silently treated as success. In most cases the real failure was also recorded, so the history showed a genuine failure immediately followed by a false success, reading as though it had recovered on its own. In the "another operation already in progress" case there was no failure entry at all, only the false success.
+
+**Honest reporting of unknown state**
+
+- **The Backups page showed "Off" and "no scheduled backups" before it knew, and left the toggle clickable.** If the status could not be loaded, the page presented a confident answer that might be wrong and let you act on it. It now shows that the state is unknown and disables the toggle until it loads, matching what the equivalent control in Settings already did.
+- **Start, Stop and Force-stop on the Dashboard cleared their busy state as soon as the request was accepted, not when the server actually reached the new state.** The buttons became clickable again - and Start reported success - while the server was still starting or stopping. They now wait for confirmation, and if the server does not reach the expected state in time they say so plainly instead of implying it worked.
+
+### Internal
+
+- Added regression tests covering the "we don't know yet" states shipped in 1.2.19 (the sidebar server indicator and the mod-conflict indicator), which had been fixed but not guarded against future changes.
+
+
 ## [1.2.19] - 2026-09-08
 
 **TL;DR:**
