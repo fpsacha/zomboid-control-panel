@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Mods from '../Mods'
-import { modsApi, serversApi, ApiError } from '@/lib/api'
+import { modsApi, serversApi, serverApi, ApiError } from '@/lib/api'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 
@@ -70,6 +70,13 @@ vi.mock('@/lib/api', async () => {
       getActive: vi.fn(),
       update: vi.fn(),
     },
+    // bug-hunt-2026-09-08 (gate-not-destination sweep): only needed to drive
+    // FolderBrowser for real in the Fix Path granted-path test below --
+    // every other test in this file never opens that dialog.
+    serverApi: {
+      ...actual.serverApi,
+      listDirectory: vi.fn(),
+    },
   }
 })
 
@@ -90,6 +97,7 @@ const checkUpdates = vi.mocked(modsApi.checkUpdates)
 const syncFromServer = vi.mocked(modsApi.syncFromServer)
 const getActive = vi.mocked(serversApi.getActive)
 const serversUpdate = vi.mocked(serversApi.update)
+const listDirectory = vi.mocked(serverApi.listDirectory)
 
 function renderMods() {
   return render(
@@ -312,6 +320,36 @@ describe('Mods.tsx capability gating -- servers.manage (Fix Path outlier)', () =
 
     const fixPathBtn = await screen.findByRole('button', { name: /fix path/i })
     expect(fixPathBtn).not.toBeDisabled()
+  })
+
+  // bug-hunt-2026-09-08 (gate-not-destination sweep): this is the shipped
+  // bug (91560351, "Fix Path" does nothing) named in the card that started
+  // this sweep -- the render fix landed, but this file still never proved
+  // the click reaches serversApi.update. Fix Path opens FolderBrowser
+  // (a real dialog backed by serverApi.listDirectory, not mocked anywhere
+  // else in this file) rather than calling the API directly, so this test
+  // drives that dialog for real instead of stubbing it out -- the whole
+  // point is proving the actual end-to-end path a user takes.
+  it('reaches serversApi.update with the selected path when Fix Path is clicked through FolderBrowser, holding servers.manage', async () => {
+    mockCan = () => true
+    primeReadMocks()
+    listDirectory.mockResolvedValue({
+      entries: [{ name: 'server', path: 'C:\\server', label: undefined, isDrive: false }],
+      currentPath: 'C:\\',
+      parentPath: null,
+    } as never)
+    renderMods()
+    await waitForLoaded()
+
+    const fixPathBtn = await screen.findByRole('button', { name: /fix path/i })
+    expect(fixPathBtn).not.toBeDisabled()
+    fireEvent.click(fixPathBtn)
+
+    await screen.findByText('server')
+    fireEvent.click(screen.getByText('server'))
+    fireEvent.click(screen.getByRole('button', { name: 'Select Folder' }))
+
+    await waitFor(() => expect(serversUpdate).toHaveBeenCalledWith(1, { installPath: 'C:\\server' }))
   })
 })
 
