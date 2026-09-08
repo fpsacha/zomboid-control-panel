@@ -179,3 +179,40 @@ describe('DashboardPerformanceCharts -- RTL bidi isolation on used/total values'
     expect(bdi).toBeInTheDocument()
   })
 })
+
+// bug-hunt-2026-09-08 (Arabic render pass, dwight): "% 29" / "GB 28.9 / 31.9"
+// instead of "29%" / "28.9 / 31.9 GB" -- a DIFFERENT mechanism from the <bdi>
+// tests above. The value and unit were two separate flex-item siblings of a
+// div that inherits dir=rtl; flexbox maps main-start to the writing mode's
+// inline-start, so under RTL the first DOM child (value) lands on the right
+// and the second (unit) on the left. <bdi> only isolates text INSIDE one
+// node -- it cannot reorder two sibling ELEMENTS, which is why the existing
+// <bdi> coverage above never caught this. jsdom does not run real flex
+// layout any more than it runs real bidi shaping, so this cannot assert the
+// on-screen order either -- what it CAN and must assert is the mechanism
+// that forces the order in a real browser: value and unit share one
+// dir="ltr" ancestor, value first in source order.
+describe('DashboardPerformanceCharts -- flex sibling order for value+unit under RTL', () => {
+  it('wraps the CPU value and its % unit in one dir="ltr" element, value before unit', () => {
+    render(<DashboardPerformanceCharts performanceHistory={[point({ cpuPercent: 42 })]} />)
+    const ltrWrap = cpuRow().querySelector('[dir="ltr"]')
+    expect(ltrWrap).toBeInTheDocument()
+    expect(ltrWrap!.children).toHaveLength(2)
+    expect(ltrWrap!.children[0]).toHaveTextContent('42')
+    expect(ltrWrap!.children[1]).toHaveTextContent('%')
+  })
+
+  it('wraps the host memory value and its GB unit in one dir="ltr" element, value before unit', () => {
+    render(
+      <DashboardPerformanceCharts
+        performanceHistory={[point({ hostMemUsedGB: 2.3, hostMemTotalGB: 16 })]}
+      />
+    )
+    const row = screen.getByText('Host memory').closest('div')!
+    const ltrWrap = row.querySelector('[dir="ltr"]')
+    expect(ltrWrap).toBeInTheDocument()
+    expect(ltrWrap!.children).toHaveLength(2)
+    expect(ltrWrap!.children[0]).toHaveTextContent('2.3 / 16')
+    expect(ltrWrap!.children[1]).toHaveTextContent('GB')
+  })
+})

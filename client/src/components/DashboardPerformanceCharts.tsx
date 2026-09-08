@@ -226,21 +226,38 @@ function DashboardPerformanceCharts({
             </div>
 
             <div className="flex items-baseline justify-end gap-1 whitespace-nowrap">
-              <span className={cn('text-[15px] font-medium leading-none tabular-nums', TONE_VALUE[tone])}>
-                {/* bug-hunt-2026-09-08 (operator screenshot, Arabic UI):
-                    "23.8 / 31.3" rendered as "31.3 / 23.8" -- not our layout,
-                    the Unicode bidi algorithm reorders a `number / number`
-                    neutral run inside an RTL paragraph. <bdi> isolates it
-                    from the surrounding direction regardless of which
-                    locale is active; this is the codebase's one idiom for
-                    it, see [[bidi-isolate-numeric-pairs]]. */}
-                <bdi>{m.value}</bdi>
-              </span>
-              {m.unit && (
-                <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground/55">
-                  {m.unit}
+              {/* bug-hunt-2026-09-08 (Arabic render pass, dwight): value and
+                  unit were two separate flex-item siblings of the div above,
+                  which inherits dir=rtl -- flexbox maps main-start to the
+                  writing mode's inline-start, so under RTL the FIRST DOM
+                  child (value) lands on the right and the SECOND (unit) on
+                  the left, rendering "% 29" / "GB 28.9 / 31.9" instead of
+                  "29%" / "28.9 / 31.9 GB". This is layout-level flex-child
+                  reordering, a different mechanism from the Unicode bidi
+                  text reordering <bdi> fixes below -- <bdi> isolates text
+                  INSIDE one node, it cannot touch the order of two sibling
+                  elements. Wrapping both in one dir="ltr" span makes them a
+                  SINGLE flex item to the outer div (so its own justify-end
+                  keeps positioning this block against the same neighbor
+                  regardless of locale, unchanged) while forcing their
+                  internal order to always read value-then-unit. */}
+              <span dir="ltr" className="flex items-baseline gap-1">
+                <span className={cn('text-[15px] font-medium leading-none tabular-nums', TONE_VALUE[tone])}>
+                  {/* bug-hunt-2026-09-08 (operator screenshot, Arabic UI):
+                      "23.8 / 31.3" rendered as "31.3 / 23.8" -- not our layout,
+                      the Unicode bidi algorithm reorders a `number / number`
+                      neutral run inside an RTL paragraph. <bdi> isolates it
+                      from the surrounding direction regardless of which
+                      locale is active; this is the codebase's one idiom for
+                      it, see [[bidi-isolate-numeric-pairs]]. */}
+                  <bdi>{m.value}</bdi>
                 </span>
-              )}
+                {m.unit && (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground/55">
+                    {m.unit}
+                  </span>
+                )}
+              </span>
             </div>
 
             <span className="text-end font-mono text-[11px] tabular-nums text-muted-foreground/50">
