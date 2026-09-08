@@ -3757,4 +3757,10 @@ if (!process.env.VITEST) {
   start();
 }
 
-export { io };
+// Exported for tests only, same rationale as oidcRoutes.test.js's
+// getHandler() helper: an Express Application's route table is walkable via
+// its own `.stack` the same way a Router's is, so a test can find a route's
+// registered handler and call it directly with hand-built req/res -- no
+// real HTTP server, no supertest (deliberately not a dependency here; see
+// that same test file's comment on why).
+export { app, io };
