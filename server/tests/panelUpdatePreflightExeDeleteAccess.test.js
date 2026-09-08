@@ -18,6 +18,29 @@ vi.mock("child_process", async (importOriginal) => {
   return { ...actual, execFile: (...args) => mockExecFile(...args) };
 });
 
+// preflight()'s inProgramFiles check is `/^c:\\program files/i.test(exeDir)`
+// against `path.dirname(exePath)` -- and Node's bare `path` module picks
+// posix or win32 SEMANTICS based on the REAL host OS at process start, not
+// on process.platform (which this file DOES patch below, but that only
+// fools plain `process.platform === "win32"` string checks inside
+// panelUpdateChecker.js, never the path module's own internal binding).
+// On a Linux test runner, path.dirname("C:\\Program Files\\...") returns
+// "." (no backslash is a separator in posix mode), which can never match
+// the regex -- the exact "hardcoded backslash literal fails on Linux"
+// class already caught once in this codebase (see mapProxySuspectVerdicts
+// .test.js's note on 00bfa2b7). Forcing dirname to win32 semantics here is
+// safe for every OTHER path in this file too: win32.dirname also accepts
+// forward slashes, so it returns the identical answer for the real,
+// host-native posix temp dirs setupRealDir() below actually creates.
+vi.mock("path", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    default: { ...actual.default, dirname: actual.win32.dirname },
+    dirname: actual.win32.dirname,
+  };
+});
+
 process.pkg = {};
 
 const { PanelUpdateChecker } = await import("../services/panelUpdateChecker.js");
