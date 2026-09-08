@@ -3154,7 +3154,10 @@ export default function Settings() {
                             {panelUpdateStatus.lastApplyResult
                               .stagedStillPresent
                               ? t("updates.stagedStillPresent")
-                              : t("updates.stagedGone")}
+                              : panelUpdateStatus.lastApplyResult
+                                    .likelyCause === "startup_handshake_failed"
+                                ? t("updates.stagedGoneAfterHandshakeFailure")
+                                : t("updates.stagedGone")}
                           </span>
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
                             "av_quarantine" && runtimeInfo?.family === "windows" && (
@@ -3280,6 +3283,15 @@ export default function Settings() {
                                   </div>
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {panelUpdateStatus.lastApplyResult.likelyCause ===
+                            "startup_handshake_failed" && runtimeInfo?.family === "windows" && (
+                            <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
+                              <strong className="text-destructive-foreground">
+                                {t("updates.likelyCauseLabel")}
+                              </strong>{" "}
+                              {t("updates.startupHandshakeFailed")}
                             </div>
                           )}
                           {panelUpdateStatus.lastApplyResult.likelyCause ===

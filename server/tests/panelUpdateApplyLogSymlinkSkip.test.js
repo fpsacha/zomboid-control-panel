@@ -91,3 +91,64 @@ describe("readMostRecentApplyLog(): logsDir fallbacks still work; the os.tmpdir(
     expect(checker.readMostRecentApplyLog()).toBeNull();
   });
 });
+
+// GH#149, 2026-09-08 (god-dispatched, item 2 of the shape report): the real
+// throw code behind a startup_handshake_failed tag (version_mismatch, an
+// invalid_bundle variant, or something else) lands in index.js's own
+// log.error() call -- logs/error.log via winston -- never in
+// supervisor.log, which is the only file readMostRecentApplyLog() used to
+// read. This appends error.log's tail so the classifier's consumers (the
+// "Show Helper Log" UI) have a chance at the real cause even though
+// classifyApplyFailure() itself still only trusts the bracket tag.
+describe("readMostRecentApplyLog(): also surfaces logs/error.log's tail when present", () => {
+  beforeEach(() => {
+    getSetting.mockReset();
+    setSetting.mockReset();
+    fs.mkdirSync(mockLogsDir.dir, { recursive: true });
+    for (const name of fs.readdirSync(mockLogsDir.dir)) {
+      fs.rmSync(path.join(mockLogsDir.dir, name), { force: true });
+    }
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("appends error.log's tail after supervisor.log's content", () => {
+    fs.writeFileSync(path.join(mockLogsDir.dir, "supervisor.log"), "[startup_handshake_failed] rolled back");
+    fs.writeFileSync(
+      path.join(mockLogsDir.dir, "error.log"),
+      "Update startup validation failed [version_mismatch]: Applied frontend and backend metadata do not match. Journal: C:\\panel\\update-bundle.json",
+    );
+    const checker = new PanelUpdateChecker();
+    const result = checker.readMostRecentApplyLog();
+    expect(result).toContain("[startup_handshake_failed] rolled back");
+    expect(result).toContain("Panel error.log (tail)");
+    expect(result).toContain("Update startup validation failed [version_mismatch]");
+  });
+
+  it("returns just the error.log tail (no crash, no leading blank section) when supervisor.log doesn't exist", () => {
+    fs.writeFileSync(
+      path.join(mockLogsDir.dir, "error.log"),
+      "Update startup validation failed [invalid_bundle]: Update bundle journal is invalid",
+    );
+    const checker = new PanelUpdateChecker();
+    const result = checker.readMostRecentApplyLog();
+    expect(result).toContain("Update startup validation failed [invalid_bundle]");
+  });
+
+  it("stays exactly the supervisor.log content when error.log exists but is empty -- no spurious separator", () => {
+    fs.writeFileSync(path.join(mockLogsDir.dir, "supervisor.log"), "apply ok");
+    fs.writeFileSync(path.join(mockLogsDir.dir, "error.log"), "");
+    const checker = new PanelUpdateChecker();
+    expect(checker.readMostRecentApplyLog()).toBe("apply ok");
+  });
+
+  it("truncates a large error.log to its tail, same convention as supervisor.log's own truncation", () => {
+    fs.writeFileSync(path.join(mockLogsDir.dir, "error.log"), `${"x".repeat(5000)}NEEDLE_AT_END`);
+    const checker = new PanelUpdateChecker();
+    const result = checker.readMostRecentApplyLog();
+    expect(result).toContain("(truncated, tail only)");
+    expect(result).toContain("NEEDLE_AT_END");
+  });
+});

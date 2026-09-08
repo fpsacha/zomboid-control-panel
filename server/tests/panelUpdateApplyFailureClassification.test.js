@@ -138,6 +138,38 @@ describe("classifyApplyFailure() recognises Supervisor v2's real, current wordin
     expect(checker.classifyApplyFailure(log, false)).toBe("unknown");
   });
 
+  // GH#149, 2026-09-08 (god-dispatched): startup_handshake_failed is the tag
+  // Start.bat stamps whenever the newly-launched binary exits for ANY reason
+  // while the applying marker is still present -- the swap itself (exe +
+  // client dist) had already succeeded. This used to fall through to the
+  // same "unknown" bucket as the other three still-deliberately-unmapped
+  // codes (see the test above), which is exactly what cost a real reporter
+  // three redundant 70MB re-downloads: the console said "cause: unknown"
+  // while the log named this tag three lines away.
+  it("2026-09-08 (GH#149): startup_handshake_failed now gets its own bucket, not 'unknown'", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 17:06:50] Apply: marker present, beginning swap\n" +
+      "[2026-09-08 17:06:51] Apply: backing up ZomboidControlPanel.exe to ZomboidControlPanel.exe.bundle-previous\n" +
+      "[2026-09-08 17:06:51] Apply: renaming ZomboidControlPanel.exe.new to ZomboidControlPanel.exe\n" +
+      "[2026-09-08 17:06:52] Apply: bundle activated; waiting for backend startup acknowledgement\n" +
+      "[2026-09-08 17:06:52] Apply: Launching ZomboidControlPanel.exe\n" +
+      "[2026-09-08 17:07:02] Panel exited with code 76\n" +
+      "[2026-09-08 17:07:02] Apply: startup handshake failed; rolling back bundle [startup_handshake_failed]\n" +
+      "[2026-09-08 17:07:03] Apply: rollback complete\n";
+
+    expect(checker.classifyApplyFailure(log, false)).toBe("startup_handshake_failed");
+  });
+
+  it("only the LAST startup_handshake_failed occurrence decides, same convention as every other tag", () => {
+    const checker = new PanelUpdateChecker();
+    const log =
+      "[2026-09-08 17:07:02] Apply: startup handshake failed; rolling back bundle, retry 1 of 2 [startup_handshake_failed]\n" +
+      "[2026-09-08 17:07:10] Apply: staged binary missing or quarantined [av_quarantine]\n";
+
+    expect(checker.classifyApplyFailure(log, false)).toBe("av_quarantine");
+  });
+
   it("rollback_failed (2026-09-04, god's approval after the retry-risk case) maps to its own bucket", () => {
     const checker = new PanelUpdateChecker();
     const log =

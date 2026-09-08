@@ -2620,6 +2620,12 @@ public static extern bool CloseHandle(System.IntPtr hObject);
    *   'powershell_unavailable' — a hash-check step got no output at all, and
    *                     a follow-up probe confirmed PowerShell itself won't
    *                     run (execution policy / AppLocker / Group Policy)
+   *   'startup_handshake_failed' — the swap itself succeeded (exe + client
+   *                     dist both activated) but the new binary exited
+   *                     before acknowledging startup -- version_mismatch,
+   *                     invalid_bundle, or an unrelated crash all look
+   *                     identical to Start.bat, so this names ONLY that it
+   *                     rolled back cleanly, not why the new binary exited
    *
    * Order matters: check permission before lock, and check AV signatures
    * first because "cannot find path" / "system cannot find the file" can
@@ -2702,6 +2708,23 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     // already happened, and stamps this distinct tag when the probe ALSO
     // comes back empty -- same refusal either way, precise reported cause.
     if (lastSupervisorTag === "powershell_unavailable") return "powershell_unavailable";
+    // GH#149, 2026-09-08 (god-dispatched, reported-shape-first): the swap
+    // itself can succeed completely (exe backed up, exe renamed, client dist
+    // activated -- every :stamp on the happy path present) and the panel
+    // still exit before acknowledging startup, for reasons ranging from a
+    // real version_mismatch/invalid_bundle throw (inspectPendingPanelUpdate(),
+    // server/index.js) to an unrelated crash. Start.bat's own :run_loop
+    // cannot tell those apart -- it only knows the marker was still
+    // ".update-applying" when the child exited -- so it stamps this ONE tag
+    // for all of them. Giving it its own bucket rather than folding it into
+    // av_quarantine/rename_locked/rollback_failed (none of which are true
+    // here) means the UI stops saying "unknown" when the log names the exact
+    // condition three lines away, without CLAIMING to know the underlying
+    // throw code it genuinely doesn't have (see readMostRecentApplyLog()'s
+    // own error.log tail below for the closest this function gets to that).
+    if (lastSupervisorTag === "startup_handshake_failed") {
+      return "startup_handshake_failed";
+    }
 
     // Helper was blocked from running at all (ASR / AV / Group Policy).
     // The PRE-SPAWN sentinel line written by the main panel is there, but
@@ -2854,10 +2877,59 @@ public static extern bool CloseHandle(System.IntPtr hObject);
   }
 
   /**
+   * GH#149, 2026-09-08 (god-dispatched, item 2 of the shape report): the
+   * bracket tag Start.bat stamps on a startup-handshake failure (or any
+   * other Supervisor v2 tag) is the most SPECIFIC signal supervisor.log
+   * carries, but it is not the MOST INFORMATIVE one available on disk --
+   * index.js's own `log.error("Update startup validation failed [<code>]:
+   * <message>")` (the real inspectPendingPanelUpdate() throw, naming the
+   * exact version_mismatch/invalid_bundle variant) lands in logs/error.log
+   * via the panel's winston logger, never in supervisor.log, and
+   * readMostRecentApplyLog() below never looked there. Appending its tail
+   * gives the classifier's consumers (the "Show Helper Log" UI, any future
+   * support triage) a chance at the real cause even though classifyApplyFailure()
+   * itself still only trusts the bracket tag -- best-effort, same posture as
+   * every other read in this file: a missing/unreadable error.log is not an
+   * error, it just means this function returns what it already had.
+   */
+  readErrorLogTail(maxBytes = 4 * 1024) {
+    try {
+      const errorLogPath = path.join(getDataPaths().logsDir, "error.log");
+      if (!fs.existsSync(errorLogPath)) return null;
+      const stat = fs.statSync(errorLogPath);
+      if (stat.size === 0) return null;
+      if (stat.size <= maxBytes) {
+        const content = fs.readFileSync(errorLogPath, "utf8");
+        return content.trim() ? content : null;
+      }
+      const fd = fs.openSync(errorLogPath, "r");
+      try {
+        const buf = Buffer.alloc(maxBytes);
+        fs.readSync(fd, buf, 0, maxBytes, stat.size - maxBytes);
+        return `... (truncated, tail only)\n${buf.toString("utf8")}`;
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (err) {
+      log.debug(`readErrorLogTail failed: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Read the most recent Windows apply-helper log from TEMP, if any.
-   * Returns up to 8KB of log text or null.
+   * Returns up to 8KB of log text (plus, when available, a bounded tail of
+   * the panel's own logs/error.log -- see readErrorLogTail() above) or null.
    */
   readMostRecentApplyLog() {
+    const primary = this._readSupervisorApplyLog();
+    const errorTail = this.readErrorLogTail();
+    if (!errorTail) return primary;
+    if (!primary) return `--- Panel error.log (tail) ---\n${errorTail}`;
+    return `${primary}\n\n--- Panel error.log (tail) ---\n${errorTail}`;
+  }
+
+  _readSupervisorApplyLog() {
     // Start.bat v2 writes apply diagnostics to supervisor.log. Older helper
     // versions (pre-v1.0.21) used panel-update-last.log or timestamped
     // files under logsDir, so those fallbacks are retained for upgraded
