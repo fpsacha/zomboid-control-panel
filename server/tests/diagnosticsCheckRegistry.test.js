@@ -71,6 +71,7 @@ const KNOWN_TRANSLATED_IDS = new Set([
   "update.steamApi",
   "update.panel",
   "update.mods",
+  "update.rollback",
   "updates.error",
   // Batch 6: PanelBridge IPC
   "bridge.configured",

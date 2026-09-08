@@ -818,6 +818,13 @@
             "label": "Todos los mods actualizados",
             "message": "Mods monitorizados: {{count}}; ninguno con actualizaciones pendientes."
           }
+        },
+        "rollback": {
+          "warn": {
+            "label": "An update was automatically rolled back",
+            "message": "Version {{version}} failed to complete its startup handshake and was automatically reverted. You are currently running v{{currentVersion}}.",
+            "hint": "This build likely has a real problem, not a one-off -- check logs/supervisor.log from around the time of the revert before retrying the same version. Delete .update-rollback-notice.json from the install folder to dismiss this notice."
+          }
         }
       },
       "updates": {

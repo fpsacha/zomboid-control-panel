@@ -4942,6 +4942,15 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
         }
       }
 
+      if (panelUpdateChecker) {
+        const installDir = path.dirname(panelUpdateChecker.getExeBasePath());
+        const rollbackNoticeCheck = buildUpdateRollbackNoticeCheck(
+          installDir,
+          panelUpdateChecker.currentVersion,
+        );
+        if (rollbackNoticeCheck) checks.push(rollbackNoticeCheck);
+      }
+
       if (panelUpdateChecker?.updateAvailable) {
         const latest =
           panelUpdateChecker.latestRelease?.tag_name ||
@@ -5120,6 +5129,47 @@ export function buildLockProtectionCheck() {
       category: "storage",
       hint: "This is expected on a deliberately read-only or access-restricted data directory. If that wasn't intentional, check permissions on the data directory; otherwise make sure your deployment only ever runs one panel instance at a time.",
       params: { code: disabled.code },
+    },
+  );
+}
+
+// god's addition to Q3 (harden-updater, 2026-09-08): a presence-based
+// Linux rollback (build.js's generateStartSh(), rollback_failed_update())
+// can now fire silently -- the operator ends up running an OLDER version
+// than the one they installed with nothing telling them why, retries the
+// same update, and hits the same regression. rollback_failed_update()
+// leaves a durable breadcrumb (a plain `cp` of the update-bundle.json
+// journal, before removing it -- no bash-side JSON parsing needed, every
+// field the journal already had survives the copy) at a fixed path next to
+// the panel's own binary. This turns that breadcrumb into a Diagnostics
+// entry the operator will actually see when investigating "why didn't my
+// update take" -- exactly the symptom this whole feature exists to
+// prevent going unexplained. Exported so it can be unit tested directly,
+// matching buildLockProtectionCheck()'s convention above.
+export function buildUpdateRollbackNoticeCheck(installDir, currentVersion) {
+  const noticePath = path.join(installDir, ".update-rollback-notice.json");
+  let notice;
+  try {
+    notice = JSON.parse(fs.readFileSync(noticePath, "utf-8"));
+  } catch {
+    return null;
+  }
+  const failedVersion = notice?.version || "an update";
+  // currentVersion is what THIS process is actually running right now --
+  // by construction it can only be the restored build, since a version
+  // that successfully passed its own startup handshake would already have
+  // deleted this same notice file's source journal (acknowledgeUpdateBundle()).
+  // Always stated (never conditionally omitted) so the English fallback
+  // here matches the one fixed sentence the locale files render.
+  const resolvedCurrentVersion = currentVersion || "?";
+  return diagWarn(
+    "update.rollback",
+    "An update was automatically rolled back",
+    `Version ${failedVersion} failed to complete its startup handshake and was automatically reverted. You are currently running v${resolvedCurrentVersion}.`,
+    {
+      category: "updates",
+      hint: "This build likely has a real problem, not a one-off -- check logs/supervisor.log from around the time of the revert before retrying the same version. Delete .update-rollback-notice.json from the install folder to dismiss this notice.",
+      params: { version: failedVersion, currentVersion: resolvedCurrentVersion },
     },
   );
 }

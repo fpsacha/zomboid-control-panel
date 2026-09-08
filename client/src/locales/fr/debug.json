@@ -818,6 +818,13 @@
             "label": "Tous les mods à jour",
             "message": "{{count}} suivis, aucun signalé pour mise à jour."
           }
+        },
+        "rollback": {
+          "warn": {
+            "label": "Une mise à jour a été annulée automatiquement",
+            "message": "La version {{version}} n'a pas terminé sa validation de démarrage et a été automatiquement restaurée à la version précédente. Vous utilisez actuellement la version {{currentVersion}}.",
+            "hint": "Cette version présente probablement un problème réel, pas un incident isolé -- vérifiez logs/supervisor.log autour de l'heure du retour en arrière avant de retenter la même version. Supprimez .update-rollback-notice.json du dossier d'installation pour ignorer cette notification."
+          }
         }
       },
       "updates": {
