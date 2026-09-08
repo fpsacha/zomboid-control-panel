@@ -76,6 +76,8 @@
     "targetServerActiveSuffix": " （当前）",
     "targetServerRemoteSuffix": " — 远程",
     "targetServerHelp": "无论触发时哪个服务器处于活动状态，该任务始终针对此服务器运行。",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "保存更改",
     "createTaskButton": "创建任务"
   },

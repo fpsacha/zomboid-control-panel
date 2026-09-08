@@ -76,6 +76,8 @@
     "targetServerActiveSuffix": " (Active)",
     "targetServerRemoteSuffix": " — Remote",
     "targetServerHelp": "This task always runs against this server, even if a different one is active when it fires.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "Save Changes",
     "createTaskButton": "Create Task"
   },

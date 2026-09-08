@@ -97,6 +97,8 @@
     "targetServerActiveSuffix": " (Actif)",
     "targetServerRemoteSuffix": " — Distant",
     "targetServerHelp": "Cette tâche s'exécute toujours sur ce serveur, même si un autre serveur est actif au moment où elle se déclenche.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "Enregistrer les modifications",
     "createTaskButton": "Créer la tâche"
   },

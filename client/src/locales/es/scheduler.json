@@ -97,6 +97,8 @@
     "targetServerActiveSuffix": " (Activo)",
     "targetServerRemoteSuffix": " — Remoto",
     "targetServerHelp": "Esta tarea siempre se ejecuta en este servidor, incluso si hay uno diferente activo cuando se dispara.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "Guardar cambios",
     "createTaskButton": "Crear tarea"
   },

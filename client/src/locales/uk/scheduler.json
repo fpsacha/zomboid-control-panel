@@ -111,6 +111,8 @@
     "targetServerActiveSuffix": " (Активний)",
     "targetServerRemoteSuffix": " — Віддалений",
     "targetServerHelp": "Це завдання завжди виконується для цього сервера, навіть якщо на момент запуску активний інший.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "Зберегти зміни",
     "createTaskButton": "Створити завдання"
   },

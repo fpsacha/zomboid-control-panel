@@ -76,6 +76,8 @@
     "targetServerActiveSuffix": " (Aktif)",
     "targetServerRemoteSuffix": " — Adistans",
     "targetServerHelp": "Tach sa a toujou fonksyone kont sèvè sa a, menm si yon lòt aktif lè li deklanche.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "Sove Chanjman",
     "createTaskButton": "Kreye Tach"
   },

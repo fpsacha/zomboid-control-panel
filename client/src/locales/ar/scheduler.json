@@ -123,6 +123,8 @@
     "targetServerActiveSuffix": " (نشط)",
     "targetServerRemoteSuffix": " — بعيد",
     "targetServerHelp": "تعمل هذه المهمة دائمًا على هذا الخادم، حتى لو كان خادم آخر هو النشط عند إطلاقها.",
+    "dstWarningTitle": "Daylight-saving heads-up",
+    "dstWarningDismiss": "Got it",
     "saveChanges": "حفظ التغييرات",
     "createTaskButton": "إنشاء المهمة"
   },

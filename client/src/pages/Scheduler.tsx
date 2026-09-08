@@ -15,6 +15,7 @@ import {
   Pencil,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   ChevronDown,
   HelpCircle,
   Search,
@@ -435,6 +436,16 @@ export default function Scheduler() {
   const [newTaskServerId, setNewTaskServerId] = useState<string>('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null)
+  // scheduler-time-audit follow-up (06f07d66 landed the server half: POST
+  // /tasks and PUT /tasks/:id now return a non-null dstWarning whenever the
+  // saved schedule is sub-hourly in a DST-observing zone -- node-cron's own
+  // documented limitation is that the repeated hour during a fall-back only
+  // fires once, silently dropping one occurrence a year. The server string
+  // is plain English, not a translation key -- it's assembled from the
+  // schedule's own interval/timezone data, not a fixed message a translator
+  // could pre-author. Held here (not cleared by the toast+close a normal
+  // save does) so it survives long enough to actually be read.
+  const [dstWarning, setDstWarning] = useState<string | null>(null)
 
   // Advisory-only preview of the custom cron field via POST /validate-cron --
   // never gates Save. The server re-validates independently and is the real
@@ -714,8 +725,9 @@ export default function Scheduler() {
 
     setLoading(true)
     try {
+      let result: { dstWarning?: string | null } | undefined
       if (editingTask) {
-        await schedulerApi.updateTask(
+        result = await schedulerApi.updateTask(
           editingTask.id,
           newTaskName,
           cronToUse,
@@ -724,16 +736,24 @@ export default function Scheduler() {
           newTaskServerId || undefined,
         )
       } else {
-        await schedulerApi.createTask(newTaskName, cronToUse, newTaskCommand, newTaskServerId || undefined)
+        result = await schedulerApi.createTask(newTaskName, cronToUse, newTaskCommand, newTaskServerId || undefined)
       }
       toast({
         title: t('toasts.successTitle'),
         description: editingTask ? t('toasts.taskUpdated') : t('toasts.taskCreated'),
         variant: 'success' as const,
       })
-      resetTaskForm()
-      setDialogOpen(false)
       fetchData()
+      if (result?.dstWarning) {
+        // Leave the dialog open so the warning is actually seen next to the
+        // schedule that triggered it -- the task IS already saved (the
+        // toast above and fetchData() both already reflect that), this is
+        // purely "here's a caveat," not a reason to block or retry.
+        setDstWarning(result.dstWarning)
+      } else {
+        resetTaskForm()
+        setDialogOpen(false)
+      }
     } catch (error) {
       toast({
         title: t('toasts.errorTitle'),
@@ -747,6 +767,7 @@ export default function Scheduler() {
 
   const resetTaskForm = () => {
     setEditingTask(null)
+    setDstWarning(null)
     setNewTaskName('')
     setNewTaskCron('')
     setNewTaskCommand('')
@@ -804,6 +825,7 @@ export default function Scheduler() {
 
   const handleEditTask = (task: ScheduledTask) => {
     setEditingTask(task)
+    setDstWarning(null)
     setNewTaskName(task.name)
     setNewTaskCommand(task.command)
     setNewTaskServerId(task.server_id != null ? String(task.server_id) : '')
@@ -1203,6 +1225,28 @@ export default function Scheduler() {
                   </TabsContent>
                 </Tabs>
               </div>
+              {dstWarning && (
+                <Alert variant="warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>{t('dialog.dstWarningTitle')}</AlertTitle>
+                  <AlertDescription className="flex flex-col gap-2">
+                    {/* dir="auto": the server's own English sentence, not a
+                        translation key -- wrong to force it LTR inside an
+                        RTL dialog the way a translated string's own
+                        direction would already be handled. */}
+                    <span dir="auto">{dstWarning}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      onClick={() => { resetTaskForm(); setDialogOpen(false) }}
+                    >
+                      {t('dialog.dstWarningDismiss')}
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
               <div>
                 <div className="flex items-center gap-1.5">
                   <Label>{t('dialog.commandLabel')}</Label>
