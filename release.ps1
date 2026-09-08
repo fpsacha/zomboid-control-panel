@@ -213,6 +213,20 @@ function Assert-ReleaseVersionParity($expectedPanelVersion, $expectedBridgeVersi
     }
 }
 
+# Extracts the hand-written prose under CHANGELOG.md's "## [$version]" heading,
+# up to (not including) the next "## [" heading. Returns $null if the file or
+# the heading is missing -- STEP 0 already requires the heading to exist, but
+# this stays a soft fallback rather than a hard dependency, since generating a
+# GitHub release is not itself changelog maintenance.
+function Get-ChangelogSection($changelogPath, $version) {
+    if (-not (Test-Path $changelogPath)) { return $null }
+    $raw = Get-Content $changelogPath -Raw
+    $pattern = "(?ms)^## \[$([regex]::Escape($version))\][^\r\n]*\r?\n(.*?)(?=^## \[|\z)"
+    $match = [regex]::Match($raw, $pattern)
+    if (-not $match.Success) { return $null }
+    return $match.Groups[1].Value.Trim("`r", "`n")
+}
+
 # ============================================
 # AUTO-VERSION: Increment from current package.json if no -Version given
 # ============================================
@@ -676,9 +690,30 @@ if ($SkipGitHub) {
         $ghArgs += "--notes-file"
         $ghArgs += $ReleaseNotes
     } else {
-        # Auto-generate Keep a Changelog format from commit messages
+        $emdash = [char]0x2014
         $lastTag = git -C $RepoDir tag --sort=-creatordate | Select-Object -First 1
-        if ($lastTag -and $lastTag -ne $TagName) {
+        $changelogSection = Get-ChangelogSection $changelogFile $Version
+
+        if ($changelogSection) {
+            # Prefer the changelog's own hand-written prose -- it is what a
+            # human actually reads on the release page, unlike a dump of
+            # commit subjects (internal shorthand like ":do_rename" or a
+            # session's own file names means nothing to a user).
+            $autoNotes = "## $ReleaseTitle`n`n$changelogSection`n`n---`n"
+            $autoNotes += "`n### Downloads`n"
+            $autoNotes += "- **ZomboidControlPanel-windows.zip** $emdash Windows full package (extract and run Start.bat)`n"
+            $autoNotes += "- **ZomboidControlPanel-linux.tar.gz** $emdash Linux full package (extract and run ./start.sh)`n"
+            $autoNotes += "- **checksums.txt** $emdash SHA256 verification hashes`n"
+            if ($lastTag -and $lastTag -ne $TagName) {
+                $autoNotes += "`n**Full Changelog**: https://github.com/$GitHubRepo/compare/$lastTag...$TagName`n"
+            }
+            $ghArgs += "--notes"
+            $ghArgs += $autoNotes
+        } elseif ($lastTag -and $lastTag -ne $TagName) {
+            # Fallback: CHANGELOG.md has no section for this version (STEP 0
+            # normally prevents this) -- auto-generate Keep a Changelog format
+            # from commit messages instead of falling through to gh's raw
+            # commit-subject dump.
             $log = git -C $RepoDir log "$lastTag..HEAD" --format="%s" --no-merges 2>$null
 
             # Categorize commits by prefix
@@ -748,9 +783,9 @@ if ($SkipGitHub) {
             }
             $autoNotes += "`n---`n"
             $autoNotes += "`n### Downloads`n"
-            $autoNotes += "- **ZomboidControlPanel-windows.zip** \u2014 Windows full package (extract and run Start.bat)`n"
-            $autoNotes += "- **ZomboidControlPanel-linux.tar.gz** \u2014 Linux full package (extract and run ./start.sh)`n"
-            $autoNotes += "- **checksums.txt** \u2014 SHA256 verification hashes`n"
+            $autoNotes += "- **ZomboidControlPanel-windows.zip** $emdash Windows full package (extract and run Start.bat)`n"
+            $autoNotes += "- **ZomboidControlPanel-linux.tar.gz** $emdash Linux full package (extract and run ./start.sh)`n"
+            $autoNotes += "- **checksums.txt** $emdash SHA256 verification hashes`n"
             $ghArgs += "--notes"
             $ghArgs += $autoNotes
         } else {
