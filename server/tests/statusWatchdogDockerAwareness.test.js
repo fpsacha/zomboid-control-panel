@@ -14,7 +14,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // instead of the local scan for those two providers.
 
 const getActiveServer = vi.fn();
-vi.mock("../database/init.js", () => ({ getActiveServer }));
+// peekServerDisplayName: index.js's own boot sequence wires this into
+// lifecycleCoordinator.js's setServerDisplayNameResolver() unconditionally
+// at module scope -- referencing it here even without calling it is enough
+// to throw against an incomplete mock.
+vi.mock("../database/init.js", () => ({ getActiveServer, peekServerDisplayName: () => null }));
 
 const resolveDockerHostSignal = vi.fn();
 vi.mock("../services/managedContainer.js", () => ({

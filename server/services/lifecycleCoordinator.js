@@ -2,6 +2,22 @@ export const LIFECYCLE_IN_PROGRESS_CODE = "SERVER_LIFECYCLE_IN_PROGRESS";
 
 let activeLock = null;
 let nextLockId = 0;
+let resolveServerDisplayName = null;
+
+// Injected, not statically imported from database/init.js, on purpose:
+// dozens of test files mock that module with only the exports THEY need
+// (vi.mock("../database/init.js", () => ({ getServer, ... }))), which
+// REPLACES the whole module for that test file -- a static import here
+// would throw "no such export" the instant lifecycleInProgressResponse()
+// ran in any of them, even ones that never touch a lifecycle lock's
+// message on purpose. Wired once at real boot (server/index.js) to
+// database/init.js's peekServerDisplayName(); every test file that never
+// calls this keeps getting the existing generic-wording fallback exactly
+// as before, unchanged, with zero coupling to what that file's own mock
+// happens to export.
+export function setServerDisplayNameResolver(resolver) {
+  resolveServerDisplayName = typeof resolver === "function" ? resolver : null;
+}
 
 // 2026-09-04, lifecycle-lock investigation: the lock itself was never the
 // problem -- every acquire/release path was already correct, and the
@@ -70,19 +86,32 @@ export function acquireLifecycleLock(operation = "lifecycle", serverId = null) {
 // operations with no single server to name), rather than rendering
 // something like "for 'undefined'".
 //
-// 2026-09-08: the interpolated value is now a raw server DB id (a UUID),
-// not the display name it used to be for most callers -- this message got
-// less friendly as a direct, accepted consequence of `serverId` becoming
-// load-bearing rather than cosmetic (see acquireLifecycleLock's comment
-// above). Resolving it back to a display name here would need this
-// function to become async (a DB read) and touch all 13 read call sites
-// for a message-readability improvement that was not part of this
-// normalization -- flagged to god as a follow-up, not fixed here.
+// 2026-09-08: `serverId` becoming the server DB id (a UUID) rather than a
+// display name meant this message would otherwise show that raw UUID --
+// meaningless to an operator, and the exact "the panel says something
+// useless when it refuses" complaint this whole night was about. Resolved
+// back to a display name via the injected resolveServerDisplayName (see
+// setServerDisplayNameResolver above) -- a SYNCHRONOUS, best-effort lookup
+// by design, so this function (and its 13 read call sites) never had to go
+// async for a message-readability fix. Falls back to the existing generic
+// wording, unchanged, whenever no resolver is wired, the id doesn't
+// resolve (a deleted server, or the /delete-files null case), or the
+// resolver itself throws -- never prints a bare UUID or a placeholder. The
+// lock itself still only ever stores the id (acquireLifecycleLock is
+// untouched) -- only the message resolves a name from it.
 export function lifecycleInProgressResponse() {
   const holder = activeLock;
+  let displayName = null;
+  if (holder?.serverId && resolveServerDisplayName) {
+    try {
+      displayName = resolveServerDisplayName(holder.serverId) || null;
+    } catch {
+      displayName = null;
+    }
+  }
   const error =
-    holder?.operation && holder?.serverId
-      ? `A '${holder.operation}' operation for '${holder.serverId}' is already in progress`
+    holder?.operation && displayName
+      ? `A '${holder.operation}' operation for '${displayName}' is already in progress`
       : holder?.operation
         ? `A '${holder.operation}' operation is already in progress`
         : "Another server lifecycle operation is already in progress";

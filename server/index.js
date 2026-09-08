@@ -49,6 +49,7 @@ import {
   flushForShutdown,
   recordPerformanceSnapshot,
   logServerEvent,
+  peekServerDisplayName,
 } from "./database/init.js";
 import { RconService } from "./services/rcon.js";
 import { ServerManager } from "./services/serverManager.js";
@@ -100,7 +101,7 @@ import { resolveObservedServerRunning, resolveServerPhase } from "./utils/server
 import { discoverMounts } from "./services/mountDiscovery.js";
 import { shouldAutoOpenBrowser } from "./utils/browserLaunch.js";
 import { isLinuxPanelSupervisor } from "./utils/restartSupervisor.js";
-import { acquireLifecycleLock } from "./services/lifecycleCoordinator.js";
+import { acquireLifecycleLock, setServerDisplayNameResolver } from "./services/lifecycleCoordinator.js";
 
 // === Supervisor bootstrap ===
 // If the .exe was double-clicked directly (no PANEL_SUPERVISOR_V env var) and
@@ -991,6 +992,11 @@ const dockerClient = new DockerClient();
 // Lets the scheduler and the Discord bot route lifecycle actions to Docker
 // without threading the client through their constructors.
 setDockerClient(dockerClient);
+// Lets lifecycleInProgressResponse()'s 409 message resolve a held lock's
+// server DB id back to a display name, without lifecycleCoordinator.js
+// statically importing database/init.js (see its own comment on why: dozens
+// of test files mock that module with only the exports they need).
+setServerDisplayNameResolver(peekServerDisplayName);
 const modChecker = new ModChecker();
 const logTailer = new LogTailer();
 const scheduler = new Scheduler(rconService, serverManager);

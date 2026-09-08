@@ -28,9 +28,8 @@ vi.mock("../services/rcon.js", () => ({
 }));
 
 const { default: router } = await import("../routes/docker.js");
-const { acquireLifecycleLock, lifecycleInProgressResponse } = await import(
-  "../services/lifecycleCoordinator.js"
-);
+const { acquireLifecycleLock, lifecycleInProgressResponse, setServerDisplayNameResolver } =
+  await import("../services/lifecycleCoordinator.js");
 
 beforeEach(() => {
   getServer.mockReset();
@@ -204,6 +203,11 @@ describe("POST /api/docker/containers/:id/:action", () => {
   // reading the held lock's own refusal message: it must name the server id
   // ("server-1"), never the container id ("managed").
   it("acquires the lock with the request's server DB id (req.body.serverId), not the Docker container id (req.params.id)", async () => {
+    // Resolver recognizes ONLY the real server id -- if the route ever
+    // regressed to passing the container id ("managed") instead, this
+    // wouldn't resolve and the message would fall back to the fully
+    // generic wording instead of naming "Resolved-server-1".
+    setServerDisplayNameResolver((id) => (id === "server-1" ? "Resolved-server-1" : null));
     const response = createResponse();
     let releaseAction;
     let actionEntered;
@@ -231,13 +235,16 @@ describe("POST /api/docker/containers/:id/:action", () => {
       }) },
     }, response);
 
-    await actionReached;
-    const message = lifecycleInProgressResponse().error;
-    expect(message).toContain("server-1");
-    expect(message).not.toContain("managed");
-
-    releaseAction();
-    await handlerCall;
+    try {
+      await actionReached;
+      const message = lifecycleInProgressResponse().error;
+      expect(message).toContain("Resolved-server-1");
+      expect(message).not.toContain("managed");
+    } finally {
+      setServerDisplayNameResolver(null);
+      releaseAction();
+      await handlerCall;
+    }
   });
 
   // wrapper-bypass class sweep, 2026-09-08: the route used to call

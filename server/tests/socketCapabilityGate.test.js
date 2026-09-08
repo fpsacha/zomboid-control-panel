@@ -24,6 +24,11 @@ vi.mock("../database/init.js", () => ({
   // code in index.js may -- keep the mock module shape harmless rather
   // than undefined.
   getDb: vi.fn(async () => ({ data: {} })),
+  // index.js's own boot sequence wires this into lifecycleCoordinator.js's
+  // setServerDisplayNameResolver() unconditionally at module scope --
+  // referencing it here even without calling it is enough to throw against
+  // an incomplete mock.
+  peekServerDisplayName: vi.fn(() => null),
 }));
 
 const { socketHasCapability } = await import("../index.js");

@@ -1,9 +1,26 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acquireLifecycleLock,
   lifecycleInProgressResponse,
   LIFECYCLE_IN_PROGRESS_CODE,
+  setServerDisplayNameResolver,
 } from "../services/lifecycleCoordinator.js";
+
+// normalize-lifecycle-lock-server-identifier follow-up, 2026-09-08:
+// acquireLifecycleLock's second argument is now always a server DB id (a
+// UUID), not a display name -- so lifecycleInProgressResponse() resolves it
+// back to a name via an INJECTED resolver (setServerDisplayNameResolver,
+// wired at real boot to database/init.js's peekServerDisplayName) rather
+// than interpolating the raw id. Deliberately not a static import of
+// database/init.js in lifecycleCoordinator.js itself -- see that file's own
+// comment: dozens of test files mock that module with only the exports they
+// need, and a static import would throw "no such export" in every one of
+// them the instant this function ran. Controlled here via the same
+// injection real boot uses, reset in afterEach so a resolver configured by
+// one test can't leak into another test in this file or another importing
+// this same module in the same worker (module-level state, same leak class
+// activeLock itself already guards against).
+const peekServerDisplayName = vi.fn();
 
 // 2026-09-04, lifecycle-lock investigation follow-up: the lock itself was
 // never the bug (traced every acquire/release path -- all correct, process-
@@ -24,14 +41,43 @@ import {
 // live references into during a real run.
 
 describe("lifecycleCoordinator: refusal message names the holder", () => {
-  it("names both the operation and the server when acquired with a serverName", () => {
-    const lock = acquireLifecycleLock("start", "DoomerZ");
+  beforeEach(() => {
+    peekServerDisplayName.mockReset();
+    setServerDisplayNameResolver(peekServerDisplayName);
+  });
+
+  afterEach(() => {
+    setServerDisplayNameResolver(null);
+  });
+
+  it("names both the operation and the server, resolving the held id to a display name via peekServerDisplayName", () => {
+    peekServerDisplayName.mockImplementation((id) =>
+      id === "server-uuid-1" ? "DoomerZ" : null,
+    );
+    const lock = acquireLifecycleLock("start", "server-uuid-1");
     try {
       const response = lifecycleInProgressResponse();
+      expect(peekServerDisplayName).toHaveBeenCalledWith("server-uuid-1");
       expect(response.error).toBe(
         "A 'start' operation for 'DoomerZ' is already in progress",
       );
       expect(response.code).toBe(LIFECYCLE_IN_PROGRESS_CODE);
+    } finally {
+      lock.release();
+    }
+  });
+
+  // Break-verify per the card's own boundary: a lock held with a real id
+  // that DOESN'T resolve (deleted server, or -- as here -- this test's mock
+  // simply has nothing for it) must fall back to the existing generic
+  // wording, never print the bare id/UUID itself.
+  it("falls back to the existing generic wording, never the raw id, when the held id doesn't resolve to a name", () => {
+    peekServerDisplayName.mockReturnValue(null);
+    const lock = acquireLifecycleLock("start", "some-uuid-with-no-matching-server");
+    try {
+      const response = lifecycleInProgressResponse();
+      expect(response.error).toBe("A 'start' operation is already in progress");
+      expect(response.error).not.toContain("some-uuid-with-no-matching-server");
     } finally {
       lock.release();
     }
@@ -70,9 +116,13 @@ describe("lifecycleCoordinator: refusal message names the holder", () => {
   });
 
   it("a second acquire attempt while the first is held still refuses (unchanged locking behavior) and the refusal names the FIRST holder, not the attempted second operation", () => {
-    const first = acquireLifecycleLock("start", "ServerA");
+    peekServerDisplayName.mockImplementation((id) => ({
+      "uuid-a": "ServerA",
+      "uuid-b": "ServerB",
+    })[id] ?? null);
+    const first = acquireLifecycleLock("start", "uuid-a");
     try {
-      const second = acquireLifecycleLock("start", "ServerB");
+      const second = acquireLifecycleLock("start", "uuid-b");
       expect(second).toBeNull();
       const response = lifecycleInProgressResponse();
       expect(response.error).toBe(

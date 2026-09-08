@@ -49,9 +49,12 @@ vi.mock("../services/templateService.js", () => ({
 }));
 
 const { default: router } = await import("../routes/templates.js");
-const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse } = await import(
-  "../services/lifecycleCoordinator.js"
-);
+const {
+  acquireLifecycleLock,
+  isLifecycleLocked,
+  lifecycleInProgressResponse,
+  setServerDisplayNameResolver,
+} = await import("../services/lifecycleCoordinator.js");
 
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
@@ -138,9 +141,14 @@ describe("POST /api/templates/:id/apply holds the shared lifecycle lock across i
   // ("template-apply") -- see the lifecycleCoordinator sweep this fixed).
   // req.body.serverId is fully available the instant the handler starts
   // (Express has already parsed the body), so unlike /delete-files this
-  // route has no excuse to leave it null. Proven here by reading the held
-  // lock's own refusal message, not just that SOME lock exists.
+  // route has no excuse to leave it null. Proven here by wiring a resolver
+  // that only recognizes "server-1" (this request's exact serverId) and
+  // reading it back out of the held lock's own refusal message -- a
+  // read call, since lifecycleInProgressResponse()'s follow-up fix
+  // (message-build-time id -> display-name resolution) means the message no
+  // longer echoes a raw id directly.
   it("acquires the lock with the request's own server DB id (req.body.serverId), not null", async () => {
+    setServerDisplayNameResolver((id) => (id === "server-1" ? "Resolved-server-1" : null));
     let releaseApply;
     let applyEntered;
     const applyReached = new Promise((r) => {
@@ -159,11 +167,14 @@ describe("POST /api/templates/:id/apply holds the shared lifecycle lock across i
 
     const handlerCall = handler(buildRequest({ serverId: "server-1" }), response);
 
-    await applyReached;
-    expect(lifecycleInProgressResponse().error).toContain("server-1");
-
-    releaseApply();
-    await handlerCall;
+    try {
+      await applyReached;
+      expect(lifecycleInProgressResponse().error).toContain("Resolved-server-1");
+    } finally {
+      setServerDisplayNameResolver(null);
+      releaseApply();
+      await handlerCall;
+    }
   });
 
   it("refuses with 409 when another lifecycle operation already holds the lock, before any validation or apply", async () => {

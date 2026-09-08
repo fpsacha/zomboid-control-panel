@@ -15,9 +15,8 @@ vi.mock("../database/init.js", () => ({
 }));
 
 const { Scheduler } = await import("../services/scheduler.js");
-const { acquireLifecycleLock, lifecycleInProgressResponse } = await import(
-  "../services/lifecycleCoordinator.js"
-);
+const { acquireLifecycleLock, lifecycleInProgressResponse, setServerDisplayNameResolver } =
+  await import("../services/lifecycleCoordinator.js");
 
 // 2026-08-27, root-cause completion (loonE, Discord config-revert report):
 // scheduler.performRestart() -> serverManager.startServer() used to call
@@ -104,6 +103,12 @@ describe("performRestart() refreshes the launch target before starting", () => {
   // restartInProgress check and set (see the route's own comment on that
   // race). Proven here by reading the held lock's own refusal message.
   it("acquires the lock with serverManager._serverId (the server DB id), not serverManager.serverName", async () => {
+    // Resolver recognizes ONLY the numeric id (coerced to a string by
+    // acquireLifecycleLock's own normalization) -- if this ever regressed
+    // to serverManager.serverName ("TestServer"), it wouldn't resolve and
+    // the message would fall back to the fully generic wording instead of
+    // naming "Resolved-server-7".
+    setServerDisplayNameResolver((id) => (id === "7" ? "Resolved-server-7" : null));
     root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-perform-restart-lock-"));
     const installPath = root;
     const zomboidDataPath = path.join(root, "Zomboid");
@@ -146,13 +151,16 @@ describe("performRestart() refreshes the launch target before starting", () => {
 
     const restartCall = scheduler.performRestart(0, { rconService, serverManager });
 
-    await startReached;
-    const message = lifecycleInProgressResponse().error;
-    expect(message).toContain("7");
-    expect(message).not.toContain("TestServer");
-
-    releaseStart();
-    await restartCall;
+    try {
+      await startReached;
+      const message = lifecycleInProgressResponse().error;
+      expect(message).toContain("Resolved-server-7");
+      expect(message).not.toContain("TestServer");
+    } finally {
+      setServerDisplayNameResolver(null);
+      releaseStart();
+      await restartCall;
+    }
   });
 
   // The "was running" branch (a full RCON verify -> countdown -> save ->

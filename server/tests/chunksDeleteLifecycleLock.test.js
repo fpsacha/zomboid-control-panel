@@ -36,9 +36,8 @@ vi.mock("../utils/zomboidPaths.js", () => ({
 
 const { getServers, getActiveServer } = await import("../database/init.js");
 const { default: router } = await import("../routes/chunks.js");
-const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse } = await import(
-  "../services/lifecycleCoordinator.js"
-);
+const { acquireLifecycleLock, isLifecycleLocked, lifecycleInProgressResponse, setServerDisplayNameResolver } =
+  await import("../services/lifecycleCoordinator.js");
 
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
@@ -167,6 +166,11 @@ describe("POST /api/chunks/delete-chunks holds the shared lifecycle lock across 
   // comment: no server identity applies to it). Proven here by reading the
   // held lock's own refusal message.
   it("acquires the lock with the active server's DB id, not the saveName, when the delete is server-scoped (no customPath)", async () => {
+    // Resolver recognizes ONLY the real server id -- if the route ever
+    // regressed to passing the saveName instead, this wouldn't resolve and
+    // the message would fall back to the fully generic wording instead of
+    // naming "Resolved-server-1".
+    setServerDisplayNameResolver((id) => (id === "server-1" ? "Resolved-server-1" : null));
     getActiveServer.mockResolvedValue({ id: "server-1", zomboidDataPath: root });
 
     const realMkdir = fs.promises.mkdir.bind(fs.promises);
@@ -189,13 +193,16 @@ describe("POST /api/chunks/delete-chunks holds the shared lifecycle lock across 
 
     const handlerCall = handler(request, response);
 
-    await vi.waitFor(() => expect(mkdirSpy).toHaveBeenCalled());
-    const message = lifecycleInProgressResponse().error;
-    expect(message).toContain("server-1");
-    expect(message).not.toContain(SAVE_NAME);
-
-    releaseMkdir();
-    await handlerCall;
+    try {
+      await vi.waitFor(() => expect(mkdirSpy).toHaveBeenCalled());
+      const message = lifecycleInProgressResponse().error;
+      expect(message).toContain("Resolved-server-1");
+      expect(message).not.toContain(SAVE_NAME);
+    } finally {
+      setServerDisplayNameResolver(null);
+      releaseMkdir();
+      await handlerCall;
+    }
   });
 
   it("acquires the lock with no server id (not the saveName) when a customPath delete has no applicable server identity", async () => {

@@ -1926,6 +1926,23 @@ export async function getServers() {
   return (db.data.servers || []).map(normalizeServerMemory);
 }
 
+// Synchronous, best-effort peek at a server's display name for a spot that
+// cannot await a DB read -- lifecycleInProgressResponse() (lifecycleCoordinator.js)
+// needs to turn a held lock's server DB id back into a name at MESSAGE-BUILD
+// time, and that function's 13 read call sites (every lifecycle route's 409
+// refusal) can't all go async for it. Reads the module-level `db` directly,
+// not through getDb() -- by the time any lifecycle lock can exist, the app
+// has already booted and touched the DB many times, so `db` is populated;
+// if it somehow isn't (or the id matches no server, e.g. a deleted one),
+// returns null and the caller falls back to its existing generic wording.
+// Never triggers the lazy first-load getDb() does -- this is a peek at
+// whatever is already in memory, not a read.
+export function peekServerDisplayName(serverId) {
+  if (!serverId || !db?.data?.servers) return null;
+  const server = db.data.servers.find((s) => String(s.id) === String(serverId));
+  return server?.name || server?.serverName || null;
+}
+
 export async function getServer(id) {
   const db = await getDb();
   return normalizeServerMemory(

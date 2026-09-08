@@ -89,6 +89,11 @@ vi.mock("../database/init.js", () => ({
     db.data.users.filter(
       (u) => u.roleId === role.id || (role.isSeeded && u.role === role.name),
     ),
+  // index.js's own boot sequence wires this into lifecycleCoordinator.js's
+  // setServerDisplayNameResolver() unconditionally at module scope --
+  // referencing it here even without calling it is enough to throw against
+  // an incomplete mock.
+  peekServerDisplayName: () => null,
 }));
 
 // Importing both from the SAME test file's module graph means this
