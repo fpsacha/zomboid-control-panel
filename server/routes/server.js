@@ -4937,6 +4937,28 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
       });
     }
 
+    // steamcmd-routes-running-check card, second finding: this route does a
+    // RECURSIVE rmSync directly on installPath, unconditionally, with no
+    // check for an in-progress SteamCMD operation at all -- so the panel
+    // could delete an install directory while its own SteamCMD process (see
+    // POST /install, POST /steam-update) is actively writing into that exact
+    // path. Unlike /wipe's version of this same gap (conditional on
+    // zomboidDataPath nesting inside installPath), this one is unconditional:
+    // deletePath IS installPath. Same guard /install and /steam-update
+    // already claim before spawning, reused here rather than introducing a
+    // lock -- activeSteamOperations is already scoped per install path,
+    // exactly what this check needs.
+    const normalizedDeleteTargetPath = path
+      .normalize(deletePath)
+      .toLowerCase();
+    if (hasActiveSteamOperation(normalizedDeleteTargetPath)) {
+      return res.status(409).json({
+        error:
+          "A Steam operation is already in progress for this path. Please wait for it to complete.",
+        code: ErrorCode.STEAM_OPERATION_IN_PROGRESS_PATH,
+      });
+    }
+
     // A default install keeps the Zomboid data folder OUTSIDE installPath
     // (resolveZomboidPaths defaults it to a sibling `<installPath>_Data`),
     // so deleting the install folder alone leaves Saves/Multiplayer
@@ -6109,6 +6131,30 @@ router.post("/wipe", requirePermission("server.wipe"), async (req, res) => {
     if (!activeServer) {
       return res.status(400).json({ error: "No active server configured", code: ErrorCode.WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED });
     }
+
+    // steamcmd-routes-running-check card: this route never checked for an
+    // in-progress SteamCMD operation before wiping. A default install keeps
+    // zomboidDataPath OUTSIDE installPath (see the nested-data-path comment
+    // below), so this is normally a non-issue -- but nothing stops an
+    // operator from nesting it inside installPath instead, and when that's
+    // the configuration, a wipe running while POST /install or POST
+    // /steam-update is actively writing into that same tree deletes/
+    // recreates files SteamCMD has open. Same guard those two routes
+    // already claim before spawning, reused here rather than a new lock --
+    // activeSteamOperations is already scoped per install path.
+    if (activeServer.installPath) {
+      const normalizedWipeTargetPath = path
+        .normalize(activeServer.installPath)
+        .toLowerCase();
+      if (hasActiveSteamOperation(normalizedWipeTargetPath)) {
+        return res.status(409).json({
+          error:
+            "A Steam operation is already in progress for this path. Please wait for it to complete.",
+          code: ErrorCode.STEAM_OPERATION_IN_PROGRESS_PATH,
+        });
+      }
+    }
+
     try {
       await serverManager.reloadConfig();
     } catch (e) {

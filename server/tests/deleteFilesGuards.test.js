@@ -30,6 +30,9 @@ vi.mock("../services/serverManager.js", async () => {
 
 const { default: router } = await import("../routes/server.js");
 const { getServers } = await import("../database/init.js");
+const { getActiveSteamOperations } = await import(
+  "../services/activeSteamOperations.js"
+);
 
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
@@ -426,6 +429,96 @@ describe("POST /api/server/delete-files safety guards", () => {
       const handler = getDeleteFilesHandler();
       const response = createResponse();
 
+      await handler(buildRequest({ confirm: true }), response);
+
+      expect(response.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true }),
+      );
+      expect(fs.existsSync(installDir)).toBe(false);
+    });
+  });
+
+  // steamcmd-routes-running-check card, second finding: this route did a
+  // recursive rmSync directly on installPath with no check for an
+  // in-progress SteamCMD operation at all -- unconditional, unlike /wipe's
+  // version of the same gap (only reachable if zomboidDataPath nests inside
+  // installPath). activeSteamOperations is the real, unmocked module here
+  // (module-level Map) -- these tests populate/clear it directly rather
+  // than mocking hasActiveSteamOperation(), so the real liveness/claim
+  // semantics are what's under test, not a description of them.
+  describe("refuses while a SteamCMD operation is active for this exact install path", () => {
+    afterEach(() => {
+      getActiveSteamOperations().clear();
+    });
+
+    it("refuses with 409 when POST /install or /steam-update has already claimed this path, and does not delete anything", async () => {
+      const normalizedPath = path.normalize(installDir).toLowerCase();
+      // No `pid` yet -- the real early-claim window, set before the child's
+      // pid is known (see activeSteamOperations.js's own comment on
+      // recordActiveSteamOperationPid). hasActiveSteamOperation() must
+      // treat this as active without needing a liveness probe.
+      getActiveSteamOperations().set(normalizedPath, {
+        type: "install",
+        startTime: Date.now(),
+      });
+
+      const handler = getDeleteFilesHandler();
+      const response = createResponse();
+      await handler(buildRequest({ confirm: true }), response);
+
+      expect(response.status).toHaveBeenCalledWith(409);
+      expect(response.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "STEAM_OPERATION_IN_PROGRESS_PATH" }),
+      );
+      expect(fs.existsSync(installDir)).toBe(true);
+    });
+
+    it("refuses with 409 once a real pid is recorded and still alive, not just during the pid-less claim window", async () => {
+      const normalizedPath = path.normalize(installDir).toLowerCase();
+      // This test process's own pid -- guaranteed alive, so
+      // hasActiveSteamOperation()'s process.kill(pid, 0) liveness probe
+      // reports it as genuinely still running rather than self-healing it
+      // away as stale.
+      getActiveSteamOperations().set(normalizedPath, {
+        type: "steam-update",
+        startTime: Date.now(),
+        pid: process.pid,
+      });
+
+      const handler = getDeleteFilesHandler();
+      const response = createResponse();
+      await handler(buildRequest({ confirm: true }), response);
+
+      expect(response.status).toHaveBeenCalledWith(409);
+      expect(fs.existsSync(installDir)).toBe(true);
+    });
+
+    it("does not refuse once the operation has cleared -- proceeds normally", async () => {
+      const normalizedPath = path.normalize(installDir).toLowerCase();
+      getActiveSteamOperations().set(normalizedPath, {
+        type: "install",
+        startTime: Date.now(),
+      });
+      getActiveSteamOperations().delete(normalizedPath);
+
+      const handler = getDeleteFilesHandler();
+      const response = createResponse();
+      await handler(buildRequest({ confirm: true }), response);
+
+      expect(response.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true }),
+      );
+      expect(fs.existsSync(installDir)).toBe(false);
+    });
+
+    it("an active operation for a DIFFERENT path does not block deleting this one", async () => {
+      getActiveSteamOperations().set("z:\\some\\other\\unrelated\\path", {
+        type: "install",
+        startTime: Date.now(),
+      });
+
+      const handler = getDeleteFilesHandler();
+      const response = createResponse();
       await handler(buildRequest({ confirm: true }), response);
 
       expect(response.json).toHaveBeenCalledWith(
