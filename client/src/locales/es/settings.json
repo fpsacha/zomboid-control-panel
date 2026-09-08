@@ -224,6 +224,13 @@
     "helperBlockedRecoveryNote": "Start.bat elige automáticamente el binario más reciente, así que la actualización se aplicará. Para evitar esto en el futuro, añade la carpeta del panel a las exclusiones del antivirus.",
     "noHelperLogTitle": "No se escribió ningún registro auxiliar.",
     "noHelperLogDesc": "Es posible que la directiva de ejecución o el antivirus hayan bloqueado el script auxiliar. Consulta el historial de protección de Windows Defender.",
+    "rollbackFailedRetryWarning": "the automatic rollback did not fully complete. The panel is likely to retry this exact update again on the next restart and fail the same way, until this is cleared by hand.",
+    "rollbackFailedCosmetic": "the update rolled back successfully. One leftover file could not be removed automatically and is safe to delete by hand.",
+    "rollbackFailedRecoveryLabel": "Files to delete:",
+    "rollbackFailedRecoveryNote": "close this panel first, then delete these three files from the install folder below:",
+    "rollbackFailedRecoveryNoteCosmetic": "delete this file from the install folder below:",
+    "unknownCauseTitle": "Cause could not be determined automatically.",
+    "unknownCauseDesc": "The helper log doesn't match a known failure signature. See the log below for detail.",
     "showHelperLog": "Mostrar registro auxiliar",
     "refreshLog": "Actualizar registro",
     "couldNotReadLog": {

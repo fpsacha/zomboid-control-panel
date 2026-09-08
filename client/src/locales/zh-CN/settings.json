@@ -224,6 +224,13 @@
     "helperBlockedRecoveryNote": "Start.bat 会自动选择最新的可执行文件，因此更新将会应用。为避免以后再次发生，请将面板文件夹添加到杀毒软件排除列表。",
     "noHelperLogTitle": "未写入辅助日志。",
     "noHelperLogDesc": "辅助脚本可能被执行策略或杀毒软件阻止。请查看 Windows Defender 保护历史记录。",
+    "rollbackFailedRetryWarning": "the automatic rollback did not fully complete. The panel is likely to retry this exact update again on the next restart and fail the same way, until this is cleared by hand.",
+    "rollbackFailedCosmetic": "the update rolled back successfully. One leftover file could not be removed automatically and is safe to delete by hand.",
+    "rollbackFailedRecoveryLabel": "Files to delete:",
+    "rollbackFailedRecoveryNote": "close this panel first, then delete these three files from the install folder below:",
+    "rollbackFailedRecoveryNoteCosmetic": "delete this file from the install folder below:",
+    "unknownCauseTitle": "Cause could not be determined automatically.",
+    "unknownCauseDesc": "The helper log doesn't match a known failure signature. See the log below for detail.",
     "showHelperLog": "显示辅助日志",
     "refreshLog": "刷新日志",
     "couldNotReadLog": {

@@ -3240,7 +3240,7 @@ export default function Settings() {
                             </div>
                           )}
                           {panelUpdateStatus.lastApplyResult.likelyCause ===
-                            "no_helper_log" && (
+                            "no_helper_log" && runtimeInfo?.family === "windows" && (
                             <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
                               <strong className="text-destructive-foreground">
                                 {t("updates.noHelperLogTitle")}
@@ -3256,35 +3256,18 @@ export default function Settings() {
                               </strong>{" "}
                               {panelUpdateStatus.lastApplyResult
                                 .rollbackRetryLikely
-                                ? t("updates.rollbackFailedRetryWarning", {
-                                    defaultValue:
-                                      "the automatic rollback did not fully complete. The panel is likely to retry this exact update again on the next restart and fail the same way, until this is cleared by hand.",
-                                  })
-                                : t("updates.rollbackFailedCosmetic", {
-                                    defaultValue:
-                                      "the update rolled back successfully. One leftover file could not be removed automatically and is safe to delete by hand.",
-                                  })}
+                                ? t("updates.rollbackFailedRetryWarning")
+                                : t("updates.rollbackFailedCosmetic")}
                               {panelUpdateStatus.lastApplyResult
                                 .panelFolder && (
                                 <div className="mt-1">
                                   <strong>
-                                    {t("updates.rollbackFailedRecoveryLabel", {
-                                      defaultValue: "Files to delete:",
-                                    })}
+                                    {t("updates.rollbackFailedRecoveryLabel")}
                                   </strong>{" "}
                                   {panelUpdateStatus.lastApplyResult
                                     .rollbackRetryLikely
-                                    ? t("updates.rollbackFailedRecoveryNote", {
-                                        defaultValue:
-                                          "close this panel first, then delete these three files from the install folder below:",
-                                      })
-                                    : t(
-                                        "updates.rollbackFailedRecoveryNoteCosmetic",
-                                        {
-                                          defaultValue:
-                                            "delete this file from the install folder below:",
-                                        },
-                                      )}
+                                    ? t("updates.rollbackFailedRecoveryNote")
+                                    : t("updates.rollbackFailedRecoveryNoteCosmetic")}
                                   <pre className="mt-1 rounded bg-background/70 p-1 text-[11px]">
                                     {panelUpdateStatus.lastApplyResult
                                       .rollbackRetryLikely
@@ -3297,6 +3280,15 @@ export default function Settings() {
                                   </div>
                                 </div>
                               )}
+                            </div>
+                          )}
+                          {panelUpdateStatus.lastApplyResult.likelyCause ===
+                            "unknown" && (
+                            <div className="rounded-md border border-destructive/40 bg-background/50 p-2 text-xs leading-relaxed">
+                              <strong className="text-destructive-foreground">
+                                {t("updates.unknownCauseTitle")}
+                              </strong>{" "}
+                              {t("updates.unknownCauseDesc")}
                             </div>
                           )}
                           {panelApplyLog && (

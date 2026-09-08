@@ -224,6 +224,13 @@
     "helperBlockedRecoveryNote": "Start.bat choisit automatiquement le binaire le plus récent, donc la mise à jour s'appliquera. Pour éviter cela à l'avenir, ajoutez le dossier du panneau aux exclusions antivirus.",
     "noHelperLogTitle": "Aucun journal d'aide n'a été écrit.",
     "noHelperLogDesc": "Le script d'aide a peut-être été bloqué par la stratégie d'exécution ou l'antivirus. Vérifiez l'historique de protection de Windows Defender.",
+    "rollbackFailedRetryWarning": "the automatic rollback did not fully complete. The panel is likely to retry this exact update again on the next restart and fail the same way, until this is cleared by hand.",
+    "rollbackFailedCosmetic": "the update rolled back successfully. One leftover file could not be removed automatically and is safe to delete by hand.",
+    "rollbackFailedRecoveryLabel": "Files to delete:",
+    "rollbackFailedRecoveryNote": "close this panel first, then delete these three files from the install folder below:",
+    "rollbackFailedRecoveryNoteCosmetic": "delete this file from the install folder below:",
+    "unknownCauseTitle": "Cause could not be determined automatically.",
+    "unknownCauseDesc": "The helper log doesn't match a known failure signature. See the log below for detail.",
     "showHelperLog": "Afficher le journal d'aide",
     "refreshLog": "Actualiser le journal",
     "couldNotReadLog": {

@@ -224,6 +224,13 @@
     "helperBlockedRecoveryNote": "Start.bat wählt automatisch die neueste Binärdatei aus, sodass das Update angewendet wird. Um dies künftig zu vermeiden, füge den Panel-Ordner zu den Virenschutzausnahmen hinzu.",
     "noHelperLogTitle": "Es wurde kein Hilfsprotokoll geschrieben.",
     "noHelperLogDesc": "Das Hilfsskript wurde möglicherweise durch eine Ausführungsrichtlinie oder den Virenschutz blockiert. Prüfe den Windows Defender-Schutzverlauf.",
+    "rollbackFailedRetryWarning": "the automatic rollback did not fully complete. The panel is likely to retry this exact update again on the next restart and fail the same way, until this is cleared by hand.",
+    "rollbackFailedCosmetic": "the update rolled back successfully. One leftover file could not be removed automatically and is safe to delete by hand.",
+    "rollbackFailedRecoveryLabel": "Files to delete:",
+    "rollbackFailedRecoveryNote": "close this panel first, then delete these three files from the install folder below:",
+    "rollbackFailedRecoveryNoteCosmetic": "delete this file from the install folder below:",
+    "unknownCauseTitle": "Cause could not be determined automatically.",
+    "unknownCauseDesc": "The helper log doesn't match a known failure signature. See the log below for detail.",
     "showHelperLog": "Hilfsprotokoll anzeigen",
     "refreshLog": "Protokoll aktualisieren",
     "couldNotReadLog": {
