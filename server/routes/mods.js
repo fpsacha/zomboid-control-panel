@@ -9117,7 +9117,23 @@ router.get("/thumbnail/:workshopId", async (req, res) => {
     if (st.size > 0) {
       res.setHeader("Content-Type", "image/jpeg");
       res.setHeader("Cache-Control", "public, max-age=86400, immutable");
-      return res.sendFile(cacheFile);
+      // res.sendFile() needs a callback: without one, Express's default on a
+      // failed send (the cache file vanishing between the stat() above and
+      // this call, a permission problem, anything) is next(err) -- which
+      // lands in server/index.js's generic apiErrorHandler and gets logged
+      // as `[ERROR] [Panel] Unhandled API error on GET /mods/thumbnail/<id>:
+      // Not Found`, at ERROR severity, indistinguishable from a real bug. A
+      // real user's support bundle (2026-09-08) had 300+ of these -- the
+      // single largest thing in error.log, burying every other error next
+      // to it. Every OTHER failure path in this function already falls back
+      // to the placeholder gif via sendEmptyThumbnail() instead of
+      // propagating; this is the one path that didn't.
+      return res.sendFile(cacheFile, (err) => {
+        if (!err || res.headersSent) return;
+        log.debug(`Cached thumbnail for ${wsId} vanished before it could be sent: ${err.message}`);
+        recordThumbFailure(wsId, err.message);
+        sendEmptyThumbnail(res);
+      });
     }
   } catch {
     /* not cached yet */

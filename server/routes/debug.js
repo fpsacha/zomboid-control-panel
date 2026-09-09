@@ -6194,13 +6194,28 @@ router.post("/client-errors", (req, res) => {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    log.warn(`[ClientError] ${message.slice(0, 500)}`, {
-      error:
-        typeof errorDetail === "string"
-          ? errorDetail.slice(0, 1000)
-          : undefined,
-      url: typeof url === "string" ? url.slice(0, 200) : undefined,
-    });
+    // Before this, `error`/`url` were passed as winston's metadata argument,
+    // which BOTH file transports' printf formatters (server/utils/logger.js
+    // consolePrintf/filePrintf) only ever ignore -- they interpolate
+    // level/message/timestamp/stack/source and nothing else, so this detail
+    // was captured by the logger and then silently never written anywhere.
+    // A real user's support bundle (2026-09-08) had `[ClientError] Request
+    // failed, retrying (1/3)...` repeated 17+ times in combined.log, never
+    // once naming what failed, and `Diagnostics auto-fix failed.` with zero
+    // detail right after they pressed the panel's own "fix this" button --
+    // both calls already had the real reason available (client-errors.ts's
+    // reportClientError/reportClientWarning always send the caught error's
+    // own .message as `error`, and the page URL the user was on as `url`);
+    // it just never reached the file an operator would read. Folded into
+    // the message text itself, since that's the only part either printf
+    // renders.
+    const errorPart =
+      typeof errorDetail === "string" && errorDetail
+        ? ` -- ${errorDetail.slice(0, 300)}`
+        : "";
+    const urlPart =
+      typeof url === "string" && url ? ` (page: ${url.slice(0, 200)})` : "";
+    log.warn(`[ClientError] ${message.slice(0, 500)}${errorPart}${urlPart}`);
 
     res.json({ ok: true });
   } catch (err) {
