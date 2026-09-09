@@ -506,18 +506,31 @@ export const SandboxSettingRow = memo(({
   value,
   originalValue,
   onChange,
-  onReset
+  onReset,
+  allowOutOfRange
 }: {
   setting: SandboxSetting;
   value: SandboxScalar;
   originalValue?: SandboxScalar;
   onChange: (setting: SandboxSetting, value: SandboxScalar) => void;
   onReset?: (setting: SandboxSetting) => void;
+  /** Settings.tsx's sandboxRangeOverride toggle. See invalidSandboxSettings'
+   *  own comment above for the blocking-vs-warning split this drives. */
+  allowOutOfRange?: boolean;
 }) => {
   const { t } = useTranslation('serverconfig')
   const isModified = originalValue !== undefined && JSON.stringify(value) !== JSON.stringify(originalValue)
   const isDifferentFromDefault = setting.default !== undefined && JSON.stringify(value) !== JSON.stringify(setting.default)
-  const numberIsInvalid = setting.type === 'number' && String(value ?? '').trim() !== '' && parseNumericSettingValue(value, setting) === null
+  const numberHasContent = setting.type === 'number' && String(value ?? '').trim() !== ''
+  // Malformed (not a real number at all) always blocks, regardless of the
+  // toggle -- enforceBounds only ever changes whether an in-range check is
+  // part of "valid," never whether it parses as a number in the first
+  // place. Out-of-range is split into its own case below so the toggle can
+  // downgrade JUST that one from a blocking error to a visible warning.
+  const numberIsMalformed = numberHasContent && parseNumericSettingValue(value, setting, { enforceBounds: false }) === null
+  const numberOutOfRange = numberHasContent && !numberIsMalformed && parseNumericSettingValue(value, setting) === null
+  const numberIsInvalid = numberIsMalformed || (numberOutOfRange && !allowOutOfRange)
+  const numberIsRangeWarning = numberOutOfRange && !!allowOutOfRange
   // A live value with no matching option -- PZ shipped a value this panel's
   // schema doesn't know (the class of bug the enum audit found: MetaEvent=3
   // when the panel only offered 1-2). The save path never coerces this (see
@@ -625,10 +638,11 @@ export const SandboxSettingRow = memo(({
                   max={setting.max}
                   step={setting.max && setting.max <= 1 ? 0.1 : 1}
                   aria-invalid={numberIsInvalid}
-                  className={`text-end ${isModified ? 'border-warning/40' : ''} ${numberIsInvalid ? 'border-destructive/70' : ''}`}
+                  className={`text-end ${isModified ? 'border-warning/40' : ''} ${numberIsInvalid ? 'border-destructive/70' : numberIsRangeWarning ? 'border-warning' : ''}`}
                 />
                 {(setting.min !== undefined || setting.max !== undefined) && (
-                  <div className="text-xs text-muted-foreground/60 text-end mt-0.5">
+                  <div className={`text-xs mt-0.5 flex items-center justify-end gap-1 ${numberIsRangeWarning ? 'text-warning' : 'text-muted-foreground/60'}`}>
+                    {numberIsRangeWarning && <AlertTriangle className="h-3 w-3 shrink-0" />}
                     {setting.min !== undefined && setting.max !== undefined
                       ? <bdi>{t('row.rangeMinMax', { min: setting.min, max: setting.max })}</bdi>
                       : setting.min !== undefined
@@ -1466,7 +1480,11 @@ export default function ServerConfig() {
         // SANDBOX_SCHEMA groups its own settings (`section`, or "Vanilla"
         // for a setting with no section), so effectiveSandboxSchema can
         // look one up without a second bridge round-trip.
-        const liveRanges = new Map<string, { min?: number; max?: number }>()
+        // `Map` in this file is lucide-react's icon component (see the
+        // Vehicles/Spawn Regions tab icons above) -- globalThis.Map dodges
+        // that shadowing, same as the unresolvedTriage Map elsewhere in
+        // this file.
+        const liveRanges = new globalThis.Map<string, { min?: number; max?: number }>()
         for (const [groupName, opts] of Object.entries(response.data.options)) {
           if (!VANILLA_SANDBOX_GROUPS.has(groupName)) continue
           for (const opt of opts) {
@@ -2687,6 +2705,34 @@ export default function ServerConfig() {
             </AlertDescription>
           </Alert>
         )}
+        {/* Non-blocking: the sandboxRangeOverride toggle (Settings.tsx) let
+            these through invalidSandboxSettings above on purpose -- still
+            surfaced so the user can SEE what's out of range, per the
+            2026-09-09 dispatch ("warn, do not block"). */}
+        {activeTab === 'sandbox' && editorMode === 'structured' && outOfRangeSandboxSettings.length > 0 && (
+          <Alert className="mt-3 border-warning/40 bg-warning/10">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertTitle>{getSandboxOutOfRangeAllowedTitle()}</AlertTitle>
+            <AlertDescription>
+              {getSandboxOutOfRangeAllowedBody(outOfRangeSandboxSettings.map(getSandboxSettingLabel).join(listSep))}
+            </AlertDescription>
+          </Alert>
+        )}
+        {/* Root-cause fallback notice: only shown once a load has genuinely
+            failed (never during 'idle'/'loading'), and never blocks the tab
+            -- SANDBOX_SCHEMA's own table is still fully usable underneath. */}
+        {activeTab === 'sandbox' && sandboxLiveRangesStatus === 'unavailable' && (
+          <Alert className="mt-3 border-border/60 bg-muted/40">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertTitle>{getSandboxLiveRangesUnavailableTitle()}</AlertTitle>
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span className="min-w-0">{getSandboxLiveRangesUnavailableBody()}</span>
+              <Button variant="outline" size="sm" onClick={loadModSettings} disabled={modSettingsLoading} className="shrink-0 gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5" /> {t('modSettingsTab.retry')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* INI Settings Tab */}
         <TabsContent value="ini" className="mt-4">
@@ -3289,6 +3335,7 @@ export default function ServerConfig() {
                                   originalValue={(originalSandboxData?.[(setting.section || 'settings') as keyof SandboxData] as SandboxRecord)?.[setting.key]}
                                   onChange={updateSandboxValue}
                                   onReset={resetSandboxValue}
+                                  allowOutOfRange={allowOutOfRangeSandbox}
                                 />
                               ))}
                             </div>
@@ -3532,6 +3579,7 @@ export default function ServerConfig() {
                                     originalValue={(originalSandboxData?.[(setting.section || 'settings') as keyof SandboxData] as SandboxRecord)?.[setting.key]}
                                     onChange={updateSandboxValue}
                                     onReset={resetSandboxValue}
+                                    allowOutOfRange={allowOutOfRangeSandbox}
                                   />
                                 ))}
                               </div>

@@ -107,6 +107,10 @@ import {
 } from "@/lib/api";
 import { getUserErrorMessage } from "@/lib/errorMessage";
 import { resolveRegisteredTranslation } from "@/lib/paramTranslation";
+import {
+  getAllowOutOfRangeSandboxValues,
+  setAllowOutOfRangeSandboxValues,
+} from "@/lib/serverConfigSchema";
 import { useSocket } from "@/contexts/SocketContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, type ThemeName } from "@/contexts/ThemeContext";
@@ -238,6 +242,16 @@ function toSettingBoolean(value: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
+// Same no-locale-file-required pattern as serverConfigSchema.ts's
+// translatedOrFallback (see getUnrecognizedSandboxOptionWarning's comment
+// there): translates once a future locale change adds this key under
+// settings.json, plain English until then, rather than a bare
+// useTranslation() key needing a same-day addition to every locale file
+// this session isn't authorized to touch.
+function settingsFallback(key: string, fallback: string): string {
+  return resolveRegisteredTranslation("settings", key, undefined) ?? fallback;
+}
+
 // Mirrors server/routes/config.js's own httpsPort range check so the client
 // can reject an out-of-range port before submitting -- panelPort has no such
 // check on the server at all (unlike its httpsPort sibling), so an
@@ -347,6 +361,19 @@ export default function Settings() {
   );
   const [loading, setLoading] = useState(false);
   const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
+  // Escape hatch for the Sandbox tab's range validation (ServerConfig.tsx),
+  // per bernanas' request via the 2026-09-09 dispatch. Plain localStorage,
+  // not the AppSettings blob above: PUT /app-settings validates against a
+  // fixed key whitelist (server/routes/config.js) this change doesn't touch,
+  // and this is a client-only UI preference like ThemeContext's, not
+  // something that needs server persistence or cross-device sync.
+  const [allowOutOfRangeSandbox, setAllowOutOfRangeSandboxState] = useState(
+    () => getAllowOutOfRangeSandboxValues(),
+  );
+  const handleAllowOutOfRangeSandboxChange = useCallback((value: boolean) => {
+    setAllowOutOfRangeSandboxState(value);
+    setAllowOutOfRangeSandboxValues(value);
+  }, []);
   const [showSteamApiKey, setShowSteamApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [corsOriginValidationError, setCorsOriginValidationError] = useState<
@@ -2707,6 +2734,40 @@ export default function Settings() {
                       </p>
                     </div>
                     <ThemeSelect />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-background/40 p-4 space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-warning" />
+                      {settingsFallback("general.sandboxRangeOverrideTitle", "Sandbox Value Ranges")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {settingsFallback(
+                        "general.sandboxRangeOverrideDesc",
+                        "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-lg border border-warning/40 bg-warning/10 p-3">
+                    <div>
+                      <Label className="text-sm font-medium text-warning">
+                        {settingsFallback("general.sandboxRangeOverrideLabel", "Allow values outside the known range")}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {settingsFallback(
+                          "general.sandboxRangeOverrideHint",
+                          "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version.",
+                        )}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={allowOutOfRangeSandbox}
+                      onCheckedChange={handleAllowOutOfRangeSandboxChange}
+                      aria-label={settingsFallback("ariaLabels.sandboxRangeOverride", "Allow sandbox values outside known range")}
+                    />
                   </div>
                 </div>
 
