@@ -1229,34 +1229,51 @@ export class Scheduler {
       lifecycleLock: providedLifecycleLock = null,
     } = {},
   ) {
-    // Prevent concurrent restarts
+    // normalize-lifecycle-lock-server-identifier follow-up,
+    // performrestart-cannot-take-the-lock-id-without-reopening-a-race
+    // (2026-09-09): resolve the FULL pinnedServerId -- including the async
+    // getActiveServer() fallback for the common shared-singleton case where
+    // serverManager._serverId is null -- BEFORE the restartInProgress
+    // check, not after. The original version only ever fed the lock the
+    // synchronous serverManager._serverId (populated only for a throwaway
+    // ServerManager pointed at a specific non-active server; null for the
+    // common case) specifically to keep this await from landing BETWEEN the
+    // check and the `this.restartInProgress = true` set below -- reopening
+    // the exact checked-then-set race /wipe's own wipeInProgress guard was
+    // fixed against (a second concurrent performRestart() call, e.g.
+    // AUTO_RESTART_CRON firing alongside a "Restart Now" click, passing the
+    // check while the first call is still awaiting).
+    //
+    // Moving the await here instead keeps that invariant intact: the check
+    // and the set are still two back-to-back synchronous statements with
+    // zero awaits between them, so whichever call's continuation resumes
+    // first still runs the whole check-acquire-set sequence to completion,
+    // uninterrupted, before yielding again -- same guarantee as before, just
+    // established one await earlier. The only behavioural cost is that a
+    // call rejected as a duplicate now also pays for one getActiveServer()
+    // read first (a cached in-memory lookup, not a real query) instead of
+    // returning instantly; in exchange the common case's lifecycle lock (and
+    // the 409 message it drives) can finally carry a real server id instead
+    // of always falling back to serverManager?.serverName.
+    let pinnedServerId = serverManager._serverId ?? null;
+    if (pinnedServerId == null) {
+      try {
+        pinnedServerId = (await getActiveServer())?.id ?? null;
+      } catch (error) {
+        log.debug(`Could not pin restart target: ${error.message}`);
+      }
+    }
+
+    // Prevent concurrent restarts -- ATOMIC with the acquire+set immediately
+    // below: no await may be introduced between this check and
+    // `this.restartInProgress = true`, see the resolution above.
     if (this.restartInProgress) {
       log.info("Restart already in progress, ignoring duplicate request");
       return { success: false, message: "Restart already in progress" };
     }
 
-    // normalize-lifecycle-lock-server-identifier, 2026-09-08: deliberately
-    // NOT the fuller pinnedServerId resolution below (which falls back to an
-    // async getActiveServer() read when serverManager._serverId is null) --
-    // that read would have to happen before this point to feed the lock,
-    // and inserting an await between the restartInProgress check above and
-    // the this.restartInProgress = true below would reopen exactly the
-    // checked-then-set race /wipe's own wipeInProgress guard was fixed
-    // against (a second concurrent performRestart() call, e.g. the
-    // AUTO_RESTART_CRON job firing at the same moment as a "Restart Now"
-    // click, could pass the check while the first call is still awaiting).
-    // Using only the synchronous serverManager._serverId here -- already
-    // populated for a throwaway ServerManager the Scheduler pointed at a
-    // specific non-active server (see loadConfig()'s own comment), null for
-    // the common case of the shared singleton -- still replaces
-    // serverManager?.serverName (a display name, possibly stale if
-    // serverManager hadn't loaded any config yet) with a real server DB id
-    // wherever one is synchronously known, without widening that race. The
-    // full resolution (including the async fallback) still runs immediately
-    // below, unmoved, for the restart logic that actually needs it.
     const lifecycleLock =
-      providedLifecycleLock ||
-      acquireLifecycleLock("restart", serverManager._serverId ?? null);
+      providedLifecycleLock || acquireLifecycleLock("restart", pinnedServerId);
     if (!lifecycleLock) {
       return { success: false, ...lifecycleInProgressResponse() };
     }
@@ -1269,18 +1286,11 @@ export class Scheduler {
     const restartWarning = normalizeRestartWarningSettings(this.restartWarning);
     const restartStartTime = Date.now();
 
-    // Pin the restart to the server it starts against. The shared
-    // ServerManager otherwise re-reads "whichever server is active" when it
-    // starts, so switching servers mid-countdown would stop one server and
-    // bring a different one up in its place.
-    let pinnedServerId = serverManager._serverId ?? null;
-    if (pinnedServerId == null) {
-      try {
-        pinnedServerId = (await getActiveServer())?.id ?? null;
-      } catch (error) {
-        log.debug(`Could not pin restart target: ${error.message}`);
-      }
-    }
+    // pinnedServerId (resolved above, before the restartInProgress check) is
+    // also what the restart logic below pins the actual start/stop target
+    // to. The shared ServerManager otherwise re-reads "whichever server is
+    // active" when it starts, so switching servers mid-countdown would stop
+    // one server and bring a different one up in its place.
 
     try {
       // No fallback to checkServerRunning() when getServerProcessDetails

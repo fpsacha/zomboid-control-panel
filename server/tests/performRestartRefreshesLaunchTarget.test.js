@@ -97,11 +97,16 @@ describe("performRestart() refreshes the launch target before starting", () => {
   // possibly stale if serverManager hadn't loaded any config yet) instead of
   // a server DB id. Fixed to use serverManager._serverId directly -- the
   // synchronous field a throwaway ServerManager the Scheduler pointed at a
-  // specific server already carries (see loadConfig()'s own comment) --
-  // rather than pinnedServerId's fuller async-fallback resolution, which
-  // deliberately stayed where it was to avoid inserting an await between the
-  // restartInProgress check and set (see the route's own comment on that
-  // race). Proven here by reading the held lock's own refusal message.
+  // specific server already carries (see loadConfig()'s own comment).
+  // Superseded by performrestart-cannot-take-the-lock-id-without-reopening-
+  // a-race (2026-09-09, below): pinnedServerId's fuller async-fallback
+  // resolution now runs BEFORE the restartInProgress check instead of after
+  // it, so the common case (serverManager._serverId null) can carry a real
+  // resolved id too -- see that test for the common case, and the
+  // performRestart() comment for why this doesn't reopen the race. This
+  // test still proves the synchronous-_serverId case (a throwaway
+  // ServerManager pointed at a specific server) is unaffected. Proven here
+  // by reading the held lock's own refusal message.
   it("acquires the lock with serverManager._serverId (the server DB id), not serverManager.serverName", async () => {
     // Resolver recognizes ONLY the numeric id (coerced to a string by
     // acquireLifecycleLock's own normalization) -- if this ever regressed
@@ -156,6 +161,88 @@ describe("performRestart() refreshes the launch target before starting", () => {
       const message = lifecycleInProgressResponse().error;
       expect(message).toContain("Resolved-server-7");
       expect(message).not.toContain("TestServer");
+    } finally {
+      setServerDisplayNameResolver(null);
+      releaseStart();
+      await restartCall;
+    }
+  });
+
+  // performrestart-cannot-take-the-lock-id-without-reopening-a-race
+  // (2026-09-09, Angela's follow-up, dispatched to Dwight): the COMMON case
+  // -- serverManager._serverId null, no throwaway ServerManager -- used to
+  // acquire the lock with a bare null id, because feeding it
+  // pinnedServerId's async getActiveServer() fallback would have inserted
+  // an await between the restartInProgress check and its set, reopening the
+  // exact checked-then-set race /wipe's wipeInProgress guard was fixed
+  // against. Fixed by resolving pinnedServerId (including the async
+  // fallback) BEFORE the check instead of after, keeping the check and the
+  // set themselves back-to-back synchronous statements -- so the SAME
+  // atomicity guarantee holds, just established one await earlier. That
+  // atomicity is exactly what the existing "acquires the lock with
+  // serverManager._serverId" test above already proves stays intact (it
+  // still sends a second concurrent call into the SAME held lock and reads
+  // the refusal message) -- not re-proven here since this test's own point
+  // is the DIFFERENT half: whether the common case's lock now carries a
+  // real id at all, not whether concurrent calls still serialize correctly
+  // (unaffected either way, since two calls fired synchronously back to
+  // back -- the only way JS lets a caller "race" this function without a
+  // manually-stalled mock -- were never able to reach this race window in
+  // EITHER version: the restartInProgress check was always the very first
+  // synchronous statement pre-fix, so a second call always saw it already
+  // set by the time it ran, regardless of where pinnedServerId got resolved).
+  //
+  // Proven by reading the held lock's own refusal message while the winning
+  // call is still mid-flight, same technique as the test above -- if this
+  // still fell back to null (the pre-fix behavior), the message would read
+  // the fully generic "Another server lifecycle operation is already in
+  // progress" instead of naming a server at all.
+  it("common case (no serverManager._serverId): the lock now carries the real resolved active-server id, not a null fallback", async () => {
+    setServerDisplayNameResolver((id) => (id === "9" ? "Resolved-common-case" : null));
+
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-perform-restart-common-"));
+    const installPath = root;
+    const zomboidDataPath = path.join(root, "Zomboid");
+    fs.mkdirSync(zomboidDataPath, { recursive: true });
+    const server = {
+      id: "9",
+      serverName: "CommonCaseServer",
+      installPath,
+      zomboidDataPath,
+      rconPassword: "secret123",
+      rconPort: 27015,
+    };
+    getServer.mockResolvedValue(server);
+    getActiveServer.mockResolvedValue(server);
+
+    let releaseStart;
+    let startEntered;
+    const startReached = new Promise((r) => {
+      startEntered = r;
+    });
+    const rconService = { connected: false, execute: vi.fn() };
+    const serverManager = {
+      // Deliberately no _serverId -- the common shared-singleton case.
+      getServerProcessDetails: vi
+        .fn()
+        .mockResolvedValue({ running: false, scanFailed: false }),
+      startServer: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseStart = () => resolve({ success: true });
+            startEntered();
+          }),
+      ),
+    };
+    const scheduler = new Scheduler({}, {});
+    scheduler.sleep = async () => {};
+
+    const restartCall = scheduler.performRestart(0, { rconService, serverManager });
+
+    try {
+      await startReached;
+      const message = lifecycleInProgressResponse().error;
+      expect(message).toContain("Resolved-common-case");
     } finally {
       setServerDisplayNameResolver(null);
       releaseStart();
