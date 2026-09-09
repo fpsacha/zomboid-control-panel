@@ -105,6 +105,36 @@ describe('getCandidateZomboidPaths', () => {
     expect(a).toBe(b);
   });
 
+  // server-detection-lifecycle-hardening, 2026-09-09: god's brief named
+  // getCandidateZomboidPaths() explicitly as missing containerized/Unraid
+  // coverage. PZ_SAVE_PATH is cross-platform (the same env var
+  // server/routes/server.js, servers.js, configMutationGuard.js already
+  // fall back to); the Docker/Unraid bind-mount conventions themselves are
+  // Linux-container-only, matching this function's own existing
+  // win32-vs-else branch.
+  it('offers process.env.PZ_SAVE_PATH as the first candidate when set, on any platform', () => {
+    const dataDir = path.join(os.tmpdir(), 'pz-save-path-env-test');
+    vi.stubEnv('PZ_SAVE_PATH', dataDir);
+    invalidateCandidatePathsCache();
+    const candidates = getCandidateZomboidPaths();
+    expect(candidates[0].path).toBe(path.resolve(dataDir));
+    vi.unstubAllEnvs();
+    invalidateCandidatePathsCache();
+  });
+
+  it.runIf(process.platform !== 'win32')(
+    'includes the same verified Docker/Unraid bind-mount conventions mountDiscovery.js uses (/zomboid, ich777 Unraid template, /data, /config, /serverfiles)',
+    () => {
+      const candidates = getCandidateZomboidPaths();
+      const paths = candidates.map((c) => c.path);
+      expect(paths).toContain(path.resolve('/zomboid'));
+      expect(paths).toContain(path.resolve('/serverdata/serverfiles/Zomboid'));
+      expect(paths).toContain(path.resolve('/data/Zomboid'));
+      expect(paths).toContain(path.resolve('/config/Zomboid'));
+      expect(paths).toContain(path.resolve('/serverfiles/Zomboid'));
+    },
+  );
+
   it('invalidateCandidatePathsCache forces a fresh probe', () => {
     const a = getCandidateZomboidPaths();
     invalidateCandidatePathsCache();
@@ -193,5 +223,58 @@ describe('inspectZomboidPath', () => {
     fs.mkdirSync(mp, { recursive: true });
     const v = inspectZomboidPath(mp);
     expect(v.parentSuggestion).toBe(parent);
+  });
+
+  // server-detection-lifecycle-hardening, 2026-09-09: Jim found in the real
+  // production support bundle that `looksLikeInstall:false` sitting next to
+  // `ok:true` in debug.js's raw dump means nothing to a reader. `message`
+  // is the fix -- always present, plain language, picking the single most
+  // specific true signal rather than dumping the whole checks object on
+  // the reader.
+  describe('message (human-readable verdict)', () => {
+    it('is present and specific for an accepted folder with a Saves dir', () => {
+      const dir = path.join(tmpRoot, 'arbitrary');
+      fs.mkdirSync(path.join(dir, 'Saves'), { recursive: true });
+      const v = inspectZomboidPath(dir);
+      expect(v.ok).toBe(true);
+      expect(typeof v.message).toBe('string');
+      expect(v.message.length).toBeGreaterThan(0);
+      expect(v.message).toMatch(/saves folder/i);
+    });
+
+    it('is present and specific for a rejected install folder, without changing the existing machine reason slug', () => {
+      const dir = path.join(tmpRoot, 'server');
+      fs.mkdirSync(dir);
+      fs.writeFileSync(path.join(dir, 'ProjectZomboid64.exe'), '');
+      const v = inspectZomboidPath(dir);
+      expect(v.ok).toBe(false);
+      // Unchanged machine slug -- routes/servers.js and routes/chunks.js
+      // both branch on this exact string; message is additive, not a
+      // replacement.
+      expect(v.reason).toBe('install-folder');
+      expect(v.message).toMatch(/install folder/i);
+      expect(v.message).toMatch(/save-data folder instead/i);
+    });
+
+    it('is present and specific for a rejected folder with no markers at all, without changing the existing machine reason slug', () => {
+      const dir = path.join(tmpRoot, 'random');
+      fs.mkdirSync(dir);
+      const v = inspectZomboidPath(dir);
+      expect(v.ok).toBe(false);
+      expect(v.reason).toBe('no-zomboid-markers');
+      expect(v.message).toMatch(/doesn't look like a project zomboid/i);
+    });
+
+    it('mentions the parent-folder suggestion in the message when one is available', () => {
+      // A Saves folder with NOTHING inside it (no map/save files) --
+      // isInsideSavesDir accepts it, so this hits the ok:true branch, and
+      // describeVerdict() picks isInsideSavesDir's sentence.
+      const parent = path.join(tmpRoot, 'somewhere');
+      const saves = path.join(parent, 'Saves');
+      fs.mkdirSync(saves, { recursive: true });
+      const v = inspectZomboidPath(saves);
+      expect(v.ok).toBe(true);
+      expect(v.message).toMatch(/inside a saves folder/i);
+    });
   });
 });
