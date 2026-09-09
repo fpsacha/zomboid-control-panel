@@ -3032,7 +3032,13 @@ public static extern bool CloseHandle(System.IntPtr hObject);
           }
         })
         .filter(Boolean)
-        .sort((a, b) => b.mtime - a.mtime);
+        // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: on a
+        // same-millisecond mtime tie this used to fall through to
+        // fs.readdirSync's order, which has no ordering meaning and isn't
+        // even guaranteed consistent across platforms -- tie-break on the
+        // path itself so the choice is at least deterministic, same fix
+        // shape as every other site in this card.
+        .sort((a, b) => b.mtime - a.mtime || b.fp.localeCompare(a.fp));
       if (names.length) {
         const { fp, size } = names[0];
         const MAX_BYTES = 8 * 1024;
@@ -3086,7 +3092,14 @@ public static extern bool CloseHandle(System.IntPtr hObject);
           }
         })
         .filter(Boolean)
-        .sort((a, b) => b.mtime - a.mtime);
+        // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: see
+        // the same tie-break added to readMostRecentApplyLog() above --
+        // a same-millisecond mtime tie here decides which artifact gets
+        // pruned as "old", so falling through to readdir order (no
+        // ordering meaning, platform-dependent) is worth a deterministic
+        // tie-break even though the cost of guessing wrong is just a
+        // stale post-mortem log, not data loss.
+        .sort((a, b) => b.mtime - a.mtime || b.fp.localeCompare(a.fp));
       const toDelete = matching.slice(keep);
       for (const { fp } of toDelete) {
         try {
@@ -3119,7 +3132,10 @@ public static extern bool CloseHandle(System.IntPtr hObject);
             }
           })
           .filter(Boolean)
-          .sort((a, b) => b.mtime - a.mtime);
+          // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: see
+          // the same tie-break above in this function -- deterministic
+          // over readdir order on a same-millisecond mtime tie.
+          .sort((a, b) => b.mtime - a.mtime || b.fp.localeCompare(a.fp));
         const toDelete = cmdEntries.slice(keep);
         for (const { fp } of toDelete) {
           try {
@@ -3150,7 +3166,14 @@ public static extern bool CloseHandle(System.IntPtr hObject);
           }
         })
         .filter(Boolean)
-        .sort((a, b) => b.mtime - a.mtime);
+        // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: see
+        // the same tie-break added to readMostRecentApplyLog() above --
+        // a same-millisecond mtime tie here decides which artifact gets
+        // pruned as "old", so falling through to readdir order (no
+        // ordering meaning, platform-dependent) is worth a deterministic
+        // tie-break even though the cost of guessing wrong is just a
+        // stale post-mortem log, not data loss.
+        .sort((a, b) => b.mtime - a.mtime || b.fp.localeCompare(a.fp));
       const toDelete = logEntries.slice(keep);
       for (const { fp } of toDelete) {
         try {

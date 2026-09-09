@@ -1111,7 +1111,16 @@ router.get('/exports', requirePermission("players.gm_tools"), async (req, res) =
       }
     }
 
-    results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: filename
+    // tie-break -- without it a tie fell through to array order, which
+    // follows fs.readdirSync(exportsRoot)'s unsorted player-directory
+    // iteration order interleaved with each directory's own (already
+    // deterministic) alphabetical file listing above.
+    results.sort(
+      (a, b) =>
+        b.timestamp.localeCompare(a.timestamp) ||
+        b.filename.localeCompare(a.filename),
+    );
     res.json({ exports: results });
   } catch (error) {
     log.error(`Failed to list exports: ${error.message}`);

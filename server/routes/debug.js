@@ -218,8 +218,13 @@ async function getAvailableLogFiles(logsDir) {
     )
   )
     .filter((file) => file !== null)
+    // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: on a tie
+    // this fell through to readdir order, which has no ordering meaning
+    // -- name is at least deterministic across platforms.
     .sort(
-      (a, b) => new Date(b.modified).getTime() - new Date(a.modified).getTime(),
+      (a, b) =>
+        new Date(b.modified).getTime() - new Date(a.modified).getTime() ||
+        b.name.localeCompare(a.name),
     );
 
   return files;
@@ -6099,8 +6104,14 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
       }
     }
 
-    // Sort by modified date, newest first
-    crashLogs.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+    // Sort by modified date, newest first. display-order-tie-breaks-nine-
+    // sites-cosmetic, 2026-09-09: name tie-break so a same-timestamp pair
+    // doesn't fall through to readdir order.
+    crashLogs.sort(
+      (a, b) =>
+        new Date(b.modified) - new Date(a.modified) ||
+        b.name.localeCompare(a.name),
+    );
 
     // totalCount is the real count before the cap -- the client showed the
     // capped array's length as if it were the total, so a server with more
@@ -6362,8 +6373,16 @@ router.get("/activity", requirePermission("diagnostics.manage"), async (req, res
       }
     }
 
-    // Sort by timestamp (newest first) and trim
-    entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    // Sort by timestamp (newest first) and trim. display-order-tie-
+    // breaks-nine-sites-cosmetic, 2026-09-09: id tie-break -- these
+    // entries come from two different tables interleaved, so a tied
+    // timestamp previously fell through to whatever order the two source
+    // queries happened to be concatenated in, not a real ordering.
+    entries.sort(
+      (a, b) =>
+        new Date(b.timestamp) - new Date(a.timestamp) ||
+        String(b.id).localeCompare(String(a.id)),
+    );
     const trimmed = entries.slice(0, limit);
 
     res.json({ entries: trimmed, total: trimmed.length });

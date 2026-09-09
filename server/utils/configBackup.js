@@ -43,6 +43,29 @@ function parseBackupName(filename, name) {
     : { timestampKey: rest, suffix: 1 };
 }
 
+// Recognises ANY backup name createBackup() below writes, without already
+// knowing which original file it belongs to -- unlike parseBackupName()
+// above (which slices using a known `filename` prefix), this is for a
+// caller listing backups of every original file in a directory at once
+// (server/routes/serverFiles.js's GET /backups, display-order-tie-breaks-
+// nine-sites-cosmetic, 2026-09-09 -- that route used to sort by fs
+// birthtime instead, the exact method listBackupsFor()'s own comment
+// above documents as unsafe on the same directory). Same underlying
+// technique for the same reason: no filesystem timestamp, so no
+// platform-dependent resolution to lose on a same-millisecond collision.
+const ANY_BACKUP_NAME_RE =
+  /^(.+)\.(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)(?:-(\d+))?\.bak$/;
+
+export function parseAnyBackupFilename(name) {
+  const match = ANY_BACKUP_NAME_RE.exec(name);
+  if (!match) return null;
+  return {
+    originalFilename: match[1],
+    timestampKey: match[2],
+    suffix: match[3] ? parseInt(match[3], 10) : 1,
+  };
+}
+
 // Existing backups of `filename` inside `configPath`, newest first --
 // ordered by parsing each backup's OWN embedded timestamp + collision
 // suffix out of its filename, not by fs birthtime.

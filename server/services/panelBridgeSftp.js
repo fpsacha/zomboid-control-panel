@@ -199,7 +199,14 @@ export async function listSftpLogs(rawConfig) {
         size: entry.size,
         modifiedAt: entry.modifyTime ? new Date(entry.modifyTime).toISOString() : null,
       }))
-      .sort((a, b) => (b.modifiedAt || '').localeCompare(a.modifiedAt || ''))
+      // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: name
+      // tie-break -- the SFTP server's own listing order has no ordering
+      // meaning once two entries tie (or both have no modifyTime at all).
+      .sort(
+        (a, b) =>
+          (b.modifiedAt || '').localeCompare(a.modifiedAt || '') ||
+          b.name.localeCompare(a.name),
+      )
       .slice(0, LOG_LIST_MAX);
     return { logPath: config.logPath, files };
   });

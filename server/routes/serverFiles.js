@@ -20,6 +20,7 @@ import {
   createBackup,
   backupWarningFor,
   writeIniWithBackup,
+  parseAnyBackupFilename,
 } from "../utils/configBackup.js";
 import { escapeRegExp } from "../utils/regex.js";
 import { findDuplicateIniKeys } from "../utils/iniDuplicateKeys.js";
@@ -2272,6 +2273,9 @@ router.get("/backups", async (req, res) => {
                 filename,
                 size: stats.size,
                 created: stats.birthtime,
+                // Not part of the response shape -- sort key only, see
+                // the .sort() below.
+                _parsed: parseAnyBackupFilename(filename),
               };
             } catch (e) {
               log.debug(
@@ -2283,14 +2287,35 @@ router.get("/backups", async (req, res) => {
       )
     )
       .filter((f) => f !== null)
+      // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: this
+      // used to sort by fs birthtime alone -- the exact method utils/
+      // configBackup.js's listBackupsFor() documents as unsafe for this
+      // same directory (real ext4 same-millisecond collisions confirmed;
+      // see that file's comment), re-derived here after being explicitly
+      // rejected there. Every backup in this directory is written by
+      // configBackup.js's createBackup(), so _parsed is expected to
+      // succeed for all of them; the birthtime/filename fallback below
+      // only matters for a foreign or hand-placed file that doesn't match
+      // the naming convention.
       .sort((a, b) => {
-        // Handle invalid dates gracefully
+        if (a._parsed && b._parsed) {
+          if (a._parsed.timestampKey !== b._parsed.timestampKey) {
+            return a._parsed.timestampKey < b._parsed.timestampKey ? 1 : -1;
+          }
+          return b._parsed.suffix - a._parsed.suffix;
+        }
+        if (Boolean(a._parsed) !== Boolean(b._parsed)) {
+          return a._parsed ? -1 : 1; // a parsed, real name always wins
+        }
+        // Neither parses -- fall back to birthtime, then filename.
         const dateA = new Date(a.created);
         const dateB = new Date(b.created);
-        if (isNaN(dateA.getTime())) return 1;
-        if (isNaN(dateB.getTime())) return -1;
-        return dateB - dateA;
-      });
+        if (isNaN(dateA.getTime()) !== isNaN(dateB.getTime())) {
+          return isNaN(dateA.getTime()) ? 1 : -1;
+        }
+        return dateB - dateA || b.filename.localeCompare(a.filename);
+      })
+      .map(({ _parsed, ...rest }) => rest);
 
     res.json({ backups: files, path: backupDir });
   } catch (error) {
@@ -2474,7 +2499,14 @@ router.get("/templates", async (req, res) => {
         }
       })
       .filter(Boolean)
-      .sort((a, b) => new Date(b.modified) - new Date(a.modified));
+      // display-order-tie-breaks-nine-sites-cosmetic, 2026-09-09: id
+      // (the template's filename) tie-break -- a mtime tie previously
+      // fell through to readdir order, which has no ordering meaning.
+      .sort(
+        (a, b) =>
+          new Date(b.modified) - new Date(a.modified) ||
+          b.id.localeCompare(a.id),
+      );
 
     res.json({ templates: files });
   } catch (error) {
