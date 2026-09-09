@@ -143,10 +143,29 @@ const NAMED_COLLECTOR_FUNCTION_NAMES = [
 ];
 
 /**
- * Brace-matched, string/template-literal-aware extraction of one named
- * top-level function's body (declaration through its closing `}`) -- see
- * NAMED_COLLECTOR_FUNCTION_NAMES' own comment for why this is scoped to
- * an explicit small list rather than run over the whole file.
+ * Brace-matched extraction of one named top-level function's body
+ * (declaration through its closing `}`) -- see NAMED_COLLECTOR_FUNCTION_
+ * NAMES' own comment for why this is scoped to an explicit small list
+ * rather than run over the whole file.
+ *
+ * Skips string/template literals AND `//`/slash-star comments before
+ * counting a brace -- comment-blindness here is not hypothetical: this
+ * exact function desynced on its own first real use, because a `//`
+ * comment describing this very fix contained a plain English apostrophe
+ * ("that file's own", "db.backup's"). An unpaired quote character inside
+ * a comment is indistinguishable from a real string-literal delimiter to
+ * a scanner that doesn't know what a comment is, and it will happily
+ * treat everything up to the NEXT stray quote anywhere later in the file
+ * as "inside a string" -- silently skipping real braces, including this
+ * function's own closing one, until content hundreds of lines away
+ * (in this case: past the entire rest of debug.js) restores the count by
+ * accident. Caught only because the category-membership test below
+ * happened to notice checks from /worldmap leaking in; nothing about the
+ * id/status/variant tests would have caught it, since the swallowed text
+ * still contained valid diag*() calls with no locale-registry
+ * consequence. Comments are common and contractions/possessives are
+ * common English -- treat this as the default case to guard against, not
+ * an edge case.
  */
 function extractNamedFunctionBody(source, name) {
   const declRe = new RegExp(`(?:^|\\n)(?:export\\s+)?(?:async\\s+)?function\\s+${name}\\s*\\(`);
@@ -170,6 +189,17 @@ function extractNamedFunctionBody(source, name) {
   let braceDepth = 0;
   for (; i < source.length; i++) {
     const ch = source[i];
+    if (ch === "/" && source[i + 1] === "/") {
+      i += 2;
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (i < source.length && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i++; // land on the closing '/'; the loop's own i++ steps past it
+      continue;
+    }
     if (ch === '"' || ch === "'" || ch === "`") {
       i++;
       while (i < source.length && source[i] !== ch) {
@@ -191,10 +221,49 @@ function extractNamedFunctionBody(source, name) {
 }
 
 /**
+ * Reads DIAG_CATEGORIES' own key set straight from debug.js source --
+ * regex-scanned, same discipline as everything else in this file, rather
+ * than a second hardcoded copy that could silently drift from the real
+ * object. Scoped to the object literal's own top-level (2-space-indented)
+ * keys so it can't pick up `label`/`order` from inside a nested value.
+ */
+function extractDiagCategoryKeys(source) {
+  const startMarker = "const DIAG_CATEGORIES = {";
+  const start = source.indexOf(startMarker);
+  if (start === -1) {
+    throw new Error(
+      "Could not locate DIAG_CATEGORIES in debug.js -- this test's category scan depends on " +
+        "that declaration staying a literal object.",
+    );
+  }
+  const bodyStart = start + startMarker.length;
+  const bodyEnd = source.indexOf("\n};", bodyStart);
+  if (bodyEnd === -1) {
+    throw new Error("Could not find DIAG_CATEGORIES' closing brace in debug.js.");
+  }
+  const body = source.slice(bodyStart, bodyEnd);
+  const KEY_RE = /^ {2}([A-Za-z_$][A-Za-z0-9_$]*):\s*\{/gm;
+  const keys = new Set();
+  let m;
+  while ((m = KEY_RE.exec(body))) keys.add(m[1]);
+  return keys;
+}
+
+/**
  * Scans the GET /diagnostics handler (not the separate GET /worldmap
  * handler right after it, which is a different tab with its own checks and
  * out of scope here) for every diagOk/diagFail/diagWarn/diagSkip/diagInfo
  * call, and for every literal `variant: "..."` alongside one.
+ *
+ * Also collects every literal `category: "..."` value emitted in that same
+ * scope -- rcon-command-rejections-check-has-never-rendered-in-any-
+ * language, 2026-09-09: a check whose category is not a DIAG_CATEGORIES
+ * key renders NOWHERE in the UI (Debug.tsx filters by category===catKey
+ * against those keys only) while still running and computing a real
+ * result -- the exact same "the system knew and nobody was told" shape as
+ * everything else covered by this file, just one field over from id/
+ * status/variant. The category-membership test below is what makes this
+ * impossible to reintroduce silently.
  *
  * diagnostics-registry-scanner-cannot-see-named-collector-functions,
  * 2026-09-09: a check's diagOk/Fail/Warn() calls don't have to live
@@ -282,6 +351,12 @@ function extractDiagnosticsChecks(source) {
     variantOccurrences.push({ index: m.index, variant: m[1] });
   }
 
+  const CATEGORY_RE = /category:\s*"([^"]+)"/g;
+  const categories = new Set();
+  while ((m = CATEGORY_RE.exec(effectiveSource))) {
+    categories.add(m[1]);
+  }
+
   // Attach each variant literal to the nearest preceding diag*() call --
   // reliable here because `variant:` only ever appears inside the options
   // object of the call it belongs to, which starts after that call's id.
@@ -313,7 +388,7 @@ function extractDiagnosticsChecks(source) {
     }
   }
 
-  return { plain, withVariant };
+  return { plain, withVariant, categories };
 }
 
 function isNonEmptyString(value) {
@@ -387,6 +462,7 @@ function loadChecksNode(localePath) {
 
 const debugJsSource = fs.readFileSync(DEBUG_JS_PATH, "utf8");
 const source = extractDiagnosticsChecks(debugJsSource);
+const diagCategoryKeys = extractDiagCategoryKeys(debugJsSource);
 const en = flattenLocaleChecks(loadChecksNode(EN_DEBUG_JSON_PATH));
 const fr = flattenLocaleChecks(loadChecksNode(FR_DEBUG_JSON_PATH));
 
@@ -426,6 +502,25 @@ describe("diagnostics check locale registry (self-enforcing, mirrors errorCodeRe
   it("still catches an id it already handled before this fix, not just the newly-visible ones", () => {
     expect(source.plain.has("server.process::ok")).toBe(true);
     expect(en.plain.get("server.process::ok")).toBeTruthy();
+  });
+
+  // rcon-command-rejections-check-has-never-rendered-in-any-language,
+  // 2026-09-09: a check's `category` value is only ever read at render
+  // time (Debug.tsx groups by category===catKey over DIAG_CATEGORIES'
+  // keys) -- there is no server-side error, no client-side error, nothing
+  // in either locale-completeness check above, if a category simply isn't
+  // one of those keys. The check runs, computes a real result, and is
+  // filtered out before any human sees it. This is the test that turns
+  // that specific invisible mistake into a red one the moment it happens.
+  //
+  // Do NOT "fix" a failure here by adding the offending value to
+  // DIAG_CATEGORIES -- that is how six categories stop meaning anything.
+  // A check whose subject genuinely doesn't fit services/bridge/server/
+  // storage/runtime/updates is a design question, not a red-test-clearing
+  // exercise.
+  it("every emitted check category is a real DIAG_CATEGORIES key", () => {
+    const orphans = [...source.categories].filter((c) => !diagCategoryKeys.has(c));
+    expect(orphans, `categories with no DIAG_CATEGORIES entry: ${orphans.join(", ")}`).toEqual([]);
   });
 
   for (const id of KNOWN_TRANSLATED_IDS) {

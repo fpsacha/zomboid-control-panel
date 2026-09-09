@@ -2768,6 +2768,16 @@ function summarizeRconRejections(history, classify, { windowMs = RCON_REJECTION_
   };
 }
 
+// rcon-command-rejections-check-has-never-rendered-in-any-language,
+// 2026-09-09: this used an "rcon" category value, which is not a
+// DIAG_CATEGORIES key (services/bridge/server/storage/runtime/updates) --
+// Debug.tsx's category render loop filters checks by category===catKey
+// against those keys only, so a check whose category doesn't exist
+// renders NOWHERE, silently, in every language, while still running and
+// computing a real result. Uses "services" (Core Services) to match
+// rcon.connected, its sibling check in the same try/catch chain just
+// above this function's call site, rather than inventing a distinct
+// grouping for one check.
 function buildRconCommandRejectionsCheck(summary) {
   if (!summary || typeof summary.total !== "number" || !Array.isArray(summary.breakdown)) {
     // Unrecognised/unavailable -- fail closed to warn, not ok, same rule as
@@ -2776,7 +2786,7 @@ function buildRconCommandRejectionsCheck(summary) {
       "rcon.commandRejections",
       "RCON command rejection status unavailable",
       "Could not determine whether the game server has rejected any RCON commands recently.",
-      { category: "rcon", hint: RCON_REJECTIONS_CLOSING_LINE, variant: "statusUnavailable" },
+      { category: "services", hint: RCON_REJECTIONS_CLOSING_LINE, variant: "statusUnavailable" },
     );
   }
 
@@ -2785,7 +2795,7 @@ function buildRconCommandRejectionsCheck(summary) {
       "rcon.commandRejections",
       "No RCON command rejections",
       "No RCON commands have been rejected by the game server recently.",
-      { category: "rcon", hint: RCON_REJECTIONS_CLOSING_LINE },
+      { category: "services", hint: RCON_REJECTIONS_CLOSING_LINE },
     );
   }
 
@@ -2796,7 +2806,7 @@ function buildRconCommandRejectionsCheck(summary) {
     "The game server has rejected some RCON commands",
     `${summary.total} commands were rejected by the game server in the last 24 hours: ${list}.`,
     {
-      category: "rcon",
+      category: "services",
       hint,
       params: { total: summary.total, list },
       variant: "someRejected",
@@ -2991,7 +3001,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             "rcon.commandRejections",
             "RCON command rejection status unavailable",
             `Could not determine whether the game server has rejected any RCON commands recently: ${e?.message || "unknown"}`,
-            { category: "rcon", variant: "statusUnavailableWithError", params: { error: e?.message || "unknown" } },
+            { category: "services", variant: "statusUnavailableWithError", params: { error: e?.message || "unknown" } },
           ),
         );
       }
