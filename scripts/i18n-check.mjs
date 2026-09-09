@@ -86,6 +86,29 @@ function normalizeEn(v) {
     .replace(/[.:!?]+$/, "");
 }
 
+// English only ever pluralizes into `_one`/`_other` (Intl.PluralRules("en")
+// has exactly those two categories). A target locale's `_zero`/`_two`/
+// `_few`/`_many` key therefore has no same-suffix English counterpart by
+// construction, not by omission -- see scripts/i18n-populate-missing-plural-
+// forms.mjs, which fills those categories by copying the locale's OWN
+// `_other` value, never English's. Comparing such a key against a missing
+// enMap entry (undefined) reads as "meaningfully different EN source" and
+// false-positives on every one of them. Resolve to the English value the
+// runtime actually falls back to for that concept: this key's own `_other`
+// sibling (i18next's fallback for a plural category the base language
+// doesn't have), then the unsuffixed base key.
+const PLURAL_SUFFIX_RE = /_(zero|one|two|few|many|other)$/;
+function resolveEnglishValue(enMap, key) {
+  if (enMap.has(key)) return enMap.get(key);
+  const m = key.match(PLURAL_SUFFIX_RE);
+  if (m) {
+    const base = key.slice(0, -m[0].length);
+    if (enMap.has(`${base}_other`)) return enMap.get(`${base}_other`);
+    if (enMap.has(base)) return enMap.get(base);
+  }
+  return enMap.get(key);
+}
+
 // Suspicious French duplicates: same FR string, meaningfully different EN
 // source string (not just case/whitespace/trailing punctuation), both plain
 // strings (arrays like presets.default are exempt — a French preset list can
@@ -103,7 +126,7 @@ function findSuspiciousDuplicates(ns, { en, frFlat }) {
   const suspicious = [];
   for (const [value, keys] of byValue) {
     if (keys.length < 2) continue;
-    const enValues = keys.map((k) => enMap.get(k));
+    const enValues = keys.map((k) => resolveEnglishValue(enMap, k));
     const distinctRaw = new Set(enValues);
     if (distinctRaw.size <= 1) continue; // identical EN source too — legitimate reuse
     const distinctNormalized = new Set(enValues.map(normalizeEn));
