@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Scheduler from '../Scheduler'
 import { schedulerApi, serverApi, serversApi, type ServerInstance } from '@/lib/api'
@@ -106,8 +106,14 @@ describe('Scheduler.tsx: Manual Restart / Quick Broadcasts gate on the provider-
 
     renderScheduler()
 
-    const restartButton = await screen.findByRole('button', { name: 'Restart in 15m' })
-    expect(restartButton).toBeEnabled()
+    // findByRole only waits for the button to EXIST, not for the
+    // provider-aware status poll to land and enable it -- it's already in
+    // the DOM (disabled) on first render, since serverRunning starts false.
+    // Wait for the condition itself, or this races the very transition
+    // the test is about.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Restart in 15m' })).toBeEnabled()
+    })
     expect(screen.getByRole('button', { name: 'Maintenance Start' })).toBeEnabled()
   })
 
@@ -124,8 +130,16 @@ describe('Scheduler.tsx: Manual Restart / Quick Broadcasts gate on the provider-
 
     renderScheduler()
 
-    const restartButton = await screen.findByRole('button', { name: 'Restart in 15m' })
-    expect(restartButton).toBeDisabled()
+    // Same race as above, other direction: the button exists (and starts
+    // disabled) before the composed-status poll resolves. serversApi.getAll()
+    // resolving asynchronously means the polling effect can run once with no
+    // activeServer yet (indeterminate -> treated as "may be running",
+    // enabling the button) before it re-runs with the real server and
+    // confirms stopped. Wait for the settled condition, not just the
+    // element's existence.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Restart in 15m' })).toBeDisabled()
+    })
     expect(screen.getByRole('button', { name: 'Maintenance Start' })).toBeDisabled()
   })
 })
