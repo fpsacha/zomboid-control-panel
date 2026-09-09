@@ -82,7 +82,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { serversApi, serversDetectApi, dockerApi, DockerContainerStats, DockerContainerSummary, ServerInstance, configApi, serverApi, updateApi, UpdateStatus, DiscoveredMount, InaccessibleMountCandidate, ComposedServerStatus } from '@/lib/api'
+import { serversApi, serversDetectApi, dockerApi, DockerContainerStats, DockerContainerSummary, ServerInstance, configApi, serverApi, updateApi, UpdateStatus, DiscoveredMount, MountDiscoveryCandidate, ComposedServerStatus } from '@/lib/api'
 import { resolveClientProvider, resolveServerCardRunning, waitForServerState } from '@/lib/serverStatus'
 import { getInstallProgressMessage } from '@/lib/installProgressMessage'
 import { ServerStatusBadge } from '@/components/ServerStatusBadge'
@@ -449,51 +449,63 @@ export default function Servers() {
 
   // Mount discovery — offers a one-click "connect this" profile when PZ
   // server files are found at a common bind-mount path and no profile
-  // uses them yet.
-  const [discoveredMounts, setDiscoveredMounts] = useState<DiscoveredMount[]>([])
-  // Candidates the server found but could not read (permission denied) --
-  // a different, actionable problem from "nothing mounted here" that
-  // discoverMountIssues() already distinguishes server-side. See the
-  // InaccessibleMountCandidate type in lib/api.ts for why this exists.
-  const [inaccessibleMounts, setInaccessibleMounts] = useState<InaccessibleMountCandidate[]>([])
+  // uses them yet. 2026-09-09: adopts Angela's real ranked `candidates`
+  // field (fc74b688/c84f0f5c/99ed5c22, six-way `status` + a server-written
+  // `reason` sentence per candidate) instead of the confirmedMounts/
+  // partialMounts stand-in built before that contract existed -- one
+  // vocabulary for one concept, per god's explicit instruction.
+  const [discoveryCandidates, setDiscoveryCandidates] = useState<MountDiscoveryCandidate[]>([])
   const [scanningMounts, setScanningMounts] = useState(false)
   const [discoverySetupMount, setDiscoverySetupMount] = useState<DiscoveredMount | null>(null)
   const activeServerId = servers?.find((server) => server.isActive)?.id ?? null
 
-  // Exclude a discovered mount that already matches a registered local
-  // server, checking BOTH sides -- a Docker template can bind-mount the
-  // install and data folders separately, so either one matching an existing
-  // profile means this mount is already connected, not still up for grabs.
-  const unclaimedMounts = discoveredMounts.filter((mount) => !(servers || []).some((server) =>
+  // Exclude a candidate that already matches a registered local server,
+  // checking BOTH sides -- a Docker template can bind-mount the install and
+  // data folders separately, so either one matching an existing profile
+  // means this candidate is already connected, not still up for grabs.
+  const unclaimedCandidates = discoveryCandidates.filter((candidate) => !(servers || []).some((server) =>
     !server.isRemote &&
-    (samePath(server.installPath, mount.installPath) || samePath(server.zomboidDataPath, mount.dataPath)),
+    (samePath(server.installPath, candidate.installPath) || samePath(server.zomboidDataPath, candidate.dataPath)),
   ))
-  // 2026-09-09 ruling (god): KILL the boolean gate that used to hide any
-  // mount without BOTH a data path AND at least one server config found --
-  // "right bind mount, contents not confirmed yet" (e.g. a freshly created
-  // Unraid share nobody has started a server in) is the single most useful
-  // thing this page can tell a stuck user, and it used to render nothing at
-  // all. Split by confidence instead of filtering the weaker half away.
-  const confirmedMounts = unclaimedMounts.filter(
-    (mount) => mount.dataPath && mount.serverNames.length > 0,
+  // Angela's mechanical rule (2026-09-09 bar broadcast, rule 3): status
+  // 'ready' is the only tier create-from-discovery can safely automate (it
+  // needs a confirmed dataPath AND a server .ini to read RCON from).
+  // 'install-only'/'data-only'/'empty' are real, useful signals -- "right
+  // bind mount, contents not confirmed yet" (e.g. a freshly created Unraid
+  // share nobody has started a server in) -- but hand off to the manual
+  // form instead of guessing. 'not-mounted' and 'permission-denied' are
+  // handled separately below: not-mounted is a checked-and-clear common
+  // path, not a signal worth a banner; permission-denied gets its own
+  // distinct treatment (no Add action makes sense there at all).
+  const readyCandidates = unclaimedCandidates.filter((c) => c.status === 'ready')
+  const reviewCandidates = unclaimedCandidates.filter((c) =>
+    c.status === 'install-only' || c.status === 'data-only' || c.status === 'empty',
   )
-  const partialMounts = unclaimedMounts.filter(
-    (mount) => !(mount.dataPath && mount.serverNames.length > 0),
-  )
+  const inaccessibleCandidates = unclaimedCandidates.filter((c) => c.status === 'permission-denied')
 
-  // A partial mount can't go through create-from-discovery (it requires a
-  // confirmed dataPath AND a server .ini to read RCON settings from) -- so
+  function candidateToDiscoveredMount(candidate: MountDiscoveryCandidate): DiscoveredMount {
+    return {
+      installPath: candidate.installPath || '',
+      dataPath: candidate.dataPath,
+      source: candidate.source,
+      serverNames: candidate.serverNames,
+      hasStartScript: candidate.hasStartScript,
+      hasPanelBridge: candidate.hasPanelBridge,
+    }
+  }
+
+  // A review-tier candidate can't go through create-from-discovery -- so
   // instead of guessing, hand what we DID find to the existing manual Add
   // Server form and let the user finish the one or two fields we couldn't
   // derive. Guess, then let them change it (rule 3), rather than an
   // all-or-nothing automation that only ever fires for the easy case.
-  const handlePartialMountConnect = (mount: DiscoveredMount) => {
+  const handleReviewCandidateConnect = (candidate: MountDiscoveryCandidate) => {
     setAddMode('local')
     setNewServer((prev) => ({
       ...prev,
-      installPath: mount.installPath || prev.installPath,
-      zomboidDataPath: mount.dataPath || prev.zomboidDataPath,
-      serverName: mount.serverNames[0] || prev.serverName,
+      installPath: candidate.installPath || prev.installPath,
+      zomboidDataPath: candidate.dataPath || prev.zomboidDataPath,
+      serverName: candidate.serverNames[0] || prev.serverName,
     }))
     setShowAddDialog(true)
   }
@@ -744,10 +756,7 @@ export default function Servers() {
   // banner is a convenience, not a requirement.
   useEffect(() => {
     serversApi.discoverMounts()
-      .then(data => {
-        setDiscoveredMounts(data.mounts || [])
-        setInaccessibleMounts(data.inaccessible || [])
-      })
+      .then(data => setDiscoveryCandidates(data.candidates || []))
       .catch(e => reportClientWarning('Mount discovery failed.', e))
   }, [])
 
@@ -756,15 +765,12 @@ export default function Servers() {
     setScanningMounts(true)
     try {
       const data = await serversApi.discoverMounts()
-      const mounts = data.mounts || []
-      const connectableCount = mounts.filter(
-        (mount) => mount.dataPath && mount.serverNames.length > 0,
-      ).length
-      setDiscoveredMounts(mounts)
-      setInaccessibleMounts(data.inaccessible || [])
+      const candidates = data.candidates || []
+      const readyCount = candidates.filter((c) => c.status === 'ready').length
+      setDiscoveryCandidates(candidates)
       toast({
-        title: connectableCount
-          ? t('toasts.serversFoundCount', { count: connectableCount })
+        title: readyCount
+          ? t('toasts.serversFoundCount', { count: readyCount })
           : t('toasts.noServersFound'),
       })
     } catch (error) {
@@ -1836,28 +1842,33 @@ export default function Servers() {
           above), so gating the display on serversConfirmedEmpty meant we
           did the work and threw the answer away for anyone adding a second
           server. */}
-      {(confirmedMounts.length > 0 || partialMounts.length > 0 || inaccessibleMounts.length > 0) && (
+      {(readyCandidates.length > 0 || reviewCandidates.length > 0 || inaccessibleCandidates.length > 0) && (
         <div className="space-y-2">
-          {confirmedMounts.map(mount => (
+          {readyCandidates.map(candidate => (
             <MountDiscoveryBanner
-              key={mount.installPath}
-              mount={mount}
+              key={candidate.installPath}
+              mount={candidateToDiscoveredMount(candidate)}
               confidence="confirmed"
               onConnect={setDiscoverySetupMount}
             />
           ))}
-          {partialMounts.map(mount => (
+          {reviewCandidates.map(candidate => (
             <MountDiscoveryBanner
-              key={mount.installPath}
-              mount={mount}
+              key={candidate.installPath || candidate.dataPath}
+              mount={candidateToDiscoveredMount(candidate)}
               confidence="partial"
-              onConnect={handlePartialMountConnect}
+              reason={candidate.reason}
+              onConnect={() => handleReviewCandidateConnect(candidate)}
             />
           ))}
-          {inaccessibleMounts.map(entry => (
+          {inaccessibleCandidates.map(candidate => (
             <InaccessibleMountBanner
-              key={entry.path}
-              entry={entry}
+              key={candidate.installPath || candidate.dataPath}
+              entry={{
+                path: candidate.installPath || candidate.dataPath || '',
+                source: candidate.source,
+                reason: candidate.reason,
+              }}
               onRetry={handleScanMounts}
             />
           ))}

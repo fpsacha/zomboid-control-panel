@@ -39,6 +39,13 @@ interface MountDiscoveryBannerProps {
   // the fully-automated create-from-discovery, which needs both to read
   // RCON settings from).
   confidence: 'confirmed' | 'partial'
+  // The scan's own plain-language explanation for why this candidate isn't
+  // 'confirmed' (Angela's `MountDiscoveryCandidate.reason`, server-computed
+  // per her six-way `status`, e.g. "Found the install, but no save data
+  // folder yet" vs "Found save data, but no server config yet"). Only
+  // meaningful when confidence is 'partial' -- falls back to a generic
+  // sentence if the caller has one but no candidate-shaped reason on hand.
+  reason?: string
   onConnect: (mount: DiscoveredMount) => void
 }
 
@@ -47,7 +54,7 @@ interface MountDiscoveryBannerProps {
 // typing paths and RCON settings by hand. Dismissal is remembered per
 // install path so re-scans don't keep re-surfacing a mount the user
 // already declined.
-export function MountDiscoveryBanner({ mount, confidence, onConnect }: MountDiscoveryBannerProps) {
+export function MountDiscoveryBanner({ mount, confidence, reason, onConnect }: MountDiscoveryBannerProps) {
   const { t } = useTranslation('mountDiscoveryBanner')
   const [dismissed, setDismissed] = useState(() => isDismissed(mount.installPath))
 
@@ -78,12 +85,7 @@ export function MountDiscoveryBanner({ mount, confidence, onConnect }: MountDisc
         </code>
         {partial && (
           <span className="text-xs text-amber-600 dark:text-amber-400">
-            {bannerFallback(
-              'foundPossibleDesc',
-              !mount.dataPath
-                ? 'No save data folder confirmed yet -- may be a fresh, empty share.'
-                : 'No server config found yet -- run the server once, or fill it in yourself.',
-            )}
+            {reason ?? bannerFallback('foundPossibleDescFallback', 'Found something here, but could not confirm it fully.')}
           </span>
         )}
       </div>
@@ -135,7 +137,7 @@ export function InaccessibleMountBanner({ entry, onRetry }: InaccessibleMountBan
         </code>
       </div>
       <span className="text-xs text-muted-foreground">
-        {bannerFallback(
+        {entry.reason || bannerFallback(
           'foundUnreadableDesc',
           'This looks like the right folder, but the panel does not have permission to read it. On Unraid, check the PUID/PGID on this container match the folder owner.',
         )}

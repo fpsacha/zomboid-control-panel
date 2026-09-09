@@ -5,10 +5,12 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { SocketContext } from '@/contexts/SocketContext'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import Servers from '../Servers'
-import { serversApi, dockerApi, configApi, updateApi } from '@/lib/api'
+import { serversApi, dockerApi, configApi, updateApi, type MountDiscoveryCandidate } from '@/lib/api'
 
 // docker-unraid-add-server-experience (2026-09-09, god's three rulings after
-// reading the pain-point enumeration):
+// reading the pain-point enumeration; updated same night once Angela's real
+// ranked `candidates` field landed (fc74b688/c84f0f5c/99ed5c22) to replace
+// the confirmedMounts/partialMounts stand-in this file originally tested):
 //
 // 1. KILL the boolean gate that used to hide any discovered mount without
 //    BOTH a confirmed data path AND at least one server config -- a
@@ -23,8 +25,8 @@ import { serversApi, dockerApi, configApi, updateApi } from '@/lib/api'
 // This file proves 1 and 2 at the page-composition level, which the
 // isolated MountDiscoveryBanner.test.tsx cannot: whether Servers.tsx
 // actually reaches the banner with a non-empty roster, and whether a
-// partial mount's action really opens and pre-fills the manual Add Server
-// form (the only path available for a candidate create-from-discovery
+// review-tier candidate's action really opens and pre-fills the manual Add
+// Server form (the only path available for a candidate create-from-discovery
 // can't safely auto-complete).
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -117,6 +119,20 @@ function renderServers() {
   )
 }
 
+function candidate(overrides: Partial<MountDiscoveryCandidate> = {}): MountDiscoveryCandidate {
+  return {
+    installPath: '/pz-server',
+    dataPath: '/zomboid',
+    source: 'common-mount',
+    status: 'ready',
+    reason: 'Found a complete Project Zomboid server here.',
+    serverNames: ['servertest'],
+    hasStartScript: true,
+    hasPanelBridge: false,
+    ...overrides,
+  }
+}
+
 async function setUpFixtures() {
   getStatus.mockResolvedValue({ servers: [] } as never)
   getRconStatuses.mockResolvedValue({ servers: [] } as never)
@@ -131,46 +147,32 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('Servers.tsx: mount-discovery banner reach and partial-confidence candidates', () => {
+describe('Servers.tsx: mount-discovery banner reach and review-tier candidates (Angela\'s real candidates field)', () => {
   it('ruling 2: shows the discovery banner even when the roster is NOT empty (a second-server add)', async () => {
     await setUpFixtures()
     getAll.mockResolvedValue({ servers: [EXISTING_SERVER] } as never)
     discoverMounts.mockResolvedValue({
-      mounts: [{
-        installPath: '/pz-server',
-        dataPath: '/zomboid',
-        source: 'common-mount',
-        serverNames: ['servertest'],
-        hasStartScript: true,
-        hasPanelBridge: false,
-      }],
-      inaccessible: [],
+      mounts: [], inaccessible: [],
+      candidates: [candidate()],
     } as never)
 
     renderServers()
 
     await screen.findByText('server-a')
     // Would previously render nothing at all once serversConfirmedEmpty was
-    // false -- this mount is unrelated to the one existing server, so it
+    // false -- this candidate is unrelated to the one existing server, so it
     // must still surface.
     expect(await screen.findByText('/pz-server')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument()
   })
 
-  it('excludes a discovered mount that already matches a REGISTERED server, so a connected mount does not keep re-offering itself', async () => {
+  it('excludes a discovered candidate that already matches a REGISTERED server, so a connected one does not keep re-offering itself', async () => {
     await setUpFixtures()
     getAll.mockResolvedValue({ servers: [EXISTING_SERVER] } as never)
     discoverMounts.mockResolvedValue({
+      mounts: [], inaccessible: [],
       // Same installPath as EXISTING_SERVER's own -- already connected.
-      mounts: [{
-        installPath: '/srv/a',
-        dataPath: '/srv/a/data',
-        source: 'common-mount',
-        serverNames: ['server-a-cfg'],
-        hasStartScript: true,
-        hasPanelBridge: false,
-      }],
-      inaccessible: [],
+      candidates: [candidate({ installPath: '/srv/a', dataPath: '/srv/a/data', serverNames: ['server-a-cfg'] })],
     } as never)
 
     renderServers()
@@ -180,25 +182,28 @@ describe('Servers.tsx: mount-discovery banner reach and partial-confidence candi
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
   })
 
-  it('ruling 1: a partial mount (no confirmed data path) renders instead of being silently dropped, and "Review & Add" opens the manual form pre-filled with the discovered path', async () => {
+  it('ruling 1: a review-tier candidate (status data-only, no confirmed server config) renders instead of being silently dropped, using the SERVER-WRITTEN reason, and "Review & Add" opens the manual form pre-filled with the discovered path', async () => {
     await setUpFixtures()
     getAll.mockResolvedValue({ servers: [] } as never)
     discoverMounts.mockResolvedValue({
-      mounts: [{
+      mounts: [], inaccessible: [],
+      candidates: [candidate({
         installPath: '/data',
         dataPath: null,
-        source: 'common-mount',
+        status: 'install-only',
+        reason: 'Found the install, but no save data folder was found alongside it.',
         serverNames: [],
         hasStartScript: false,
-        hasPanelBridge: false,
-      }],
-      inaccessible: [],
+      })],
     } as never)
 
     renderServers()
 
     const reviewButton = await screen.findByRole('button', { name: 'Review & Add' })
-    expect(screen.getByText('Possible PZ install found')).toBeInTheDocument()
+    // The banner must show the SERVER's own reason sentence, not a
+    // client-guessed description -- proves the real candidates contract is
+    // actually wired through, not just a renamed local heuristic.
+    expect(screen.getByText('Found the install, but no save data folder was found alongside it.')).toBeInTheDocument()
 
     fireEvent.click(reviewButton)
 
@@ -208,17 +213,35 @@ describe('Servers.tsx: mount-discovery banner reach and partial-confidence candi
     await waitFor(() => expect(screen.getByDisplayValue('/data')).toBeInTheDocument())
   })
 
-  it('shows an inaccessible candidate with a Retry action that re-runs the scan', async () => {
+  it('a not-mounted candidate is NOT shown -- a checked-and-clear common path is not a signal worth a banner', async () => {
     await setUpFixtures()
     getAll.mockResolvedValue({ servers: [] } as never)
     discoverMounts.mockResolvedValue({
-      mounts: [],
-      inaccessible: [{ path: '/pz-server', source: 'common-mount', reason: 'permission-denied' }],
+      mounts: [], inaccessible: [],
+      candidates: [candidate({ installPath: '/pz-server', status: 'not-mounted', reason: 'Not mounted.' })],
     } as never)
 
     renderServers()
 
-    expect(await screen.findByText('Found something here, but could not read it')).toBeInTheDocument()
+    await waitFor(() => expect(discoverMounts).toHaveBeenCalled())
+    expect(screen.queryByText('/pz-server')).not.toBeInTheDocument()
+  })
+
+  it('shows a permission-denied candidate with the server-written reason and a Retry action that re-runs the scan', async () => {
+    await setUpFixtures()
+    getAll.mockResolvedValue({ servers: [] } as never)
+    discoverMounts.mockResolvedValue({
+      mounts: [], inaccessible: [],
+      candidates: [candidate({
+        installPath: '/pz-server',
+        status: 'permission-denied',
+        reason: 'Found something at /pz-server, but this container cannot read it.',
+      })],
+    } as never)
+
+    renderServers()
+
+    expect(await screen.findByText('Found something at /pz-server, but this container cannot read it.')).toBeInTheDocument()
     discoverMounts.mockClear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))

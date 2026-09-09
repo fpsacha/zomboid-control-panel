@@ -1713,21 +1713,29 @@ export default function Dashboard() {
                   </li>
                 ))}
               </ol>
-              {/* Q1 routing fix (2026-09-09, god): the default action must
-                  match the target user. A containerized deployment (Docker/
-                  Unraid) overwhelmingly means existing files bind-mounted
-                  in, not "download PZ via SteamCMD inside this container" --
-                  swap which button is visually primary so the button most
-                  new Docker/Unraid users actually need is the one that
-                  looks like the default choice, instead of always defaulting
-                  to the bare-metal-fresh-install assumption regardless of
-                  where the panel is actually running. */}
+              {/* Q1 routing fix (2026-09-09, god), with god's sharpening
+                  after reviewing the plan: don't just re-balance which
+                  button is visually primary -- RE-LABEL by what the user
+                  HAS, not what the panel DOES (rule 5, "ask their
+                  situation, not our operation"). "Install New Server" and
+                  "Add Existing Server" describe our internals; someone who
+                  doesn't know our vocabulary can't tell which applies to
+                  them. New copy below ships via the translatedOrFallback
+                  pattern (dashboardFallback), same as this file's other new
+                  strings tonight -- the OLD quickStart.installNewServer/
+                  addExistingServer locale keys are now unused here (left in
+                  place, not deleted, since removing translated locale
+                  content is out of scope for this fix).
+                  Also still true from the original fix: a containerized
+                  deployment overwhelmingly means existing files bind-mounted
+                  in, not "download PZ via SteamCMD inside this container",
+                  so that situation's button stays visually primary. */}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Link to="/server-setup" className={cn(buttonVariants({ variant: isContainerized ? 'outline' : 'default', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-                  <Server className="h-3.5 w-3.5" /> {t('quickStart.installNewServer')}
+                  <Server className="h-3.5 w-3.5" /> {dashboardFallback('quickStart.needNewServerLabel', "I don't have a server yet")}
                 </Link>
                 <Link to="/servers" className={cn(buttonVariants({ variant: isContainerized ? 'default' : 'outline', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-                  <FolderOpen className="h-3.5 w-3.5" /> {t('quickStart.addExistingServer')}
+                  <FolderOpen className="h-3.5 w-3.5" /> {dashboardFallback('quickStart.haveExistingServerLabel', 'I already have server files')}
                 </Link>
                 <Link to="/servers" className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
                   <Globe className="h-3.5 w-3.5" /> {t('quickStart.addRemoteServer')}

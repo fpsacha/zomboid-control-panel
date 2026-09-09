@@ -47,9 +47,16 @@ describe('MountDiscoveryBanner', () => {
   })
 
   describe('confidence="partial"', () => {
-    it('shows different copy and a different action label than a confirmed mount, but still passes the mount through on click', () => {
+    it('shows different copy and a different action label than a confirmed mount, and displays the caller-supplied reason verbatim', () => {
       const onConnect = vi.fn()
-      render(<MountDiscoveryBanner mount={partialMount} confidence="partial" onConnect={onConnect} />)
+      render(
+        <MountDiscoveryBanner
+          mount={partialMount}
+          confidence="partial"
+          reason="Found the install, but no save data folder was found alongside it."
+          onConnect={onConnect}
+        />,
+      )
 
       // Not the confirmed-mount title, and not the confirmed-mount button
       // label -- proves this isn't just rendering identically regardless of
@@ -57,23 +64,21 @@ describe('MountDiscoveryBanner', () => {
       expect(screen.queryByText('PZ install')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument()
       expect(screen.getByText('Possible PZ install found')).toBeInTheDocument()
-      expect(screen.getByText(/No save data folder confirmed yet/)).toBeInTheDocument()
+      // 2026-09-09: this used to be copy the component derived itself from
+      // !mount.dataPath -- now the server (Angela's six-way status/reason
+      // contract) writes the exact sentence, and the component just
+      // displays it. Verbatim match proves the real string is what renders,
+      // not a client-side paraphrase of it.
+      expect(screen.getByText('Found the install, but no save data folder was found alongside it.')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: 'Review & Add' }))
       expect(onConnect).toHaveBeenCalledWith(partialMount)
     })
 
-    it('mentions a missing server config specifically when a data path WAS found but no .ini was', () => {
-      render(
-        <MountDiscoveryBanner
-          mount={{ ...partialMount, dataPath: '/data/Zomboid' }}
-          confidence="partial"
-          onConnect={vi.fn()}
-        />,
-      )
+    it('falls back to a generic sentence when no reason is supplied at all', () => {
+      render(<MountDiscoveryBanner mount={partialMount} confidence="partial" onConnect={vi.fn()} />)
 
-      expect(screen.getByText(/No server config found yet/)).toBeInTheDocument()
-      expect(screen.queryByText(/No save data folder confirmed yet/)).not.toBeInTheDocument()
+      expect(screen.getByText('Found something here, but could not confirm it fully.')).toBeInTheDocument()
     })
   })
 })
@@ -82,21 +87,28 @@ describe('InaccessibleMountBanner', () => {
   const entry: InaccessibleMountCandidate = {
     path: '/pz-server',
     source: 'common-mount',
-    reason: 'permission-denied',
+    reason: 'Found something at /pz-server, but this container cannot read it.',
   }
 
   beforeEach(() => localStorage.clear())
 
-  it('shows the path and a Retry action, with no Add action since nothing here can become a profile yet', () => {
+  it('shows the path, the server-written reason, and a Retry action, with no Add action since nothing here can become a profile yet', () => {
     const onRetry = vi.fn()
     render(<InaccessibleMountBanner entry={entry} onRetry={onRetry} />)
 
     expect(screen.getByText('/pz-server')).toBeInTheDocument()
     expect(screen.getByText('Found something here, but could not read it')).toBeInTheDocument()
+    expect(screen.getByText(entry.reason)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to a generic description when the entry carries no reason', () => {
+    render(<InaccessibleMountBanner entry={{ ...entry, reason: '' }} onRetry={vi.fn()} />)
+
+    expect(screen.getByText(/does not have permission to read it/)).toBeInTheDocument()
   })
 
   it('remembers dismissal for the path, independent of MountDiscoveryBanner dismissal keys', () => {

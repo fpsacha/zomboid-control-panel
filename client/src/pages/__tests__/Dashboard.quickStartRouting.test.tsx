@@ -193,30 +193,41 @@ describe('Dashboard.tsx Quick-Start card: routes toward discovery instead of alw
     expect(screen.queryByText('We found an existing Project Zomboid server')).not.toBeInTheDocument()
   })
 
-  it('containerized with no ready candidate: "Add Existing Server" becomes the visually primary button, not "Install New Server"', async () => {
+  it('the two buttons are labelled by what the user HAS, not what the panel DOES (rule 5) -- the old internals-framed labels are gone', async () => {
+    await setUpCommon()
+
+    renderDashboard()
+
+    expect(await screen.findByRole('link', { name: /I don't have a server yet/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /I already have server files/i })).toBeInTheDocument()
+    expect(screen.queryByText('Install New Server')).not.toBeInTheDocument()
+    expect(screen.queryByText('Add Existing Server')).not.toBeInTheDocument()
+  })
+
+  it('containerized with no ready candidate: "I already have server files" becomes the visually primary button, not "I don\'t have a server yet"', async () => {
     mockServiceManager = 'container'
     await setUpCommon()
 
     renderDashboard()
 
-    const installNew = await screen.findByRole('link', { name: /Install New Server/i })
-    const addExisting = screen.getByRole('link', { name: /Add Existing Server/i })
+    const needNew = await screen.findByRole('link', { name: /I don't have a server yet/i })
+    const haveExisting = screen.getByRole('link', { name: /I already have server files/i })
     await waitFor(() => expect(discoverMounts).toHaveBeenCalled())
 
-    expect(addExisting.className).toContain('bg-primary')
-    expect(installNew.className).not.toContain('bg-primary')
+    expect(haveExisting.className).toContain('bg-primary')
+    expect(needNew.className).not.toContain('bg-primary')
   })
 
-  it('NOT containerized: "Install New Server" stays the primary button, unchanged from before this fix', async () => {
+  it('NOT containerized: "I don\'t have a server yet" stays the primary button, unchanged from before this fix', async () => {
     mockServiceManager = 'none'
     await setUpCommon()
 
     renderDashboard()
 
-    const installNew = await screen.findByRole('link', { name: /Install New Server/i })
-    const addExisting = screen.getByRole('link', { name: /Add Existing Server/i })
+    const needNew = await screen.findByRole('link', { name: /I don't have a server yet/i })
+    const haveExisting = screen.getByRole('link', { name: /I already have server files/i })
 
-    expect(installNew.className).toContain('bg-primary')
-    expect(addExisting.className).not.toContain('bg-primary')
+    expect(needNew.className).toContain('bg-primary')
+    expect(haveExisting.className).not.toContain('bg-primary')
   })
 })
