@@ -50,6 +50,69 @@ describe("getDb() recovery: a missing db.json beside an intact ring, and a corru
     );
   });
 
+  // 2026-09-09: item #3 above went flaky on a clean Linux CI gate for
+  // 35fec946 -- an unrelated RCON-host commit -- then passed clean on an
+  // immediate re-run of the identical SHA. Root cause: getDb()'s own
+  // "startup" snapshot and this test's "manual" one can land in the exact
+  // same millisecond on a filesystem fast enough for two sequential
+  // synchronous writes to beat toISOString()'s ms resolution (common on a
+  // clean CI clone's tmpfs-backed temp dir, rare on a real dev disk --
+  // which is why it never reproduced locally). listBackupsNewestFirst()
+  // then fell back to comparing LABEL TEXT alphabetically ("manual" <
+  // "startup"), ranking the OLDER startup snapshot as "newest" and
+  // recovering from it instead of the real one. Freezing Date makes the
+  // collision deterministic on every run instead of hoping real disk
+  // latency reproduces it -- a stronger proof than repeated real-timing
+  // attempts, per the standard of proving a flake fix with more than one
+  // pass.
+  it("item #3b: a startup snapshot and a manual backup landing in the SAME millisecond still recover the newer one, not the older", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      // Fresh db singleton -- item #3 above left one cached with its own
+      // data and its own (real-timestamped) backups already in the ring.
+      // Without this, getDb()'s `if (!db)` guard would return item #3's
+      // leftover instance and never take the first-load "startup" snapshot
+      // this test needs to land at the frozen instant.
+      vi.resetModules();
+      for (const f of fs.readdirSync(backupDir)) {
+        fs.unlinkSync(path.join(backupDir, f));
+      }
+
+      const { getDb, setSetting, createDatabaseBackup } = await import(
+        "../database/init.js"
+      );
+      // getDb()'s own end-of-load snapshot (label "startup") lands at the
+      // frozen instant above.
+      await getDb();
+      await setSetting("sameMsMarker", "the-newer-backup-must-win");
+      // createDatabaseBackup()'s "manual" snapshot -- Date is still frozen
+      // to the IDENTICAL instant, so without the fix this collides with
+      // "startup" on the exact same millisecond.
+      const backupResult = await createDatabaseBackup();
+      expect(backupResult.success).toBe(true);
+
+      const backups = fs
+        .readdirSync(backupDir)
+        .filter((f) => f.startsWith("db-") && f.endsWith(".json"));
+      // Proves the collision actually happened (both landed at the frozen
+      // instant) rather than this test accidentally not exercising it.
+      expect(backups.some((f) => f.includes("-startup"))).toBe(true);
+      expect(backups.some((f) => f.includes("-manual"))).toBe(true);
+
+      fs.unlinkSync(dbPath);
+      vi.resetModules();
+      const { getDb: getDbAfterRestart } = await import("../database/init.js");
+      const restarted = await getDbAfterRestart();
+
+      expect(restarted.data.settings.sameMsMarker).toBe(
+        "the-newer-backup-must-win",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("item #4: db.json corrupt AND the backup ring is empty -- still falls back to a fresh database, but now preserves the corrupt bytes for forensics first", async () => {
     // Shares this file's dataDir with the test above (per-file, not
     // per-test, isolation -- see vitest.perFileDataDir.setup.mjs). Get a

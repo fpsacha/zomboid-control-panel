@@ -599,31 +599,68 @@ export function sweepOrphanedTmpFiles() {
 // Backup System
 // ============================================
 
+// Timestamp always ends in literal "Z" (see BACKUP_COLLISION_SUFFIX_RE's own
+// comment below) and is always this exact fixed-digit-width shape, so this
+// reliably captures just the timestamp component regardless of what label
+// or collision suffix follows it.
+const TIMESTAMP_PREFIX_RE = /^db-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)/;
+
 function createBackup(label = "") {
   try {
     if (!fs.existsSync(dbPath)) return null;
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    // 2026-09-09 (dbRecoveryMissingFileAndEmptyRing.test.js item #3 --
+    // flaky on a clean Linux CI clone, never locally, where disk latency
+    // happens to exceed 1ms): two backups with DIFFERENT labels landing in
+    // the same millisecond -- getDb()'s own "startup" snapshot immediately
+    // followed by a caller's "manual"/"auto" one -- used to sort by
+    // comparing the whole "timestamp-label" string once the timestamps
+    // tied, which falls through to comparing LABEL TEXT alphabetically
+    // ("manual" < "startup") -- nothing to do with which was actually
+    // written first, and reliably ranked the OLDER backup as "newest" on
+    // any filesystem fast enough for two sequential synchronous writes to
+    // land in the same millisecond. Advancing past any millisecond ALREADY
+    // used by another backup -- any label, not just the same one -- keeps
+    // every backup's timestamp itself the sole source of ordering truth, so
+    // sortBackupFilenamesNewestFirst()'s lexicographic string comparison
+    // needs no change: it was always correct for distinct timestamps, only
+    // wrong once they collided.
+    let existingTimestamps;
+    try {
+      existingTimestamps = new Set(
+        fs
+          .readdirSync(backupDir)
+          .map((f) => f.match(TIMESTAMP_PREFIX_RE)?.[1])
+          .filter(Boolean),
+      );
+    } catch (_) {
+      existingTimestamps = new Set(); // backupDir may not be readable yet on first run
+    }
+    let timestampMs = Date.now();
+    let timestamp = new Date(timestampMs).toISOString().replace(/[:.]/g, "-");
+    while (existingTimestamps.has(timestamp)) {
+      timestampMs++;
+      timestamp = new Date(timestampMs).toISOString().replace(/[:.]/g, "-");
+    }
     const suffix = label ? `-${label}` : "";
-    // Same collision-suffix convention as utils/configBackup.js's
-    // createBackup() (2026-08-27/29 fix, "backups: the pruner still deletes
-    // the newest backup on Linux") -- toISOString() is millisecond-
-    // resolution, and several backups created in a tight loop (an
-    // automation script, or simply no real disk latency between calls) can
-    // land in the exact same millisecond. Without this, that collision
-    // produces the IDENTICAL filename and fs.copyFileSync silently
-    // OVERWRITES the earlier backup -- reported success:true on both calls,
-    // no error, no warning, earlier backup unrecoverably gone. This exact
-    // ring never got the fix configBackup.js's already did: reproduced live
-    // (2026-09-05, backup-restore-round-trip hunt), a plain sequential
-    // 8-call loop with no concurrency at all collided repeatedly on real
-    // Linux (WSL/ext4), losing several of the 8 backups before pruning ever
-    // ran. -2, -3, ... on an actual collision; the first backup at a given
-    // (timestamp, label) keeps the old, unsuffixed name. pruneBackups()/
-    // listBackupsNewestFirst() below are updated to parse and sort by this
-    // suffix too -- a raw string sort would put "-2.json" before ".json"
-    // ('-' < '.'), the same misordering configBackup.js's pruner had before
-    // its own fix.
+    // Second, narrower safety net -- the timestamp-advance above already
+    // keeps this millisecond free of every OTHER backup, any label,
+    // read at the top of this call. This loop only still matters for a
+    // TRUE concurrent writer landing on the exact same (timestamp, label)
+    // in the gap between that read and this fs.existsSync check. Same
+    // collision-suffix convention as utils/configBackup.js's createBackup()
+    // (2026-08-27/29 fix, "backups: the pruner still deletes the newest
+    // backup on Linux") -- reproduced live (2026-09-05, backup-restore-
+    // round-trip hunt) before the timestamp-advance existed: a plain
+    // sequential 8-call loop with no concurrency at all collided repeatedly
+    // on real Linux (WSL/ext4), silently overwriting several of the 8
+    // backups via fs.copyFileSync, reported success:true on every call, no
+    // error, no warning. -2, -3, ... on an actual collision; the first
+    // backup at a given (timestamp, label) keeps the old, unsuffixed name.
+    // pruneBackups()/listBackupsNewestFirst() below are updated to parse
+    // and sort by this suffix too -- a raw string sort would put "-2.json"
+    // before ".json" ('-' < '.'), the same misordering configBackup.js's
+    // pruner had before its own fix.
     let backupFile = path.join(backupDir, `db-${timestamp}${suffix}.json`);
     for (let collision = 2; fs.existsSync(backupFile); collision++) {
       backupFile = path.join(
