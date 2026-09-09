@@ -560,7 +560,20 @@ export class BackupService {
     const baseBackupName = `${serverName}_${timestamp}`;
     let backupName = `${baseBackupName}.zip`;
     let backupPath = path.join(backupsPath, backupName);
-    let collision = 1;
+    // 2026-09-09 (Kevin's cross-ring sweep, timestamp-tie-breaks): starting
+    // at 1 made the FIRST collision produce "-1.zip" -- the exact same
+    // suffix backupSortKey() (above) already implies for an unsuffixed
+    // original (`suffix: match[2] ? ... : 1`). On a real same-millisecond
+    // collision the original and its first collision then carry an
+    // IDENTICAL sort key, listBackups()'s sort can't tell them apart, and
+    // the stable sort falls back to readdir() order -- unrelated to
+    // creation order -- which cleanupOldBackups()'s .slice(maxBackups)
+    // deletion and `this.lastBackup = backups[0]` both trust completely.
+    // Starting at 2 instead matches every sibling ring's identical
+    // convention (database/init.js, utils/configBackup.js, index.js's
+    // player-export rotation) -- an unsuffixed original and a first
+    // collision can never collapse to one key.
+    let collision = 2;
     while (fs.existsSync(backupPath)) {
       backupName = `${baseBackupName}-${collision}.zip`;
       backupPath = path.join(backupsPath, backupName);

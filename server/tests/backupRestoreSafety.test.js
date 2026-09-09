@@ -517,7 +517,11 @@ describe("createBackup archive safety", () => {
       const result = await service.createBackup({});
 
       expect(result.success).toBe(true);
-      expect(result.backup.name).toBe("server_2026-08-25T12-00-00-000-1.zip");
+      // -2, not -1 (timestamp-tie-breaks, 2026-09-09): an unsuffixed name
+      // already implies suffix 1 in backupSortKey()'s parsing, so the first
+      // REAL collision has to start at 2 or it ties with the original it
+      // collided with -- see _doCreateBackup()'s own comment on `collision`.
+      expect(result.backup.name).toBe("server_2026-08-25T12-00-00-000-2.zip");
       expect(fs.existsSync(result.backup.path)).toBe(true);
       expect(fs.readFileSync(existing, "utf8")).toBe("existing backup");
     } finally {
