@@ -39,7 +39,20 @@ export function normalizeNumericInput(value: string): string {
   return value.replace(/,/g, '.')
 }
 
-export function parseNumericSettingValue(value: unknown, bounds: NumericSettingBounds = {}): number | null {
+// `enforceBounds: false` is the Sandbox tab's "allow values outside known
+// range" escape hatch (client/src/pages/Settings.tsx's sandboxRangeOverride
+// toggle): it still rejects anything that isn't a real finite number, but
+// stops treating an in-range check as part of "is this value even valid" --
+// letting a genuinely out-of-range-but-numeric value through unchanged
+// instead of nulling it out. Every existing caller keeps today's behavior
+// unchanged (default true) since only the Sandbox tab's own validation/save
+// paths pass false, and only when that toggle is on.
+export function parseNumericSettingValue(
+  value: unknown,
+  bounds: NumericSettingBounds = {},
+  options: { enforceBounds?: boolean } = {},
+): number | null {
+  const { enforceBounds = true } = options
   const normalized = typeof value === 'string'
     ? normalizeNumericInput(value).trim()
     : value
@@ -49,8 +62,10 @@ export function parseNumericSettingValue(value: unknown, bounds: NumericSettingB
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return null
   const parsed = Number(text)
   if (!Number.isFinite(parsed)) return null
-  if (bounds.min !== undefined && parsed < bounds.min) return null
-  if (bounds.max !== undefined && parsed > bounds.max) return null
+  if (enforceBounds) {
+    if (bounds.min !== undefined && parsed < bounds.min) return null
+    if (bounds.max !== undefined && parsed > bounds.max) return null
+  }
   return parsed
 }
 
@@ -4893,6 +4908,64 @@ export function getUnrecognizedSandboxOptionWarning(value: number | string): str
     'unrecognizedSandboxOptionWarning',
     `This server is currently set to ${value}, which this panel does not recognize. The value is preserved and will not be changed unless you pick a different option here.`,
   )
+}
+
+// Sandbox tab live-range fix (2026-09-09 dispatch): SANDBOX_SCHEMA's min/max
+// above is a build-time snapshot of Project Zomboid's engine-side bounds --
+// it can never track a PZ patch, only a panel release can. ServerConfig.tsx
+// now prefers a live PanelBridge getMin()/getMax() query (the same call the
+// Mod Settings tab already trusts) and falls back to this schema only when
+// the bridge can't be reached. These three strings surface that fallback
+// state and the "allow values outside known range" escape hatch
+// (client/src/pages/Settings.tsx) to the user. Same no-locale-file-required
+// pattern as getUnrecognizedSandboxOptionWarning just above: translatable
+// later with zero code change the moment a locale adds these keys, plain
+// English until then, rather than a bare useTranslation() key needing a
+// same-day addition to every locale file.
+export function getSandboxLiveRangesUnavailableTitle(): string {
+  return translatedOrFallback('sandboxTab.liveRangesUnavailableTitle', 'Showing built-in ranges')
+}
+
+export function getSandboxLiveRangesUnavailableBody(): string {
+  return translatedOrFallback(
+    'sandboxTab.liveRangesUnavailableBody',
+    "Couldn't reach a running server to confirm the real minimum/maximum for these settings, so the ranges shown are this panel's own built-in table and may be out of date. Start the server and retry for the exact bounds.",
+  )
+}
+
+export function getSandboxOutOfRangeAllowedTitle(): string {
+  return translatedOrFallback('sandboxTab.outOfRangeAllowedTitle', 'Values outside the known range will still be saved')
+}
+
+export function getSandboxOutOfRangeAllowedBody(settingsList: string): string {
+  return resolveRegisteredTranslation('serverconfig', 'sandboxTab.outOfRangeAllowedBody', { settings: settingsList }) ??
+    `${settingsList} are outside the range this panel knows, but the sandbox range override in Settings is on, so Save will not block them.`
+}
+
+// Panel-wide escape hatch for the Sandbox tab's numeric range check (see the
+// three functions above). Lives in Settings.tsx as its own toggle rather
+// than the Sandbox tab itself, per the 2026-09-09 dispatch, and as plain
+// localStorage rather than the server-persisted app-settings blob: that
+// endpoint validates against a fixed key whitelist (server/routes/config.js)
+// this session is not authorized to extend, and a client-only UI preference
+// (matches this same file's ThemeContext.tsx-style convention) needs neither
+// server persistence nor cross-device sync to do its job. OFF by default --
+// bernanas' request is an escape hatch for the case a live/fallback range is
+// still wrong, not the primary mechanism.
+export const ALLOW_OUT_OF_RANGE_SANDBOX_STORAGE_KEY = 'pz-panel-allow-out-of-range-sandbox'
+
+export function getAllowOutOfRangeSandboxValues(): boolean {
+  try {
+    return localStorage.getItem(ALLOW_OUT_OF_RANGE_SANDBOX_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function setAllowOutOfRangeSandboxValues(enabled: boolean): void {
+  try {
+    localStorage.setItem(ALLOW_OUT_OF_RANGE_SANDBOX_STORAGE_KEY, enabled ? 'true' : 'false')
+  } catch { /* localStorage may be unavailable */ }
 }
 
 export function getSandboxCategoryLabel(category: { id: string; label: string }): string {

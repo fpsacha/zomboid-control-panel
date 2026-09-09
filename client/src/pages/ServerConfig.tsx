@@ -134,6 +134,12 @@ import {
   getSandboxCategoryLabel,
   getSandboxCategoryGroupLabel,
   getUnrecognizedSandboxOptionWarning,
+  getSandboxLiveRangesUnavailableTitle,
+  getSandboxLiveRangesUnavailableBody,
+  getSandboxOutOfRangeAllowedTitle,
+  getSandboxOutOfRangeAllowedBody,
+  getAllowOutOfRangeSandboxValues,
+  ALLOW_OUT_OF_RANGE_SANDBOX_STORAGE_KEY,
   formatRawConfigValue,
 } from '@/lib/serverConfigSchema'
 
@@ -964,15 +970,91 @@ export default function ServerConfig() {
     [iniSettings],
   )
 
+  // Root cause (2026-09-09 dispatch): SANDBOX_SCHEMA's min/max is a
+  // build-time snapshot of Project Zomboid's engine-side bounds -- it can
+  // never track a PZ patch, only a panel release can, and the game ships no
+  // min/max on disk for us to read instead (confirmed: compiled engine-side,
+  // only obtainable from a running server). The Mod Settings tab already
+  // asks the running game for these same bounds live, every load
+  // (PanelBridge.lua's getAllSandboxOptions, opt:getMin()/getMax()) via
+  // loadModSettings below -- this just keeps the vanilla groups that call
+  // filters OUT for its own UI, keyed the same way SANDBOX_SCHEMA groups its
+  // own settings, so the Sandbox tab can prefer a live bound without a
+  // second bridge round-trip. Map<`${group}::${shortName}`, {min,max}>;
+  // null until a load has been attempted at least once.
+  const [sandboxLiveRanges, setSandboxLiveRanges] = useState<Map<string, { min?: number; max?: number }> | null>(null)
+  // 'idle' never attempted (bridge tab not yet opened this session) --
+  // 'unavailable' means don't block the tab, just show the fallback table
+  // and let the user retry; this must never read as "Sandbox tab broken."
+  const [sandboxLiveRangesStatus, setSandboxLiveRangesStatus] = useState<'idle' | 'loading' | 'live' | 'unavailable'>('idle')
+
+  // Objective 2 escape hatch (client/src/pages/Settings.tsx's sandboxRangeOverride
+  // toggle, plain localStorage -- see getAllowOutOfRangeSandboxValues's own
+  // comment for why). Read once at mount; a 'storage' listener picks up a
+  // change made in another tab without requiring a remount here.
+  const [allowOutOfRangeSandbox, setAllowOutOfRangeSandboxState] = useState(() => getAllowOutOfRangeSandboxValues())
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === ALLOW_OUT_OF_RANGE_SANDBOX_STORAGE_KEY || e.key === null) {
+        setAllowOutOfRangeSandboxState(getAllowOutOfRangeSandboxValues())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // effectiveSandboxSchema overrides SANDBOX_SCHEMA's min/max with the live
+  // bridge value wherever one is known, leaving every other field (label,
+  // description, default, category...) untouched. Every downstream
+  // consumer already expects a plain SandboxSetting[], so this is the one
+  // place the live-vs-fallback decision has to be made -- validation,
+  // rendering and the save-time sanitizer below all inherit it for free.
+  const effectiveSandboxSchema = useMemo<SandboxSetting[]>(() => {
+    if (!sandboxLiveRanges || sandboxLiveRanges.size === 0) return SANDBOX_SCHEMA
+    return SANDBOX_SCHEMA.map(setting => {
+      const group = setting.section && setting.section !== 'settings' ? setting.section : 'Vanilla'
+      const live = sandboxLiveRanges.get(`${group}::${setting.key}`)
+      if (!live || typeof live.min !== 'number' || typeof live.max !== 'number') return setting
+      if (live.min === setting.min && live.max === setting.max) return setting
+      return { ...setting, min: live.min, max: live.max }
+    })
+  }, [sandboxLiveRanges])
+
+  // Blocking set: unparsable numbers always block Save, and so does a
+  // genuinely out-of-range number UNLESS the escape hatch is on -- see
+  // parseNumericSettingValue's enforceBounds option. Never used to disable
+  // the raw-mode Save button (that gate, and the lockout it was fixed for
+  // in 547c625a, is handleSaveSandbox's own editorMode==='structured' check
+  // below; raw edits never touch `sandboxData`, so this list would never
+  // clear for them and must not be read as raw-mode's problem too).
   const invalidSandboxSettings = useMemo(() => {
     if (!sandboxData) return []
-    return SANDBOX_SCHEMA.filter(setting => {
+    return effectiveSandboxSchema.filter(setting => {
       if (setting.type !== 'number') return false
       const section = (setting.section || 'settings') as keyof SandboxData
       const value = (sandboxData[section] as SandboxRecord | undefined)?.[setting.key]
-      return value !== undefined && value !== null && String(value).trim() !== '' && parseNumericSettingValue(value, setting) === null
+      if (value === undefined || value === null || String(value).trim() === '') return false
+      return parseNumericSettingValue(value, setting, { enforceBounds: !allowOutOfRangeSandbox }) === null
     })
-  }, [sandboxData])
+  }, [sandboxData, effectiveSandboxSchema, allowOutOfRangeSandbox])
+
+  // Warning-only set: a real, parsable number that's outside the known
+  // range but ISN'T in invalidSandboxSettings above because the escape
+  // hatch let it through. Empty whenever the toggle is off, by construction
+  // (every out-of-range value is still in invalidSandboxSettings then) --
+  // only meaningful, and only rendered, alongside the toggle being on.
+  const outOfRangeSandboxSettings = useMemo(() => {
+    if (!sandboxData || !allowOutOfRangeSandbox) return []
+    return effectiveSandboxSchema.filter(setting => {
+      if (setting.type !== 'number') return false
+      const section = (setting.section || 'settings') as keyof SandboxData
+      const value = (sandboxData[section] as SandboxRecord | undefined)?.[setting.key]
+      if (value === undefined || value === null || String(value).trim() === '') return false
+      const parsesAtAll = parseNumericSettingValue(value, setting, { enforceBounds: false }) !== null
+      const withinBounds = parseNumericSettingValue(value, setting, { enforceBounds: true }) !== null
+      return parsesAtAll && !withinBounds
+    })
+  }, [sandboxData, effectiveSandboxSchema, allowOutOfRangeSandbox])
 
   // Mod Settings (live from PanelBridge)
   const [modSettings, setModSettings] = useState<Record<string, Array<{
@@ -1339,6 +1421,7 @@ export default function ServerConfig() {
     const loadId = ++modSettingsLoadIdRef.current
     setModSettingsLoading(true)
     setModSettingsError(null)
+    setSandboxLiveRangesStatus('loading')
     try {
       // getAllSandboxOptions enumerates every sandbox option server-wide
       // (vanilla + every mod's contributed settings) with no chunking on the
@@ -1376,12 +1459,31 @@ export default function ServerConfig() {
         setModSettingsGroups(groups)
         setModSettingsLastLoaded(new Date())
         setModSettingsError(null)
+
+        // Sandbox tab's live-range fix: this same response already carries
+        // the vanilla groups the filter above throws away for Mod
+        // Settings' own UI -- keep them here, keyed the same way
+        // SANDBOX_SCHEMA groups its own settings (`section`, or "Vanilla"
+        // for a setting with no section), so effectiveSandboxSchema can
+        // look one up without a second bridge round-trip.
+        const liveRanges = new Map<string, { min?: number; max?: number }>()
+        for (const [groupName, opts] of Object.entries(response.data.options)) {
+          if (!VANILLA_SANDBOX_GROUPS.has(groupName)) continue
+          for (const opt of opts) {
+            if (!opt.shortName || typeof opt.min !== 'number' || typeof opt.max !== 'number') continue
+            liveRanges.set(`${groupName}::${opt.shortName}`, { min: opt.min, max: opt.max })
+          }
+        }
+        setSandboxLiveRanges(liveRanges)
+        setSandboxLiveRangesStatus('live')
       } else {
         setModSettingsError(response?.error || t('modSettingsTab.loadFailedNotConnected'))
+        setSandboxLiveRangesStatus('unavailable')
       }
     } catch (error) {
       if (modSettingsLoadIdRef.current !== loadId) return
       setModSettingsError(getUserErrorMessage(error, t('modSettingsTab.loadFailedCheckConnection')))
+      setSandboxLiveRangesStatus('unavailable')
     } finally {
       if (modSettingsLoadIdRef.current === loadId) setModSettingsLoading(false)
     }
@@ -1394,6 +1496,20 @@ export default function ServerConfig() {
       loadModSettings()
     }
   }, [activeTab, modSettings, modSettingsLoading, modSettingsError, loadModSettings])
+
+  // Same bridge call, same cache, triggered from the Sandbox tab instead --
+  // whichever tab is opened first populates both modSettings and
+  // sandboxLiveRanges, so opening the other tab afterward never re-fetches.
+  // 'idle' only fires once per session per the same no-auto-retry-after-
+  // failure rule as the effect above (checked via status, not modSettings/
+  // modSettingsError, since a failure here also sets those and must not
+  // make the *other* tab's own auto-load re-fire either -- one failed
+  // enumeration is one failed enumeration, not two).
+  useEffect(() => {
+    if (activeTab === 'sandbox' && sandboxLiveRangesStatus === 'idle') {
+      loadModSettings()
+    }
+  }, [activeTab, sandboxLiveRangesStatus, loadModSettings])
 
   // Keyboard shortcut: '/' focuses the mod settings search when the tab is active.
   // Skip when the user is already typing in a field or has a modifier held.
@@ -1678,14 +1794,19 @@ export default function ServerConfig() {
         const cleanData = JSON.parse(JSON.stringify(sandboxData)) as SandboxData
 
         // Ensure numbers are finite, canonical numbers before writing Lua.
-        SANDBOX_SCHEMA.forEach(setting => {
+        // Uses the same effective (live-preferred) bounds and the same
+        // escape hatch as invalidSandboxSettings above -- otherwise a value
+        // the Save button just allowed through (toggle on, out of range)
+        // would throw right here instead, at the one place it's actually
+        // written.
+        effectiveSandboxSchema.forEach(setting => {
           if (setting.type === 'number') {
             const section = (setting.section || 'settings') as keyof SandboxData
             if (cleanData[section]) {
               const sectionData = cleanData[section] as SandboxRecord
               const raw = sectionData[setting.key]
               if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
-                const parsed = parseNumericSettingValue(raw, setting)
+                const parsed = parseNumericSettingValue(raw, setting, { enforceBounds: !allowOutOfRangeSandbox })
                 if (parsed === null) throw new Error(t('toasts.settingInvalid', { label: getSandboxSettingLabel(setting) }))
                 sectionData[setting.key] = parsed
               }
@@ -1832,14 +1953,14 @@ export default function ServerConfig() {
 
   const filteredSandboxSettings = useMemo(() => {
     const lower = deferredSearchQuery.toLocaleLowerCase(searchLocale)
-    const filtered = SANDBOX_SCHEMA.filter(s => {
+    const filtered = effectiveSandboxSchema.filter(s => {
       if (deferredSearchQuery && !getSandboxSettingSearchText(s).toLocaleLowerCase(searchLocale).includes(lower)) return false
       if (filterMode === 'modified' && !isSandboxNonDefault(s)) return false
       if (filterMode === 'nondefault' && !isSandboxModified(s)) return false
       return true
     })
     return groupByCategory(filtered)
-  }, [deferredSearchQuery, filterMode, isSandboxModified, isSandboxNonDefault, searchLocale])
+  }, [deferredSearchQuery, filterMode, isSandboxModified, isSandboxNonDefault, searchLocale, effectiveSandboxSchema])
 
   // Modified-count per category for rail badges
   const iniModifiedByCategory = useMemo(() => {
