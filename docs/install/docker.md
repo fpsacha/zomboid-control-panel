@@ -447,7 +447,7 @@ the supplementary group first.
 
 ---
 
-## The two things that actually bite
+## Things that actually bite
 
 ### PUID/PGID on bind-mounted PZ folders
 
@@ -490,6 +490,64 @@ example a Kubernetes pod with `runAsUser`/`runAsGroup`/`runAsNonRoot:
 true`), it has no permission to `chown` anything and skips the step
 entirely — in that case `PUID`/`PGID` are ignored, and `/app/data` and
 `/app/logs` must already be writable by whatever UID the pod was given.
+
+### RCON host on a two-container setup
+
+This applies to **Path B** and **Path D** — anywhere Project Zomboid runs in
+a *different* container from the panel, rather than on the same host outside
+Docker.
+
+Symptom: the server shows up in the panel, the dashboard looks normal, but
+no command ever reaches the game — start/stop, chat, and every PanelBridge
+feature just sit there or time out. It's easy to mistake this for a wrong
+RCON password, because nothing about it looks like a networking problem.
+
+Cause: `127.0.0.1` means "this container," not "the other one." Set inside
+the panel's own container, it points at the panel itself — the address is
+only correct when PZ runs on the same host outside Docker (Path A, or a
+bare-metal PZ next to a containerized panel). Put both containers on the
+same user-defined Docker network, then use PZ's Compose **service name**
+(Path B) or container name (Path D) as the RCON host instead — see
+[Path B, Phase 5](#phase-5--first-login) or
+[Path D, Phase 2, step 5](#phase-2--import-and-configure) above for exactly
+where to set it for your path.
+
+One creation path already gets this right by itself: adding a server
+through Discover's confirmed match (the plain **Add** button, not
+**Review & Add** — see [below](#adding-more-servers-later)) reads the RCON
+host straight out of your `RCON_HOST` setting instead of assuming
+`127.0.0.1`, provided you set `RCON_HOST` correctly *before* clicking it.
+**Quick Setup, the full install wizard, and a server added or edited by
+hand do not** — they still need the manual Settings fix above regardless
+of `RCON_HOST`.
+
+### "Server files not found" from Quick Setup
+
+Applies to **Quick Setup** (Path B/D's form for adopting an existing PZ
+install the panel doesn't have a profile for yet) — not the full install
+wizard, which downloads its own files instead of looking for existing
+ones.
+
+Symptom: you type in the path from your PZ container's own template (or
+copy it from a host file browser) and Quick Setup rejects it with "Server
+files not found," even though you can see the files are there.
+
+Cause: the check runs **inside the panel's own container**, against
+whatever got bind-mounted there — a path that makes sense on the host, or
+inside a *different* container, doesn't exist inside this one. Use the
+panel-container-side path instead (`/pz-server`, or whatever you mapped it
+to — see the path-mapping table in [Path D, Phase 2](#phase-2--import-and-configure)
+above, or your own `docker-compose.yml` volumes block for Path B).
+
+If you enabled the optional **Docker socket** field
+([below](#optional-let-the-panel-find-your-folders-automatically)), Quick
+Setup now tries the host-side path too: it asks Docker directly what this
+container can see, and if your typed path matches one of its real mounts,
+it swaps in the container-side path itself and carries on — nothing to
+retype. When it genuinely can't find the files either way, the same error
+now names exactly which folders this container can see instead of just
+"not found," so you know what to point Docker's bind mount at rather than
+guessing.
 
 ### CORS_ORIGINS when accessed from anywhere other than localhost
 
@@ -555,6 +613,49 @@ Path D actually wire it up out of the box:
 
 Restart (or recreate, for Path B/C) the panel container for the change to
 take effect.
+
+## Adding more servers later
+
+Two things changed recently that matter if you're returning to add a
+second server, or came back after Quick Setup didn't find anything the
+first time:
+
+- **Discover isn't just a first-run screen.** It runs the same scan every
+  time you open **Add Server**, not only on the very first, empty server
+  list — so a bind mount you add after initial setup, or one you skipped
+  past the first time, still gets picked up next time you go looking.
+- **A partial match is shown, not hidden.** A bind mount that looks like a
+  PZ install but is missing a confirmed save-data folder or a server config
+  file used to be silently skipped. It now shows up labeled **"Possible PZ
+  install found"**, with the panel's own plain-language reason why it isn't
+  a sure thing, and an amber **Review & Add** button instead of the plain
+  **Add** a confirmed match gets — clicking it opens the normal **Add
+  Existing Server** form pre-filled with whatever was found, rather than
+  the one-click, no-typing path a confirmed match gets (that path needs
+  both a save-data folder AND a server config to read RCON settings from
+  automatically). A mount the panel found but couldn't even **read**
+  (a permissions problem, not a missing-files one) gets its own separate
+  banner naming that instead. If you dismiss one, that specific path stays
+  dismissed on later scans; a genuinely new mount still shows up.
+
+The Dashboard's own first-run card also adapts. If Discover finds exactly
+one confirmed match before you've added anything, the card skips the
+generic button choice entirely: it shows "We found an existing Project
+Zomboid server", the path it found, and one **Review & Connect** button
+(plus a smaller "Set up differently instead" link, in case that match is
+wrong). Otherwise you still get a choice, but phrased as your situation
+rather than the panel's internal operations: **"I don't have a server
+yet"**, **"I already have server files"**, or **"Add remote server"** —
+and on a containerized panel, "I already have server files" is the
+visually primary one, since a Docker/Unraid install already has PZ's files
+bind-mounted in far more often than not.
+
+One more thing "I don't have a server yet" no longer needs from you: the
+SteamCMD path. Leave it blank and the panel now detects it itself instead
+of refusing to continue — and in the all-in-one image the answer is
+always the same fixed path that image's own installer already uses, so on
+Path A specifically this is one less thing to ever think about. Typing a
+path yourself, if you have one, still overrides detection.
 
 ## Automating first-run setup
 
