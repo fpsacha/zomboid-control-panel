@@ -1770,6 +1770,28 @@ export interface DiscoveredMount {
   hasPanelBridge: boolean;
 }
 
+// Ranked scan result (server/routes/discovery.js's `candidates` field,
+// added alongside `mounts`/`inaccessible` -- server/services/mountDiscovery.js's
+// scanAllCandidates()). Six-way `status` instead of a boolean or a 3-level
+// confidence enum on purpose (Angela's call, 2026-09-09): each value maps to
+// DIFFERENT copy (install-only vs data-only aren't the same story to tell a
+// user), and `reason` is always one plain-language sentence already written
+// server-side rather than something the client re-derives from a checks
+// object. Sorted ready-first, not-mounted-last -- render top to bottom, no
+// client re-sort needed. Mechanical rule for "exactly one confident match":
+// candidates.filter(c => c.status === 'ready').length === 1 means auto-use
+// it, don't present a picker (god's rule 3, 2026-09-09 bar broadcast).
+export interface MountDiscoveryCandidate {
+  installPath: string | null;
+  dataPath: string | null;
+  source: string;
+  status: "ready" | "install-only" | "data-only" | "permission-denied" | "empty" | "not-mounted";
+  reason: string;
+  serverNames: string[];
+  hasStartScript: boolean;
+  hasPanelBridge: boolean;
+}
+
 // One signal (host / server / bridge) from GET /servers/active/status — see
 // server/utils/serverStatusModel.js for the full set of `status` values per
 // signal (they differ: host uses running/stopped/unknown/not-applicable,
@@ -1917,6 +1939,7 @@ export const serversApi = {
     apiGet("/servers/discover-mounts") as Promise<{
       mounts: DiscoveredMount[];
       inaccessible: InaccessibleMountCandidate[];
+      candidates: MountDiscoveryCandidate[];
     }>,
 
   // Turn a discover-mounts result into a fully-populated server profile —

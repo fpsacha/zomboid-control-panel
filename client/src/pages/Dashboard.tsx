@@ -22,7 +22,10 @@ import {
 import {
   serverApi, rconApi, playersApi, panelBridgeApi, backupApi, configApi, serversApi, debugApi,
   panelUpdateApi, modsApi, schedulerApi, ServerInstance, PanelUpdateStatus, ComposedServerStatus,
+  MountDiscoveryCandidate,
 } from '@/lib/api'
+import { useRuntimeInfo } from '@/hooks/useRuntimeInfo'
+import { resolveRegisteredTranslation } from '@/lib/paramTranslation'
 import { formatUptime } from '@/lib/utils'
 import { resolveClientProvider, deriveDashboardStatus, waitForServerState } from '@/lib/serverStatus'
 import { useSocket } from '@/contexts/SocketContext'
@@ -87,6 +90,16 @@ interface PerformancePoint {
 
 const DashboardPerformanceCharts = lazy(() => import('@/components/DashboardPerformanceCharts'))
 const DASHBOARD_ONBOARDING_DISMISSED_KEY = 'pz-dashboard-onboarding-dismissed-v1'
+
+// docker-unraid-add-server-experience (2026-09-09): new Quick-Start copy
+// below ships via this fallback rather than new locale JSON keys -- same
+// call as the sandbox range-override toggle and tonight's other new copy
+// (a key registered in NO locale always resolves to English for everyone,
+// so localeParity.test.ts's 9-locale key-SET parity has nothing to be out
+// of parity about).
+function dashboardFallback(key: string, fallback: string): string {
+  return resolveRegisteredTranslation('dashboard', key, undefined) ?? fallback
+}
 // Stores the exact lastError STRING that was dismissed, not a boolean --
 // so dismissing "cannot reach GitHub" (the common air-gapped-install case)
 // does not also silence a completely different failure that shows up later
@@ -241,7 +254,18 @@ function ConnLine({
 
 export default function Dashboard() {
   const { t, i18n } = useTranslation('dashboard')
+  const runtimeInfo = useRuntimeInfo()
   /* ---------------------------- state ------------------------------------- */
+  // docker-unraid-add-server-experience, Q1 routing fix (2026-09-09, god):
+  // the Quick-Start card's visually-primary button used to send a Docker/
+  // Unraid user with existing files straight to /server-setup (the
+  // steamcmd-install wizard, no discovery attempted at all) -- the exact
+  // user this workstream targets got the wrong default action. Discovery
+  // already runs unconditionally on Servers.tsx's mount; running the same
+  // cheap call here lets the Quick-Start card route around that dead end
+  // instead of just describing it. See the Quick-Start section's render
+  // logic below for what candidates.length does to the card.
+  const [discoveryCandidates, setDiscoveryCandidates] = useState<MountDiscoveryCandidate[]>([])
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [composedStatus, setComposedStatus] = useState<ComposedServerStatus | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
@@ -345,6 +369,16 @@ export default function Dashboard() {
   /* ---------------------------- effects ----------------------------------- */
   useEffect(() => { initialLoadingRef.current = initialLoading }, [initialLoading])
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 10000); return () => clearInterval(t) }, [])
+  // Q1 routing fix (see discoveryCandidates' own comment above): only
+  // relevant with no active server. Fires once on mount (activeServer
+  // starts null) and again only if activeServer flips server->null, never
+  // re-fires null->null -- no extra cost once a server exists.
+  useEffect(() => {
+    if (activeServer) return
+    serversApi.discoverMounts()
+      .then((data) => setDiscoveryCandidates(data.candidates || []))
+      .catch(() => { /* Quick-Start card just falls back to its default copy. */ })
+  }, [activeServer])
 
   useEffect(() => {
     let cancelled = false
@@ -898,6 +932,14 @@ export default function Dashboard() {
 
   /* ---------------------------- derived ----------------------------------- */
   const hasServer = !!activeServer
+  // Angela's mechanical rule (2026-09-09 bar broadcast, rule 3): exactly one
+  // confident match means AUTO-USE it, not a picker -- reserve a picker for
+  // genuine ambiguity (2+ ready, or nothing ready but several worth a
+  // human's judgment call). The Quick-Start card only needs the boolean
+  // "did we find exactly one" -- Servers.tsx (already shipped, 3cf1b5e6)
+  // owns actually rendering and disambiguating the full candidate list.
+  const readyCandidates = discoveryCandidates.filter((c) => c.status === 'ready')
+  const isContainerized = runtimeInfo?.serviceManager === 'container'
   // GH#114: status.running is a local process scan -- it can only ever see a
   // process in *this* container/host. That's a valid, freshest signal for a
   // native server, but for docker-local/docker-managed the mapped process
@@ -1627,35 +1669,72 @@ export default function Dashboard() {
             <X className="h-3.5 w-3.5" />
           </button>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/85">{t('quickStart.eyebrow')}</p>
-          <h2 className="mt-1 text-lg font-semibold leading-tight text-foreground">
-            {t('quickStart.heading')}
-          </h2>
-          <ol className="mt-4 grid gap-2 list-none p-0 md:grid-cols-3">
-            {[
-              ['1', t('quickStart.step1Title'), t('quickStart.step1Desc')],
-              ['2', t('quickStart.step2Title'), t('quickStart.step2Desc')],
-              ['3', t('quickStart.step3Title'), t('quickStart.step3Desc')],
-            ].map(([n, title, body]) => (
-              <li key={n} className="rounded-md border border-border/50 bg-background/40 p-3">
-                <p className="text-sm font-semibold text-foreground">
-                  <span className="me-1.5 inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold bg-primary/15 text-primary" aria-hidden="true">{n}</span>
-                  {title}
-                </p>
-                <p className="mt-1 ps-[1.4rem] text-xs leading-5 text-muted-foreground">{body}</p>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/server-setup" className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <Server className="h-3.5 w-3.5" /> {t('quickStart.installNewServer')}
-            </Link>
-            <Link to="/servers" className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <FolderOpen className="h-3.5 w-3.5" /> {t('quickStart.addExistingServer')}
-            </Link>
-            <Link to="/servers" className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
-              <Globe className="h-3.5 w-3.5" /> {t('quickStart.addRemoteServer')}
-            </Link>
-          </div>
+          {readyCandidates.length === 1 ? (
+            // Exactly one confident match: rule 3, don't make them choose --
+            // and rule 1, don't ask a question ("which setup path?") they
+            // have no way to answer when we already know. Replaces the
+            // generic 3-step/3-button layout entirely (rule 6, one decision
+            // per screen) with a single, specific next action.
+            <>
+              <h2 className="mt-1 text-lg font-semibold leading-tight text-foreground">
+                {dashboardFallback('quickStart.foundHeading', 'We found an existing Project Zomboid server')}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                <code className="font-mono text-xs">{readyCandidates[0].installPath}</code>
+                {' — '}
+                {dashboardFallback('quickStart.foundDesc', 'ready to add with its RCON settings already read from its own config.')}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/servers" className={cn(buttonVariants({ variant: 'default', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
+                  <FolderOpen className="h-3.5 w-3.5" /> {dashboardFallback('quickStart.reviewAndConnect', 'Review & Connect')}
+                </Link>
+                <Link to="/server-setup" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
+                  {dashboardFallback('quickStart.setUpDifferently', 'Set up differently instead')}
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="mt-1 text-lg font-semibold leading-tight text-foreground">
+                {t('quickStart.heading')}
+              </h2>
+              <ol className="mt-4 grid gap-2 list-none p-0 md:grid-cols-3">
+                {[
+                  ['1', t('quickStart.step1Title'), t('quickStart.step1Desc')],
+                  ['2', t('quickStart.step2Title'), t('quickStart.step2Desc')],
+                  ['3', t('quickStart.step3Title'), t('quickStart.step3Desc')],
+                ].map(([n, title, body]) => (
+                  <li key={n} className="rounded-md border border-border/50 bg-background/40 p-3">
+                    <p className="text-sm font-semibold text-foreground">
+                      <span className="me-1.5 inline-flex h-4 w-4 items-center justify-center rounded text-[10px] font-bold bg-primary/15 text-primary" aria-hidden="true">{n}</span>
+                      {title}
+                    </p>
+                    <p className="mt-1 ps-[1.4rem] text-xs leading-5 text-muted-foreground">{body}</p>
+                  </li>
+                ))}
+              </ol>
+              {/* Q1 routing fix (2026-09-09, god): the default action must
+                  match the target user. A containerized deployment (Docker/
+                  Unraid) overwhelmingly means existing files bind-mounted
+                  in, not "download PZ via SteamCMD inside this container" --
+                  swap which button is visually primary so the button most
+                  new Docker/Unraid users actually need is the one that
+                  looks like the default choice, instead of always defaulting
+                  to the bare-metal-fresh-install assumption regardless of
+                  where the panel is actually running. */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link to="/server-setup" className={cn(buttonVariants({ variant: isContainerized ? 'outline' : 'default', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
+                  <Server className="h-3.5 w-3.5" /> {t('quickStart.installNewServer')}
+                </Link>
+                <Link to="/servers" className={cn(buttonVariants({ variant: isContainerized ? 'default' : 'outline', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
+                  <FolderOpen className="h-3.5 w-3.5" /> {t('quickStart.addExistingServer')}
+                </Link>
+                <Link to="/servers" className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'h-8 gap-1.5 text-xs')}>
+                  <Globe className="h-3.5 w-3.5" /> {t('quickStart.addRemoteServer')}
+                </Link>
+              </div>
+            </>
+          )}
         </section>
       )}
 
