@@ -54,6 +54,7 @@ vi.mock("../utils/containerMountInfo.js", async () => {
 });
 
 const { default: router } = await import("../routes/server.js");
+const { setSetting } = await import("../database/init.js");
 
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
@@ -165,5 +166,23 @@ describe("POST /quick-setup: host-vs-container path translation", () => {
     expect(response.json).toHaveBeenCalledWith(
       expect.objectContaining({ success: true, pathTranslatedFrom: null }),
     );
+  });
+
+  // docker-unraid-onboarding, 2026-09-09: this route hardcoded
+  // setSetting("rconHost", "127.0.0.1") unconditionally even after
+  // discovery.js's create-from-discovery got RCON_HOST-aware -- a fresh
+  // quick-setup on the exact two-container Unraid topology the other route
+  // was fixed for still wrote an address that could never connect.
+  it("resolves rconHost from RCON_HOST for the two-container Unraid topology, not a hardcoded 127.0.0.1", async () => {
+    vi.stubEnv("RCON_HOST", "projectzomboid");
+
+    const response = createResponse();
+    await handler(
+      fakeReq(baseBody({ rconPassword: "brand-new-secret" })),
+      response,
+    );
+
+    expect(setSetting).toHaveBeenCalledWith("rconHost", "projectzomboid");
+    vi.unstubAllEnvs();
   });
 });

@@ -26,7 +26,7 @@ vi.mock("../routes/chunks.js", () => ({
 }));
 
 const { default: router, applyUpnpToIni } = await import("../routes/server.js");
-const { getActiveServer } = await import("../database/init.js");
+const { getActiveServer, setSetting } = await import("../database/init.js");
 
 function getHandler(routePath) {
   const layer = router.stack.find(
@@ -89,6 +89,25 @@ describe("POST /configure-rcon leaves a free-text RCONPassword=/RCONPort= collis
     expect(content).toContain("RCONPort=27020");
     expect(content.match(/^RCONPassword=/gm)).toHaveLength(1);
     expect(content.match(/^RCONPort=/gm)).toHaveLength(1);
+  });
+
+  // docker-unraid-onboarding, 2026-09-09: this route hardcoded
+  // setSetting("rconHost", "127.0.0.1") unconditionally even after
+  // discovery.js's create-from-discovery got RCON_HOST-aware -- a manual
+  // RCON reconfigure on the exact two-container Unraid topology the other
+  // route was fixed for still wrote an address that could never connect.
+  it("resolves rconHost from RCON_HOST for the two-container Unraid topology, not a hardcoded 127.0.0.1", async () => {
+    vi.stubEnv("RCON_HOST", "projectzomboid");
+    const handler = getHandler("/configure-rcon");
+    const response = createResponse();
+
+    await handler(
+      fakeReq({ rconPassword: "brand-new-secret", rconPort: 27020 }),
+      response,
+    );
+
+    expect(setSetting).toHaveBeenCalledWith("rconHost", "projectzomboid");
+    vi.unstubAllEnvs();
   });
 });
 

@@ -104,6 +104,28 @@ export function normalizeRconHost(host) {
   return host.trim() || "127.0.0.1";
 }
 
+// docker-unraid-onboarding, 2026-09-09: the panel and PZ are usually
+// co-located (same container, or PZ native on the same host), where
+// 127.0.0.1 is correct -- but the project's own docker/unraid/
+// zomboid-panel.xml documents a second, equally real topology: the panel
+// and PZ in TWO SEPARATE containers sharing only the bind-mounted
+// install/data volumes, reachable over the Docker network -- and that
+// template's own RCON_HOST field says, verbatim, "Never use 127.0.0.1."
+// Originated in discovery.js's create-from-discovery (Dwight); shared here
+// so every route that writes a freshly-configured server's rconHost --
+// install, quick-setup, configure-rcon, discovery -- resolves it the same
+// way instead of each hardcoding 127.0.0.1 and silently regressing on this
+// topology one call site at a time (server.js:3114/3626/3809, found after
+// discovery.js shipped this fix without checking for siblings).
+// "CHANGE_ME" is the template's own literal default for a REQUIRED field --
+// guarded explicitly in case an Unraid version ever lets a required field
+// deploy unedited, so a profile is never created pointed at a host
+// literally named "CHANGE_ME".
+export function resolveEnvRconHost() {
+  const envHost = String(process.env.RCON_HOST || "").trim();
+  return envHost && envHost !== "CHANGE_ME" ? envHost : "127.0.0.1";
+}
+
 function parseConfiguredRconPort(value) {
   if (
     value === undefined ||

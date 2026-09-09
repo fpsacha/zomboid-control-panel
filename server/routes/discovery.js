@@ -6,7 +6,7 @@ import path from "path";
 import { createLogger } from "../utils/logger.js";
 const log = createLogger("API:Discovery");
 import { sanitizeError, sanitizeServerResponse } from "../utils/sanitize.js";
-import { normalizeRconHost } from "../services/rcon.js";
+import { normalizeRconHost, resolveEnvRconHost } from "../services/rcon.js";
 import { createServer } from "../database/init.js";
 import { requirePermission } from "../services/permissions.js";
 import {
@@ -152,26 +152,10 @@ router.post("/create-from-discovery", requirePermission("servers.discover"), asy
     }
 
     // docker-unraid-onboarding, 2026-09-09: found by Dwight tracing this
-    // route end to end. This USED to always hardcode 127.0.0.1 -- correct
-    // for the co-located, single-container topology (PZ and the panel in
-    // the same container, or PZ native on the same host), but the
-    // project's own docker/unraid/zomboid-panel.xml documents a SECOND,
-    // equally real topology: the panel and PZ in TWO SEPARATE containers
-    // sharing only the bind-mounted install/data volumes, reachable over
-    // the Docker network -- and that template's own RCON_HOST field says,
-    // verbatim, "Never use 127.0.0.1." Discovery finds the install, the
-    // data, the INI, and reads the real RCON port/password out of it --
-    // then created a profile that could never connect, on the one field
-    // nothing else derives. rcon.js's own env fallback
-    // (`process.env.RCON_HOST || "127.0.0.1"`) is the established
-    // convention for exactly this case; reused here rather than inventing
-    // a second one. "CHANGE_ME" is the template's own literal default for
-    // a REQUIRED field -- guarded explicitly in case an Unraid version
-    // ever lets a required field deploy unedited, so a profile is never
-    // created pointed at a host literally named "CHANGE_ME".
-    const envRconHost = String(process.env.RCON_HOST || "").trim();
-    const resolvedRconHost =
-      envRconHost && envRconHost !== "CHANGE_ME" ? envRconHost : "127.0.0.1";
+    // route end to end; the two-container-topology reasoning now lives in
+    // resolveEnvRconHost()'s own comment (rcon.js), shared with
+    // install/quick-setup/configure-rcon rather than duplicated per route.
+    const resolvedRconHost = resolveEnvRconHost();
 
     const server = await createServer({
       name: name || iniSettings.publicName || resolvedName,

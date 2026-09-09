@@ -197,6 +197,34 @@ describe("POST /api/server/install -- warnings array (finding #6) and watchdog m
     expect(payload.warnings).toEqual([]);
   });
 
+  // docker-unraid-onboarding, 2026-09-09: this route hardcoded
+  // setSetting("rconHost", "127.0.0.1") unconditionally even after
+  // discovery.js's create-from-discovery got RCON_HOST-aware -- a fresh
+  // install on the exact two-container Unraid topology the other route was
+  // fixed for still wrote an address that could never connect.
+  it("resolves rconHost from RCON_HOST for the two-container Unraid topology, not a hardcoded 127.0.0.1", async () => {
+    vi.stubEnv("RCON_HOST", "projectzomboid");
+    const fakeProc = new EventEmitter();
+    fakeProc.stdout = new EventEmitter();
+    fakeProc.stderr = new EventEmitter();
+    spawnMock.mockImplementation(() => {
+      queueMicrotask(() => fakeProc.emit("close", 0));
+      return fakeProc;
+    });
+
+    const { default: router } = await import("../routes/server.js");
+    const { io, completePromise } = fakeIoCapturingComplete();
+    const res = createResponse();
+    await getRouteHandler(router, "/install", "post")(
+      { body: baseBody(), app: { get: (k) => (k === "io" ? io : undefined) } },
+      res,
+    );
+
+    await completePromise;
+    expect(setSetting).toHaveBeenCalledWith("rconHost", "projectzomboid");
+    vi.unstubAllEnvs();
+  });
+
   // 2026-08-26 partial-failure-state hunt: these setSetting() calls were
   // bare awaits with nothing catching a throw, and this app's
   // process.on("unhandledRejection") handler (server/index.js) calls

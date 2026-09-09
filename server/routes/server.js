@@ -7,6 +7,7 @@ import fs from "fs";
 import os from "os";
 import crypto from "crypto";
 import { createLogger } from "../utils/logger.js";
+import { resolveEnvRconHost } from "../services/rcon.js";
 const log = createLogger("API:Server");
 import {
   logServerEvent,
@@ -872,17 +873,21 @@ export function formatDirectoryReadError(
 // config already treats it that way, floor 1, for the multi-server/remote
 // case) -- but every RCON call site IN THIS FILE and in config.js's
 // app-settings route is specifically the single legacy/locally-managed
-// server's own RCON target, never a remote one: /configure-rcon below
-// hardcodes rconHost to 127.0.0.1 on every save, and rcon.js's loadConfig()
-// documents the global rconHost/rconPort settings this route shares as the
-// "legacy" fallback used only when no active multi-server row exists. That
-// target is always this machine, so these specific call sites correctly
-// stay on BIND_PORT_MIN -- not because "RCON is bindable" as a category
-// (it isn't, and servers.js's remote RCON proves it), but because this
-// file's RCON fields happen to always target something local. Decide by
-// what a field actually points at, not by what it's called -- that
-// shortcut is what let a wrong comment stand in as a decision for two
-// audits in a row.
+// server's own RCON target: rconHost is resolveEnvRconHost()'s result
+// (rcon.js) -- 127.0.0.1 for the usual co-located case, or the
+// Docker-network address of a sibling container in the two-container
+// Unraid topology -- but in either case it is THE SERVER THIS ROUTE JUST
+// INSTALLED OR CONFIGURED, never an arbitrary third party the operator
+// points the panel at. rcon.js's own loadConfig() documents the global
+// rconHost/rconPort settings this route shares as the "legacy" fallback
+// used only when no active multi-server row exists. These specific call
+// sites correctly stay on BIND_PORT_MIN -- not because "RCON is bindable"
+// as a category (it isn't, and servers.js's remote RCON proves it), but
+// because this file's RCON port is always a port PZ itself was told to
+// listen on by an install/configure flow WE ran, never a pre-existing
+// destination handed to us. Decide by what a field actually points at, not
+// by what it's called -- that shortcut is what let a wrong comment stand
+// in as a decision for two audits in a row.
 export const BIND_PORT_MIN = 1024;
 export const BIND_PORT_MAX = 65535;
 export const GAME_PORT_MAX = BIND_PORT_MAX - 1;
@@ -3111,7 +3116,7 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
           try {
             await setSetting("rconPassword", rconPassword);
             await setSetting("rconPort", rconPort);
-            await setSetting("rconHost", "127.0.0.1");
+            await setSetting("rconHost", resolveEnvRconHost());
             io.emit("install:log", {
               type: "stdout",
               text: `RCON settings saved (port: ${rconPort})`,
@@ -3623,7 +3628,7 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
     if (rconPassword) {
       await setSetting("rconPassword", rconPassword);
       await setSetting("rconPort", safeRconPort);
-      await setSetting("rconHost", "127.0.0.1");
+      await setSetting("rconHost", resolveEnvRconHost());
 
       // Pre-create INI with RCON settings so PZ reads them on first boot
       try {
@@ -3806,7 +3811,7 @@ router.post("/configure-rcon", requirePermission("server.configure"), async (req
     // Also save to app settings
     await setSetting("rconPassword", rconPassword);
     await setSetting("rconPort", rconPort);
-    await setSetting("rconHost", "127.0.0.1");
+    await setSetting("rconHost", resolveEnvRconHost());
 
     log.info(`RCON configured in ${iniPath}`);
     res.json({
