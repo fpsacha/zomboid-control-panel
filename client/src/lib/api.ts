@@ -933,6 +933,10 @@ export interface ScheduleHistoryEntry {
   id: number;
   task_id: number | null;
   task_name: string;
+  // Set only for the two system-triggered restarts (Manual restart / Auto
+  // Restart) -- null for a real user-named scheduled task, which stays
+  // task_name verbatim (it's the user's own text, not ours to translate).
+  task_name_key?: "manualRestart" | "autoRestart" | null;
   command: string;
   success: number;
   message: string | null;
@@ -2473,8 +2477,13 @@ export const panelBridgeApi = {
       connection?: {
         healthy: boolean;
         canSendCommands: boolean;
-        summary: string;
-        issues: string[];
+        // {key, params, text} -- resolve via t(`bridge.diagnostics.${key}`,
+        // {ns: 'settings', ...params, defaultValue: text}), the same
+        // key+defaultValue convention as capabilities.<key>.label. See
+        // Settings.tsx's resolveBridgeDiagText() and Events.tsx's
+        // checkBridgeStatus().
+        summary: { key: string; params?: Record<string, string>; text: string };
+        issues: Array<{ key: string; params?: Record<string, string>; text: string }>;
         checks: {
           bridgePathConfigured: boolean;
           bridgePathExists: boolean;

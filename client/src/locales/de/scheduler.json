@@ -166,7 +166,11 @@
     "emptyDesc": "Ausführungen erscheinen hier.",
     "succeeded": "Abgeschlossen",
     "failed": "Fehlgeschlagen",
-    "duration": "Dauer: {{seconds}} s"
+    "duration": "Dauer: {{seconds}} s",
+    "systemTasks": {
+      "manualRestart": "Manueller Neustart",
+      "autoRestart": "Automatischer Neustart"
+    }
   },
   "cronHelp": {
     "title": "Hilfe zu Cron-Ausdrücken",

@@ -191,6 +191,10 @@
     "succeeded": "Completado",
     "failed": "Fallido",
     "duration": "Duración: {{seconds}} s",
+    "systemTasks": {
+      "manualRestart": "Reinicio manual",
+      "autoRestart": "Reinicio automático"
+    },
     "clearDialogDesc_many": "¿Seguro que quieres borrar TODO el historial de ejecución? Esto elimina cada ejecución registrada, no solo las {{count}} que se muestran aquí. Esta acción no se puede deshacer."
   },
   "cronHelp": {

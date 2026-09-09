@@ -44,8 +44,8 @@ vi.mock('@/lib/api', async () => {
         connection: {
           healthy: false,
           canSendCommands: false,
-          summary: 'Status file is stale (12s old) — is the PZ server running?',
-          issues: ['Status file is stale (12s old) — is the PZ server running?'],
+          summary: { key: 'statusFileStale', params: { age: '12s' }, text: 'Status file is stale (12s old) — is the PZ server running?' },
+          issues: [{ key: 'statusFileStale', params: { age: '12s' }, text: 'Status file is stale (12s old) — is the PZ server running?' }],
           checks: { bridgePathExists: true, bridgePathWritable: true, statusFilePresent: true, statusFresh: false },
         },
       }),

@@ -12,6 +12,10 @@
     "warning": "Efase chunk yo reyinisyalize zòn sa yo — konstriksyon, piyaj, ak zonbi ap pèdi. Sispann sèvè a anvan, epi kenbe kopi sovgad yo aktive."
   },
   "activePathDefaultLabel": "Chemen done sèvè aktif la",
+  "debugHints": {
+    "noSavesMultiplayerFound": "Nou chèche {{savesMultiplayerPath}} anndan dosye done a men nou pa jwenn li. Èske sèvè sa a te janm demare, oswa chemen done a ap pwente nan move kote?",
+    "savesFolderMissing": "Dosye sovgad ki rezoud la pa egziste sou disk la. Demare sèvè a yon fwa pou kreye li, oswa chwazi yon lòt chemen done."
+  },
   "save": {
     "title": "Sovgad",
     "placeholderLoading": "Ap chaje sovgad yo...",

@@ -302,6 +302,12 @@
     "publicStable": "Public (مستقر)",
     "currentBadge": "الحالي",
     "branchHintDefault": "اختر فرع Steam الذي تريد التنزيل منه",
+    "branchDescriptions": {
+      "public": "الإصدار المستقر الحالي. موصى به لمعظم الخوادم.",
+      "unstable": "فرع اختبار Build 42، بما في ذلك اللعب الجماعي. احتفظ بنسخة احتياطية من الحفظ وتوقع عدم توافق بعض التعديلات.",
+      "iwbums": "فرع اختبار تجريبي. احتفظ بنسخة احتياطية من الحفظ قبل التبديل.",
+      "legacy41": "فرع Build 41 القديم للعوالم والتعديلات الأقدم."
+    },
     "buildPrefix": "Build {{buildId}}",
     "updatedPrefix": "حُدِّث في {{date}}",
     "progressLabel": "التقدم",

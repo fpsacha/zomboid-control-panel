@@ -12,6 +12,10 @@
     "warning": "删除区块会重置这些区域——建筑、战利品和丧尸都将丢失。请先停止服务器，并保持备份功能启用。"
   },
   "activePathDefaultLabel": "当前服务器数据路径",
+  "debugHints": {
+    "noSavesMultiplayerFound": "在数据文件夹中查找了 {{savesMultiplayerPath}}，但未找到。此服务器是否曾经启动过，或者数据路径是否指向了错误的位置？",
+    "savesFolderMissing": "解析出的存档文件夹在磁盘上不存在。启动一次服务器以创建它，或选择其他数据路径。"
+  },
   "save": {
     "title": "存档",
     "placeholderLoading": "正在加载存档……",

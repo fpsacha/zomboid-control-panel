@@ -12,6 +12,10 @@
     "warning": "刪除區塊會重設這些區域——建築、戰利品和殭屍都將遺失。請先停止伺服器，並保持備份功能啟用。"
   },
   "activePathDefaultLabel": "當前伺服器資料路徑",
+  "debugHints": {
+    "noSavesMultiplayerFound": "在資料夾中尋找 {{savesMultiplayerPath}}，但未找到。這個伺服器是否曾經啟動過，或是資料路徑指向了錯誤的位置？",
+    "savesFolderMissing": "解析出的存檔資料夾在磁碟上不存在。啟動一次伺服器以建立它，或選擇其他資料路徑。"
+  },
   "save": {
     "title": "存檔",
     "placeholderLoading": "正在載入存檔……",

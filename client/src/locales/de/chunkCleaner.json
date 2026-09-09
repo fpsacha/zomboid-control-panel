@@ -12,6 +12,10 @@
     "warning": "Das Löschen von Chunks entfernt diese Bereiche unwiderruflich — Bauten, Loot und Zombies gehen dabei verloren. Stoppe zuerst den Server und lass Backups aktiviert."
   },
   "activePathDefaultLabel": "Aktiver Datenpfad des Servers",
+  "debugHints": {
+    "noSavesMultiplayerFound": "Es wurde nach {{savesMultiplayerPath}} im Datenordner gesucht, aber nicht gefunden. Wurde dieser Server jemals gestartet, oder zeigt der Datenpfad auf den falschen Ort?",
+    "savesFolderMissing": "Der ermittelte Speicherstand-Ordner existiert nicht auf der Festplatte. Starte den Server einmal, um ihn zu erstellen, oder wähle einen anderen Datenpfad."
+  },
   "save": {
     "title": "Spielstand",
     "placeholderLoading": "Spielstände werden geladen...",

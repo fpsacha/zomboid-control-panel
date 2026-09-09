@@ -166,7 +166,11 @@
     "emptyDesc": "Egzekisyon yo ap parèt isit la.",
     "succeeded": "Reyisi",
     "failed": "Echwe",
-    "duration": "Dire: {{seconds}}s"
+    "duration": "Dire: {{seconds}}s",
+    "systemTasks": {
+      "manualRestart": "Redemare manyèl",
+      "autoRestart": "Redemare otomatik"
+    }
   },
   "cronHelp": {
     "title": "Èd Ekspresyon Cron",

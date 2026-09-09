@@ -288,6 +288,12 @@
     "publicStable": "公共版（稳定）",
     "currentBadge": "当前",
     "branchHintDefault": "选择要下载的 Steam 分支",
+    "branchDescriptions": {
+      "public": "当前稳定版本。推荐大多数服务器使用。",
+      "unstable": "Build 42 测试分支，包含多人游戏。请备份存档并预期会有模组不兼容的情况。",
+      "iwbums": "实验性测试分支。切换前请备份存档。",
+      "legacy41": "用于旧世界和旧模组的传统 Build 41 分支。"
+    },
     "buildPrefix": "构建版本 {{buildId}}",
     "updatedPrefix": "更新于 {{date}}",
     "progressLabel": "进度",

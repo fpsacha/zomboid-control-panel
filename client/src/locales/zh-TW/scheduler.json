@@ -187,7 +187,11 @@
     "emptyDesc": "執行記錄將顯示在此處。",
     "succeeded": "成功",
     "failed": "失敗",
-    "duration": "耗時：{{seconds}} 秒"
+    "duration": "耗時：{{seconds}} 秒",
+    "systemTasks": {
+      "manualRestart": "手動重新啟動",
+      "autoRestart": "自動重新啟動"
+    }
   },
   "cronHelp": {
     "title": "Cron 表示式幫助",

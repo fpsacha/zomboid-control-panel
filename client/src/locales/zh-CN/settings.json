@@ -410,6 +410,18 @@
     "fileWatcherActive": "活动中",
     "fileWatcherPollingOnly": "仅轮询",
     "pendingLabel": "待处理：",
+    "diagnostics": {
+      "notConfigured": "未配置桥接路径。",
+      "directoryMissing": "桥接目录尚不存在。",
+      "directoryCheckFailed": "桥接目录检查失败：{{error}}",
+      "directoryNotReadable": "桥接目录不可读：{{error}}",
+      "directoryNotWritable": "桥接目录不可写：{{error}}",
+      "fileNotReadable": "{{filename}} 不可读：{{error}}",
+      "statusFileMissing": "状态文件缺失。请启用 PanelBridge 并启动游戏服务器。",
+      "statusFileStale": "状态文件已过期（{{age}}前）— PZ 服务器是否正在运行？",
+      "statusFileMetadataFailed": "无法读取状态文件的元数据：{{error}}",
+      "healthy": "桥接文件连接看起来正常。"
+    },
     "errorTitle": "PanelBridge 错误",
     "stopBridge": "停止 Bridge",
     "pinging": "正在 Ping…",

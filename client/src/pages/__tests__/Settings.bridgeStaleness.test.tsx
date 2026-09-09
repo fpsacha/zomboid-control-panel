@@ -28,7 +28,7 @@ const baseStatus = {
   connection: {
     healthy: true,
     canSendCommands: true,
-    summary: 'ok',
+    summary: { key: 'healthy', text: 'Bridge file connection looks healthy.' },
     issues: [],
     checks: {},
   },

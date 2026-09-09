@@ -410,6 +410,18 @@
     "fileWatcherActive": "活動中",
     "fileWatcherPollingOnly": "僅輪詢",
     "pendingLabel": "待處理：",
+    "diagnostics": {
+      "notConfigured": "尚未設定橋接路徑。",
+      "directoryMissing": "橋接目錄尚不存在。",
+      "directoryCheckFailed": "橋接目錄檢查失敗：{{error}}",
+      "directoryNotReadable": "橋接目錄無法讀取：{{error}}",
+      "directoryNotWritable": "橋接目錄無法寫入：{{error}}",
+      "fileNotReadable": "{{filename}} 無法讀取：{{error}}",
+      "statusFileMissing": "狀態檔案遺失。請啟用 PanelBridge 並啟動遊戲伺服器。",
+      "statusFileStale": "狀態檔案已過期（{{age}}前）— PZ 伺服器是否正在執行？",
+      "statusFileMetadataFailed": "無法讀取狀態檔案的中繼資料：{{error}}",
+      "healthy": "橋接檔案連線看起來正常。"
+    },
     "errorTitle": "PanelBridge 錯誤",
     "stopBridge": "停止 Bridge",
     "pinging": "正在 Ping…",

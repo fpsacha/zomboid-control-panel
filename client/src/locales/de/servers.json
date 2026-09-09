@@ -288,6 +288,12 @@
     "publicStable": "Public (Stabil)",
     "currentBadge": "aktuell",
     "branchHintDefault": "Wähle den Steam-Branch aus, von dem heruntergeladen werden soll",
+    "branchDescriptions": {
+      "public": "Aktuelle stabile Version. Empfohlen für die meisten Server.",
+      "unstable": "Build-42-Testzweig, einschließlich Mehrspieler. Sichere deine Spielstände und rechne mit Mod-Inkompatibilitäten.",
+      "iwbums": "Experimenteller Testzweig. Sichere deine Spielstände vor dem Wechsel.",
+      "legacy41": "Alter Build-41-Zweig für ältere Welten und Mods."
+    },
     "buildPrefix": "Build {{buildId}}",
     "updatedPrefix": "Aktualisiert am {{date}}",
     "progressLabel": "Fortschritt",

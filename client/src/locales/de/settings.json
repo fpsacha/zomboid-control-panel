@@ -410,6 +410,18 @@
     "fileWatcherActive": "Aktiv",
     "fileWatcherPollingOnly": "Nur Polling",
     "pendingLabel": "Ausstehend:",
+    "diagnostics": {
+      "notConfigured": "Der Bridge-Pfad ist nicht konfiguriert.",
+      "directoryMissing": "Das Bridge-Verzeichnis existiert noch nicht.",
+      "directoryCheckFailed": "Prüfung des Bridge-Verzeichnisses fehlgeschlagen: {{error}}",
+      "directoryNotReadable": "Das Bridge-Verzeichnis ist nicht lesbar: {{error}}",
+      "directoryNotWritable": "In das Bridge-Verzeichnis kann nicht geschrieben werden: {{error}}",
+      "fileNotReadable": "{{filename}} ist nicht lesbar: {{error}}",
+      "statusFileMissing": "Statusdatei fehlt. Starte den Spielserver mit aktiviertem PanelBridge.",
+      "statusFileStale": "Statusdatei ist veraltet ({{age}}) — läuft der PZ-Server?",
+      "statusFileMetadataFailed": "Metadaten der Statusdatei konnten nicht gelesen werden: {{error}}",
+      "healthy": "Die Bridge-Dateiverbindung sieht gesund aus."
+    },
     "errorTitle": "PanelBridge-Fehler",
     "stopBridge": "Brücke stoppen",
     "pinging": "Wird gepingt...",

@@ -358,6 +358,18 @@
     "fileWatcherActive": "Aktif",
     "fileWatcherPollingOnly": "Sondaj sèlman",
     "pendingLabel": "An atant:",
+    "diagnostics": {
+      "notConfigured": "Chemen bridge la pa konfigire.",
+      "directoryMissing": "Dosye bridge la poko egziste.",
+      "directoryCheckFailed": "Verifikasyon dosye bridge echwe: {{error}}",
+      "directoryNotReadable": "Dosye bridge la pa ka li: {{error}}",
+      "directoryNotWritable": "Dosye bridge la pa ka ekri: {{error}}",
+      "fileNotReadable": "{{filename}} pa ka li: {{error}}",
+      "statusFileMissing": "Fichye estati a manke. Demare sèvè jwèt la ak PanelBridge aktive.",
+      "statusFileStale": "Fichye estati a demode ({{age}}) — èske sèvè PZ a ap kouri?",
+      "statusFileMetadataFailed": "Pa t ka li metadone fichye estati a: {{error}}",
+      "healthy": "Koneksyon fichye bridge la sanble an sante."
+    },
     "errorTitle": "Erè Panel Bridge",
     "statusFetchFailedFallback": "Pa t kapab jwenn pwen final estati pon an.",
     "stopBridge": "Sispann Pon",

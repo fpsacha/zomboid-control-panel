@@ -410,6 +410,18 @@
     "fileWatcherActive": "Actif",
     "fileWatcherPollingOnly": "Sondage uniquement",
     "pendingLabel": "En attente :",
+    "diagnostics": {
+      "notConfigured": "Le chemin du bridge n'est pas configuré.",
+      "directoryMissing": "Le dossier du bridge n'existe pas encore.",
+      "directoryCheckFailed": "Échec de la vérification du dossier du bridge : {{error}}",
+      "directoryNotReadable": "Le dossier du bridge n'est pas lisible : {{error}}",
+      "directoryNotWritable": "Le dossier du bridge n'est pas accessible en écriture : {{error}}",
+      "fileNotReadable": "{{filename}} n'est pas lisible : {{error}}",
+      "statusFileMissing": "Le fichier de statut est manquant. Démarrez le serveur PZ avec PanelBridge activé.",
+      "statusFileStale": "Le fichier de statut est obsolète ({{age}}) — le serveur PZ est-il en cours d'exécution ?",
+      "statusFileMetadataFailed": "Impossible de lire les métadonnées du fichier de statut : {{error}}",
+      "healthy": "La connexion au fichier du bridge semble saine."
+    },
     "errorTitle": "Erreur Panel Bridge",
     "stopBridge": "Arrêter le bridge",
     "pinging": "Ping...",

@@ -358,6 +358,18 @@
     "fileWatcherActive": "Active",
     "fileWatcherPollingOnly": "Polling only",
     "pendingLabel": "Pending:",
+    "diagnostics": {
+      "notConfigured": "Bridge path is not configured.",
+      "directoryMissing": "Bridge directory does not exist yet.",
+      "directoryCheckFailed": "Bridge directory check failed: {{error}}",
+      "directoryNotReadable": "Bridge directory is not readable: {{error}}",
+      "directoryNotWritable": "Bridge directory is not writable: {{error}}",
+      "fileNotReadable": "{{filename}} is not readable: {{error}}",
+      "statusFileMissing": "Status file is missing. Start the game server with PanelBridge enabled.",
+      "statusFileStale": "Status file is stale ({{age}} old) — is the PZ server running?",
+      "statusFileMetadataFailed": "Could not read status file metadata: {{error}}",
+      "healthy": "Bridge file connection looks healthy."
+    },
     "errorTitle": "Panel Bridge Error",
     "statusFetchFailedFallback": "Couldn't reach the bridge status endpoint.",
     "stopBridge": "Stop Bridge",

@@ -191,7 +191,11 @@
     "succeeded": "Réussi",
     "failed": "Échoué",
     "duration": "Durée : {{seconds}} s",
-    "clearDialogDesc_many": "Voulez-vous vraiment effacer TOUT l'historique d'exécution ? Cela supprime chaque exécution enregistrée, pas seulement les {{count}} affichées ici. Cette action est irréversible."
+    "clearDialogDesc_many": "Voulez-vous vraiment effacer TOUT l'historique d'exécution ? Cela supprime chaque exécution enregistrée, pas seulement les {{count}} affichées ici. Cette action est irréversible.",
+    "systemTasks": {
+      "manualRestart": "Redémarrage manuel",
+      "autoRestart": "Redémarrage automatique"
+    }
   },
   "cronHelp": {
     "title": "Aide sur les expressions cron",

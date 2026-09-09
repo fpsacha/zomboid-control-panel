@@ -2436,6 +2436,14 @@ router.post("/events/horde", requirePermission("players.endanger_or_impersonate"
 
 // Fallback branches if dynamic fetch fails
 // These are the known valid Steam branches for PZ Dedicated Server (App ID 380870)
+// `description` here is the client's fallback/default text only -- branch
+// picker (client/src/pages/Servers.tsx) resolves it through
+// t(`steamDialog.branchDescriptions.${name}`, {defaultValue: description}),
+// the same key+defaultValue convention as capabilities.<key>.label. `name`
+// is already the stable key, nothing new to add. Branches actually fetched
+// from Steam (source: "steam", parseSteamBranches() below) carry Valve's own
+// description text -- real dynamic data from a third party, not ours to
+// translate, so that path is deliberately left alone.
 const FALLBACK_BRANCHES = [
   { name: "public", description: "Current stable release. Recommended for most servers." },
   { name: "unstable", description: "Build 42 testing branch, including multiplayer. Back up saves and expect mod incompatibilities." },

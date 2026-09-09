@@ -420,6 +420,18 @@
     "fileWatcherActive": "نشط",
     "fileWatcherPollingOnly": "الاستقصاء فقط",
     "pendingLabel": "قيد الانتظار:",
+    "diagnostics": {
+      "notConfigured": "مسار الجسر غير مُهيأ.",
+      "directoryMissing": "دليل الجسر غير موجود بعد.",
+      "directoryCheckFailed": "فشل فحص دليل الجسر: {{error}}",
+      "directoryNotReadable": "دليل الجسر غير قابل للقراءة: {{error}}",
+      "directoryNotWritable": "دليل الجسر غير قابل للكتابة: {{error}}",
+      "fileNotReadable": "{{filename}} غير قابل للقراءة: {{error}}",
+      "statusFileMissing": "ملف الحالة مفقود. شغّل خادم اللعبة مع تفعيل PanelBridge.",
+      "statusFileStale": "ملف الحالة قديم ({{age}}) — هل خادم PZ قيد التشغيل؟",
+      "statusFileMetadataFailed": "تعذّرت قراءة بيانات ملف الحالة الوصفية: {{error}}",
+      "healthy": "يبدو اتصال ملف الجسر سليمًا."
+    },
     "errorTitle": "خطأ في Panel Bridge",
     "statusFetchFailedFallback": "تعذّر الوصول إلى نقطة نهاية حالة الجسر.",
     "stopBridge": "إيقاف الجسر",

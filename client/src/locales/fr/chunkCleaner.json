@@ -12,6 +12,10 @@
     "warning": "Supprimer des chunks réinitialise ces zones — constructions, butin et zombies seront perdus. Arrêtez d'abord le serveur et gardez les sauvegardes activées."
   },
   "activePathDefaultLabel": "Chemin de données du serveur actif",
+  "debugHints": {
+    "noSavesMultiplayerFound": "Recherche de {{savesMultiplayerPath}} dans le dossier de données, sans succès. Ce serveur a-t-il déjà été démarré, ou le chemin de données pointe-t-il au mauvais endroit ?",
+    "savesFolderMissing": "Le dossier de sauvegardes résolu n'existe pas sur le disque. Démarrez le serveur une fois pour le créer, ou choisissez un autre chemin de données."
+  },
   "save": {
     "title": "Monde",
     "placeholderLoading": "Chargement des mondes...",

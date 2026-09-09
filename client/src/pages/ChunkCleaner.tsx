@@ -389,6 +389,13 @@ export default function ChunkCleaner() {
     usedCustomPath?: boolean;
     autoPicked?: string | null;
     hint?: string | null;
+    // Set when `hint` is one of a small closed set of server-authored
+    // messages -- resolved via resolveDebugHint() below
+    // (t(`debugHints.${hintKey}`, {...hintParams, defaultValue: hint}),
+    // same key+defaultValue convention as capabilities.<key>.label). Absent
+    // (falls back to raw `hint`) for any hint text not yet given a key.
+    hintKey?: string | null;
+    hintParams?: Record<string, string> | null;
     attempted?: string[];
     suggestedPaths?: Array<{
       path: string;
@@ -411,6 +418,17 @@ export default function ChunkCleaner() {
   // Last loadSaves error message (kept so we can surface remediation hints in
   // the empty state instead of relying purely on transient toasts).
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Resolves a `debug` block's `hint` through its `hintKey`/`hintParams`
+  // (when set) via the same key+defaultValue convention as
+  // capabilities.<key>.label -- falls back to the raw English `hint` for a
+  // hint text with no key yet, or when `debug` itself is absent.
+  const resolveDebugHint = (debug: typeof debugInfo): string | null => {
+    if (!debug?.hint) return debug?.hint ?? null;
+    return debug.hintKey
+      ? t(`debugHints.${debug.hintKey}`, { ...(debug.hintParams ?? {}), defaultValue: debug.hint })
+      : debug.hint;
+  };
 
   // Canvas refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -562,7 +580,7 @@ export default function ChunkCleaner() {
           result.debug?.hint &&
           (!result.saves || result.saves.length === 0)
         ) {
-          setLoadError(result.debug.hint);
+          setLoadError(resolveDebugHint(result.debug));
         }
         return result.saves || [];
       } catch (error) {
@@ -2919,7 +2937,7 @@ export default function ChunkCleaner() {
                           {(debugInfo?.hint || loadError) && (
                             <p className="text-[11px] text-warning/90 pt-1 flex gap-1.5">
                               <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                              <span>{debugInfo?.hint || loadError}</span>
+                              <span>{resolveDebugHint(debugInfo) || loadError}</span>
                             </p>
                           )}
                           {/* Structured rejection diagnostics — show why the validator turned the path down. */}

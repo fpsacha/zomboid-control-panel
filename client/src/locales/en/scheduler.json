@@ -166,7 +166,11 @@
     "emptyDesc": "Executions will appear here.",
     "succeeded": "Succeeded",
     "failed": "Failed",
-    "duration": "Duration: {{seconds}}s"
+    "duration": "Duration: {{seconds}}s",
+    "systemTasks": {
+      "manualRestart": "Manual restart",
+      "autoRestart": "Auto Restart"
+    }
   },
   "cronHelp": {
     "title": "Cron Expression Help",

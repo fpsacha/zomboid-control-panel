@@ -1456,6 +1456,22 @@ export async function updateTaskLastRun(id) {
 // Schedule History
 // ============================================
 
+// task_name is overloaded: for a real scheduled task it's whatever the user
+// typed (correctly left untranslated, it's their content) -- but for the two
+// system-triggered restarts (server/routes/server.js, server/routes/
+// scheduler.js's Restart Now, and services/scheduler.js's own Auto Restart
+// default) it's always one of these two closed, hardcoded English labels.
+// Mapping THOSE specific literal values here, in the one place every
+// call site already funnels through, translates them for free without
+// touching any of the three producers -- see client/src/pages/Scheduler.tsx's
+// executionHistory render, which resolves task_name_key via i18next
+// (defaultValue: task_name) when set and falls back to the raw task_name
+// otherwise, the same key+defaultValue convention as capabilities.<key>.label.
+const SYSTEM_TASK_NAME_KEYS = {
+  "Manual restart": "manualRestart",
+  "Auto Restart": "autoRestart",
+};
+
 export async function logScheduleExecution(
   taskId,
   taskName,
@@ -1471,6 +1487,7 @@ export async function logScheduleExecution(
     id: generateId(),
     task_id: taskId,
     task_name: taskName,
+    task_name_key: SYSTEM_TASK_NAME_KEYS[taskName] ?? null,
     command,
     success: success ? 1 : 0,
     message,

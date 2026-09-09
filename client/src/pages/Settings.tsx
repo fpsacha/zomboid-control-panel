@@ -474,8 +474,11 @@ export default function Settings() {
     connection?: {
       healthy: boolean;
       canSendCommands: boolean;
-      summary: string;
-      issues: string[];
+      // {key, params, text} -- resolveBridgeDiagText() below translates via
+      // t(`bridge.diagnostics.${key}`, {...params, defaultValue: text}),
+      // same key+defaultValue convention as capabilities.<key>.label.
+      summary: { key: string; params?: Record<string, string>; text: string };
+      issues: Array<{ key: string; params?: Record<string, string>; text: string }>;
       checks: Record<string, boolean | number | null>;
     };
     statusFile?: {
@@ -520,6 +523,14 @@ export default function Settings() {
   } | null>(null);
   const [bridgeLoading, setBridgeLoading] = useState(false);
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  // Resolves a getConnectionDiagnostics() summary/issue entry through its
+  // key+params via i18next, falling back to the server's own English text
+  // when no translation entry exists for that key yet -- same
+  // key+defaultValue convention as capabilities.<key>.label.
+  const resolveBridgeDiagText = (
+    entry: { key: string; params?: Record<string, string>; text: string } | undefined,
+  ): string | undefined =>
+    entry ? t(`bridge.diagnostics.${entry.key}`, { ...(entry.params ?? {}), defaultValue: entry.text }) : undefined;
   const [pinging, setPinging] = useState(false);
   const [manualBridgePath, setManualBridgePath] = useState("");
   const [testingSftp, setTestingSftp] = useState(false);
@@ -4156,7 +4167,7 @@ export default function Settings() {
                       running={bridgeStatus.isRunning}
                       loading={bridgeLoading}
                       bridgePath={bridgeStatus.bridgePath}
-                      summary={bridgeStatus.connection?.summary}
+                      summary={resolveBridgeDiagText(bridgeStatus.connection?.summary)}
                       interactive={false}
                     />
                   )}
@@ -4371,7 +4382,7 @@ export default function Settings() {
                       <div className="p-3 space-y-3">
                         {/* Summary */}
                         <p className="text-xs text-muted-foreground">
-                          {bridgeStatus.connection.summary}
+                          {resolveBridgeDiagText(bridgeStatus.connection.summary)}
                         </p>
 
                         {/* Issues list */}
@@ -4379,13 +4390,13 @@ export default function Settings() {
                           bridgeStatus.connection.issues.length > 0 && (
                             <div className="space-y-1">
                               {bridgeStatus.connection.issues.map(
-                                (issue: string, i: number) => (
+                                (issue, i: number) => (
                                   <div
                                     key={i}
                                     className="flex items-start gap-1.5 text-xs text-destructive"
                                   >
                                     <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-                                    <span>{issue}</span>
+                                    <span>{resolveBridgeDiagText(issue)}</span>
                                   </div>
                                 ),
                               )}

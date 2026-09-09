@@ -416,6 +416,18 @@
     "fileWatcherActive": "Активний",
     "fileWatcherPollingOnly": "Лише опитування",
     "pendingLabel": "В очікуванні:",
+    "diagnostics": {
+      "notConfigured": "Шлях до містка не налаштовано.",
+      "directoryMissing": "Каталог містка ще не існує.",
+      "directoryCheckFailed": "Помилка перевірки каталогу містка: {{error}}",
+      "directoryNotReadable": "Каталог містка недоступний для читання: {{error}}",
+      "directoryNotWritable": "Каталог містка недоступний для запису: {{error}}",
+      "fileNotReadable": "{{filename}} недоступний для читання: {{error}}",
+      "statusFileMissing": "Файл стану відсутній. Запустіть ігровий сервер з увімкненим PanelBridge.",
+      "statusFileStale": "Файл стану застарів ({{age}} тому) — чи запущено сервер PZ?",
+      "statusFileMetadataFailed": "Не вдалося прочитати метадані файлу стану: {{error}}",
+      "healthy": "З'єднання файлу містка виглядає справним."
+    },
     "errorTitle": "Помилка Panel Bridge",
     "statusFetchFailedFallback": "Не вдалося звернутися до кінцевої точки статусу моста.",
     "stopBridge": "Зупинити міст",

@@ -3450,7 +3450,7 @@ export default function Servers() {
                     <SelectItem key={b.name} value={b.name}>
                       <div className="flex flex-col">
                         <span className="capitalize">{b.name === 'public' ? t('steamDialog.publicStable') : b.name}</span>
-                        {b.description && <span className="text-xs text-muted-foreground">{b.description}</span>}
+                        {b.description && <span className="text-xs text-muted-foreground">{t(`steamDialog.branchDescriptions.${b.name}`, { defaultValue: b.description })}</span>}
                       </div>
                     </SelectItem>
                   ))}
@@ -3460,7 +3460,7 @@ export default function Servers() {
                 {(() => {
                   const selected = availableBranches.find(b => b.name === steamOperation?.branch)
                   if (!selected) return t('steamDialog.branchHintDefault')
-                  const details = [selected.description]
+                  const details = [t(`steamDialog.branchDescriptions.${selected.name}`, { defaultValue: selected.description })]
                   if (selected.buildId) details.push(t('steamDialog.buildPrefix', { buildId: selected.buildId }))
                   if (selected.timeUpdated) details.push(t('steamDialog.updatedPrefix', { date: new Date(selected.timeUpdated).toLocaleString(i18n.language) }))
                   return details.join(' - ')

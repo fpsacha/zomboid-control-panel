@@ -288,6 +288,12 @@
     "publicStable": "Public (Stable)",
     "currentBadge": "current",
     "branchHintDefault": "Select the Steam branch to download from",
+    "branchDescriptions": {
+      "public": "Current stable release. Recommended for most servers.",
+      "unstable": "Build 42 testing branch, including multiplayer. Back up saves and expect mod incompatibilities.",
+      "iwbums": "Experimental testing branch. Back up saves before switching.",
+      "legacy41": "Legacy Build 41 branch for older worlds and mods."
+    },
     "buildPrefix": "Build {{buildId}}",
     "updatedPrefix": "Updated {{date}}",
     "progressLabel": "Progress",

@@ -1320,7 +1320,19 @@ export default function Events() {
       const status = await panelBridgeApi.getStatus()
       if (!mountedRef.current) return
       setBridgeConnected(status.modConnected)
-      setBridgeConnectionSummary(status.connection?.summary || null)
+      // status.connection.summary is {key, params, text} -- resolve through
+      // i18next the same way Settings.tsx's resolveBridgeDiagText() does,
+      // reaching into settings.json's bridge.diagnostics tree (same
+      // cross-namespace {ns: 'settings'} pattern Backups.tsx already uses).
+      setBridgeConnectionSummary(
+        status.connection?.summary
+          ? t(`bridge.diagnostics.${status.connection.summary.key}`, {
+              ns: 'settings',
+              ...(status.connection.summary.params ?? {}),
+              defaultValue: status.connection.summary.text,
+            })
+          : null,
+      )
 
       // If connected, fetch secondary data in parallel
       if (status.modConnected) {

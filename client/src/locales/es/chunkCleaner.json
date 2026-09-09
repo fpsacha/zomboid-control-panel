@@ -12,6 +12,10 @@
     "warning": "Eliminar chunks restablece esas áreas — se perderán construcciones, botín y zombis. Detener primero el servidor y mantener las copias de seguridad activadas."
   },
   "activePathDefaultLabel": "Ruta de datos del servidor activo",
+  "debugHints": {
+    "noSavesMultiplayerFound": "Se buscó {{savesMultiplayerPath}} dentro de la carpeta de datos, pero no se encontró. ¿Se ha iniciado alguna vez este servidor, o la ruta de datos apunta al lugar equivocado?",
+    "savesFolderMissing": "La carpeta de partidas guardadas resuelta no existe en el disco. Inicia el servidor una vez para crearla, o elige una ruta de datos diferente."
+  },
   "save": {
     "title": "Partida guardada",
     "placeholderLoading": "Cargando partidas guardadas...",

@@ -166,7 +166,11 @@
     "emptyDesc": "执行记录将显示在此处。",
     "succeeded": "成功",
     "failed": "失败",
-    "duration": "耗时：{{seconds}} 秒"
+    "duration": "耗时：{{seconds}} 秒",
+    "systemTasks": {
+      "manualRestart": "手动重启",
+      "autoRestart": "自动重启"
+    }
   },
   "cronHelp": {
     "title": "Cron 表达式帮助",

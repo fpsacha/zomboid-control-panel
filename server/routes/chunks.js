@@ -580,6 +580,12 @@ router.get("/saves", requirePermission("chunks.manage"), async (req, res) => {
             hint:
               `Looked for ${path.join("Saves", "Multiplayer")} inside the data folder but didn't find it. ` +
               `Has this server ever been started, or is the data path pointing at the wrong place?`,
+            // Client (ChunkCleaner.tsx) resolves via
+            // t(`chunkCleaner.debugHints.${hintKey}`, {...hintParams,
+            // defaultValue: hint}) -- key+defaultValue, same convention as
+            // capabilities.<key>.label. `hint` stays the English fallback.
+            hintKey: "noSavesMultiplayerFound",
+            hintParams: { savesMultiplayerPath: path.join("Saves", "Multiplayer") },
             suggestedPaths: customPath ? [] : getCandidateZomboidPaths(),
           },
         });
@@ -599,6 +605,7 @@ router.get("/saves", requirePermission("chunks.manage"), async (req, res) => {
           usedCustomPath: Boolean(customPath),
           attempted,
           hint: `The resolved saves folder doesn't exist on disk. Start the server once to create it, or pick a different data path.`,
+          hintKey: "savesFolderMissing",
           suggestedPaths: customPath ? [] : getCandidateZomboidPaths(),
         },
       });

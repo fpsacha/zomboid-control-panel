@@ -288,6 +288,12 @@
     "publicStable": "Piblik (Stab)",
     "currentBadge": "aktyèl",
     "branchHintDefault": "Chwazi branch Steam pou telechaje soti ladan l",
+    "branchDescriptions": {
+      "public": "Vèsyon estab aktyèl la. Rekòmande pou pifò sèvè.",
+      "unstable": "Branch tès Build 42, ki gen ladan multijoueur. Fè sovgad pati ou yo epi tann enkonpatibilite mod.",
+      "iwbums": "Branch tès eksperimantal. Fè sovgad pati ou yo anvan ou chanje.",
+      "legacy41": "Ansyen branch Build 41 pou vye mond ak mod."
+    },
     "buildPrefix": "Build {{buildId}}",
     "updatedPrefix": "Mete ajou {{date}}",
     "progressLabel": "Pwogrè",

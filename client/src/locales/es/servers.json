@@ -289,6 +289,12 @@
     "publicStable": "Pública (estable)",
     "currentBadge": "actual",
     "branchHintDefault": "Selecciona la rama de Steam desde la que descargar",
+    "branchDescriptions": {
+      "public": "Versión estable actual. Recomendada para la mayoría de los servidores.",
+      "unstable": "Rama de pruebas Build 42, incluyendo multijugador. Haz una copia de seguridad de las partidas guardadas y espera incompatibilidades de mods.",
+      "iwbums": "Rama de pruebas experimental. Haz una copia de seguridad de las partidas guardadas antes de cambiar.",
+      "legacy41": "Rama heredada Build 41 para mundos y mods antiguos."
+    },
     "buildPrefix": "Build {{buildId}}",
     "updatedPrefix": "Actualizado el {{date}}",
     "progressLabel": "Progreso",

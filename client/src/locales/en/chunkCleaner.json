@@ -12,6 +12,10 @@
     "warning": "Deleting chunks resets those areas — constructions, loot, and zombies will be lost. Stop the server first and keep backups enabled."
   },
   "activePathDefaultLabel": "Active server data path",
+  "debugHints": {
+    "noSavesMultiplayerFound": "Looked for {{savesMultiplayerPath}} inside the data folder but didn't find it. Has this server ever been started, or is the data path pointing at the wrong place?",
+    "savesFolderMissing": "The resolved saves folder doesn't exist on disk. Start the server once to create it, or pick a different data path."
+  },
   "save": {
     "title": "Save",
     "placeholderLoading": "Loading saves...",

@@ -1901,7 +1901,11 @@ export default function Scheduler() {
                         )}
                         <span className="sr-only">{entry.success ? t('executionHistory.succeeded') : t('executionHistory.failed')}</span>
                         <div>
-                          <span className="font-medium">{entry.task_name}</span>
+                          <span className="font-medium">
+                            {entry.task_name_key
+                              ? t(`executionHistory.systemTasks.${entry.task_name_key}`, { defaultValue: entry.task_name })
+                              : entry.task_name}
+                          </span>
                           <code className="ms-2 text-xs bg-muted px-1.5 py-0.5 rounded">
                             {entry.command}
                           </code>

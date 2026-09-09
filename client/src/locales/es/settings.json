@@ -410,6 +410,18 @@
     "fileWatcherActive": "Activo",
     "fileWatcherPollingOnly": "Solo sondeo",
     "pendingLabel": "Pendiente:",
+    "diagnostics": {
+      "notConfigured": "La ruta del bridge no está configurada.",
+      "directoryMissing": "El directorio del bridge aún no existe.",
+      "directoryCheckFailed": "Error al comprobar el directorio del bridge: {{error}}",
+      "directoryNotReadable": "El directorio del bridge no se puede leer: {{error}}",
+      "directoryNotWritable": "No se puede escribir en el directorio del bridge: {{error}}",
+      "fileNotReadable": "No se puede leer {{filename}}: {{error}}",
+      "statusFileMissing": "Falta el archivo de estado. Inicia el servidor del juego con PanelBridge habilitado.",
+      "statusFileStale": "El archivo de estado está desactualizado ({{age}}) — ¿está en ejecución el servidor de PZ?",
+      "statusFileMetadataFailed": "No se pudieron leer los metadatos del archivo de estado: {{error}}",
+      "healthy": "La conexión del archivo del bridge parece saludable."
+    },
     "errorTitle": "Error de Panel Bridge",
     "stopBridge": "Detener puente",
     "pinging": "Haciendo ping…",
