@@ -2557,7 +2557,7 @@ export default function ServerConfig() {
             </AlertDescription>
           </Alert>
         )}
-        {activeTab === 'sandbox' && invalidSandboxSettings.length > 0 && (
+        {activeTab === 'sandbox' && editorMode === 'structured' && invalidSandboxSettings.length > 0 && (
           <Alert className="mt-3 border-destructive/40 bg-destructive/10">
             <AlertCircle className="h-4 w-4 text-destructive" />
             <AlertTitle>{t('invalidValuesAlert.title')}</AlertTitle>
@@ -3045,7 +3045,7 @@ export default function ServerConfig() {
                   >
                     <ExternalLink className="h-3 w-3" /> {t('editorToolbar.wiki')}
                   </a>
-                  <Button onClick={handleSaveSandbox} disabled={saving || !hasSandboxChanges || invalidSandboxSettings.length > 0 || serverChangedSinceLoad} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
+                  <Button onClick={handleSaveSandbox} disabled={saving || !hasSandboxChanges || (editorMode === 'structured' && invalidSandboxSettings.length > 0) || serverChangedSinceLoad} variant="command" size="sm" className="h-7 gap-1.5 text-xs font-medium">
                     {saving ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
@@ -4158,7 +4158,7 @@ export default function ServerConfig() {
               variant="command"
               size="sm"
               onClick={activeTab === 'ini' ? handleSaveIni : handleSaveSandbox}
-              disabled={saving || serverChangedSinceLoad || (activeTab === 'ini' ? invalidIniSettings.length > 0 : invalidSandboxSettings.length > 0)}
+              disabled={saving || serverChangedSinceLoad || (activeTab === 'ini' ? invalidIniSettings.length > 0 : (editorMode === 'structured' && invalidSandboxSettings.length > 0))}
               className="h-8 gap-1.5 text-xs font-medium"
             >
               {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
