@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/components/ui/use-toast'
 import { reportClientError, reportClientWarning } from '@/lib/client-errors'
 import { getUserErrorMessage } from '@/lib/errorMessage'
+import { resolveRegisteredTranslation } from '@/lib/paramTranslation'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -81,7 +82,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { serversApi, serversDetectApi, dockerApi, DockerContainerStats, DockerContainerSummary, ServerInstance, configApi, serverApi, updateApi, UpdateStatus, DiscoveredMount, ComposedServerStatus } from '@/lib/api'
+import { serversApi, serversDetectApi, dockerApi, DockerContainerStats, DockerContainerSummary, ServerInstance, configApi, serverApi, updateApi, UpdateStatus, DiscoveredMount, InaccessibleMountCandidate, ComposedServerStatus } from '@/lib/api'
 import { resolveClientProvider, resolveServerCardRunning, waitForServerState } from '@/lib/serverStatus'
 import { getInstallProgressMessage } from '@/lib/installProgressMessage'
 import { ServerStatusBadge } from '@/components/ServerStatusBadge'
@@ -93,7 +94,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { PasswordInput } from '@/components/PasswordInput'
 import { NumberInput } from '@/components/NumberInput'
 import { RconTestConnection } from '@/components/RconTestConnection'
-import { MountDiscoveryBanner } from '@/components/MountDiscoveryBanner'
+import { MountDiscoveryBanner, InaccessibleMountBanner } from '@/components/MountDiscoveryBanner'
 import { DiscoverySetup } from '@/components/DiscoverySetup'
 import { DisabledReason } from '@/components/DisabledReason'
 import { HelpTip } from '@/components/HelpTip'
@@ -193,6 +194,16 @@ function formatBytes(bytes: number) {
 // Mirrors the server's own range check (server/routes/servers.js POST /,
 // "Invalid RCON port" / "Invalid server port") so the client can reject
 // out-of-range ports before a round trip instead of after one.
+// docker-unraid-add-server-experience (2026-09-09): new copy ships via this
+// fallback rather than new locale JSON keys -- same call as the sandbox
+// range-override toggle and MountDiscoveryBanner's new copy, for the same
+// reason (a key registered in NO locale always resolves to English for
+// everyone via this fallback, so localeParity.test.ts's 9-locale key-SET
+// parity has nothing to be out of parity about).
+function serversFallback(key: string, fallback: string): string {
+  return resolveRegisteredTranslation('servers', key, undefined) ?? fallback
+}
+
 export function isValidPort(port: number): boolean {
   return Number.isInteger(port) && port >= 1 && port <= 65535
 }
@@ -297,6 +308,20 @@ export default function Servers() {
   const [loading, setLoading] = useState(true)
   const [managedLifecycleSupported, setManagedLifecycleSupported] = useState(false)
   const [editingServer, setEditingServer] = useState<ServerInstance | null>(null)
+  // 2026-09-09 ruling (god), rule 3 ("guess, then let them change it"):
+  // dockerContainerName used to be free-text only even though the real
+  // container list is already loaded on this same page for the
+  // container-management cards. null = no explicit user choice yet, so the
+  // field auto-picks picker-vs-manual from whether the stored value matches
+  // a known container; true/false once the user has explicitly clicked
+  // "Type it in manually"/"Pick from detected containers instead", which
+  // must WIN over that auto-detection -- otherwise switching back to the
+  // picker to choose a NEW value immediately snaps back to manual, because
+  // the OLD (still-unmatched) value hasn't changed yet. Reset to null
+  // whenever the dialog (re)opens so a choice on one server doesn't leak
+  // into the next server's edit dialog.
+  const [dockerContainerManualOverride, setDockerContainerManualOverride] = useState<boolean | null>(null)
+  useEffect(() => { setDockerContainerManualOverride(null) }, [editingServer?.id])
   const [savingEdit, setSavingEdit] = useState(false)
   const [lifecyclePending, setLifecyclePending] = useState(false)
   const [deleteServer, setDeleteServer] = useState<ServerInstance | null>(null)
@@ -426,12 +451,52 @@ export default function Servers() {
   // server files are found at a common bind-mount path and no profile
   // uses them yet.
   const [discoveredMounts, setDiscoveredMounts] = useState<DiscoveredMount[]>([])
+  // Candidates the server found but could not read (permission denied) --
+  // a different, actionable problem from "nothing mounted here" that
+  // discoverMountIssues() already distinguishes server-side. See the
+  // InaccessibleMountCandidate type in lib/api.ts for why this exists.
+  const [inaccessibleMounts, setInaccessibleMounts] = useState<InaccessibleMountCandidate[]>([])
   const [scanningMounts, setScanningMounts] = useState(false)
   const [discoverySetupMount, setDiscoverySetupMount] = useState<DiscoveredMount | null>(null)
-  const connectableMounts = discoveredMounts.filter(
+  const activeServerId = servers?.find((server) => server.isActive)?.id ?? null
+
+  // Exclude a discovered mount that already matches a registered local
+  // server, checking BOTH sides -- a Docker template can bind-mount the
+  // install and data folders separately, so either one matching an existing
+  // profile means this mount is already connected, not still up for grabs.
+  const unclaimedMounts = discoveredMounts.filter((mount) => !(servers || []).some((server) =>
+    !server.isRemote &&
+    (samePath(server.installPath, mount.installPath) || samePath(server.zomboidDataPath, mount.dataPath)),
+  ))
+  // 2026-09-09 ruling (god): KILL the boolean gate that used to hide any
+  // mount without BOTH a data path AND at least one server config found --
+  // "right bind mount, contents not confirmed yet" (e.g. a freshly created
+  // Unraid share nobody has started a server in) is the single most useful
+  // thing this page can tell a stuck user, and it used to render nothing at
+  // all. Split by confidence instead of filtering the weaker half away.
+  const confirmedMounts = unclaimedMounts.filter(
     (mount) => mount.dataPath && mount.serverNames.length > 0,
   )
-  const activeServerId = servers?.find((server) => server.isActive)?.id ?? null
+  const partialMounts = unclaimedMounts.filter(
+    (mount) => !(mount.dataPath && mount.serverNames.length > 0),
+  )
+
+  // A partial mount can't go through create-from-discovery (it requires a
+  // confirmed dataPath AND a server .ini to read RCON settings from) -- so
+  // instead of guessing, hand what we DID find to the existing manual Add
+  // Server form and let the user finish the one or two fields we couldn't
+  // derive. Guess, then let them change it (rule 3), rather than an
+  // all-or-nothing automation that only ever fires for the easy case.
+  const handlePartialMountConnect = (mount: DiscoveredMount) => {
+    setAddMode('local')
+    setNewServer((prev) => ({
+      ...prev,
+      installPath: mount.installPath || prev.installPath,
+      zomboidDataPath: mount.dataPath || prev.zomboidDataPath,
+      serverName: mount.serverNames[0] || prev.serverName,
+    }))
+    setShowAddDialog(true)
+  }
 
   const { toast } = useToast()
   const socket = useContext(SocketContext)
@@ -679,7 +744,10 @@ export default function Servers() {
   // banner is a convenience, not a requirement.
   useEffect(() => {
     serversApi.discoverMounts()
-      .then(data => setDiscoveredMounts(data.mounts || []))
+      .then(data => {
+        setDiscoveredMounts(data.mounts || [])
+        setInaccessibleMounts(data.inaccessible || [])
+      })
       .catch(e => reportClientWarning('Mount discovery failed.', e))
   }, [])
 
@@ -693,6 +761,7 @@ export default function Servers() {
         (mount) => mount.dataPath && mount.serverNames.length > 0,
       ).length
       setDiscoveredMounts(mounts)
+      setInaccessibleMounts(data.inaccessible || [])
       toast({
         title: connectableCount
           ? t('toasts.serversFoundCount', { count: connectableCount })
@@ -1760,14 +1829,36 @@ export default function Servers() {
         </Alert>
       )}
 
-      {/* Discovered mounts — offer a one-click connect when no server profile uses them yet */}
-      {serversConfirmedEmpty && connectableMounts.length > 0 && (
+      {/* Discovered mounts — offer a one-click connect when no server profile
+          uses them yet. 2026-09-09 ruling (god): shown on EVERY visit, not
+          just the empty-roster first-server screen -- the fetch behind this
+          already runs unconditionally on every page load (see the effect
+          above), so gating the display on serversConfirmedEmpty meant we
+          did the work and threw the answer away for anyone adding a second
+          server. */}
+      {(confirmedMounts.length > 0 || partialMounts.length > 0 || inaccessibleMounts.length > 0) && (
         <div className="space-y-2">
-          {connectableMounts.map(mount => (
+          {confirmedMounts.map(mount => (
             <MountDiscoveryBanner
               key={mount.installPath}
               mount={mount}
+              confidence="confirmed"
               onConnect={setDiscoverySetupMount}
+            />
+          ))}
+          {partialMounts.map(mount => (
+            <MountDiscoveryBanner
+              key={mount.installPath}
+              mount={mount}
+              confidence="partial"
+              onConnect={handlePartialMountConnect}
+            />
+          ))}
+          {inaccessibleMounts.map(entry => (
+            <InaccessibleMountBanner
+              key={entry.path}
+              entry={entry}
+              onRetry={handleScanMounts}
             />
           ))}
         </div>
@@ -2833,12 +2924,71 @@ export default function Servers() {
                 </div>
                 <div className="space-y-2">
                   <Label>{t('editDialog.dockerContainerLabel')}</Label>
-                  <Input
-                    value={editingServer.dockerContainerName || ''}
-                    onChange={e => setEditingServer({ ...editingServer, dockerContainerName: e.target.value || null })}
-                    placeholder={t('editDialog.dockerContainerPlaceholder')}
-                    maxLength={128}
-                  />
+                  {(() => {
+                    // 2026-09-09 ruling (god), rule 3: pick from the containers
+                    // already loaded on this page instead of typing blind --
+                    // but fall back to the plain input when there's nothing to
+                    // pick from, or the stored value doesn't match anything
+                    // currently visible (a container that isn't running right
+                    // now, or Docker itself unreachable), so an existing,
+                    // working configuration is never silently blanked out.
+                    const currentMatchesKnown = dockerContainers.some(
+                      (c) => c.name === editingServer.dockerContainerName || c.id === editingServer.dockerContainerName,
+                    )
+                    const autoManual =
+                      dockerContainers.length === 0 ||
+                      (!!editingServer.dockerContainerName && !currentMatchesKnown)
+                    const showManualInput = dockerContainerManualOverride ?? autoManual
+
+                    if (showManualInput) {
+                      return (
+                        <>
+                          <Input
+                            value={editingServer.dockerContainerName || ''}
+                            onChange={e => setEditingServer({ ...editingServer, dockerContainerName: e.target.value || null })}
+                            placeholder={t('editDialog.dockerContainerPlaceholder')}
+                            maxLength={128}
+                          />
+                          {dockerContainers.length > 0 && (
+                            <button
+                              type="button"
+                              className="text-xs text-primary underline underline-offset-2"
+                              onClick={() => setDockerContainerManualOverride(false)}
+                            >
+                              {serversFallback('editDialog.dockerContainerPickInstead', 'Pick from detected containers instead')}
+                            </button>
+                          )}
+                        </>
+                      )
+                    }
+
+                    return (
+                      <Select
+                        value={editingServer.dockerContainerName || ''}
+                        onValueChange={(value) => {
+                          if (value === '__manual__') {
+                            setDockerContainerManualOverride(true)
+                            return
+                          }
+                          setEditingServer({ ...editingServer, dockerContainerName: value })
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={serversFallback('editDialog.dockerContainerPickPlaceholder', 'Select a container...')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {dockerContainers.map((c) => (
+                            <SelectItem key={c.id} value={c.name || c.id}>
+                              {c.name} <span className="text-muted-foreground">({c.state})</span>
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="__manual__">
+                            {serversFallback('editDialog.dockerContainerTypeManually', 'Type it in manually...')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )
+                  })()}
                   <p className="text-xs text-muted-foreground">{t('editDialog.dockerContainerHint')}</p>
                 </div>
               </div>

@@ -1743,6 +1743,22 @@ export interface ServerInstance {
   createdAt: string;
 }
 
+// A candidate that exists but couldn't be read (permission denied), as
+// opposed to one that simply isn't mounted at all -- server/services/
+// mountDiscovery.js's discoverMountIssues() already keeps these separate
+// (see its own comment: "misconfigured host permissions" is a different,
+// actionable problem from "nothing mounted here"). GET /discover-mounts has
+// returned both `mounts` and `inaccessible` since discovery.js:36; this type
+// only declared the former until the client-side gap was found and fixed
+// (2026-09-09, docker-unraid-add-server-experience) -- the server-computed
+// distinction was silently dropped one hop before it could ever reach a
+// user, exactly the "the system knew and told the user nothing" shape.
+export interface InaccessibleMountCandidate {
+  path: string;
+  source: string;
+  reason: string;
+}
+
 // Mount discovery — probes common Docker bind-mount locations for PZ server
 // files so a fresh panel can offer a one-click "connect this" profile.
 export interface DiscoveredMount {
@@ -1900,6 +1916,7 @@ export const serversApi = {
   discoverMounts: () =>
     apiGet("/servers/discover-mounts") as Promise<{
       mounts: DiscoveredMount[];
+      inaccessible: InaccessibleMountCandidate[];
     }>,
 
   // Turn a discover-mounts result into a fully-populated server profile —
