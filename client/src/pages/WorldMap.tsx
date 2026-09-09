@@ -3209,7 +3209,7 @@ export default function WorldMap() {
                       setActionLoading('heal-card')
                       panelBridgeApi.sendCommand('healPlayer', { username: selectedPlayer.username })
                         .then(() => { toast({ title: t('dossier.healedTitle'), description: t('dossier.healedDesc', { username: selectedPlayer.username }) }); fetchPlayerPositions() })
-                        .catch(() => toast({ title: t('errorTitle'), variant: 'destructive' }))
+                        .catch((err) => toast({ title: t('errorTitle'), description: getUserErrorMessage(err, t('toasts.unknownError')), variant: 'destructive' }))
                         .finally(() => setActionLoading(null))
                     }}
                   >
@@ -3235,7 +3235,7 @@ export default function WorldMap() {
                               toast({ title: t('dossier.godModeEnabled') })
                             }
                           })
-                          .catch(() => toast({ title: t('errorTitle'), variant: 'destructive' }))
+                          .catch((err) => toast({ title: t('errorTitle'), description: getUserErrorMessage(err, t('toasts.unknownError')), variant: 'destructive' }))
                           .finally(() => setActionLoading(null))
                       }}
                     >
@@ -3352,7 +3352,7 @@ export default function WorldMap() {
                     if (!canGmTools) return
                     panelBridgeApi.sendCommand('healPlayer', { username: contextMenu.player!.username })
                       .then(() => { toast({ title: t('dossier.healedTitle'), description: t('dossier.healedDesc', { username: contextMenu.player!.username }) }); fetchPlayerPositions() })
-                      .catch(() => toast({ title: t('errorTitle'), variant: 'destructive' }))
+                      .catch((err) => toast({ title: t('errorTitle'), description: getUserErrorMessage(err, t('toasts.unknownError')), variant: 'destructive' }))
                     setContextMenu(null)
                   }}
                 />
