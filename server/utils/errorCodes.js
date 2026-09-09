@@ -62,7 +62,7 @@ export const ErrorCode = Object.freeze({
   RATE_LIMIT_SETUP: "RATE_LIMIT_SETUP",
   /** server/routes/auth.js -- POST /api/auth/setup, setup already completed (needsSetup() false). */
   SETUP_ALREADY_COMPLETED: "SETUP_ALREADY_COMPLETED",
-  /** server/routes/auth.js (3 sites: /setup, /login, POST /users) -- username
+  /** server/routes/auth.js (sites: /setup, /login, POST /users) -- username
    * and/or password missing. Identical wording, identical meaning across all
    * three -- shared code rather than three copies, same reasoning as
    * WIPE_TARGETS_REQUIRED elsewhere in this file. */
@@ -75,7 +75,7 @@ export const ErrorCode = Object.freeze({
    * early with their own codes -- this is the catch-all for an unexpected
    * failure, e.g. a DB error). */
   TOKEN_REFRESH_FAILED: "TOKEN_REFRESH_FAILED",
-  /** server/routes/auth.js (4 sites: GET /me, POST /change-password, GET+POST
+  /** server/routes/auth.js (sites: GET /me, POST /change-password, GET+POST
    * /recovery-codes) -- getAuthenticatedUser() returned null. Own code from
    * AUTH_REQUIRED (requireAuth middleware's "Authentication required") --
    * different wording ("Not authenticated"), different call sites (route
@@ -86,7 +86,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/auth.js -- POST /api/auth/change-password, currentPassword
    * and/or newPassword missing. */
   CHANGE_PASSWORD_FIELDS_REQUIRED: "CHANGE_PASSWORD_FIELDS_REQUIRED",
-  /** server/routes/auth.js (2 sites: POST /users, PATCH /users/:id/role) --
+  /** server/routes/auth.js (sites: POST /users, PATCH /users/:id/role) --
    * `role` not one of USER_ROLES. Identical wording/meaning both sites,
    * shared code -- same reasoning as AUTH_USERNAME_PASSWORD_REQUIRED above. */
   AUTH_INVALID_ROLE: "AUTH_INVALID_ROLE",
@@ -160,7 +160,7 @@ export const ErrorCode = Object.freeze({
    * round-trips the file byte-for-byte and stays available to fix it.
    * bug-hunt-2026-08-27, Angela's structured-save destructive-write trace. */
   INI_DUPLICATE_KEY_BLOCKS_STRUCTURED_SAVE: "INI_DUPLICATE_KEY_BLOCKS_STRUCTURED_SAVE",
-  /** server/routes/serverFiles.js (3 sites: GET /sandbox, GET
+  /** server/routes/serverFiles.js (sites: GET /sandbox, GET
    * /sandbox/validate, POST /sandbox/repair) -- no <serverName>_SandboxVars.
    * lua at the resolved config path. Identical wording/meaning all three,
    * shared code. Distinct from SANDBOX_OPTION_FILE_NOT_FOUND below (PUT
@@ -169,7 +169,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/serverFiles.js -- PUT /sandbox, `sandbox` missing or not
    * an object. */
   SANDBOX_OBJECT_REQUIRED: "SANDBOX_OBJECT_REQUIRED",
-  /** server/routes/serverFiles.js (2 sites: top-level and per-section) --
+  /** server/routes/serverFiles.js (sites: top-level and per-section) --
    * PUT /sandbox, `sandbox` (or a nested section) carries a __proto__/
    * constructor/prototype key. Identical wording/meaning both sites, shared
    * code. */
@@ -218,11 +218,11 @@ export const ErrorCode = Object.freeze({
   /** server/routes/serverFiles.js -- PUT /spawnregions, `spawnregions` isn't
    * an array. */
   SPAWNREGIONS_ARRAY_REQUIRED: "SPAWNREGIONS_ARRAY_REQUIRED",
-  /** server/routes/serverFiles.js (2 sites: GET /raw/:type, PUT /raw/:type)
+  /** server/routes/serverFiles.js (sites: GET /raw/:type, PUT /raw/:type)
    * -- `type` isn't one of ini/sandbox/spawnpoints/spawnregions. Identical
    * wording/meaning both sites, shared code. */
   RAW_FILE_INVALID_TYPE: "RAW_FILE_INVALID_TYPE",
-  /** server/routes/serverFiles.js (2 sites: GET /raw/:type, GET
+  /** server/routes/serverFiles.js (sites: GET /raw/:type, GET
    * /image-preview) -- the resolved file doesn't exist on disk. Both sites
    * emit the bare, already-generic "File not found" with no route-specific
    * detail to lose, so they share one code -- same reasoning as INVALID_PATH
@@ -266,12 +266,12 @@ export const ErrorCode = Object.freeze({
   /** server/routes/serverFiles.js -- POST /save-and-reload, no rconService
    * or it isn't connected, so `reloadoptions` can't be sent. */
   SAVE_AND_RELOAD_RCON_NOT_CONNECTED: "SAVE_AND_RELOAD_RCON_NOT_CONNECTED",
-  /** server/routes/serverFiles.js (4 sites: GET/PUT/DELETE /templates/:id,
+  /** server/routes/serverFiles.js (sites: GET/PUT/DELETE /templates/:id,
    * POST /templates/:id/apply) -- :id fails the path-traversal-safe
    * basename/charset check. Identical wording/meaning all four, shared
    * code. */
   TEMPLATE_ID_INVALID: "TEMPLATE_ID_INVALID",
-  /** server/routes/serverFiles.js (4 sites: GET/PUT/DELETE /templates/:id,
+  /** server/routes/serverFiles.js (sites: GET/PUT/DELETE /templates/:id,
    * POST /templates/:id/apply) -- no <id>.json in the templates directory.
    * Identical wording/meaning all four, shared code. */
   TEMPLATE_NOT_FOUND: "TEMPLATE_NOT_FOUND",
@@ -283,7 +283,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/serverFiles.js -- POST /templates/:id/apply, neither
    * applyIni nor applySandbox matched anything in the stored template. */
   TEMPLATE_APPLY_NOTHING_TO_APPLY: "TEMPLATE_APPLY_NOTHING_TO_APPLY",
-  /** server/routes/serverFiles.js (2 sites: GET /browse-files, GET
+  /** server/routes/serverFiles.js (sites: GET /browse-files, GET
    * /image-preview) -- confineToRoots() rejected the requested path.
    * Identical wording/meaning both sites, shared code. */
   BROWSE_ACCESS_DENIED: "BROWSE_ACCESS_DENIED",
@@ -480,7 +480,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/backup.js -- GET /api/backup/download/:name,
    * getBackupsPath() returned nothing (no server configured yet). */
   BACKUPS_FOLDER_NOT_FOUND: "BACKUPS_FOLDER_NOT_FOUND",
-  /** server/routes/backup.js (2 sites: download, restore) -- the :name
+  /** server/routes/backup.js (sites: download, restore) -- the :name
    * param doesn't end in .zip after path.basename() sanitization. */
   BACKUP_INVALID_FILE: "BACKUP_INVALID_FILE",
   /** server/routes/backup.js -- GET /api/backup/download/:name, no file at
@@ -548,28 +548,28 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js -- POST /api/server/message, message isn't a
    * string or exceeds 1000 characters. */
   SERVER_MESSAGE_TOO_LONG: "SERVER_MESSAGE_TOO_LONG",
-  /** server/routes/server.js (3 sites: lightning, thunder, horde) -- optional
+  /** server/routes/server.js (sites: lightning, thunder, horde) -- optional
    * `username` isn't a string or exceeds 64 characters. */
   EVENTS_INVALID_USERNAME: "EVENTS_INVALID_USERNAME",
-  /** server/routes/server.js (3 sites: /branches, /install, /steam-update) --
+  /** server/routes/server.js (sites: /branches, /install, /steam-update) --
    * steamcmdPath fails isValidPath(). */
   STEAMCMD_PATH_INVALID: "STEAMCMD_PATH_INVALID",
-  /** server/routes/server.js (3 sites: /install, /quick-setup, /steam-update) --
+  /** server/routes/server.js (sites: /install, /quick-setup, /steam-update) --
    * installPath fails isValidPath(). */
   INSTALL_PATH_INVALID: "INSTALL_PATH_INVALID",
   /** server/routes/server.js -- POST /api/server/install, missing
    * steamcmdPath/installPath/serverName. Own code from the /quick-setup and
    * /steam-update variants below, which require different field sets. */
   INSTALL_MISSING_FIELDS: "INSTALL_MISSING_FIELDS",
-  /** server/routes/server.js (2 sites: /install, /quick-setup) -- serverName
+  /** server/routes/server.js (sites: /install, /quick-setup) -- serverName
    * fails isValidServerName() (letters/numbers/underscore/hyphen/space, max
    * 64 chars). Distinct from WIPE_INVALID_SERVER_NAME below, which is a
    * bare no-path-separators check on the already-configured server name. */
   SERVER_NAME_FORMAT_INVALID: "SERVER_NAME_FORMAT_INVALID",
-  /** server/routes/server.js (2 sites: /install, /quick-setup) -- optional
+  /** server/routes/server.js (sites: /install, /quick-setup) -- optional
    * zomboidDataPath fails isValidPath(). */
   ZOMBOID_DATA_PATH_INVALID: "ZOMBOID_DATA_PATH_INVALID",
-  /** server/routes/server.js (3 sites: /install, /quick-setup,
+  /** server/routes/server.js (sites: /install, /quick-setup,
    * /configure-network) -- serverPort isn't an integer in [1024, 65535].
    * Refused rather than coerced: requireIntInRange(), not validateInt()'s
    * coerceIntInRange() sibling -- a wrong port here silently listens
@@ -577,17 +577,17 @@ export const ErrorCode = Object.freeze({
    * with no error telling them why. See 2026-08-23 validateInt-coerces
    * audit. */
   INVALID_SERVER_PORT: "INVALID_SERVER_PORT",
-  /** server/routes/server.js (3 sites: /install, /quick-setup,
+  /** server/routes/server.js (sites: /install, /quick-setup,
    * /configure-rcon) -- rconPort isn't an integer in [1024, 65535]. Same
    * refuse-don't-coerce reasoning as INVALID_SERVER_PORT above. */
   INVALID_RCON_PORT: "INVALID_RCON_PORT",
-  /** server/routes/server.js (2 sites: /install, /quick-setup) -- minMemory
+  /** server/routes/server.js (sites: /install, /quick-setup) -- minMemory
    * isn't an integer in [1, 64] (GB). Refused rather than coerced: unlike a
    * port, a silently-substituted memory value doesn't break connectivity,
    * but it's still the operator's explicit input being discarded without a
    * word -- see 2026-08-23 validateInt-coerces audit. */
   INVALID_MIN_MEMORY: "INVALID_MIN_MEMORY",
-  /** server/routes/server.js (2 sites: /install, /quick-setup) -- maxMemory
+  /** server/routes/server.js (sites: /install, /quick-setup) -- maxMemory
    * isn't an integer in [1, 128] (GB). Same reasoning as INVALID_MIN_MEMORY
    * above. */
   INVALID_MAX_MEMORY: "INVALID_MAX_MEMORY",
@@ -599,10 +599,10 @@ export const ErrorCode = Object.freeze({
    * Docker-specific addendum stays English-only in the `error` fallback
    * text, a known partial-translation gap, not a bug. */
   WRITABLE_PATH_ERROR: "WRITABLE_PATH_ERROR",
-  /** server/routes/server.js (2 sites: /install, /steam-update) -- steamcmd
+  /** server/routes/server.js (sites: /install, /steam-update) -- steamcmd
    * executable missing on Windows (no auto-download there). */
   STEAMCMD_NOT_FOUND_AT_PATH: "STEAMCMD_NOT_FOUND_AT_PATH",
-  /** server/routes/server.js (2 sites: /install, /steam-update) -- Linux
+  /** server/routes/server.js (sites: /install, /steam-update) -- Linux
    * auto-download of steamcmd (ensureSteamCmdLinux) itself failed. */
   STEAMCMD_AUTO_DOWNLOAD_FAILED: "STEAMCMD_AUTO_DOWNLOAD_FAILED",
   /** server/routes/server.js -- POST /api/server/install, another Steam
@@ -620,10 +620,10 @@ export const ErrorCode = Object.freeze({
    * rconPassword in the body. Own code from rcon.js's RCON_* codes -- this
    * is the server-config route, not the live rcon.js connection routes. */
   CONFIGURE_RCON_PASSWORD_REQUIRED: "CONFIGURE_RCON_PASSWORD_REQUIRED",
-  /** server/routes/server.js (2 sites: /configure-rcon, /configure-network) --
+  /** server/routes/server.js (sites: /configure-rcon, /configure-network) --
    * no serverConfigPath resolved (install never run). */
   SERVER_CONFIG_PATH_NOT_SET: "SERVER_CONFIG_PATH_NOT_SET",
-  /** server/routes/server.js (2 sites: /configure-rcon, /configure-network) --
+  /** server/routes/server.js (sites: /configure-rcon, /configure-network) --
    * serverConfigPath resolved but the .ini file doesn't exist yet. */
   SERVER_CONFIG_FILE_NOT_FOUND: "SERVER_CONFIG_FILE_NOT_FOUND",
   /** server/routes/server.js -- POST /api/server/reloadlua, no filename. */
@@ -656,12 +656,12 @@ export const ErrorCode = Object.freeze({
    * INSTALL_PATH_INVALID/STEAMCMD_PATH_INVALID above -- different route,
    * different phrasing. */
   STEAMCMD_DOWNLOAD_INVALID_PATH: "STEAMCMD_DOWNLOAD_INVALID_PATH",
-  /** server/routes/server.js (4 sites: /delete-files x2, /list-directory,
+  /** server/routes/server.js (sites: /delete-files x2, /list-directory,
    * /wipe) -- a path argument fails isValidPath() or a post-normalize `..`
    * check. All four sites emit the bare, already-generic "Invalid path"
    * with no route-specific detail to lose, so they share one code. */
   INVALID_PATH: "INVALID_PATH",
-  /** server/routes/server.js (2 sites: /delete-files, /list-directory) --
+  /** server/routes/server.js (sites: /delete-files, /list-directory) --
    * fs.existsSync() false for the given path. */
   PATH_NOT_FOUND: "PATH_NOT_FOUND",
   /** server/routes/server.js -- POST /api/server/delete-files, path exists
@@ -728,11 +728,11 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js -- POST /api/server/browse-folder (Windows),
    * the PowerShell folder-browser process itself errored. */
   BROWSE_FOLDER_OPEN_FAILED: "BROWSE_FOLDER_OPEN_FAILED",
-  /** server/routes/server.js (3 sites: /console-log, /console-log/stream,
+  /** server/routes/server.js (sites: /console-log, /console-log/stream,
    * /console-log/clear) -- no zomboidDataPath resolved anywhere (active
    * server, settings, or serverPath fallback). */
   SERVER_DATA_PATH_NOT_CONFIGURED: "SERVER_DATA_PATH_NOT_CONFIGURED",
-  /** server/routes/server.js (3 sites: /update-check, /update-check/status,
+  /** server/routes/server.js (sites: /update-check, /update-check/status,
    * /update-check/interval) -- app.get("updateChecker") not registered. */
   UPDATE_CHECKER_NOT_AVAILABLE: "UPDATE_CHECKER_NOT_AVAILABLE",
   /** server/routes/server.js -- GET /api/server/update-check?force=true,
@@ -741,7 +741,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js -- POST /api/server/update-check/interval,
    * `minutes` missing or not a number. */
   UPDATE_CHECK_INTERVAL_INVALID: "UPDATE_CHECK_INTERVAL_INVALID",
-  /** server/routes/server.js (2 sites: /wipe/preview, /wipe) -- `targets`
+  /** server/routes/server.js (sites: /wipe/preview, /wipe) -- `targets`
    * missing/empty/not an array. Identical wording both sites, shared code. */
   WIPE_TARGETS_REQUIRED: "WIPE_TARGETS_REQUIRED",
   /** server/routes/server.js -- POST /api/server/wipe/preview, `targets`
@@ -754,22 +754,22 @@ export const ErrorCode = Object.freeze({
    * unrecognized value. See WIPE_PREVIEW_INVALID_TARGETS above for why this
    * is a separate code rather than reused. */
   WIPE_INVALID_TARGETS: "WIPE_INVALID_TARGETS",
-  /** server/routes/server.js (2 sites: /wipe/preview, /wipe) -- serverManager
+  /** server/routes/server.js (sites: /wipe/preview, /wipe) -- serverManager
    * has no savePath configured. */
   WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED: "WIPE_ZOMBOID_DATA_PATH_NOT_CONFIGURED",
-  /** server/routes/server.js (2 sites: /wipe/preview, /wipe) -- the
+  /** server/routes/server.js (sites: /wipe/preview, /wipe) -- the
    * configured server name contains a path separator. Distinct from
    * SERVER_NAME_FORMAT_INVALID above (that one validates a *submitted* name
    * against the full format rule at install time; this one is a bare
    * traversal guard on the *already-configured* name). */
   WIPE_INVALID_SERVER_NAME: "WIPE_INVALID_SERVER_NAME",
-  /** server/routes/server.js (2 sites: /wipe/preview, /wipe) -- the resolved
+  /** server/routes/server.js (sites: /wipe/preview, /wipe) -- the resolved
    * Saves/Multiplayer/<serverName> directory doesn't exist. */
   WIPE_SAVE_DIRECTORY_NOT_FOUND: "WIPE_SAVE_DIRECTORY_NOT_FOUND",
   /** server/routes/server.js -- POST /api/server/wipe, another wipe is
    * already running (module-level guard). */
   WIPE_IN_PROGRESS: "WIPE_IN_PROGRESS",
-  /** server/routes/server.js (2 sites: /wipe, /delete-files) -- the server
+  /** server/routes/server.js (sites: /wipe, /delete-files) -- the server
    * process is currently running (both routes require it stopped first).
    * Shared rather than a DELETE_FILES_-prefixed twin: two endpoints doing
    * the same dangerous thing to files the game may hold open refuse in the
@@ -817,12 +817,12 @@ export const ErrorCode = Object.freeze({
    * entire data path (RCON credentials and every server-scoped file
    * included) is server.configure's territory, not just chunk cleanup. */
   CHUNKS_SAVE_PATH_CAPABILITY_REQUIRED: "CHUNKS_SAVE_PATH_CAPABILITY_REQUIRED",
-  /** server/routes/chunks.js (4 sites: GET /chunks/:saveName, POST
+  /** server/routes/chunks.js (sites: GET /chunks/:saveName, POST
    * /delete-chunks, POST /delete-region, GET /stats/:saveName) -- :saveName
    * fails the path.basename() round-trip check. Identical wording/meaning
    * all four, shared code. */
   CHUNKS_INVALID_SAVE_NAME: "CHUNKS_INVALID_SAVE_NAME",
-  /** server/routes/chunks.js (4 sites: GET /chunks/:saveName, POST
+  /** server/routes/chunks.js (sites: GET /chunks/:saveName, POST
    * /delete-chunks, POST /delete-region, GET /stats/:saveName) -- no
    * zomboidDataPath resolved (active server, custom path, or legacy
    * setting). Identical wording/meaning all four, shared code. Distinct
@@ -847,11 +847,11 @@ export const ErrorCode = Object.freeze({
   /** server/routes/chunks.js -- POST /delete-chunks, a chunk's `y` isn't a
    * finite integer. */
   DELETE_CHUNKS_INVALID_Y: "DELETE_CHUNKS_INVALID_Y",
-  /** server/routes/chunks.js (3 sites: POST /delete-chunks, POST
+  /** server/routes/chunks.js (sites: POST /delete-chunks, POST
    * /delete-region, GET /stats/:saveName) -- the resolved save directory
    * doesn't exist. Identical wording/meaning all three, shared code. */
   CHUNKS_SAVE_NOT_FOUND: "CHUNKS_SAVE_NOT_FOUND",
-  /** server/routes/chunks.js (2 sites: POST /delete-chunks, POST
+  /** server/routes/chunks.js (sites: POST /delete-chunks, POST
    * /delete-region) -- the request's `expectedServerId` (stamped by GET
    * /chunks/:saveName's own `resolvedServerId` when the scan was made)
    * doesn't match the CURRENT active server, or was never sent at all.
@@ -948,7 +948,7 @@ export const ErrorCode = Object.freeze({
    * downloaded. Client uses this to show an informational, non-destructive message instead of a
    * red "Update Check Failed" error, without claiming to know which of those two cases it is. */
   MODS_CHECK_UPDATES_ACF_NOT_FOUND: "MODS_CHECK_UPDATES_ACF_NOT_FOUND",
-  /** server/routes/mods.js -- (4 sites: POST/DELETE /collection/items(+/:id), /collection/sync,
+  /** server/routes/mods.js -- (sites: POST/DELETE /collection/items(+/:id), /collection/sync,
    * /collection/test) -- workshopCollectionId setting not set. Identical
    * wording, shared code. */
   MODS_COLLECTION_ID_NOT_CONFIGURED: "MODS_COLLECTION_ID_NOT_CONFIGURED",
@@ -956,7 +956,7 @@ export const ErrorCode = Object.freeze({
    * shape) -- resolved .ini path doesn't exist, bare wording (no guidance).
    * Identical wording everywhere, shared code. */
   MODS_CONFIG_FILE_NOT_FOUND: "MODS_CONFIG_FILE_NOT_FOUND",
-  /** server/routes/mods.js -- (2 sites: POST /write-to-ini, POST /add-to-ini) -- resolved .ini path
+  /** server/routes/mods.js -- (sites: POST /write-to-ini, POST /add-to-ini) -- resolved .ini path
    * doesn't exist, with "start the server once" guidance. Identical wording
    * both sites, shared code. Distinct from the bare MODS_CONFIG_FILE_NOT_FOUND
    * below (no guidance sentence). */
@@ -969,7 +969,7 @@ export const ErrorCode = Object.freeze({
    * shape) -- serverConfigPath unresolved, bare wording. Identical wording
    * everywhere, shared code. */
   MODS_CONFIG_PATH_NOT_SET: "MODS_CONFIG_PATH_NOT_SET",
-  /** server/routes/mods.js -- (2 sites: POST /write-to-ini, and the sync-from-server success:false path
+  /** server/routes/mods.js -- (sites: POST /write-to-ini, and the sync-from-server success:false path
    * shares this exact wording) -- serverConfigPath unresolved. Own wording
    * ("Please configure the server first.", no "in Settings") from
    * MODS_ADD_TO_INI_CONFIG_PATH_NOT_SET and MODS_CONFIG_PATH_NOT_SET below --
@@ -985,7 +985,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/mods.js -- GET /conflicts/diff, `file` looks like a path-traversal attempt or exceeds
    * 500 chars. */
   MODS_CONFLICTS_DIFF_PATH_INVALID: "MODS_CONFLICTS_DIFF_PATH_INVALID",
-  /** server/routes/mods.js -- (2 sites: GET /conflicts, GET /conflicts/stream) -- acquireScanLock()
+  /** server/routes/mods.js -- (sites: GET /conflicts, GET /conflicts/stream) -- acquireScanLock()
    * failed, another scan is running. Identical wording, shared code. */
   MODS_CONFLICT_SCAN_ALREADY_RUNNING: "MODS_CONFLICT_SCAN_ALREADY_RUNNING",
   /** server/routes/mods.js -- POST /discover-mod-ids, neither workshopId nor a parseable workshopUrl
@@ -1028,7 +1028,7 @@ export const ErrorCode = Object.freeze({
   MODS_IMPORT_COLLECTION_TIMEOUT: "MODS_IMPORT_COLLECTION_TIMEOUT",
   /** server/routes/mods.js -- POST /import-collection, no collectionUrl. */
   MODS_IMPORT_COLLECTION_URL_REQUIRED: "MODS_IMPORT_COLLECTION_URL_REQUIRED",
-  /** server/routes/mods.js -- (2 sites: POST /delete-disk-mod, POST /batch-delete-disk-mods) --
+  /** server/routes/mods.js -- (sites: POST /delete-disk-mod, POST /batch-delete-disk-mods) --
    * deleteModFromDiskAndIni()'s iniEditApplied came back false. Identical bare
    * wording both sites, shared code. Distinct from
    * MODS_BATCH_REMOVE_INI_NOT_ACCESSIBLE and MODS_PURGE_INI_NOT_ACCESSIBLE --
@@ -1041,32 +1041,32 @@ export const ErrorCode = Object.freeze({
   /** server/routes/mods.js -- POST /collection/extract-cookies, `browser` not one of the allowed list.
    * Sends `{ browsers: allowed.join(", ") }`. */
   MODS_INVALID_BROWSER: "MODS_INVALID_BROWSER",
-  /** server/routes/mods.js -- (2 sites: POST /toggle-mod-id, POST /add-missing-deps) -- modId contains a
+  /** server/routes/mods.js -- (sites: POST /toggle-mod-id, POST /add-missing-deps) -- modId contains a
    * CR/LF/;/= or exceeds 200 chars. Identical wording, shared code. */
   MODS_INVALID_MOD_ID_FORMAT: "MODS_INVALID_MOD_ID_FORMAT",
-  /** server/routes/mods.js -- (2 sites: POST /batch-toggle-mod-ids per-entry validation, POST
+  /** server/routes/mods.js -- (sites: POST /batch-toggle-mod-ids per-entry validation, POST
    * /apply-preset per-entry validation) -- a submitted modId fails the
    * CR/LF/;/=/length check. Identical template (same prefix + 50-char
    * truncation) both sites, shared code. Sends `{ modId }` (the same
    * 50-char-truncated value embedded in the English message). */
   MODS_INVALID_MOD_ID_FORMAT_TEMPLATE: "MODS_INVALID_MOD_ID_FORMAT_TEMPLATE",
-  /** server/routes/mods.js -- (2 sites: PUT /presets/:id, DELETE-ish) -- no :id param. */
+  /** server/routes/mods.js -- (sites: PUT /presets/:id, DELETE-ish) -- no :id param. */
   MODS_INVALID_PRESET_ID: "MODS_INVALID_PRESET_ID",
   /** server/routes/mods.js -- (19 sites across nearly every route that resolves an INI path) --
    * configured serverName fails the path.basename() round-trip / ".." check.
    * Identical wording/meaning everywhere, shared code. */
   MODS_INVALID_SERVER_NAME: "MODS_INVALID_SERVER_NAME",
-  /** server/routes/mods.js -- (5 sites: POST /add-to-ini, /purge-mod dependents, /discover-mod-ids,
+  /** server/routes/mods.js -- (sites: POST /add-to-ini, /purge-mod dependents, /discover-mod-ids,
    * /add-mod-advanced, GET /mod-details) -- workshopId fails /^\d{1,15}$/,
    * capitalized wire text "Invalid Workshop ID" (distinct literal from the
    * lower-case MODS_INVALID_WORKSHOP_ID_LOWER above -- both exist verbatim in
    * this file, kept separate rather than normalized). Identical wording across
    * these 5 sites, shared code. */
   MODS_INVALID_WORKSHOP_ID_CAP: "MODS_INVALID_WORKSHOP_ID_CAP",
-  /** server/routes/mods.js -- (2 sites: POST /track, /get-mod-info) -- workshopId present but fails
+  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info) -- workshopId present but fails
    * /^\d{1,15}$/. Identical wording, shared code. */
   MODS_INVALID_WORKSHOP_ID_FORMAT: "MODS_INVALID_WORKSHOP_ID_FORMAT",
-  /** server/routes/mods.js -- (8 sites: DELETE /track/:id, /ignored/:id, /collection/items(+/:id),
+  /** server/routes/mods.js -- (sites: DELETE /track/:id, /ignored/:id, /collection/items(+/:id),
    * /collection/tracking/:id, /delete-disk-mod, /purge-mod, GET /mod-details)
    * -- :workshopId param fails /^\d{1,15}$/. Wire value is lower-case
    * "workshop"; kept separate from the capitalized
@@ -1074,16 +1074,16 @@ export const ErrorCode = Object.freeze({
    * different literal text elsewhere in this file, not a typo to normalize
    * away. */
   MODS_INVALID_WORKSHOP_ID_LOWER: "MODS_INVALID_WORKSHOP_ID_LOWER",
-  /** server/routes/mods.js -- (2 sites: POST /write-to-ini per-mod validation, POST /add-missing-deps
+  /** server/routes/mods.js -- (sites: POST /write-to-ini per-mod validation, POST /add-missing-deps
    * per-dependency validation) -- a submitted workshopId fails /^\d{1,15}$/.
    * Identical template (same "Invalid Workshop ID: " prefix and 20-char
    * truncation) both sites, shared code. Sends `{ workshopId }` (the same
    * 20-char-truncated value embedded in the English message). */
   MODS_INVALID_WORKSHOP_ID_TEMPLATE: "MODS_INVALID_WORKSHOP_ID_TEMPLATE",
-  /** server/routes/mods.js -- (2 sites: PUT /presets/:id modIds field, POST /save-order) -- `modIds`
+  /** server/routes/mods.js -- (sites: PUT /presets/:id modIds field, POST /save-order) -- `modIds`
    * present but not an array. Identical wording, shared code. */
   MODS_MOD_IDS_ARRAY_REQUIRED: "MODS_MOD_IDS_ARRAY_REQUIRED",
-  /** server/routes/mods.js -- (3 sites: POST /batch-remove, /batch-delete-disk-mods, /batch-purge) --
+  /** server/routes/mods.js -- (sites: POST /batch-remove, /batch-delete-disk-mods, /batch-purge) --
    * after filtering to /^\d{1,15}$/, zero ids survived. Identical wording,
    * shared code. */
   MODS_NO_VALID_WORKSHOP_IDS: "MODS_NO_VALID_WORKSHOP_IDS",
@@ -1091,7 +1091,7 @@ export const ErrorCode = Object.freeze({
   MODS_PRESET_NAME_LENGTH_INVALID: "MODS_PRESET_NAME_LENGTH_INVALID",
   /** server/routes/mods.js -- POST /presets, `name` missing or not a string. */
   MODS_PRESET_NAME_REQUIRED: "MODS_PRESET_NAME_REQUIRED",
-  /** server/routes/mods.js -- (3 sites: PUT/DELETE /presets/:id, POST /apply-preset) -- no stored preset
+  /** server/routes/mods.js -- (sites: PUT/DELETE /presets/:id, POST /apply-preset) -- no stored preset
    * with that id. Identical wording, shared code. */
   MODS_PRESET_NOT_FOUND: "MODS_PRESET_NOT_FOUND",
   /** server/routes/mods.js -- PUT /presets/:id, trimmed name empty or exceeds 100 chars. Own wording
@@ -1132,16 +1132,16 @@ export const ErrorCode = Object.freeze({
   MODS_SAVE_ORDER_TOO_MANY: "MODS_SAVE_ORDER_TOO_MANY",
   /** server/routes/mods.js -- POST /search-workshop-mods, query under 2 characters. */
   MODS_SEARCH_QUERY_TOO_SHORT: "MODS_SEARCH_QUERY_TOO_SHORT",
-  /** server/routes/mods.js -- (5 sites: POST /presets, POST /apply-preset x2, POST /save-order, GET-ish)
+  /** server/routes/mods.js -- (sites: POST /presets, POST /apply-preset x2, POST /save-order, GET-ish)
    * -- resolved .ini path doesn't exist. Identical wording across all 5
    * (status code varies 400/404 by route but the text and meaning are
    * identical), shared code. */
   MODS_SERVER_INI_NOT_FOUND: "MODS_SERVER_INI_NOT_FOUND",
-  /** server/routes/mods.js -- (3 sites: GET /conflicts, GET /conflicts/stream via SSE `send("error",
+  /** server/routes/mods.js -- (sites: GET /conflicts, GET /conflicts/stream via SSE `send("error",
    * {...})`, GET /conflicts/diff) -- getServerPath() returned null. Identical
    * wording across all three (including the SSE-shaped one), shared code. */
   MODS_SERVER_INSTALL_PATH_NOT_SET: "MODS_SERVER_INSTALL_PATH_NOT_SET",
-  /** server/routes/mods.js -- (3 sites: dependency-resolution routes reading getServerPath()) -- with
+  /** server/routes/mods.js -- (sites: dependency-resolution routes reading getServerPath()) -- with
    * trailing period, distinct literal from
    * MODS_SERVER_PATH_NOT_CONFIGURED_NOPERIOD above. Identical wording across
    * these 3, shared code. */
@@ -1165,10 +1165,10 @@ export const ErrorCode = Object.freeze({
    * Singular-toggle counterpart of MODS_BATCH_TOGGLE_WORKSHOP_ID_IN_MODS below
    * -- own wording (this route names the specific ID), kept separate. */
   MODS_TOGGLE_WORKSHOP_ID_IN_MODID: "MODS_TOGGLE_WORKSHOP_ID_IN_MODID",
-  /** server/routes/mods.js -- (2 sites: POST /batch-delete-disk-mods, POST /batch-purge) --
+  /** server/routes/mods.js -- (sites: POST /batch-delete-disk-mods, POST /batch-purge) --
    * `workshopIds` missing/empty/not an array. Identical wording, shared code. */
   MODS_WORKSHOP_IDS_ARRAY_REQUIRED: "MODS_WORKSHOP_IDS_ARRAY_REQUIRED",
-  /** server/routes/mods.js -- (6 sites: POST /track, /get-mod-info, /add-to-ini, /write-to-ini,
+  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info, /add-to-ini, /write-to-ini,
    * /add-mod-advanced, GET-ish helpers) -- no workshopId in the body.
    * Identical wording, shared code. */
   MODS_WORKSHOP_ID_REQUIRED: "MODS_WORKSHOP_ID_REQUIRED",
@@ -1273,27 +1273,27 @@ export const ErrorCode = Object.freeze({
   /** server/routes/panelBridge.js (many sites: player/faction/safehouse
    * routes) -- `username` fails BRIDGE_USERNAME_REGEX. */
   BRIDGE_INVALID_USERNAME_FORMAT: "BRIDGE_INVALID_USERNAME_FORMAT",
-  /** server/routes/panelBridge.js (4 sites: /message, /chat/*) -- `message`
+  /** server/routes/panelBridge.js (sites: /message, /chat/*) -- `message`
    * missing or exceeds 2000 characters. */
   BRIDGE_MESSAGE_REQUIRED: "BRIDGE_MESSAGE_REQUIRED",
-  /** server/routes/panelBridge.js (4 sites: moderation kick/ban routes) --
+  /** server/routes/panelBridge.js (sites: moderation kick/ban routes) --
    * `username` missing or not a non-empty string. */
   BRIDGE_VALID_USERNAME_REQUIRED: "BRIDGE_VALID_USERNAME_REQUIRED",
-  /** server/routes/panelBridge.js (4 sites: /vehicle/* fuel/battery-style
+  /** server/routes/panelBridge.js (sites: /vehicle/* fuel/battery-style
    * routes) -- `value` missing, own wording ("(0.0-1.0)", no "number")
    * from PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1 below -- kept separate. */
   BRIDGE_VALUE_REQUIRED_0_1: "BRIDGE_VALUE_REQUIRED_0_1",
-  /** server/routes/panelBridge.js (3 sites: /climate/fog, /climate/clouds,
+  /** server/routes/panelBridge.js (sites: /climate/fog, /climate/clouds,
    * and one more climate shortcut) -- `value` provided but out of 0-1
    * range. */
   BRIDGE_VALUE_MUST_BE_NUMBER_0_1: "BRIDGE_VALUE_MUST_BE_NUMBER_0_1",
-  /** server/routes/panelBridge.js (2 sites: /weather/snow,
+  /** server/routes/panelBridge.js (sites: /weather/snow,
    * /weather/rain/start) -- `intensity` provided but out of 0-1 range. */
   BRIDGE_INTENSITY_MUST_BE_NUMBER_0_1: "BRIDGE_INTENSITY_MUST_BE_NUMBER_0_1",
-  /** server/routes/panelBridge.js (2 sites: /events/lightning-adjacent
+  /** server/routes/panelBridge.js (sites: /events/lightning-adjacent
    * routes) -- `x`/`y` both missing. */
   BRIDGE_XY_COORDS_REQUIRED: "BRIDGE_XY_COORDS_REQUIRED",
-  /** server/routes/panelBridge.js (2 sites: moderation kick/ban routes) --
+  /** server/routes/panelBridge.js (sites: moderation kick/ban routes) --
    * `username` missing or fails format check, combined message. */
   BRIDGE_INVALID_OR_MISSING_USERNAME: "BRIDGE_INVALID_OR_MISSING_USERNAME",
   /** server/routes/panelBridge.js -- POST /auto-configure, GET
@@ -1301,11 +1301,11 @@ export const ErrorCode = Object.freeze({
    * `serverId` doesn't match a known server. Sends `{ serverId }` at all
    * three sites. */
   PANELBRIDGE_SERVER_ID_NOT_FOUND: "PANELBRIDGE_SERVER_ID_NOT_FOUND",
-  /** server/routes/panelBridge.js (2 sites: POST /auto-configure, GET
+  /** server/routes/panelBridge.js (sites: POST /auto-configure, GET
    * /scan-server/:serverId) -- resolved server has no serverName/name set.
    * Identical wording/meaning both sites, shared code. */
   PANELBRIDGE_SERVER_NAME_NOT_CONFIGURED: "PANELBRIDGE_SERVER_NAME_NOT_CONFIGURED",
-  /** server/routes/panelBridge.js (2 sites: POST /install/from-lua-path,
+  /** server/routes/panelBridge.js (sites: POST /install/from-lua-path,
    * POST /install) -- no active server configured. Identical wording/
    * meaning both sites, shared code. Distinct from PANELBRIDGE_
    * AUTO_CONFIGURE_NO_ACTIVE_SERVER below (own wording, own route). */
@@ -1489,7 +1489,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/panelBridge.js -- POST /zombies/clear (or similar),
    * `radius` outside 1-500. */
   PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID: "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID",
-  /** server/routes/panelBridge.js (5 sites: /vehicle/* fuel/battery-style
+  /** server/routes/panelBridge.js (sites: /vehicle/* fuel/battery-style
    * routes) -- `value` missing. Own wording ("(number 0.0-1.0)", includes
    * "number") from BRIDGE_VALUE_REQUIRED_0_1 above -- kept separate. */
   PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1: "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1",
@@ -1632,12 +1632,12 @@ export const ErrorCode = Object.freeze({
   // AUTH_USERNAME_PASSWORD_REQUIRED etc. already established -- listed
   // below by first call site, all sharing sites named in the comment. ---
 
-  /** server/routes/players.js (10 sites: /kick, /ban, /unban,
+  /** server/routes/players.js (sites: /kick, /ban, /unban,
    * /whitelist/add, /whitelist/remove, /godmode, /invisible, /noclip,
    * /voiceban, /adduser) -- `username` missing from the body. Identical
    * wording/meaning at every site, shared code. */
   PLAYERS_USERNAME_REQUIRED: "PLAYERS_USERNAME_REQUIRED",
-  /** server/routes/players.js (14 sites: /kick, /ban, /unban,
+  /** server/routes/players.js (sites: /kick, /ban, /unban,
    * /access-level, /whitelist/add, /whitelist/remove, /add-item, /add-xp,
    * /add-vehicle, /godmode, /invisible, /noclip, /voiceban, /adduser) --
    * `username` fails isValidUsername() (control chars/quotes/backslash
@@ -1646,7 +1646,7 @@ export const ErrorCode = Object.freeze({
    * PLAYER1/2 below, which name which specific field failed on /teleport
    * rather than reusing this generic wording. */
   PLAYERS_INVALID_USERNAME: "PLAYERS_INVALID_USERNAME",
-  /** server/routes/players.js (3 sites: /ban, /banid) -- optional `reason`
+  /** server/routes/players.js (sites: /ban, /banid) -- optional `reason`
    * fails isValidText(). Identical wording/meaning both routes, shared
    * code. */
   PLAYERS_INVALID_REASON: "PLAYERS_INVALID_REASON",
@@ -1663,7 +1663,7 @@ export const ErrorCode = Object.freeze({
    * joined) as a param -- same shape as AUTH_INVALID_ROLE's `{{roles}}`
    * above. */
   PLAYERS_INVALID_ACCESS_LEVEL: "PLAYERS_INVALID_ACCESS_LEVEL",
-  /** server/routes/players.js (2 sites: /whitelist/add, /adduser) --
+  /** server/routes/players.js (sites: /whitelist/add, /adduser) --
    * optional `password` fails its alphanumeric-plus-symbols/length format
    * check. Identical wording/meaning both sites, shared code. */
   PLAYERS_INVALID_PASSWORD: "PLAYERS_INVALID_PASSWORD",
@@ -1714,7 +1714,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/players.js -- POST /api/players/add-vehicle, `vehicle`
    * missing. */
   PLAYERS_VEHICLE_REQUIRED: "PLAYERS_VEHICLE_REQUIRED",
-  /** server/routes/players.js (2 sites: /add-vehicle, /add-vehicle-at) --
+  /** server/routes/players.js (sites: /add-vehicle, /add-vehicle-at) --
    * `vehicle` fails the "Module.VehicleName" format check. Identical
    * wording/meaning both sites, shared code. */
   PLAYERS_INVALID_VEHICLE_ID: "PLAYERS_INVALID_VEHICLE_ID",
@@ -1723,14 +1723,14 @@ export const ErrorCode = Object.freeze({
    * range spelled out) from PLAYERS_TELEPORT_INVALID_COORDINATES above --
    * different route, different phrasing. */
   PLAYERS_INVALID_MAP_COORDINATES: "PLAYERS_INVALID_MAP_COORDINATES",
-  /** server/routes/players.js (4 sites: /godmode, /invisible, /noclip,
+  /** server/routes/players.js (sites: /godmode, /invisible, /noclip,
    * /voiceban) -- `enabled` present but not a boolean. Identical
    * wording/meaning at every site, shared code. */
   PLAYERS_INVALID_ENABLED_FLAG: "PLAYERS_INVALID_ENABLED_FLAG",
-  /** server/routes/players.js (2 sites: /banid, /unbanid) -- `steamId`
+  /** server/routes/players.js (sites: /banid, /unbanid) -- `steamId`
    * missing. Identical wording/meaning both sites, shared code. */
   PLAYERS_STEAMID_REQUIRED: "PLAYERS_STEAMID_REQUIRED",
-  /** server/routes/players.js (4 sites: /banid, /unbanid,
+  /** server/routes/players.js (sites: /banid, /unbanid,
    * /whitelist/steamid/add, /whitelist/steamid/remove) -- `steamId` fails
    * the 17-digit format check. Identical wording/meaning at every site,
    * shared code. */
@@ -1760,17 +1760,17 @@ export const ErrorCode = Object.freeze({
   /** server/routes/players.js -- DELETE /api/players/notes/:playerName, no
    * note existed for that player. */
   PLAYERS_NOTE_NOT_FOUND: "PLAYERS_NOTE_NOT_FOUND",
-  /** server/routes/players.js (2 sites: GET /exports/:username/:filename,
+  /** server/routes/players.js (sites: GET /exports/:username/:filename,
    * DELETE /exports/:username/:filename) -- `username`/`filename` fail
    * their path-traversal-safe format checks. Identical wording/meaning
    * both sites, shared code. */
   PLAYERS_EXPORT_INVALID_PARAMETERS: "PLAYERS_EXPORT_INVALID_PARAMETERS",
-  /** server/routes/players.js (2 sites: GET /exports/:username/:filename,
+  /** server/routes/players.js (sites: GET /exports/:username/:filename,
    * DELETE /exports/:username/:filename) -- resolved export file doesn't
    * exist on disk. Identical wording/meaning both sites, shared code. */
   PLAYERS_EXPORT_NOT_FOUND: "PLAYERS_EXPORT_NOT_FOUND",
 
-  /** server/routes/scheduler.js (2 sites: POST /tasks, PUT /tasks/:id) --
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id) --
    * request body missing/not an object/an array. Identical wording/meaning
    * both sites, shared code. */
   SCHEDULER_REQUEST_BODY_INVALID: "SCHEDULER_REQUEST_BODY_INVALID",
@@ -1784,11 +1784,11 @@ export const ErrorCode = Object.freeze({
    * required fields (name/cronExpression/command) for task creation, which
    * would be misleading on this single-field preview endpoint. */
   SCHEDULER_CRON_EXPRESSION_REQUIRED: "SCHEDULER_CRON_EXPRESSION_REQUIRED",
-  /** server/routes/scheduler.js (2 sites: POST /tasks, PUT /tasks/:id) --
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id) --
    * `name` present but not a string or exceeds 100 characters. Identical
    * wording/meaning both sites, shared code. */
   SCHEDULER_INVALID_TASK_NAME: "SCHEDULER_INVALID_TASK_NAME",
-  /** server/routes/scheduler.js (2 sites: POST /tasks, PUT /tasks/:id) --
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id) --
    * `command` present but not a string or exceeds 2000 characters.
    * Identical wording/meaning both sites, shared code. */
   SCHEDULER_INVALID_COMMAND: "SCHEDULER_INVALID_COMMAND",
@@ -1797,23 +1797,23 @@ export const ErrorCode = Object.freeze({
    * node-cron's own validator -- see SCHEDULER_INVALID_CRON_EXPRESSION for
    * that one). PUT /tasks/:id has no equivalent standalone check. */
   SCHEDULER_INVALID_CRON_FORMAT: "SCHEDULER_INVALID_CRON_FORMAT",
-  /** server/routes/scheduler.js (3 sites: POST /tasks, PUT /tasks/:id,
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id,
    * POST /validate-cron) -- node-cron's own cron.validate() rejects the
    * expression. Identical meaning at all three sites; the raw English text
    * differs at the validate-cron site (a shorter preview-only phrasing) but
    * the client translates by this code, not the raw string, so that's fine. */
   SCHEDULER_INVALID_CRON_EXPRESSION: "SCHEDULER_INVALID_CRON_EXPRESSION",
-  /** server/routes/scheduler.js (3 sites: POST /tasks, PUT /tasks/:id,
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id,
    * POST /validate-cron) -- a 6-field (seconds-precision) cron expression;
    * the panel only supports the standard 5-field form. Identical
    * wording/meaning all three sites, shared code. */
   SCHEDULER_CRON_SECONDS_UNSUPPORTED: "SCHEDULER_CRON_SECONDS_UNSUPPORTED",
-  /** server/routes/scheduler.js (3 sites: POST /tasks, PUT /tasks/:id,
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id,
    * POST /validate-cron) -- isCronTooFrequent() rejects a schedule firing
    * more than once every 5 minutes (DoS guard). Identical wording/meaning
    * all three sites, shared code. */
   SCHEDULER_CRON_TOO_FREQUENT: "SCHEDULER_CRON_TOO_FREQUENT",
-  /** server/routes/scheduler.js (2 sites: POST /tasks, PUT /tasks/:id) --
+  /** server/routes/scheduler.js (sites: POST /tasks, PUT /tasks/:id) --
    * an explicitly given `serverId` doesn't match any known server.
    * Identical wording/meaning both sites, shared code. */
   SCHEDULER_TARGET_SERVER_NOT_FOUND: "SCHEDULER_TARGET_SERVER_NOT_FOUND",
@@ -1824,7 +1824,7 @@ export const ErrorCode = Object.freeze({
    * rejection) is more useful here than a generic message, unlike the
    * file's catch-all 500s. */
   SCHEDULER_TASK_SCHEDULING_FAILED: "SCHEDULER_TASK_SCHEDULING_FAILED",
-  /** server/routes/scheduler.js (4 sites: PUT /tasks/:id, DELETE
+  /** server/routes/scheduler.js (sites: PUT /tasks/:id, DELETE
    * /tasks/:id, POST /tasks/:id/run, GET /history) -- the `:id`/`taskId`
    * param fails parseTaskId()'s bounded-integer check. Identical
    * wording/meaning at every site, shared code. */
@@ -1832,7 +1832,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/scheduler.js -- PUT /tasks/:id, `enabled` present but
    * not one of true/false/0/1. */
   SCHEDULER_INVALID_ENABLED_VALUE: "SCHEDULER_INVALID_ENABLED_VALUE",
-  /** server/routes/scheduler.js (3 sites: PUT /tasks/:id, DELETE
+  /** server/routes/scheduler.js (sites: PUT /tasks/:id, DELETE
    * /tasks/:id, POST /tasks/:id/run) -- no scheduled task exists for the
    * given ID. Identical wording/meaning at every site, shared code. */
   SCHEDULER_TASK_NOT_FOUND: "SCHEDULER_TASK_NOT_FOUND",
@@ -1878,7 +1878,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/config.js -- PUT /app-settings, `modCheckInterval` fails
    * minutesToCheckIntervalMs(). */
   CONFIG_INVALID_MOD_CHECK_INTERVAL: "CONFIG_INVALID_MOD_CHECK_INTERVAL",
-  /** server/routes/config.js (12 sites: modRestartDelay,
+  /** server/routes/config.js (sites: modRestartDelay,
    * serverAutoUpdateWarningMinutes, httpsPort, panelPort, rconPort,
    * serverPort, panelBridgeSftpPort, panelBridgeSftpPollIntervalSeconds,
    * minMemory, maxMemory, autoExportMaxPerPlayer, reconnectInterval) -- a
@@ -1931,7 +1931,7 @@ export const ErrorCode = Object.freeze({
   /** server/routes/config.js -- PUT /app-settings, a `chatPresets` entry
    * isn't a string or exceeds 500 characters. */
   CONFIG_CHAT_PRESETS_INVALID_ENTRY: "CONFIG_CHAT_PRESETS_INVALID_ENTRY",
-  /** server/routes/config.js (2 sites: GET /cors-debug, DELETE
+  /** server/routes/config.js (sites: GET /cors-debug, DELETE
    * /cors-debug/blocked) -- the CORS diagnostics hooks were never
    * registered on the app (req.app.get returns a non-function). Identical
    * wording/meaning both sites, shared code. */
@@ -2030,10 +2030,10 @@ export const ErrorCode = Object.freeze({
    * match a built-in or a stored user template. Identical meaning all five,
    * shared code. */
   SIM_TEMPLATE_NOT_FOUND: "SIM_TEMPLATE_NOT_FOUND",
-  /** server/services/templateService.js (2 sites: previewTemplate,
+  /** server/services/templateService.js (sites: previewTemplate,
    * applyTemplate) -- `serverId` doesn't match a configured server. */
   SIM_TEMPLATE_SERVER_NOT_FOUND: "SIM_TEMPLATE_SERVER_NOT_FOUND",
-  /** server/services/templateService.js (2 sites: previewTemplate,
+  /** server/services/templateService.js (sites: previewTemplate,
    * applyTemplate) -- resolveServerPaths() couldn't derive an ini/SandboxVars
    * path (no serverConfigPath/zomboidDataPath, or serverName fails the
    * filename-safe charset check). */
@@ -2041,12 +2041,12 @@ export const ErrorCode = Object.freeze({
   /** server/services/templateService.js -- saveTemplate(), the submitted
    * `meta.id` matches one of the built-in templates. */
   SIM_TEMPLATE_BUILTIN_READONLY: "SIM_TEMPLATE_BUILTIN_READONLY",
-  /** server/services/templateService.js (2 sites: saveTemplate,
+  /** server/services/templateService.js (sites: saveTemplate,
    * importTemplate) -- validateTemplate() rejected the template. Carries
    * {{errors}} = the joined validation error list; a static translation
    * would discard the actual field-level detail. */
   SIM_TEMPLATE_VALIDATION_FAILED: "SIM_TEMPLATE_VALIDATION_FAILED",
-  /** server/routes/templates.js (2 sites: POST /:id/preview, POST
+  /** server/routes/templates.js (sites: POST /:id/preview, POST
    * /:id/apply) -- `serverId` missing from the request body. */
   SIM_TEMPLATE_SERVER_ID_REQUIRED: "SIM_TEMPLATE_SERVER_ID_REQUIRED",
   /** server/routes/templates.js (3 sites, all POST /:id/apply targeting the
