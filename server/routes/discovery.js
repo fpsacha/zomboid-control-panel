@@ -12,6 +12,7 @@ import { requirePermission } from "../services/permissions.js";
 import {
   discoverMounts,
   discoverMountIssues,
+  scanAllCandidates,
   probeInstallPath,
   probeDataPath,
   readServerIniSettings,
@@ -32,8 +33,23 @@ router.get("/discover-mounts", requirePermission("servers.discover"), async (req
     // inaccessible: candidates that exist but couldn't be read (permission
     // denied) rather than simply not being mounted -- surfaced separately so
     // a misconfigured host permission doesn't read identically to "nothing
-    // mounted here".
-    res.json({ mounts: discoverMounts(), inaccessible: discoverMountIssues() });
+    // mounted here". Kept unchanged for every existing caller (DiscoverySetup.tsx).
+    //
+    // candidates: server-detection-lifecycle-hardening, 2026-09-09 -- the
+    // additive, ranked-with-reasons version. `mounts`/`inaccessible` above
+    // only ever show a candidate once it's fully ready or explicitly
+    // permission-denied; everything else (empty, not mounted, half-there)
+    // was invisible. `candidates` shows EVERY common Docker/Unraid/env
+    // location this scan knows about, ranked best-first, each with a
+    // `status` and a plain-language `reason` -- see
+    // mountDiscovery.js's scanAllCandidates() for the taxonomy. New UI
+    // should read this field; DiscoverySetup.tsx's existing flow is
+    // untouched.
+    res.json({
+      mounts: discoverMounts(),
+      inaccessible: discoverMountIssues(),
+      candidates: scanAllCandidates(),
+    });
   } catch (error) {
     log.error(`Mount discovery failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -109,12 +125,34 @@ router.post("/create-from-discovery", requirePermission("servers.discover"), asy
       });
     }
 
+    // docker-unraid-onboarding, 2026-09-09: found by Dwight tracing this
+    // route end to end. This USED to always hardcode 127.0.0.1 -- correct
+    // for the co-located, single-container topology (PZ and the panel in
+    // the same container, or PZ native on the same host), but the
+    // project's own docker/unraid/zomboid-panel.xml documents a SECOND,
+    // equally real topology: the panel and PZ in TWO SEPARATE containers
+    // sharing only the bind-mounted install/data volumes, reachable over
+    // the Docker network -- and that template's own RCON_HOST field says,
+    // verbatim, "Never use 127.0.0.1." Discovery finds the install, the
+    // data, the INI, and reads the real RCON port/password out of it --
+    // then created a profile that could never connect, on the one field
+    // nothing else derives. rcon.js's own env fallback
+    // (`process.env.RCON_HOST || "127.0.0.1"`) is the established
+    // convention for exactly this case; reused here rather than inventing
+    // a second one. "CHANGE_ME" is the template's own literal default for
+    // a REQUIRED field -- guarded explicitly in case an Unraid version
+    // ever lets a required field deploy unedited, so a profile is never
+    // created pointed at a host literally named "CHANGE_ME".
+    const envRconHost = String(process.env.RCON_HOST || "").trim();
+    const resolvedRconHost =
+      envRconHost && envRconHost !== "CHANGE_ME" ? envRconHost : "127.0.0.1";
+
     const server = await createServer({
       name: name || iniSettings.publicName || resolvedName,
       serverName: resolvedName,
       installPath: discovered.installPath,
       zomboidDataPath: discovered.dataPath,
-      rconHost: normalizeRconHost("127.0.0.1"),
+      rconHost: normalizeRconHost(resolvedRconHost),
       rconPort: iniSettings.rconPort,
       rconPassword: iniSettings.rconPassword,
       serverPort: iniSettings.serverPort,

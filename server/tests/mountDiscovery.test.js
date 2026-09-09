@@ -8,6 +8,7 @@ import {
   findDataPath,
   discoverMounts,
   discoverMountIssues,
+  scanAllCandidates,
   readServerIniSettings,
 } from "../services/mountDiscovery.js";
 import { isContainerized } from "../utils/dockerDetect.js";
@@ -232,6 +233,135 @@ describe("discoverMountIssues", () => {
     // Default fs behaviour in the tmp-only test environment: nothing at the
     // hardcoded common-mount paths, which should be silent (not an issue).
     expect(discoverMountIssues()).toEqual([]);
+  });
+});
+
+// server-detection-lifecycle-hardening, 2026-09-09: the operator's own
+// ask -- "a validator that says 'path not found' for a path that
+// demonstrably exists is the bug we are fixing" -- so scanAllCandidates()
+// reports EVERY common Docker/Unraid/env candidate this module knows
+// about, ranked best-first, each with a `status` and a plain-language
+// `reason`, instead of discoverMounts()'s existing "silently skip anything
+// that isn't a complete, ready server" contract (which stays unchanged for
+// its own callers -- see the tests above).
+describe("scanAllCandidates", () => {
+  it("reports 'ready' with a human reason when both install and data are present", () => {
+    const installDir = path.join(tmpRoot, "install");
+    const dataDir = path.join(tmpRoot, "data");
+    fs.mkdirSync(installDir, { recursive: true });
+    fs.writeFileSync(path.join(installDir, "start-server.sh"), "");
+    fs.mkdirSync(path.join(dataDir, "Saves"), { recursive: true });
+
+    vi.stubEnv("PZ_SERVER_PATH", installDir);
+    vi.stubEnv("PZ_SAVE_PATH", dataDir);
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("ready");
+    expect(env.installPath).toBe(installDir);
+    expect(env.dataPath).toBe(dataDir);
+    expect(env.reason).toMatch(/complete project zomboid server/i);
+  });
+
+  it("reports 'install-only' with a human reason when the server install exists but no data path resolves", () => {
+    const installDir = path.join(tmpRoot, "install");
+    fs.mkdirSync(installDir, { recursive: true });
+    fs.writeFileSync(path.join(installDir, "start-server.sh"), "");
+
+    vi.stubEnv("PZ_SERVER_PATH", installDir);
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("install-only");
+    expect(env.reason).toMatch(/no matching save-data folder/i);
+  });
+
+  it("reports 'data-only' with a human reason when only a save-data path is configured", () => {
+    const dataDir = path.join(tmpRoot, "data");
+    fs.mkdirSync(path.join(dataDir, "Saves"), { recursive: true });
+
+    vi.stubEnv("PZ_SAVE_PATH", dataDir);
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("data-only");
+    expect(env.dataPath).toBe(dataDir);
+    expect(env.reason).toMatch(/no server install files/i);
+  });
+
+  it("reports 'empty' with a human reason for a path that exists but has no PZ markers at all", () => {
+    const installDir = path.join(tmpRoot, "install");
+    fs.mkdirSync(installDir, { recursive: true }); // exists, but nothing PZ-shaped inside
+
+    vi.stubEnv("PZ_SERVER_PATH", installDir);
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("empty");
+    expect(env.reason).toMatch(/doesn't look like a project zomboid/i);
+  });
+
+  it("reports 'not-mounted' with a human reason for a candidate path that doesn't exist at all", () => {
+    vi.stubEnv("PZ_SERVER_PATH", path.join(tmpRoot, "does-not-exist"));
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("not-mounted");
+    expect(env.reason).toMatch(/not mounted/i);
+  });
+
+  it("reports 'permission-denied' with a human reason distinct from 'not-mounted', and never silently drops the candidate", () => {
+    const installDir = path.join(tmpRoot, "locked");
+    const denied = new Error("EACCES: permission denied");
+    denied.code = "EACCES";
+    vi.spyOn(fs, "statSync").mockImplementation((p) => {
+      if (p === installDir) throw denied;
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+
+    vi.stubEnv("PZ_SERVER_PATH", installDir);
+
+    const results = scanAllCandidates();
+    const env = results.find((r) => r.source === "environment");
+    expect(env.status).toBe("permission-denied");
+    expect(env.reason).toMatch(/doesn't have permission/i);
+  });
+
+  it("ranks 'ready' before 'not-mounted' even when it appears LATER in the raw candidate list -- proves this is a real sort, not just insertion order", () => {
+    // The env candidate is always first in the raw candidate list, so
+    // making IT the "ready" one would pass even with sorting disabled
+    // entirely -- not a real test of the sort. Instead, make the THIRD
+    // hardcoded common-mount candidate ("/steam/pz", checked after
+    // "/pz-server" and "/serverdata/serverfiles") the ready one, leaving
+    // everything before it not-mounted (the default on a machine with none
+    // of these paths). Matched by a path-separator-agnostic prefix check
+    // (path.join uses backslashes on win32, forward slashes elsewhere) so
+    // this passes identically on this repo's Windows dev machines and
+    // god's Linux gate -- see the standing rule on platform-branching
+    // fixtures.
+    const normalize = (p) => String(p).replace(/\\/g, "/");
+    const isUnderSteamPz = (p) => normalize(p).startsWith("/steam/pz");
+
+    vi.spyOn(fs, "statSync").mockImplementation((p) => {
+      if (isUnderSteamPz(p)) return { isDirectory: () => true };
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    vi.spyOn(fs, "existsSync").mockImplementation((p) => isUnderSteamPz(p));
+    vi.spyOn(fs, "readdirSync").mockImplementation((p) =>
+      normalize(p) === "/steam/pz" ? ["start-server.sh"] : [],
+    );
+
+    const results = scanAllCandidates();
+    const steamPz = results.find((r) => r.installPath === "/steam/pz");
+    expect(steamPz.status).toBe("ready");
+    expect(results[0]).toBe(steamPz);
+  });
+
+  it("includes the new generic single-mount candidates (/data, /config, /serverfiles) that computeCandidateZomboidPaths-adjacent code did not previously know about", () => {
+    const results = scanAllCandidates();
+    const sources = results.map((r) => r.source);
+    expect(sources).toContain("generic-single-mount");
+    expect(results.filter((r) => r.source === "generic-single-mount")).toHaveLength(3);
   });
 });
 
