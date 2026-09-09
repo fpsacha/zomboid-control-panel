@@ -385,14 +385,24 @@ function recoverBlockedSteamManifest(installPath) {
   return { backupPath };
 }
 
+// Fixed install locations findSteamCmdPath() falls back to after the
+// configured setting and STEAMCMD_PATH env var -- the first entry is the
+// exact path our own all-in-one image installs SteamCMD to
+// (docker/all-in-one/entrypoint.sh), so inside that image detection is
+// deterministic, not a guess. Named so POST /install's own missing-field
+// error can say where it looked, not just that it failed.
+const STEAMCMD_FIXED_CANDIDATE_PATHS = [
+  "/home/steam/steamcmd",
+  "/home/steam/Steam/steamcmd",
+  "/opt/steamcmd",
+];
+
 async function findSteamCmdPath() {
   const configuredPath = await getSetting("steamcmdPath");
   const candidates = [
     configuredPath,
     process.env.STEAMCMD_PATH,
-    "/home/steam/steamcmd",
-    "/home/steam/Steam/steamcmd",
-    "/opt/steamcmd",
+    ...STEAMCMD_FIXED_CANDIDATE_PATHS,
   ].filter(Boolean);
 
   for (const candidate of candidates) {
@@ -2689,7 +2699,7 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
   let activeOperationPath = null;
   try {
     const {
-      steamcmdPath,
+      steamcmdPath: suppliedSteamcmdPath,
       installPath,
       serverName,
       branch,
@@ -2708,6 +2718,15 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
       rconPort = 27015,
     } = req.body;
 
+    // steamcmd-install-detect-fallback, 2026-09-09: an explicitly supplied
+    // steamcmdPath always wins; only fall back to findSteamCmdPath() (the
+    // same detection GET /steamcmd/detect already runs and persists) when
+    // the field is absent. In our own all-in-one image the answer is
+    // deterministic (STEAMCMD_FIXED_CANDIDATE_PATHS[0]), so 400ing before
+    // even trying to detect was asking the operator for something we
+    // already knew.
+    const steamcmdPath = suppliedSteamcmdPath || (await findSteamCmdPath());
+
     // Determine branch - support both new 'branch' param and legacy 'useUnstable'
     const selectedBranch = branch || (useUnstable ? "unstable" : "stable");
     log.info(
@@ -2716,8 +2735,17 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
 
     // Validate paths - Security check for path traversal
     if (!steamcmdPath || !installPath || !serverName) {
+      const missing = [];
+      if (!steamcmdPath) missing.push("steamcmdPath");
+      if (!installPath) missing.push("installPath");
+      if (!serverName) missing.push("serverName");
+      // Tell the operator where we looked, not just that detection failed
+      // -- a dead end costs them a support ticket, one sentence doesn't.
+      const steamcmdNotFoundHint = !steamcmdPath
+        ? ` SteamCMD was not found automatically either -- checked ${STEAMCMD_FIXED_CANDIDATE_PATHS.join(", ")}.`
+        : "";
       return res.status(400).json({
-        error: "Missing required fields: steamcmdPath, installPath, serverName",
+        error: `Missing required fields: ${missing.join(", ")}.${steamcmdNotFoundHint}`,
         code: ErrorCode.INSTALL_MISSING_FIELDS,
       });
     }
