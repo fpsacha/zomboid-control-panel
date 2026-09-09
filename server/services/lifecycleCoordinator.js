@@ -121,3 +121,31 @@ export function lifecycleInProgressResponse() {
 export function isLifecycleLocked() {
   return activeLock !== null;
 }
+
+// steamcmd-ops-never-check-the-lifecycle-lock, 2026-09-09: SteamCMD ops
+// (install/quick-setup/steam-update) must NOT take this GLOBAL lock
+// themselves -- a multi-minute download holding the one module-level
+// activeLock would freeze every unrelated server's start/stop/restart
+// panel-wide, confirming the operator's "start/stop feels unreliable"
+// report rather than fixing it (god's ruling, 2026-09-08). What they need
+// instead is to ask "is the CURRENTLY HELD lock for THIS SAME server",
+// which is only meaningful now that serverId means one thing everywhere
+// (08396dcd's normalization) instead of five. Mirrors the scope-of-claim
+// shape hasActiveSteamOperation() already uses in the reverse direction
+// (wipe/restore refusing while SteamCMD holds normalizedInstallPath) --
+// both sides now answer "are we touching the same thing", not "is
+// anything happening anywhere".
+//
+// Returns false (never refuses) when either side has no id to compare:
+// a lock acquired with no serverId (boot auto-start, an automatic update
+// with no single server, or server.js's /delete-files -- deliberately
+// null, see acquireLifecycleLock's own comment) can't be proven to be the
+// SAME server, so it must not silently guard nothing while looking like it
+// checked something. This is a known, already-documented gap (2 of the 20
+// call sites), not a new one introduced here.
+export function isLifecycleLockedForServer(serverId) {
+  if (!activeLock?.serverId) return false;
+  if (serverId === null || serverId === undefined) return false;
+  const normalized = String(serverId).trim();
+  return normalized.length > 0 && activeLock.serverId === normalized;
+}
