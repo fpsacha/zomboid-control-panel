@@ -1104,6 +1104,35 @@ export class BackupService {
     const savesPath = await this.getSavesPath();
     const backupsPath = await this.getBackupsPath();
 
+    // `this.lastBackup` is only ever WRITTEN by createBackup() succeeding in
+    // THIS process (line ~687) -- it starts null at construction and is
+    // never hydrated from disk, so every panel restart/update forgets it
+    // even though real backups are sitting right there. `listBackups()`
+    // above, by contrast, is always a live fs.readdir+stat scan and can
+    // never go stale. Confirmed real-world shape: an operator with 20 real
+    // backups sees "Last Backup: Never" right next to a correct non-zero
+    // backupCount on the exact same status card, right after every restart
+    // -- the moment an operator is already watching this card closest.
+    // `backups[0]` (listBackups() sorts newest-first) and `this.lastBackup`
+    // as set at line ~687 are the identical {name, path, size, created}
+    // shape -- guarded by crossProducerShapeGate.test.js's cross-producer
+    // check on this exact pair, so assigning one into the other here can't
+    // print a raw object where the UI expects `.created` to read a string.
+    // Lazy (computed here, not at construction) rather than eager: a
+    // constructor that touches the filesystem is startup cost nobody is
+    // looking at yet and is harder to test, and lazy self-heals if a backup
+    // appears via any route OTHER than createBackup() succeeding in this
+    // process -- exactly the gap that produced this bug in the first place.
+    // Backups.tsx/Dashboard.tsx/Settings.tsx's readers all already treat
+    // this generically as "the newest backup", never as "one this session
+    // made", so widening the meaning from "mine" to "the real one on disk"
+    // is what the label already claimed, not a behavior change for them.
+    // Zero backups on disk must still read "Never": backups.length === 0
+    // leaves this.lastBackup untouched (still its constructor-default null).
+    if (!this.lastBackup && backups.length > 0) {
+      this.lastBackup = backups[0];
+    }
+
     // `lastBackup` above only ever reflects a SUCCESSFUL backup (manual or
     // scheduled) that produced a file -- it says nothing about whether the
     // scheduler itself has been failing. An operator can have "Auto Backup:
