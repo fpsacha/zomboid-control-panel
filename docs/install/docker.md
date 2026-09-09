@@ -391,6 +391,9 @@ configured.
    password and submit.
 8. In **Settings**, set the paths to the **container-side** values —
    `/pz-server` and `/zomboid` — never the `/mnt/...` host paths from step 3.
+   (If you enabled the optional **Docker socket** field below, typing the
+   `/mnt/...` host path here works too — the panel recognizes it and
+   translates it to the container path automatically.)
 9. If your PZ container doesn't expose `/zomboid` to the panel at all, use
    **Settings → PanelBridge → Remote server via SFTP** instead of a shared
    folder.
@@ -399,6 +402,28 @@ configured.
 RCON shows connected. By default, the panel can monitor and administer the
 game through RCON, but it does not start, stop, or auto-update a PZ container
 owned by Unraid.
+
+### Optional: let the panel find your folders automatically
+
+The template has one more field, hidden under the template editor's
+**Advanced View** toggle: **Docker socket**, mapped to
+`/var/run/docker.sock`. It is blank by default and nothing changes unless
+you fill it in.
+
+Filling it in with the standard Unraid path, `/var/run/docker.sock`, lets
+the panel ask Docker directly which host folder each of its own mounted
+folders really is. In practice this means: if you type a `/mnt/...` host
+path into a Settings field (step 8 above, or when adding a server), the
+panel can recognize it and use the matching container path automatically
+instead of reporting it as "not found."
+
+This is a **separate, narrower** grant than the container-control steps
+below — filling in this one field does **not** let the panel start, stop,
+or otherwise control any container. But the underlying access is the same
+real privilege: any process that can reach Docker's socket can, in
+principle, see and act on every container on the host. Leave it blank if
+you would rather type the container-side paths yourself; nothing else in
+this guide requires it.
 
 ### Optional: let the panel control the Unraid PZ container
 

@@ -99,4 +99,36 @@ describe("Docker deployment guidance", () => {
     expect(docs).toContain("/var/run/docker.sock");
     expect(docs).toContain("--group-add=281");
   });
+
+  it("offers the Unraid Docker socket field as optional, blank-by-default, and distinct from the container-control grant", () => {
+    const xml = readRepoFile("docker/unraid/zomboid-panel.xml");
+    const docs = readRepoFile("docs/install/docker.md");
+
+    const socketConfig = xml.match(
+      /<Config Name="Docker socket \(optional\)"[\s\S]*?\/>/,
+    )?.[0];
+    expect(socketConfig).toBeTruthy();
+    expect(socketConfig).toContain('Target="/var/run/docker.sock"');
+    // Blank by default: Unraid only includes a Path mapping in the actual
+    // `docker run` it issues when the field has a value, so an empty
+    // Default here is what makes this genuinely opt-in rather than silently
+    // granted the moment someone clicks through the install -- see this
+    // Config's own long Description for why that distinction matters.
+    expect(socketConfig).toContain('Default=""');
+    expect(socketConfig).toContain('Required="false"');
+    // Hidden behind Advanced View, not shown on the plain install screen --
+    // the operator must go looking for it, not stumble into it.
+    expect(socketConfig).toContain('Display="advanced"');
+    // Must NOT claim to grant PANEL_DOCKER_CONTROL_ENABLED-style container
+    // control -- that is the separate, later "Optional: let the panel
+    // control the Unraid PZ container" section, with its own explicit
+    // opt-in steps (group_add, the zomboid-panel.managed label). This field
+    // alone only unlocks path translation.
+    expect(socketConfig).not.toContain("PANEL_DOCKER_CONTROL_ENABLED");
+
+    expect(docs).toContain("Optional: let the panel find your folders automatically");
+    expect(docs.indexOf("Optional: let the panel find your folders automatically")).toBeLessThan(
+      docs.indexOf("Optional: let the panel control the Unraid PZ container"),
+    );
+  });
 });
