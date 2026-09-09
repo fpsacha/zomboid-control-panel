@@ -211,6 +211,70 @@ describe("POST /api/servers/create-from-discovery", () => {
     expect(createServer).not.toHaveBeenCalled();
   });
 
+  // discovery-silent-multi-server-autopick, 2026-09-09: the ONE place
+  // tonight's onboarding push goes the opposite direction from "stop
+  // asking, guess, let them change it" -- a silent wrong pick between
+  // several real, already-configured servers the operator owns is not a
+  // recoverable-later guess like a path or a port. Both branches covered:
+  // the single-server case (must not regress, it's the common one) and the
+  // new ambiguous case.
+  it("still auto-picks silently when the mount has exactly one server and none was specified", async () => {
+    // beforeEach's default probeDataPath already returns a single name.
+    const response = await runCreate({
+      installPath: "/pz-server",
+      dataPath: "/zomboid",
+    });
+
+    expect(response.status).not.toHaveBeenCalledWith(400);
+    expect(createServer).toHaveBeenCalledWith(
+      expect.objectContaining({ serverName: "servertest" }),
+    );
+  });
+
+  it("refuses to silently pick between two or more real servers at the same mount, and hands back the full list instead", async () => {
+    probeDataPath.mockReturnValue({
+      valid: true,
+      serverNames: ["ServerA", "ServerB"],
+    });
+
+    const response = await runCreate({
+      installPath: "/pz-server",
+      dataPath: "/zomboid",
+    });
+
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(createServer).not.toHaveBeenCalled();
+    const payload = response.json.mock.calls[0][0];
+    expect(payload.serverNames).toEqual(["ServerA", "ServerB"]);
+    expect(payload.error).toContain("ServerA");
+    expect(payload.error).toContain("ServerB");
+  });
+
+  it("still creates the explicitly named server when the mount is ambiguous, without triggering the ambiguity refusal", async () => {
+    probeDataPath.mockReturnValue({
+      valid: true,
+      serverNames: ["ServerA", "ServerB"],
+    });
+    discoverMounts.mockReturnValue([
+      {
+        installPath: "/pz-server",
+        dataPath: "/zomboid",
+        serverNames: ["ServerA", "ServerB"],
+      },
+    ]);
+
+    const response = await runCreate({
+      installPath: "/pz-server",
+      dataPath: "/zomboid",
+      serverName: "ServerB",
+    });
+
+    expect(response.status).not.toHaveBeenCalledWith(400);
+    expect(createServer).toHaveBeenCalledWith(
+      expect.objectContaining({ serverName: "ServerB" }),
+    );
+  });
+
   it("rejects non-string discovery paths with a client error", async () => {
     const response = await runCreate({
       installPath: { path: "/pz-server" },

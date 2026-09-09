@@ -96,8 +96,34 @@ router.post("/create-from-discovery", requirePermission("servers.discover"), asy
         .json({ error: "dataPath does not look like a PZ data folder" });
     }
 
-    const resolvedName =
-      serverName || dataResult.serverNames[0] || installResult.serverNames[0];
+    // discovery-silent-multi-server-autopick, 2026-09-09: same
+    // dataResult-first-else-installResult precedence discoverMounts() itself
+    // uses for its own `serverNames` field (mountDiscovery.js) -- computed
+    // fresh from the probes just above rather than reusing `discovered`
+    // (probed moments earlier by discoverMounts()) so the ambiguity check
+    // and the name actually picked below can never disagree with each other.
+    const effectiveServerNames = dataResult.serverNames.length
+      ? dataResult.serverNames
+      : installResult.serverNames;
+
+    // A silent pick is fine when there is nothing to choose between (the
+    // overwhelmingly common single-server case) or when the caller already
+    // told us which one they meant. It stops being fine once the mount
+    // genuinely has two or more real, already-configured servers and
+    // nothing was specified: picking one of several servers the operator
+    // OWNS and hiding that a choice was made means the others are never
+    // offered at all, and the wrong pick isn't something an editable field
+    // fixes after the fact -- the panel now thinks the wrong one is the
+    // only one. So: one candidate, use it silently; two or more, hand back
+    // the list instead of guessing (rule 4, no dead ends).
+    if (!serverName && effectiveServerNames.length > 1) {
+      return res.status(400).json({
+        error: `This location has ${effectiveServerNames.length} servers (${effectiveServerNames.join(", ")}) — specify serverName to choose one.`,
+        serverNames: effectiveServerNames,
+      });
+    }
+
+    const resolvedName = serverName || effectiveServerNames[0];
     if (!resolvedName) {
       return res.status(400).json({
         error: "No server config (Server/*.ini) found — specify serverName",
