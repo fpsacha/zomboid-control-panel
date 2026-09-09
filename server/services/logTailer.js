@@ -220,9 +220,25 @@ export class LogTailer extends EventEmitter {
   // that), but does not tie once even a small (tens-of-ms) real gap
   // separates the two files' creation -- which is what distinguishes two
   // genuinely different PZ sessions' logs in practice.
+  //
+  // 2026-09-09 (log-tailer-tie-break-is-not-airtight-on-coarse-filesystems):
+  // that residual gap is real, not just theoretical -- linuxLogTailerRotation
+  // .test.js's own double-tie test only distinguishes the two files by
+  // forcing a real 50ms wait, which is exactly a timestamp-resolution race
+  // against whatever the underlying filesystem/CI host actually honours, and
+  // is the likely cause of that test going red on a loaded gate run and
+  // green on a quieter re-run. A THIRD tie-break that needs no elapsed time
+  // at all: when mtime AND birthtime both genuinely tie, the currently-
+  // tracked path is by definition the file this method already decided was
+  // "latest" on some earlier poll -- so in a true tie it is the OLD one, and
+  // any different file tied with it must be the new one. This costs nothing
+  // when it doesn't apply (first-ever discovery, or a tie among two files
+  // neither of which is currently tracked) -- it just leaves the existing
+  // fallback order in place for those cases.
   findLatestChatLog() {
     if (!this.logsDir) return;
     try {
+        const currentPath = this.chatLogPath;
         const files = fs.readdirSync(this.logsDir)
             .filter(f => f.endsWith('_chat.txt'))
             .map(f => {
@@ -234,7 +250,8 @@ export class LogTailer extends EventEmitter {
                 catch { return null; }
             })
             .filter(Boolean)
-            .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime));
+            .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime)
+                || ((a.path === currentPath ? 1 : 0) - (b.path === currentPath ? 1 : 0)));
 
         if (files.length > 0) {
             const latest = files[0].path;
@@ -254,10 +271,12 @@ export class LogTailer extends EventEmitter {
   // Find the most recently modified *_user.txt in the Logs/ directory
   // (PZ records player join/leave/death events here). Same mtime-tie
   // tiebreak as findLatestChatLog above -- see its comment for why
-  // birthtimeMs, not filename order.
+  // birthtimeMs, not filename order, and for the 2026-09-09 third tie-break
+  // (currently-tracked path loses a genuine double-tie) added below.
   findLatestUserLog() {
     if (!this.logsDir) return;
     try {
+        const currentPath = this.userLogPath;
         const files = fs.readdirSync(this.logsDir)
             .filter(f => f.endsWith('_user.txt'))
             .map(f => {
@@ -269,7 +288,8 @@ export class LogTailer extends EventEmitter {
                 catch { return null; }
             })
             .filter(Boolean)
-            .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime));
+            .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime)
+                || ((a.path === currentPath ? 1 : 0) - (b.path === currentPath ? 1 : 0)));
 
         if (files.length > 0) {
             const latest = files[0].path;
