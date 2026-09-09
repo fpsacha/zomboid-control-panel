@@ -2359,6 +2359,25 @@ export interface BridgeCommandResult<T = Record<string, unknown>> {
   error?: string;
 }
 
+// Server-side sendCommand() (server/services/panelBridge.js) gives up on a
+// pending bridge command and deletes its own bookkeeping at commandTimeoutMs
+// -- 15000ms normally, but 60000ms once a server is configured over SFTP
+// (panelBridge.js:134/188/216). Whichever deadline fires first decides what
+// the user sees: our own abort produces a generic, false "check your
+// connection" (toApiError's AbortError branch); the SERVER'S OWN timeout
+// produces an honest 504 naming the real actor ("no response from mod") that
+// reaches the user via buildResponseError's payload.error. So this client
+// timeout must sit comfortably ABOVE the WORST-CASE server-side ceiling
+// (60000ms, the SFTP case) for every action whose Lua handler can plausibly
+// run long -- not just above the common 15000ms local case, which today
+// loses this race almost every time purely from network/routing latency
+// even though both numbers are nominally equal. Raising this alone does not
+// make the underlying work faster or wait longer in practice: the server
+// still gives up at its own ceiling and answers with the honest failure at
+// that point, this constant only ensures that answer is the one the user
+// actually sees instead of our own earlier, misleading guess.
+export const BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS = 75000;
+
 // Panel Bridge API (for direct Lua mod communication)
 export const panelBridgeApi = {
   // Get bridge status
@@ -2587,8 +2606,13 @@ export const panelBridgeApi = {
   sendCommand: <T = Record<string, unknown>>(
     action: string,
     args?: Record<string, unknown>,
+    options?: { timeout?: number },
   ) =>
-    apiPost<BridgeCommandResult<T>>("/panel-bridge/command", { action, args }),
+    apiPost<BridgeCommandResult<T>>(
+      "/panel-bridge/command",
+      { action, args },
+      options,
+    ),
 
   // Server-wide helicopter event (2026-08-30). Zero-arg, no dedicated route
   // -- same generic-passthrough shape trigger already used before this

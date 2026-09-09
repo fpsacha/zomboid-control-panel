@@ -1418,6 +1418,25 @@ class PanelBridge extends EventEmitter {
         err.data = result.data;
         pending.reject(err);
       }
+    } else {
+      // The mod DID answer -- just not before this command's own timeout
+      // (the setTimeout in sendCommand()) already fired, rejected the
+      // original caller with "no response from mod", and deleted this id
+      // from pendingCommands. Without this log, that answer -- success or
+      // failure -- vanishes with zero trace: the caller already saw a
+      // timeout, and nothing recorded that the mod's real result showed up
+      // after all. Same silent-loss hazard already named above for the
+      // seq-desync recovery path (recoverSkippedResults' header comment,
+      // "fails with 'no response from mod' when the mod in fact responded
+      // successfully") -- this is the ordinary route to it, no desync
+      // required, just an answer slower than commandTimeoutMs.
+      const lateMs = typeof result.timestamp === 'number' ? Date.now() - result.timestamp : null;
+      log.warn(
+        `PanelBridge result: orphaned result id=${result.id} success=${result.success}` +
+        (lateMs !== null
+          ? ` -- mod answered ${lateMs}ms after its command's own timeout had already fired; discarded, caller already saw a timeout failure`
+          : ` -- arrived after its command's own timeout had already fired; discarded, caller already saw a timeout failure`)
+      );
     }
 
     this.emit('result', result);

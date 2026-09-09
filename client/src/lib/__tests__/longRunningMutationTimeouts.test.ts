@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { backupApi, serverApi } from "../api";
+import { backupApi, serverApi, panelBridgeApi, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from "../api";
 import { clearAccessToken } from "../authToken";
 
 // bug-hunt-2026-09-07 (Windows updater hardening lane, widened by god to a
@@ -123,6 +123,48 @@ describe("long-running mutation timeouts", () => {
     const request = backupApi.createBackup();
     const rejection = expect(request).rejects.toMatchObject({ code: "TIMEOUT" });
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1000);
+    await rejection;
+  });
+
+  // mod-settings-timeout investigation, 2026-09-08: getAllSandboxOptions is
+  // panelBridgeApi.sendCommand's ONE caller that passes a timeout override
+  // (ServerConfig.tsx's loadModSettings) instead of the shared 15s default
+  // every other bridge command still gets. The override exists specifically
+  // to sit above BOTH of server/services/panelBridge.js's own
+  // commandTimeoutMs ceilings (15000ms local, 60000ms once a server is
+  // configured over SFTP -- panelBridge.js:134/188/216) so the server's own
+  // honest timeout response wins the race against our generic client abort,
+  // rather than the reverse. This proves the override actually reaches the
+  // real AbortController (not just that ServerConfig passes the right
+  // literal to a mocked spy, which ServerConfig.modSettingsSlowTimeout.
+  // test.tsx already covers) -- and that it is still bounded, not infinite.
+  it("panelBridgeApi.sendCommand('getAllSandboxOptions', ...) does not abort before its slow-enumeration timeout, past both server-side ceilings", async () => {
+    const fetchMock = slowFetchMock(65_000); // past 15s AND past the 60s SFTP ceiling
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = panelBridgeApi.sendCommand(
+      "getAllSandboxOptions",
+      {},
+      { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS },
+    );
+    const resolution = expect(request).resolves.toMatchObject({ success: true });
+    await vi.advanceTimersByTimeAsync(65_000);
+
+    await resolution;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("panelBridgeApi.sendCommand('getAllSandboxOptions', ...) still gives up if the bridge genuinely never responds", async () => {
+    const fetchMock = slowFetchMock(10 * 60 * 1000);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const request = panelBridgeApi.sendCommand(
+      "getAllSandboxOptions",
+      {},
+      { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS },
+    );
+    const rejection = expect(request).rejects.toMatchObject({ code: "TIMEOUT" });
+    await vi.advanceTimersByTimeAsync(BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS + 1000);
     await rejection;
   });
 });

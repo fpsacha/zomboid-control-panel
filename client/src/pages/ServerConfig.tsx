@@ -100,7 +100,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { PageHeader } from '@/components/PageHeader'
 // DropdownMenu imports available if needed
-import { serverApi, serverFilesApi, serversApi, panelBridgeApi, ApiError, SpawnPointsByProfession, SpawnRegion, SandboxData, ConfigTemplate } from '@/lib/api'
+import { serverApi, serverFilesApi, serversApi, panelBridgeApi, ApiError, SpawnPointsByProfession, SpawnRegion, SandboxData, ConfigTemplate, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from '@/lib/api'
 import { resolveServerRunning } from '@/lib/serverStatus'
 import { getBridgeVerifiedState } from '@/lib/bridgeVerify'
 import { getUserErrorMessage } from '@/lib/errorMessage'
@@ -1340,7 +1340,18 @@ export default function ServerConfig() {
     setModSettingsLoading(true)
     setModSettingsError(null)
     try {
-      const response = await panelBridgeApi.sendCommand('getAllSandboxOptions', {}) as {
+      // getAllSandboxOptions enumerates every sandbox option server-wide
+      // (vanilla + every mod's contributed settings) with no chunking on the
+      // mod side, and its cache goes cold on restart, on any admin sandbox
+      // change, or after any 5-minute idle gap -- so a cold run on a
+      // heavily-modded server can legitimately take longer than a generic
+      // API call. Use the slow-enumeration timeout (comfortably above the
+      // server's own worst-case commandTimeoutMs, see api.ts) so that if the
+      // bridge genuinely can't answer in time, the SERVER's own honest
+      // timeout response wins the race and reaches the user here -- instead
+      // of our own client abort firing first with a generic, misleading
+      // "check your connection".
+      const response = await panelBridgeApi.sendCommand('getAllSandboxOptions', {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS }) as {
         success?: boolean
         data?: {
           options: Record<string, Array<{
