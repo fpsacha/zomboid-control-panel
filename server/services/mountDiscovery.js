@@ -9,6 +9,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { describeContainerMountPoints } from "../utils/containerMountInfo.js";
 
 const INI_SUFFIX_BLOCKLIST = [
   "_SandboxVars.ini",
@@ -259,6 +260,32 @@ const CANDIDATE_STATUS_REASON = {
     "Not mounted -- this container path doesn't exist. If you're on Docker or Unraid, check the volume/bind-mount mapping for this path in your container's settings.",
 };
 
+// docker-unraid-onboarding, 2026-09-09: Pam's containerMountInfo.js, on
+// main now. Her empirical finding (real containers, /proc/self/mountinfo):
+// this process's own fs.existsSync-based classification above CANNOT tell
+// apart "a genuine bind mount that happens to be empty" (correctly
+// configured, just nothing saved here yet) from "an ordinary directory
+// baked into the image that nothing was ever bound to" (the volume mapping
+// itself is missing) -- `classifyCandidate()`'s "empty" status collapses
+// both into one answer today, and they need DIFFERENT operator instructions.
+// mountinfo (no Docker socket needed, safe to call unconditionally) CAN
+// make that distinction for a container-side path. Scoped to sources that
+// are actually container bind-mount CONVENTIONS -- applying "mount"
+// semantics to a bare-metal Linux path (source: "linux-bare-metal") or an
+// operator-typed env override (source: "environment", could legitimately
+// be either) would produce a confusing, wrong reason.
+const CONTAINER_MOUNT_SOURCES = new Set([
+  "common-mount",
+  "ich777-mount",
+  "steam-mount",
+  "generic-single-mount",
+]);
+
+const NOT_ACTUALLY_MOUNTED_REASON =
+  "This directory exists in the container image, but nothing is bind-mounted here -- add a volume mapping for this path in your Docker/Unraid container settings.";
+const GENUINELY_EMPTY_MOUNT_REASON =
+  "This is correctly mounted, but nothing has been saved here yet -- check it points at the right host folder, or the server just hasn't run yet.";
+
 // Rank order, best candidate first -- the UI is expected to render in this
 // order rather than re-sort, so "the top of the list is usually right" is a
 // server-side guarantee, not a client-side judgment call.
@@ -331,7 +358,7 @@ function classifyCandidate(candidate) {
 // places and here's what we found at each", not a silent list of only the
 // places that already worked.
 export function scanAllCandidates() {
-  const results = [];
+  const raw = [];
   const seen = new Set();
 
   for (const candidate of allCandidates()) {
@@ -341,20 +368,58 @@ export function scanAllCandidates() {
     seen.add(key);
 
     const { status, installResult, dataPath, dataResult } = classifyCandidate(candidate);
+    raw.push({ candidate, status, installResult, dataPath, dataResult });
+  }
 
-    results.push({
+  // Pam's mountinfo-based real-mount-vs-baked-into-image distinction --
+  // batched into one read of /proc/self/mountinfo (or one null, on a
+  // machine that has none, e.g. this codebase's Windows dev machines)
+  // rather than once per candidate. Only "empty" candidates from a genuine
+  // container-mount-convention source need the extra check -- every other
+  // status already has enough signal, and mountinfo has nothing meaningful
+  // to say about a bare-metal or env-override path.
+  const emptyContainerPaths = raw
+    .filter((r) => r.status === "empty" && CONTAINER_MOUNT_SOURCES.has(r.candidate.source))
+    .map((r) => r.candidate.install)
+    .filter(Boolean);
+  const mountDescriptions =
+    emptyContainerPaths.length > 0
+      ? describeContainerMountPoints(emptyContainerPaths)
+      : [];
+  const mountedByPath = new Map(mountDescriptions.map((d) => [d.path, d.mounted]));
+
+  const results = raw.map(({ candidate, status, installResult, dataPath, dataResult }) => {
+    let finalStatus = status;
+    let reason = CANDIDATE_STATUS_REASON[status];
+
+    if (status === "empty" && CONTAINER_MOUNT_SOURCES.has(candidate.source)) {
+      const mounted = mountedByPath.get(candidate.install);
+      if (mounted === false) {
+        finalStatus = "not-mounted";
+        reason = NOT_ACTUALLY_MOUNTED_REASON;
+      } else if (mounted === true) {
+        reason = GENUINELY_EMPTY_MOUNT_REASON;
+      }
+      // mounted === undefined (not in the map, shouldn't happen for a
+      // filtered candidate) or the describeContainerMountPoints() result
+      // being null-mounted (mountinfo unreadable, e.g. non-Linux dev
+      // machines) both fall through to the existing fs-only "empty"
+      // reason above -- no worse than before this change, never wrong.
+    }
+
+    return {
       installPath: candidate.install || null,
       dataPath: dataResult?.valid ? dataResult.path : dataPath || null,
       source: candidate.source,
-      status,
-      reason: CANDIDATE_STATUS_REASON[status],
+      status: finalStatus,
+      reason,
       serverNames: dataResult?.serverNames?.length
         ? dataResult.serverNames
         : installResult?.serverNames || [],
       hasStartScript: Boolean(installResult?.hasStartScript),
       hasPanelBridge: Boolean(installResult?.hasPanelBridge),
-    });
-  }
+    };
+  });
 
   results.sort((a, b) => STATUS_RANK.indexOf(a.status) - STATUS_RANK.indexOf(b.status));
   return results;
