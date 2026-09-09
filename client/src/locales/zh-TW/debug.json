@@ -241,6 +241,14 @@
     "overallPending": "正在執行檢查…",
     "lastChecked": "上次檢查：{{time}} · {{duration}} 毫秒 · 每 30 秒自動重新整理",
     "runningDescription": "正在對服務、路徑、儲存和更新執行智慧檢查……",
+    "categories": {
+      "services": "核心服務",
+      "bridge": "PanelBridge IPC",
+      "server": "作用中伺服器",
+      "storage": "儲存與資料庫",
+      "runtime": "執行階段與記憶體",
+      "updates": "更新"
+    },
     "skippedCount": "{{count}} 項已跳過",
     "runningDiagnostics": "正在執行診斷……",
     "skippedBadge": "已跳過",

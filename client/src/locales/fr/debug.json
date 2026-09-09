@@ -246,6 +246,14 @@
     "overallPending": "Vérifications en cours…",
     "lastChecked": "Dernière vérification {{time}} · {{duration}} ms · actualisation auto toutes les 30 s",
     "runningDescription": "Vérifications intelligentes en cours sur les services, chemins, stockage et mises à jour…",
+    "categories": {
+      "services": "Services principaux",
+      "bridge": "IPC PanelBridge",
+      "server": "Serveur actif",
+      "storage": "Stockage et base de données",
+      "runtime": "Exécution et mémoire",
+      "updates": "Mises à jour"
+    },
     "skippedCount": "{{count}} ignorées",
     "runningDiagnostics": "Exécution des diagnostics…",
     "skippedBadge": "ignoré",

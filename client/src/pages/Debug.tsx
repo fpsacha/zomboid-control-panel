@@ -3320,7 +3320,7 @@ export default function Debug() {
                               catTone === "primary" && "bg-primary",
                             )}
                           />
-                          {catMeta.label}
+                          {t(`diagnostics.categories.${catKey}`, { defaultValue: catMeta.label })}
                         </CardTitle>
                         <span className="text-xs text-muted-foreground">
                           {t("diagnostics.checkCount", { count: items.length })}

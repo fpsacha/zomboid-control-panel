@@ -241,6 +241,14 @@
     "overallPending": "Ap egzekite verifikasyon…",
     "lastChecked": "Dènye verifye {{time}} · {{duration}}ms · otoaktyalize chak 30s",
     "runningDescription": "Ap egzekite verifikasyon entelijan atravè sèvis, chemen, depo, ak mizajou…",
+    "categories": {
+      "services": "Sèvis prensipal yo",
+      "bridge": "IPC PanelBridge",
+      "server": "Sèvè aktif",
+      "storage": "Depo ak Baz Done",
+      "runtime": "Egzekisyon ak Memwa",
+      "updates": "Mizajou"
+    },
     "skippedCount": "{{count}} sote",
     "runningDiagnostics": "Ap egzekite dyagnostik…",
     "skippedBadge": "sote",

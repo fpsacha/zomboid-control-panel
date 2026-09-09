@@ -295,6 +295,14 @@
     "overallPending": "Виконуються перевірки…",
     "lastChecked": "Остання перевірка {{time}} · {{duration}} мс · автооновлення кожні 30 с",
     "runningDescription": "Виконуються розумні перевірки служб, шляхів, сховища та оновлень…",
+    "categories": {
+      "services": "Основні служби",
+      "bridge": "IPC PanelBridge",
+      "server": "Активний сервер",
+      "storage": "Сховище та база даних",
+      "runtime": "Виконання та пам'ять",
+      "updates": "Оновлення"
+    },
     "skippedCount": "{{count}} пропущено",
     "runningDiagnostics": "Виконується діагностика…",
     "skippedBadge": "пропущено",

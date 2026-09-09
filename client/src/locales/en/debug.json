@@ -241,6 +241,14 @@
     "overallPending": "Running checks…",
     "lastChecked": "Last checked {{time}} · {{duration}}ms · auto-refreshes every 30s",
     "runningDescription": "Running smart checks across services, paths, storage, and updates…",
+    "categories": {
+      "services": "Core Services",
+      "bridge": "PanelBridge IPC",
+      "server": "Active Server",
+      "storage": "Storage & Database",
+      "runtime": "Runtime & Memory",
+      "updates": "Updates"
+    },
     "skippedCount": "{{count}} skipped",
     "runningDiagnostics": "Running diagnostics…",
     "skippedBadge": "skipped",

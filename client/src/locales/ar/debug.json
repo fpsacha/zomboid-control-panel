@@ -347,6 +347,14 @@
     "overallPending": "جارٍ تنفيذ الفحوص…",
     "lastChecked": "آخر فحص {{time}} · {{duration}} م.ث · يتحدّث تلقائيًا كل 30 ث",
     "runningDescription": "جارٍ تنفيذ فحوص ذكية على الخدمات والمسارات والتخزين والتحديثات…",
+    "categories": {
+      "services": "الخدمات الأساسية",
+      "bridge": "اتصال PanelBridge (IPC)",
+      "server": "الخادم النشط",
+      "storage": "التخزين وقاعدة البيانات",
+      "runtime": "وقت التشغيل والذاكرة",
+      "updates": "التحديثات"
+    },
     "skippedCount": "{{count}} متخطّى",
     "runningDiagnostics": "جارٍ تشغيل التشخيصات…",
     "skippedBadge": "متخطّى",

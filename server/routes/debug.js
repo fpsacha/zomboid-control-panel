@@ -2621,7 +2621,7 @@ function buildThumbnailResolutionCheck(thumbStatus) {
       "mods.thumbnailResolution",
       "Mod thumbnail status unavailable",
       "Could not determine mod thumbnail resolution status.",
-      { category: "services" },
+      { category: "services", variant: "statusUnavailable" },
     );
   }
 
@@ -2632,7 +2632,11 @@ function buildThumbnailResolutionCheck(thumbStatus) {
       total > 0
         ? `${total} tracked mod${total === 1 ? "" : "s"}, all thumbnails resolving.`
         : "No thumbnail resolution failures.",
-      { category: "services", params: { total } },
+      {
+        category: "services",
+        params: { total },
+        variant: total > 0 ? "allResolvingSome" : "allResolvingNone",
+      },
     );
   }
 
@@ -2648,6 +2652,7 @@ function buildThumbnailResolutionCheck(thumbStatus) {
         category: "services",
         hint: "Usually means those specific Workshop items were deleted, made private, or region-restricted on Steam — check the Workshop ID above on steamcommunity.com. Resolution retries automatically every 5 minutes; this clears on its own if the item is public and Steam is reachable.",
         params: { failing, total, reason, workshopId, age },
+        variant: "someFailing",
       },
     );
   }
@@ -2753,7 +2758,7 @@ function buildRconCommandRejectionsCheck(summary) {
       "rcon.commandRejections",
       "RCON command rejection status unavailable",
       "Could not determine whether the game server has rejected any RCON commands recently.",
-      { category: "rcon", hint: RCON_REJECTIONS_CLOSING_LINE },
+      { category: "rcon", hint: RCON_REJECTIONS_CLOSING_LINE, variant: "statusUnavailable" },
     );
   }
 
@@ -2776,6 +2781,7 @@ function buildRconCommandRejectionsCheck(summary) {
       category: "rcon",
       hint,
       params: { total: summary.total, list },
+      variant: "someRejected",
     },
   );
 }
@@ -2967,7 +2973,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             "rcon.commandRejections",
             "RCON command rejection status unavailable",
             `Could not determine whether the game server has rejected any RCON commands recently: ${e?.message || "unknown"}`,
-            { category: "rcon" },
+            { category: "rcon", variant: "statusUnavailableWithError", params: { error: e?.message || "unknown" } },
           ),
         );
       }
@@ -3072,7 +3078,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             "mods.thumbnailResolution",
             "Mod thumbnail status unavailable",
             `Could not determine mod thumbnail resolution status: ${e?.message || "unknown"}`,
-            { category: "services" },
+            { category: "services", variant: "statusUnavailableWithError", params: { error: e?.message || "unknown" } },
           ),
         );
       }

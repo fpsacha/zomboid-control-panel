@@ -246,6 +246,14 @@
     "overallPending": "Ejecutando comprobaciones…",
     "lastChecked": "Última comprobación: {{time}} · {{duration}} ms · se actualiza automáticamente cada 30 s",
     "runningDescription": "Ejecutando comprobaciones inteligentes de servicios, rutas, almacenamiento y actualizaciones…",
+    "categories": {
+      "services": "Servicios principales",
+      "bridge": "IPC de PanelBridge",
+      "server": "Servidor activo",
+      "storage": "Almacenamiento y base de datos",
+      "runtime": "Tiempo de ejecución y memoria",
+      "updates": "Actualizaciones"
+    },
     "skippedCount": "{{count}} omitidas",
     "runningDiagnostics": "Ejecutando diagnóstico…",
     "skippedBadge": "omitida",

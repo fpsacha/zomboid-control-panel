@@ -241,6 +241,14 @@
     "overallPending": "Prüfungen laufen…",
     "lastChecked": "Zuletzt geprüft: {{time}} · {{duration}}ms · aktualisiert automatisch alle 30s",
     "runningDescription": "Intelligente Prüfungen für Dienste, Pfade, Speicher und Updates…",
+    "categories": {
+      "services": "Kerndienste",
+      "bridge": "PanelBridge-IPC",
+      "server": "Aktiver Server",
+      "storage": "Speicher & Datenbank",
+      "runtime": "Laufzeit & Speicher (RAM)",
+      "updates": "Updates"
+    },
     "skippedCount": "{{count}} übersprungen",
     "runningDiagnostics": "Diagnose läuft…",
     "skippedBadge": "übersprungen",
