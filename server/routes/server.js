@@ -37,6 +37,7 @@ import { runManagedLifecycle } from "../services/managedContainer.js";
 import {
   acquireLifecycleLock,
   lifecycleInProgressResponse,
+  isLifecycleLockedForServer,
 } from "../services/lifecycleCoordinator.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { ProgressCode } from "../utils/progressCodes.js";
@@ -2764,6 +2765,17 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
         .json(installNotStoppedError.body);
     }
 
+    // steamcmd-ops-never-check-the-lifecycle-lock, 2026-09-09: this route
+    // never checked lifecycleCoordinator's global lock at all, so it could
+    // start while wipe/restore/template-apply already held it FOR THIS SAME
+    // SERVER. Not a global block (SteamCMD must not take the lock itself --
+    // see lifecycleCoordinator.js's own comment on isLifecycleLockedForServer
+    // for why) -- refuses only when the held lock names installTargetServer's
+    // own id, same as every other lock-aware refusal in this file.
+    if (isLifecycleLockedForServer(installTargetServer.id)) {
+      return res.status(409).json(lifecycleInProgressResponse());
+    }
+
     try {
       ensureWritableDirectory(installPath);
     } catch (directoryError) {
@@ -3425,6 +3437,13 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
         .json(quickSetupNotStoppedError.body);
     }
 
+    // steamcmd-ops-never-check-the-lifecycle-lock, 2026-09-09: see /install
+    // above for the full reasoning -- same-server refusal only, no global
+    // block.
+    if (isLifecycleLockedForServer(quickSetupTargetServer.id)) {
+      return res.status(409).json(lifecycleInProgressResponse());
+    }
+
     try {
       ensureWritableDirectory(installPath);
     } catch (directoryError) {
@@ -4051,6 +4070,13 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
       return res
         .status(steamUpdateNotStoppedError.status)
         .json(steamUpdateNotStoppedError.body);
+    }
+
+    // steamcmd-ops-never-check-the-lifecycle-lock, 2026-09-09: see /install
+    // above for the full reasoning -- same-server refusal only, no global
+    // block.
+    if (isLifecycleLockedForServer(steamUpdateTargetServer.id)) {
+      return res.status(409).json(lifecycleInProgressResponse());
     }
 
     // Auto-download SteamCMD on Linux instead of hard-failing — see
