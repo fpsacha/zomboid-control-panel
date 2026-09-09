@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-09
+
 **TL;DR:**
 
 - **The Docker/Unraid experience has been rebuilt end to end: the panel now finds your existing Project Zomboid server for you instead of asking you to type paths, and a serious bug that broke RCON forever for anyone following our own official Unraid template is fixed.**
