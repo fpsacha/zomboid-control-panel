@@ -51,6 +51,10 @@ import {
   createLinuxServiceLifecycle,
   isManagedLifecycleProvider,
 } from "../services/linuxServiceLifecycle.js";
+import {
+  inspectSelfContainerMounts,
+  translateHostPath,
+} from "../utils/containerMountInfo.js";
 
 const router = express.Router();
 
@@ -3357,7 +3361,6 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
 router.post("/quick-setup", requirePermission("server.install"), async (req, res) => {
   try {
     const {
-      installPath,
       serverName,
       zomboidDataPath,
       minMemory = 4,
@@ -3370,6 +3373,12 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       rconPassword,
       rconPort = 27015,
     } = req.body;
+    // let, not const: host-vs-container translation below (see the
+    // existence check further down) can substitute the container-side
+    // equivalent of a host path the operator typed, so the rest of this
+    // handler works against the real directory instead of one that only
+    // makes sense from outside this container.
+    let { installPath } = req.body;
 
     // Validate inputs
     if (!installPath || !serverName) {
@@ -3394,25 +3403,61 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       return res.status(400).json({ error: "Invalid Zomboid data path", code: ErrorCode.ZOMBOID_DATA_PATH_INVALID });
     }
 
-    const { zomboidPath, serverConfigPath, usesEnvironmentDataPath } =
-      resolveZomboidPaths(installPath, zomboidDataPath);
-
     // Check if server files exist
-    const startServerBat = path.join(installPath, "StartServer64.bat");
-    const startServerSh = path.join(installPath, "start-server.sh");
-    const javaFolder = path.join(installPath, "jre64");
+    const hasServerFilesAt = (candidatePath) =>
+      fs.existsSync(path.join(candidatePath, "StartServer64.bat")) ||
+      fs.existsSync(path.join(candidatePath, "start-server.sh")) ||
+      fs.existsSync(path.join(candidatePath, "jre64"));
 
-    if (
-      !fs.existsSync(startServerBat) &&
-      !fs.existsSync(startServerSh) &&
-      !fs.existsSync(javaFolder)
-    ) {
+    // host-vs-container translation, 2026-09-09 (docker-unraid-onboarding,
+    // rule 2: a translatable host path must SUCCEED with a note, not fail
+    // politely -- see containerMountInfo.js's own header comment for what
+    // this can and cannot do, and why). Only attempted when the raw typed
+    // path fails the check below; a container-side path that's already
+    // correct never touches this. Self-inspect requires the Docker socket
+    // to be mounted -- absent by default (today's Unraid template doesn't
+    // offer it), so on most installs this is a no-op and falls straight
+    // through to the unchanged rejection below.
+    let quickSetupPathTranslatedFrom = null;
+    let quickSetupSelfInspect = null;
+    if (!hasServerFilesAt(installPath)) {
+      quickSetupSelfInspect = await inspectSelfContainerMounts();
+      if (quickSetupSelfInspect.available) {
+        const translated = translateHostPath(installPath, quickSetupSelfInspect.mounts);
+        if (
+          translated &&
+          translated !== installPath &&
+          hasServerFilesAt(translated)
+        ) {
+          log.info(
+            `quick-setup: translated host path ${installPath} -> ${translated} via Docker self-inspect`,
+          );
+          quickSetupPathTranslatedFrom = installPath;
+          installPath = translated;
+        }
+      }
+    }
+
+    if (!hasServerFilesAt(installPath)) {
+      // A path we could not translate is not the same as a path we know
+      // nothing about: when self-inspect DID run (the socket is mounted),
+      // name what this container can actually see instead of a bare
+      // not-found -- rule 4, no dead ends. When it didn't run at all (no
+      // socket -- the common case), there is nothing more honest to say
+      // than the original message, so it is left unchanged.
+      const visibleMounts = quickSetupSelfInspect?.available
+        ? quickSetupSelfInspect.mounts.map((m) => m.containerPath).filter(Boolean)
+        : [];
       return res.status(400).json({
-        error:
-          "Server files not found. Make sure the path contains Project Zomboid dedicated server files.",
+        error: visibleMounts.length
+          ? `Server files not found at ${installPath}. This container can only see these mounted folders: ${visibleMounts.join(", ")}. If your Project Zomboid files live somewhere else on the host, point Docker's volume/bind mount at that folder first.`
+          : "Server files not found. Make sure the path contains Project Zomboid dedicated server files.",
         code: ErrorCode.QUICK_SETUP_SERVER_FILES_NOT_FOUND,
       });
     }
+
+    const { zomboidPath, serverConfigPath, usesEnvironmentDataPath } =
+      resolveZomboidPaths(installPath, zomboidDataPath);
 
     // steamcmd-routes-running-check, 2026-09-08: unlike /install, this
     // route's own precondition just above GUARANTEES server files already
@@ -3659,6 +3704,11 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       success: true,
       message: "Server configuration created successfully",
       installPath,
+      // Set only when hasServerFilesAt() failed on the path exactly as
+      // typed and a Docker self-inspect translation found the real
+      // location instead -- rule 2 ("succeed with a note"), never present
+      // on the common no-translation path.
+      pathTranslatedFrom: quickSetupPathTranslatedFrom,
       serverName,
       zomboidDataPath: zomboidPath, // Send back the computed data path
       serverConfigPath,
