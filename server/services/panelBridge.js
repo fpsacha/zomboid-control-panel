@@ -124,6 +124,10 @@ class PanelBridge extends EventEmitter {
     this.modStatus = null;
     this.previousPlayers = new Set(); // Track previous player list for connect/disconnect detection
     this.lastStatusFileCheck = 0;
+    // panelbridge-lua-version-handshake: last protocolVersion string we've
+    // already warned about, so a mismatch logs once (not every ~1s poll)
+    // and re-warns if the mod is redeployed to yet another mismatched build.
+    this.loggedProtocolVersionMismatch = null;
     this.consecutiveFailures = 0;
     this.maxConsecutiveFailures = 5;
     this.watcherRetries = 0;
@@ -1510,6 +1514,28 @@ class PanelBridge extends EventEmitter {
       status.age = age;
       status._wasAlive = status.alive;
       status.filePath = statusFile;
+
+      // panelbridge-lua-version-handshake: the mod has written its own
+      // protocolVersion into every status.json since PROTOCOL_VERSION was
+      // added (PanelBridge.lua's updateStatus()) -- this side just never
+      // read it back. Nothing new needed from the mod; the field already
+      // ships today. Surfaced, not enforced: mod and panel are shipped as
+      // one hand-synced pair today with no compatibility matrix behind
+      // them (deliberately not built -- see the card), so a mismatch means
+      // one side of that pair got updated without the other, not a known
+      // "these two versions can't talk" case this could safely reject.
+      // Logs once per distinct mismatch and rides along on modStatus for
+      // any future diagnostic/UI to read; never blocks a command or marks
+      // the mod unreachable over it.
+      if (status.protocolVersion && status.protocolVersion !== this.protocolVersion) {
+        status.protocolVersionMismatch = { expected: this.protocolVersion, actual: status.protocolVersion };
+        if (this.loggedProtocolVersionMismatch !== status.protocolVersion) {
+          this.loggedProtocolVersionMismatch = status.protocolVersion;
+          log.warn(`PanelBridge protocol version mismatch: panel expects '${this.protocolVersion}', mod reports '${status.protocolVersion}' -- they ship as a bundled pair, so this usually means one side was updated without the other`);
+        }
+      } else if (this.loggedProtocolVersionMismatch) {
+        this.loggedProtocolVersionMismatch = null; // resolved (mod redeployed) -- re-warn if it recurs
+      }
 
       // Track player connections and disconnections
       if (status.alive && status.players) {
