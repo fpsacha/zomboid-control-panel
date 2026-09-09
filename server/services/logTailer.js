@@ -46,6 +46,10 @@ export class LogTailer extends EventEmitter {
     this.checkTimer = null;
     this.logsDir = null;       // Path to Logs/ directory for chat/user log discovery
     this.basePath = null;      // Zomboid data dir, kept so paths can be re-resolved
+    // Every path this tailer has ever selected as chatLogPath/userLogPath --
+    // see findLatestChatLog/findLatestUserLog's double-tie tiebreak below.
+    this.everTrackedChatPaths = new Set();
+    this.everTrackedUserPaths = new Set();
     // Files created after this point are new sessions and must be read whole;
     // files that already existed are skipped to the end so a panel restart
     // doesn't replay history.
@@ -117,6 +121,11 @@ export class LogTailer extends EventEmitter {
     this.currentSize = 0;
     this.userLogPath = null;
     this.userLogSize = 0;
+    // Belongs to the server being pointed at, not to the process -- a
+    // switch to a different server's logsDir must not carry over which
+    // paths the OLD server's tailing ever settled on.
+    this.everTrackedChatPaths = new Set();
+    this.everTrackedUserPaths = new Set();
     this.consoleRemainder = '';
     this.chatRemainder = '';
     this.userRemainder = '';
@@ -227,18 +236,30 @@ export class LogTailer extends EventEmitter {
   // forcing a real 50ms wait, which is exactly a timestamp-resolution race
   // against whatever the underlying filesystem/CI host actually honours, and
   // is the likely cause of that test going red on a loaded gate run and
-  // green on a quieter re-run. A THIRD tie-break that needs no elapsed time
-  // at all: when mtime AND birthtime both genuinely tie, the currently-
-  // tracked path is by definition the file this method already decided was
-  // "latest" on some earlier poll -- so in a true tie it is the OLD one, and
-  // any different file tied with it must be the new one. This costs nothing
-  // when it doesn't apply (first-ever discovery, or a tie among two files
-  // neither of which is currently tracked) -- it just leaves the existing
-  // fallback order in place for those cases.
+  // green on a quieter re-run.
+  //
+  // A first attempt at a third tie-break keyed on "is this the currently
+  // tracked path" (current path loses the tie). god caught, by measurement,
+  // that this OSCILLATES forever while a tie holds: poll 1, A is current so
+  // B wins; poll 2, B is now current so A wins back; repeat indefinitely --
+  // and every switch resets chatLogSize to 0 (see startOffsetFor), so each
+  // flip replays the ENTIRE file again as new chat. The predicate was a
+  // property of the last decision, not of the file, so it inverted itself.
+  //
+  // Fixed by keying on a monotonic, per-file property instead:
+  // everTrackedChatPaths remembers every path ever selected as chatLogPath,
+  // and a tie is won by whichever file has NEVER been tracked before over
+  // one that has (a genuinely new file beats a stale one) -- this can only
+  // fire once per file, since selecting it immediately adds it to the set.
+  // Once BOTH tied files have been tracked before (poll 2 onward, same
+  // scenario), that clause no longer discriminates, so a second fallback
+  // clause holds the current path steady (an already-known file does not
+  // unseat the one already active). Neither clause needs any elapsed time.
   findLatestChatLog() {
     if (!this.logsDir) return;
     try {
         const currentPath = this.chatLogPath;
+        const tracked = this.everTrackedChatPaths;
         const files = fs.readdirSync(this.logsDir)
             .filter(f => f.endsWith('_chat.txt'))
             .map(f => {
@@ -251,13 +272,15 @@ export class LogTailer extends EventEmitter {
             })
             .filter(Boolean)
             .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime)
-                || ((a.path === currentPath ? 1 : 0) - (b.path === currentPath ? 1 : 0)));
+                || ((tracked.has(a.path) ? 1 : 0) - (tracked.has(b.path) ? 1 : 0))
+                || ((a.path === currentPath ? 0 : 1) - (b.path === currentPath ? 0 : 1)));
 
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.chatLogPath) {
                 const firstDiscovery = !this.chatLogPath;
                 this.chatLogPath = latest;
+                this.everTrackedChatPaths.add(latest);
                 this.chatRemainder = '';
                 this.chatLogSize = this.startOffsetFor(latest, firstDiscovery);
                 log.info(`Tailing B42 chat log: ${latest}`);
@@ -271,12 +294,14 @@ export class LogTailer extends EventEmitter {
   // Find the most recently modified *_user.txt in the Logs/ directory
   // (PZ records player join/leave/death events here). Same mtime-tie
   // tiebreak as findLatestChatLog above -- see its comment for why
-  // birthtimeMs, not filename order, and for the 2026-09-09 third tie-break
-  // (currently-tracked path loses a genuine double-tie) added below.
+  // birthtimeMs, not filename order, and for the 2026-09-09 everTracked +
+  // current-path tie-break (replacing an oscillating first attempt) added
+  // below.
   findLatestUserLog() {
     if (!this.logsDir) return;
     try {
         const currentPath = this.userLogPath;
+        const tracked = this.everTrackedUserPaths;
         const files = fs.readdirSync(this.logsDir)
             .filter(f => f.endsWith('_user.txt'))
             .map(f => {
@@ -289,13 +314,15 @@ export class LogTailer extends EventEmitter {
             })
             .filter(Boolean)
             .sort((a, b) => (b.mtime - a.mtime) || (b.birthtime - a.birthtime)
-                || ((a.path === currentPath ? 1 : 0) - (b.path === currentPath ? 1 : 0)));
+                || ((tracked.has(a.path) ? 1 : 0) - (tracked.has(b.path) ? 1 : 0))
+                || ((a.path === currentPath ? 0 : 1) - (b.path === currentPath ? 0 : 1)));
 
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.userLogPath) {
                 const firstDiscovery = !this.userLogPath;
                 this.userLogPath = latest;
+                this.everTrackedUserPaths.add(latest);
                 this.userRemainder = '';
                 this.userLogSize = this.startOffsetFor(latest, firstDiscovery);
                 log.info(`Tailing B42 user log: ${latest}`);
