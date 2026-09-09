@@ -63,7 +63,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { chunksApi, serversApi, panelBridgeApi, mapApi, ApiError } from "@/lib/api";
+import { chunksApi, serversApi, panelBridgeApi, mapApi, ApiError, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from "@/lib/api";
 import { buildTileQuery } from "./worldMapTileUrl";
 import { getUserErrorMessage } from "@/lib/errorMessage";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -875,7 +875,14 @@ export default function ChunkCleaner() {
     const thisLoadId = loadIdRef.current;
     try {
       const [vRes, sRes] = await Promise.allSettled([
-        panelBridgeApi.sendCommand("getVehiclesDetailed"),
+        // getVehiclesDetailed enumerates every vehicle the server's cell
+        // object currently tracks -- unlike getSafehouses (bounded by
+        // player-claimed territory), vehicle count grows with world uptime
+        // and vehicle-mod content, not player count, so it can legitimately
+        // exceed the shared 15s default the way getAllSandboxOptions does.
+        // See BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS's own comment for the
+        // client/server timeout race this sizing avoids losing.
+        panelBridgeApi.sendCommand("getVehiclesDetailed", {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS }),
         panelBridgeApi.sendCommand("getSafehouses"),
       ]);
       if (thisLoadId !== loadIdRef.current) return;

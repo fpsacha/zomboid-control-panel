@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { SocketContext } from '@/contexts/SocketContext'
 import WorldMap from '../WorldMap'
-import { panelBridgeApi, serversApi, updateApi, mapApi, type ServerInstance } from '@/lib/api'
+import { panelBridgeApi, serversApi, updateApi, mapApi, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS, type ServerInstance } from '@/lib/api'
 
 // 2026-08-27 bug-hunt: UPDATED same day per an operator ruling that reverses
 // server commit c3083d5 (also from earlier the same day). c3083d5 had made
@@ -173,7 +173,12 @@ describe('WorldMap.tsx: healPlayer/setGodMode require players.gm_tools ALONE (20
     await setUp([])
     renderWorldMap()
 
-    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('getVehiclesDetailed'))
+    // support-bundle-2026-09-08 (sandbox-range-lockout follow-up): 3-arg
+    // call now, not 2 -- getVehiclesDetailed carries the slow-enumeration
+    // timeout override, same as getAllSandboxOptions.
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith(
+      'getVehiclesDetailed', {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS },
+    ))
     const hideVehicles = await screen.findByRole('button', { name: /Hide vehicles/i })
     sendCommand.mockClear()
     mapVehicles.mockClear()

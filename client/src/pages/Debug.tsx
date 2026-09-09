@@ -106,6 +106,7 @@ import {
   backupApi,
   serverFilesApi,
   discordApi,
+  BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS,
 } from "@/lib/api";
 
 interface LogEntry {
@@ -1765,7 +1766,12 @@ export default function Debug() {
     () =>
       runProbe(
         "vehicles",
-        () => panelBridgeApi.sendCommand("getVehiclesDetailed"),
+        // Vehicle count grows with world uptime/vehicle-mod content, not
+        // player count, so it can legitimately exceed the shared 15s
+        // default the same way getAllSandboxOptions does -- see that
+        // constant's own comment for the client/server timeout race this
+        // sizing avoids losing.
+        () => panelBridgeApi.sendCommand("getVehiclesDetailed", {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS }),
         (r: unknown) => {
           const res = r as { success?: boolean; data?: unknown };
           const data = res?.data as

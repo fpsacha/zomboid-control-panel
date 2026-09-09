@@ -74,7 +74,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { panelBridgeApi, updateApi, serversApi, mapApi, playersApi } from '@/lib/api'
+import { panelBridgeApi, updateApi, serversApi, mapApi, playersApi, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from '@/lib/api'
 import { getBridgeVerifiedState } from '@/lib/bridgeVerify'
 import { getUserErrorMessage } from '@/lib/errorMessage'
 import { useToast } from '@/components/ui/use-toast'
@@ -1393,7 +1393,12 @@ export default function WorldMap() {
     if (!overlayFetchGateRef.current.enter()) return
     try {
       const [vRes, persistedRes, sRes] = await Promise.allSettled([
-        showVehicles ? panelBridgeApi.sendCommand('getVehiclesDetailed') : Promise.resolve(null),
+        // Vehicle count grows with world uptime/vehicle-mod content, not
+        // player count, so it can legitimately exceed the shared 15s
+        // default the same way getAllSandboxOptions does -- see
+        // BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS's own comment for the
+        // client/server timeout race this sizing avoids losing.
+        showVehicles ? panelBridgeApi.sendCommand('getVehiclesDetailed', {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS }) : Promise.resolve(null),
         showVehicles ? mapApi.vehicles() : Promise.resolve(null),
         panelBridgeApi.sendCommand('getSafehouses'),
       ])

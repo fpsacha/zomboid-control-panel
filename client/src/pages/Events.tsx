@@ -61,7 +61,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
-import { rconApi, serverApi, playersApi, panelBridgeApi, ApiError } from '@/lib/api'
+import { rconApi, serverApi, playersApi, panelBridgeApi, ApiError, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from '@/lib/api'
 import { getBridgeVerifiedState } from '@/lib/bridgeVerify'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '@/components/PageHeader'
@@ -1507,7 +1507,12 @@ export default function Events() {
         const [safehouseResult, factionResult, vehicleResult] = await Promise.allSettled([
           panelBridgeApi.sendCommand('getSafehouses', {}),
           panelBridgeApi.sendCommand('getFactions', {}),
-          shouldLoadVehicles ? panelBridgeApi.sendCommand('getVehiclesDetailed', {}) : Promise.resolve(null),
+          // Vehicle count grows with world uptime/vehicle-mod content, not
+          // player count, so it can legitimately exceed the shared 15s
+          // default the same way getAllSandboxOptions does -- see
+          // BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS's own comment for the
+          // client/server timeout race this sizing avoids losing.
+          shouldLoadVehicles ? panelBridgeApi.sendCommand('getVehiclesDetailed', {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS }) : Promise.resolve(null),
         ])
         if (!active) return
 
@@ -2112,7 +2117,17 @@ export default function Events() {
     setBridgeLoading(bridgeOperation)
     setBridgeFormError(null)
     try {
-      const response = await panelBridgeApi.sendCommand(bridgeOperation, parsedArgs)
+      // getAllSandboxOptions and getVehiclesDetailed can both legitimately
+      // exceed the shared 15s default (unbounded server-wide enumeration
+      // in one case, world-uptime-scaled vehicle count in the other) --
+      // see BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS's own comment for the
+      // client/server timeout race this sizing avoids losing.
+      const slowEnumerationActions = new Set(['getAllSandboxOptions', 'getVehiclesDetailed'])
+      const response = await panelBridgeApi.sendCommand(
+        bridgeOperation,
+        parsedArgs,
+        slowEnumerationActions.has(bridgeOperation) ? { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } : undefined,
+      )
       const payload = response?.data ?? response
       setBridgeResultData({
         operation: bridgeOperation,

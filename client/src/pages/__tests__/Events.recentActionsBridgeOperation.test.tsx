@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ConfirmProvider } from '@/contexts/ConfirmContext'
 import Events from '../Events'
-import { playersApi, panelBridgeApi } from '@/lib/api'
+import { playersApi, panelBridgeApi, BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS } from '@/lib/api'
 
 // 2026-08-31 quality pass: runBridgeOperation (the general Bridge Tools "Run
 // Operation" button -- distinct from handleAction/handleBridgeAction/
@@ -132,11 +132,16 @@ describe('Events -- Bridge Tools "Run Operation" now logs to Recent Actions', ()
     renderEvents()
 
     await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('getSafehouses', {}))
-    expect(sendCommand).not.toHaveBeenCalledWith('getVehiclesDetailed', {})
+    expect(sendCommand).not.toHaveBeenCalledWith('getVehiclesDetailed', {}, expect.anything())
 
     fireEvent.click(await screen.findByRole('button', { name: 'Spawn vehicle' }))
 
-    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith('getVehiclesDetailed', {}))
+    // support-bundle-2026-09-08 (sandbox-range-lockout follow-up): 3-arg
+    // call now -- getVehiclesDetailed carries the slow-enumeration timeout
+    // override, same as getAllSandboxOptions.
+    await waitFor(() => expect(sendCommand).toHaveBeenCalledWith(
+      'getVehiclesDetailed', {}, { timeout: BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS },
+    ))
   })
 
   it('replaces "No recent actions" with the operation label on a successful run', async () => {

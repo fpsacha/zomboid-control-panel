@@ -2376,6 +2376,24 @@ export interface BridgeCommandResult<T = Record<string, unknown>> {
 // still gives up at its own ceiling and answers with the honest failure at
 // that point, this constant only ensures that answer is the one the user
 // actually sees instead of our own earlier, misleading guess.
+//
+// 2026-09-09 (support-bundle-2026-09-08 follow-up): also applied to
+// getVehiclesDetailed at every call site (ChunkCleaner.tsx, Debug.tsx,
+// Events.tsx, WorldMap.tsx). Its per-vehicle cost is comparable to
+// getAllSandboxOptions' per-option cost (a dozen-plus pcall'd Java
+// accessors, several two-hop via an intermediate VehicleParts/
+// LightbarSirenMode object), and unlike getSafehouses/getFactions (bounded
+// by player-created claims, deliberately left on the shared default -- see
+// that decision's own writeup) its item count is IsoCell:getVehicles(),
+// which grows with world uptime and vehicle-mod content rather than player
+// count. Real support-bundle evidence showed getSafehouses/getFactions
+// hitting this same 15000ms ceiling too, but only 2 occurrences each
+// against 11+ for getAllSandboxOptions -- consistent with those two riding
+// along in the same per-tick command batch as a slow sibling command
+// (PanelBridge.lua processes up to MAX_COMMANDS_PER_TICK=200 queued
+// commands synchronously within one server tick), not their own handler
+// cost. Raising their timeout too would not fix that contention, only wait
+// longer to observe it.
 export const BRIDGE_SLOW_ENUMERATION_TIMEOUT_MS = 75000;
 
 // Panel Bridge API (for direct Lua mod communication)
