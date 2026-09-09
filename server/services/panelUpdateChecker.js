@@ -634,6 +634,40 @@ export class PanelUpdateChecker {
 
     // Stage the executable separately and refresh client/dist from the matching
     // archive. Standalone builds serve that directory beside the binary.
+    //
+    // Captured together with `asset`/`clientArchive` below, synchronously and
+    // before any further `await` -- this download can run for a real amount
+    // of time (two file downloads, two checksum verifications, an archive
+    // extraction), and checkForUpdate() can land during any of it, on its own
+    // periodic 6-hour timer or a manual "Check for Updates" click. It
+    // reassigns `this.latestRelease` wholesale to a new object, so re-reading
+    // `this.latestRelease.version` afterward (as this code used to, several
+    // times, further down) can observe a DIFFERENT release than the one
+    // whose binary/archive were actually downloaded and verified in this
+    // call.
+    //
+    // Traced, not assumed: stageClientDist() has its own internal read of
+    // this same field, checked against the staged archive's real
+    // manifest.version -- a race landing before that point gets caught
+    // there (a loud, if confusingly-worded, "version does not match"
+    // failure) rather than silently mislabeling anything, and there is no
+    // `await` between that check and this function's own journal-write, so
+    // the persisted `stageUpdateBundle({ version: ... })` and
+    // `_stagedVersionCache` were already effectively protected by that
+    // combination -- fragile protection, though, since it depends on no
+    // future edit ever adding an `await` in that stretch. What is NOT
+    // protected, confirmed via panelUpdateDownloadVersionRace.test.js: every
+    // read of `this.latestRelease.version` AFTER the `await setSetting(...)`
+    // a few lines below that persists the staged version -- the "staged at
+    // ..." log line, the `panel:updateReady` socket emit the client renders
+    // as a toast, and this call's own returned success `message`. A race
+    // landing in that specific window used to make the panel tell the
+    // operator "Update to v1.2.0 downloaded" for a binary that was actually
+    // v1.1.0. `targetVersion` pins every one of these to the exact release
+    // `asset`/`clientArchive` were resolved from, removing the reliance on
+    // the no-intervening-await invariant for the persisted values and fixing
+    // the genuinely reachable message/log/emit staleness outright.
+    const targetVersion = this.latestRelease.version;
     const assetName = isWindows
       ? "ZomboidControlPanel.exe"
       : "ZomboidControlPanel";
@@ -810,7 +844,7 @@ export class PanelUpdateChecker {
       const exeBasePath = this.getExeBasePath();
       const journalPath = stageUpdateBundle({
         installDir: exeDir,
-        version: this.latestRelease.version,
+        version: targetVersion,
         binaryPath: exeBasePath,
         stagedBinaryPath: stagedPath,
         liveClientPath: path.join(exeDir, "client", "dist"),
@@ -833,26 +867,27 @@ export class PanelUpdateChecker {
       // too — without this, a background update check that publishes a newer
       // release would make `getStagedUpdate()` fall back to the fresher
       // `latestRelease.version` and misreport the version actually on disk.
-      this._stagedVersionCache = this.latestRelease.version;
+      // Uses `targetVersion` (captured above, before this download's own
+      // awaits), not `this.latestRelease.version` -- see targetVersion's own
+      // comment for why re-reading the live field here is exactly the
+      // staleness this paragraph already warns about.
+      this._stagedVersionCache = targetVersion;
       try {
-        await setSetting(
-          "stagedPanelUpdateVersion",
-          this.latestRelease.version,
-        );
+        await setSetting("stagedPanelUpdateVersion", targetVersion);
       } catch (persistErr) {
         log.debug(`Could not persist staged version: ${persistErr.message}`);
       }
 
       log.info(
-        `Update to v${this.latestRelease.version} staged at ${stagedPath}. Restart to apply.`,
+        `Update to v${targetVersion} staged at ${stagedPath}. Restart to apply.`,
       );
       this.io?.emit("panel:updateReady", {
-        version: this.latestRelease.version,
+        version: targetVersion,
       });
 
       return {
         success: true,
-        message: `Update to v${this.latestRelease.version} downloaded. Restart the panel to apply.`,
+        message: `Update to v${targetVersion} downloaded. Restart the panel to apply.`,
         journal: path.basename(journalPath),
       };
     } catch (error) {
