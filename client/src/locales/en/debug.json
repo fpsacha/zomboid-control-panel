@@ -533,6 +533,28 @@
             "message": "Server is running but RCON is not connected. Check RCON port and password.",
             "hint": "Settings → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "RCON command rejection status unavailable",
+              "message": "Could not determine whether the game server has rejected any RCON commands recently.",
+              "hint": "Everything the panel can positively identify as a rejection is listed above. For anything that looks wrong but is not, the Console page's command history shows the exact raw response every RCON command received, so a person can spot something no automated check catches."
+            },
+            "statusUnavailableWithError": {
+              "label": "RCON command rejection status unavailable",
+              "message": "Could not determine whether the game server has rejected any RCON commands recently: {{error}}"
+            },
+            "someRejected": {
+              "label": "The game server has rejected some RCON commands",
+              "message": "{{total}} commands were rejected by the game server in the last 24 hours: {{list}}."
+            }
+          },
+          "ok": {
+            "label": "No RCON command rejections",
+            "message": "No RCON commands have been rejected by the game server recently.",
+            "hint": "Everything the panel can positively identify as a rejection is listed above. For anything that looks wrong but is not, the Console page's command history shows the exact raw response every RCON command received, so a person can spot something no automated check catches."
+          }
         }
       },
       "modChecker": {
@@ -990,6 +1012,38 @@
               "message": "{{count}} Map= entries cannot be found. {{trulyMissingCount}} not found in any installed mod: {{trulyMissingList}}.",
               "hint": "Players will spawn into the void. Add the matching map mod or fix the spelling in Server Config."
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "Mod thumbnail status unavailable",
+              "message": "Could not determine mod thumbnail resolution status."
+            },
+            "statusUnavailableWithError": {
+              "label": "Mod thumbnail status unavailable",
+              "message": "Could not determine mod thumbnail resolution status: {{error}}"
+            },
+            "someFailing": {
+              "label": "Some mod thumbnails are not resolving",
+              "message": "{{failing}} of {{total}} tracked mods currently have no thumbnail. Last failure: {{reason}} (Workshop ID {{workshopId}}, {{age}} ago).",
+              "hint": "Usually means those specific Workshop items were deleted, made private, or region-restricted on Steam — check the Workshop ID above on steamcommunity.com. Resolution retries automatically every 5 minutes; this clears on its own if the item is public and Steam is reachable."
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "Mod thumbnails resolving normally",
+              "message": "{{total}} tracked mod(s), all thumbnails resolving."
+            },
+            "allResolvingNone": {
+              "label": "Mod thumbnails resolving normally",
+              "message": "No thumbnail resolution failures."
+            }
+          },
+          "fail": {
+            "label": "No mod thumbnails are resolving",
+            "message": "All {{total}} tracked mods currently have no thumbnail. Last failure: {{reason}}.",
+            "hint": "Every mod failing at once, rather than just a few, usually means this host cannot reach Steam at all rather than a problem with any individual mod — check outbound HTTPS to api.steampowered.com and steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com (firewall, proxy, or DNS). Once reachable, thumbnails resolve automatically within 5 minutes — no restart needed."
           }
         }
       },

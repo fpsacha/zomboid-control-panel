@@ -2625,17 +2625,35 @@ function buildThumbnailResolutionCheck(thumbStatus) {
     );
   }
 
+  // diagnostics-registry-scanner-cannot-see-named-collector-functions,
+  // 2026-09-09: this used to be one diagOk() call with a computed
+  // (ternary) `variant` value, invisible to diagnosticsCheckRegistry.
+  // test.js's literal-string variant scan by design (see that file's own
+  // header comment, failure mode #1). Split into two literal-variant
+  // branches -- same fix as db.backup's unreadable/error split elsewhere
+  // in this file -- so both are grep-able and locale-translatable.
+  if (failing === 0 && total > 0) {
+    return diagOk(
+      "mods.thumbnailResolution",
+      "Mod thumbnails resolving normally",
+      `${total} tracked mod${total === 1 ? "" : "s"}, all thumbnails resolving.`,
+      {
+        category: "services",
+        params: { total },
+        variant: "allResolvingSome",
+      },
+    );
+  }
+
   if (failing === 0) {
     return diagOk(
       "mods.thumbnailResolution",
       "Mod thumbnails resolving normally",
-      total > 0
-        ? `${total} tracked mod${total === 1 ? "" : "s"}, all thumbnails resolving.`
-        : "No thumbnail resolution failures.",
+      "No thumbnail resolution failures.",
       {
         category: "services",
         params: { total },
-        variant: total > 0 ? "allResolvingSome" : "allResolvingNone",
+        variant: "allResolvingNone",
       },
     );
   }

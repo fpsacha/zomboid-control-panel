@@ -533,6 +533,28 @@
             "message": "伺服器正在執行，但 RCON 未連線。請檢查 RCON 埠和密碼。",
             "hint": "設定 → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "RCON 命令拒絕狀態無法取得",
+              "message": "無法判斷遊戲伺服器最近是否拒絕過任何 RCON 命令。",
+              "hint": "面板能明確判定為拒絕的內容都已列在上方。對於任何看似異常但其實正常的情況，主控台頁面的命令歷史會顯示每筆 RCON 命令收到的確切原始回應，讓人可以發現自動檢查無法察覺的問題。"
+            },
+            "statusUnavailableWithError": {
+              "label": "RCON 命令拒絕狀態無法取得",
+              "message": "無法判斷遊戲伺服器最近是否拒絕過任何 RCON 命令：{{error}}"
+            },
+            "someRejected": {
+              "label": "遊戲伺服器拒絕了部分 RCON 命令",
+              "message": "過去 24 小時內，遊戲伺服器拒絕了 {{total}} 筆命令：{{list}}。"
+            }
+          },
+          "ok": {
+            "label": "沒有被拒絕的 RCON 命令",
+            "message": "遊戲伺服器最近未拒絕任何 RCON 命令。",
+            "hint": "面板能明確判定為拒絕的內容都已列在上方。對於任何看似異常但其實正常的情況，主控台頁面的命令歷史會顯示每筆 RCON 命令收到的確切原始回應，讓人可以發現自動檢查無法察覺的問題。"
+          }
         }
       },
       "modChecker": {
@@ -990,6 +1012,38 @@
               "message": "有 {{count}} 個 Map= 條目找不到。其中 {{trulyMissingCount}} 個在任何已安裝模組中都找不到：{{trulyMissingList}}。",
               "hint": "玩家將會生成在虛空中。請新增對應的地圖模組，或在伺服器設定中修正拼寫。"
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "模組縮圖狀態無法取得",
+              "message": "無法判斷模組縮圖的解析狀態。"
+            },
+            "statusUnavailableWithError": {
+              "label": "模組縮圖狀態無法取得",
+              "message": "無法判斷模組縮圖的解析狀態：{{error}}"
+            },
+            "someFailing": {
+              "label": "部分模組縮圖無法解析",
+              "message": "在 {{total}} 個受追蹤的模組中，有 {{failing}} 個目前沒有縮圖。最近一次失敗：{{reason}}（Workshop ID {{workshopId}}，{{age}}前）。",
+              "hint": "通常表示這些 Workshop 項目已被刪除、設為私人，或在 Steam 上受地區限制——請在 steamcommunity.com 檢查上方的 Workshop ID。解析每 5 分鐘會自動重試；一旦該項目重新公開且 Steam 可存取，問題會自行解決。"
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "模組縮圖解析正常",
+              "message": "已追蹤 {{total}} 個模組，所有縮圖均已解析。"
+            },
+            "allResolvingNone": {
+              "label": "模組縮圖解析正常",
+              "message": "沒有縮圖解析失敗。"
+            }
+          },
+          "fail": {
+            "label": "沒有任何模組縮圖能夠解析",
+            "message": "所有 {{total}} 個受追蹤的模組目前皆無縮圖。最近一次失敗：{{reason}}。",
+            "hint": "如果是所有模組同時失敗，而不僅是少數幾個，通常表示此主機根本無法連上 Steam，而不是單一模組的問題——請檢查到 api.steampowered.com 和 steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com 的對外 HTTPS 連線（防火牆、代理伺服器或 DNS）。一旦恢復連線，縮圖會在 5 分鐘內自動解析——無需重新啟動。"
           }
         }
       },

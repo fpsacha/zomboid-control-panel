@@ -533,6 +533,28 @@
             "message": "Sèvè a ap fonksyone men RCON pa konekte. Verifye pò ak modpas RCON.",
             "hint": "Paramèt → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "Estati kòmand RCON refize pa disponib",
+              "message": "Pa t kapab detèmine si sèvè jwèt la refize kòmand RCON dènyèman.",
+              "hint": "Tout sa panel la ka idantifye ak sètitid kòm yon rejè parèt anwo a. Pou nenpòt bagay ki sanble mal men ki pa mal, istorik kòmand nan paj Console a montre repons bwit egzat pou chak kòmand RCON, pou yon moun ka repere sa okenn kontwòl otomatik pa detekte."
+            },
+            "statusUnavailableWithError": {
+              "label": "Estati kòmand RCON refize pa disponib",
+              "message": "Pa t kapab detèmine si sèvè jwèt la refize kòmand RCON dènyèman: {{error}}"
+            },
+            "someRejected": {
+              "label": "Sèvè jwèt la refize kèk kòmand RCON",
+              "message": "{{total}} kòmand yo te refize pa sèvè jwèt la nan dènye 24 èdtan yo: {{list}}."
+            }
+          },
+          "ok": {
+            "label": "Pa gen kòmand RCON refize",
+            "message": "Sèvè jwèt la pa t refize okenn kòmand RCON dènyèman.",
+            "hint": "Tout sa panel la ka idantifye ak sètitid kòm yon rejè parèt anwo a. Pou nenpòt bagay ki sanble mal men ki pa mal, istorik kòmand nan paj Console a montre repons bwit egzat pou chak kòmand RCON, pou yon moun ka repere sa okenn kontwòl otomatik pa detekte."
+          }
         }
       },
       "modChecker": {
@@ -990,6 +1012,38 @@
               "message": "{{count}} antre Map= pa ka jwenn. {{trulyMissingCount}} pa jwenn nan okenn mod enstale: {{trulyMissingList}}.",
               "hint": "Jwè yo ap parèt nan vid la. Ajoute mod kat ki koresponn oswa korije òtograf la nan Konfigirasyon Sèvè."
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "Estati vinyèt mod pa disponib",
+              "message": "Pa t kapab detèmine estati rezolisyon vinyèt mod yo."
+            },
+            "statusUnavailableWithError": {
+              "label": "Estati vinyèt mod pa disponib",
+              "message": "Pa t kapab detèmine estati rezolisyon vinyèt mod yo: {{error}}"
+            },
+            "someFailing": {
+              "label": "Kèk vinyèt mod pa rezoud",
+              "message": "{{failing}} nan {{total}} mod ki swiv yo pa gen vinyèt kounye a. Dènye echèk: {{reason}} (ID Workshop {{workshopId}}, {{age}} pase).",
+              "hint": "Sa jeneralman vle di eleman Workshop sa yo te efase, mete an prive, oswa restriksyon selon rejyon sou Steam — verifye ID Workshop pi wo a sou steamcommunity.com. Rezolisyon an eseye ankò otomatikman chak 5 minit; sa rezoud pou kont li si eleman an vin piblik ankò e Steam aksesib."
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "Vinyèt mod yo ap rezoud nòmalman",
+              "message": "{{total}} mod ki swiv, tout vinyèt yo ap rezoud."
+            },
+            "allResolvingNone": {
+              "label": "Vinyèt mod yo ap rezoud nòmalman",
+              "message": "Pa gen echèk rezolisyon vinyèt."
+            }
+          },
+          "fail": {
+            "label": "Okenn vinyèt mod pa rezoud",
+            "message": "Tout {{total}} mod ki swiv yo pa gen vinyèt kounye a. Dènye echèk: {{reason}}.",
+            "hint": "Lè tout mod echwe an menm tan, olye de sèlman kèk, sa jeneralman vle di sèvè sa a pa ka rive jwenn Steam ditou, olye de yon pwoblèm ak yon mod endividyèl — verifye aksè HTTPS sòti vè api.steampowered.com ak steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com (firewall, proxy, oswa DNS). Yon fwa aksè a retabli, vinyèt yo rezoud otomatikman nan 5 minit — pa gen bezwen relanse."
           }
         }
       },

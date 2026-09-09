@@ -533,6 +533,28 @@
             "message": "服务器正在运行，但 RCON 未连接。请检查 RCON 端口和密码。",
             "hint": "设置 → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "RCON 命令拒绝状态不可用",
+              "message": "无法确定游戏服务器最近是否拒绝过任何 RCON 命令。",
+              "hint": "面板能明确识别为拒绝的内容均已在上方列出。对于任何看似异常但实际正常的情况，控制台页面的命令历史会显示每条 RCON 命令收到的确切原始响应，以便发现自动检测无法捕捉的问题。"
+            },
+            "statusUnavailableWithError": {
+              "label": "RCON 命令拒绝状态不可用",
+              "message": "无法确定游戏服务器最近是否拒绝过任何 RCON 命令：{{error}}"
+            },
+            "someRejected": {
+              "label": "游戏服务器拒绝了部分 RCON 命令",
+              "message": "过去 24 小时内，游戏服务器拒绝了 {{total}} 条命令：{{list}}。"
+            }
+          },
+          "ok": {
+            "label": "没有被拒绝的 RCON 命令",
+            "message": "游戏服务器最近未拒绝任何 RCON 命令。",
+            "hint": "面板能明确识别为拒绝的内容均已在上方列出。对于任何看似异常但实际正常的情况，控制台页面的命令历史会显示每条 RCON 命令收到的确切原始响应，以便发现自动检测无法捕捉的问题。"
+          }
         }
       },
       "modChecker": {
@@ -990,6 +1012,38 @@
               "message": "有 {{count}} 个 Map= 条目找不到。其中 {{trulyMissingCount}} 个在任何已安装模组中都找不到：{{trulyMissingList}}。",
               "hint": "玩家将会生成在虚空中。请添加对应的地图模组，或在服务器配置中修正拼写。"
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "模组缩略图状态不可用",
+              "message": "无法确定模组缩略图的解析状态。"
+            },
+            "statusUnavailableWithError": {
+              "label": "模组缩略图状态不可用",
+              "message": "无法确定模组缩略图的解析状态：{{error}}"
+            },
+            "someFailing": {
+              "label": "部分模组缩略图无法解析",
+              "message": "在 {{total}} 个被跟踪的模组中，有 {{failing}} 个当前没有缩略图。最近一次失败：{{reason}}（创意工坊 ID {{workshopId}}，{{age}}前）。",
+              "hint": "通常意味着这些创意工坊物品已被删除、设为私密，或在 Steam 上被地区限制——请在 steamcommunity.com 上检查上方的创意工坊 ID。解析每 5 分钟会自动重试；一旦该物品重新公开且 Steam 可访问，问题会自行消失。"
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "模组缩略图解析正常",
+              "message": "已跟踪 {{total}} 个模组，所有缩略图均已解析。"
+            },
+            "allResolvingNone": {
+              "label": "模组缩略图解析正常",
+              "message": "没有缩略图解析失败。"
+            }
+          },
+          "fail": {
+            "label": "没有任何模组缩略图能够解析",
+            "message": "所有 {{total}} 个被跟踪的模组当前均无缩略图。最近一次失败：{{reason}}。",
+            "hint": "如果是所有模组同时失败，而不仅是少数几个，通常意味着此主机根本无法访问 Steam，而不是某个模组自身的问题——请检查到 api.steampowered.com 和 steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com 的出站 HTTPS 访问（防火墙、代理或 DNS）。一旦恢复可访问，缩略图会在 5 分钟内自动解析——无需重启。"
           }
         }
       },

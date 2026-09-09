@@ -100,13 +100,111 @@ const KNOWN_TRANSLATED_IDS = new Set([
   "server.staleLocks",
   "server.jreWorks",
   "server.error",
+  // Batch 9: named collector functions (diagnostics-registry-scanner-
+  // cannot-see-named-collector-functions, 2026-09-09) -- newly VISIBLE to
+  // the scanner, not newly built. rcon.commandRejections::warn::
+  // someRejected deliberately has NO hint entry in either locale file:
+  // that hint is built by joining a variable-length array of runtime-
+  // classified rejection reasons plus a closing line (server/routes/
+  // debug.js's RCON_REJECTION_REASON_HINTS), the exact same "variable-
+  // length joined clauses" shape server.configDrift is excluded above
+  // for. The (id, status, variant) key itself is still required in both
+  // locale files -- only the hint field is left on the English fallback,
+  // same as before this batch, not a regression.
+  "mods.thumbnailResolution",
+  "rcon.commandRejections",
 ]);
 
 /**
- * Scans the GET /diagnostics handler ONLY (not the separate GET /worldmap
+ * Named collector functions: `function name(...) { ... }` declarations
+ * that build ONE check via diagOk/Fail/Warn/Skip/Info and are defined
+ * OUTSIDE the /diagnostics handler's own textual boundary ON PURPOSE --
+ * extracted so they're independently unit-testable without exercising
+ * the whole handler (thumbnailResolutionCheck.test.js's own comment).
+ * The handler calls each of these (`checks.push(buildXCheck(...))`); the
+ * scanner below folds each one's own diag*() calls into the handler's
+ * effective source so it sees them exactly like an inline call.
+ *
+ * Deliberately an explicit, manually-maintained list -- same maintenance
+ * model as KNOWN_TRANSLATED_IDS above, not a whole-file scan for every
+ * `function` declaration. debug.js has other, much larger top-level
+ * functions (collectBundleKnownSecrets alone is 200+KB) that a generic
+ * brace-matching body extractor cannot safely delimit -- a regex literal
+ * with a quantifier like `/\d{4}/` contains a `{`/`}` that isn't part of
+ * a real code block, and a naive counter desyncs on it, silently
+ * swallowing everything after. Both functions in this list were read in
+ * full when they were added and contain no regex literals, which is what
+ * makes brace-matching safe for them specifically -- verify the same
+ * before adding a third.
+ */
+const NAMED_COLLECTOR_FUNCTION_NAMES = [
+  "buildThumbnailResolutionCheck",
+  "buildRconCommandRejectionsCheck",
+];
+
+/**
+ * Brace-matched, string/template-literal-aware extraction of one named
+ * top-level function's body (declaration through its closing `}`) -- see
+ * NAMED_COLLECTOR_FUNCTION_NAMES' own comment for why this is scoped to
+ * an explicit small list rather than run over the whole file.
+ */
+function extractNamedFunctionBody(source, name) {
+  const declRe = new RegExp(`(?:^|\\n)(?:export\\s+)?(?:async\\s+)?function\\s+${name}\\s*\\(`);
+  const declMatch = declRe.exec(source);
+  if (!declMatch) return null;
+
+  let i = declMatch.index + declMatch[0].length - 1; // sitting on the parameter list's '('
+  let parenDepth = 0;
+  for (; i < source.length; i++) {
+    if (source[i] === "(") parenDepth++;
+    else if (source[i] === ")") {
+      parenDepth--;
+      if (parenDepth === 0) {
+        i++;
+        break;
+      }
+    }
+  }
+  while (i < source.length && source[i] !== "{") i++;
+  const bodyStart = i;
+  let braceDepth = 0;
+  for (; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i++;
+      while (i < source.length && source[i] !== ch) {
+        if (source[i] === "\\") i++;
+        i++;
+      }
+      continue;
+    }
+    if (ch === "{") braceDepth++;
+    else if (ch === "}") {
+      braceDepth--;
+      if (braceDepth === 0) {
+        i++;
+        break;
+      }
+    }
+  }
+  return source.slice(bodyStart, i);
+}
+
+/**
+ * Scans the GET /diagnostics handler (not the separate GET /worldmap
  * handler right after it, which is a different tab with its own checks and
  * out of scope here) for every diagOk/diagFail/diagWarn/diagSkip/diagInfo
  * call, and for every literal `variant: "..."` alongside one.
+ *
+ * diagnostics-registry-scanner-cannot-see-named-collector-functions,
+ * 2026-09-09: a check's diagOk/Fail/Warn() calls don't have to live
+ * textually inside the handler to belong to it. The two functions named
+ * in NAMED_COLLECTOR_FUNCTION_NAMES above used to be invisible here, so
+ * the scanner reported their locale entries as stale even when the code
+ * plainly emitted them. The design call here (god's, not re-litigated):
+ * extend the scanner to understand named collectors, not inline the
+ * calls back into the handler and lose the pure-function testability
+ * that was the whole point of extracting them.
  *
  * Deliberately regex-based and positional, not a full parse -- same
  * reasoning as errorCodeRegistry.test.js's CODE_LITERAL_RE: narrow enough
@@ -144,16 +242,43 @@ function extractDiagnosticsChecks(source) {
   }
   const handlerSource = source.slice(start, end);
 
+  // Fold each named collector's own body into the source this function
+  // scans, but only for names the handler actually calls -- so a
+  // collector that stops being used (or is renamed) is caught by the "was
+  // found in the handler" sanity check below rather than silently still
+  // contributing stale entries.
+  const namedCollectorBodies = [];
+  for (const name of NAMED_COLLECTOR_FUNCTION_NAMES) {
+    const calledRe = new RegExp(`\\b${name}\\s*\\(`);
+    if (!calledRe.test(handlerSource)) {
+      throw new Error(
+        `NAMED_COLLECTOR_FUNCTION_NAMES lists "${name}" but the /diagnostics handler never calls ` +
+          `it -- renamed, removed, or no longer used. Update NAMED_COLLECTOR_FUNCTION_NAMES.`,
+      );
+    }
+    const body = extractNamedFunctionBody(source, name);
+    if (!body) {
+      throw new Error(
+        `NAMED_COLLECTOR_FUNCTION_NAMES lists "${name}" but no top-level function declaration for ` +
+          `it was found anywhere in debug.js.`,
+      );
+    }
+    namedCollectorBodies.push(body);
+  }
+  const effectiveSource = namedCollectorBodies.length
+    ? `${handlerSource}\n${namedCollectorBodies.join("\n")}`
+    : handlerSource;
+
   const CALL_RE = /diag(Ok|Fail|Warn|Skip|Info)\(\s*"([^"]+)"/g;
   const calls = [];
   let m;
-  while ((m = CALL_RE.exec(handlerSource))) {
+  while ((m = CALL_RE.exec(effectiveSource))) {
     calls.push({ index: m.index, status: m[1].toLowerCase(), id: m[2] });
   }
 
   const VARIANT_RE = /variant:\s*"([^"]+)"/g;
   const variantOccurrences = [];
-  while ((m = VARIANT_RE.exec(handlerSource))) {
+  while ((m = VARIANT_RE.exec(effectiveSource))) {
     variantOccurrences.push({ index: m.index, variant: m[1] });
   }
 
@@ -272,6 +397,35 @@ describe("diagnostics check locale registry (self-enforcing, mirrors errorCodeRe
     expect(source.plain.has("server.process::ok")).toBe(true);
     expect(source.withVariant.has("server.installPath::fail::netMount")).toBe(true);
     expect(source.withVariant.has("server.jre::warn::linux")).toBe(true);
+  });
+
+  // diagnostics-registry-scanner-cannot-see-named-collector-functions,
+  // 2026-09-09: the actual regression this card exists to fix -- these two
+  // ids are built entirely inside buildThumbnailResolutionCheck() /
+  // buildRconCommandRejectionsCheck(), physically outside the handler's own
+  // [start, end) text. If NAMED_COLLECTOR_FUNCTION_NAMES or
+  // extractNamedFunctionBody() regresses, this is the test that catches it.
+  it("sees every check emitted by a named collector function, not just calls textually inside the handler", () => {
+    expect(source.withVariant.has("mods.thumbnailResolution::warn::statusUnavailable")).toBe(true);
+    expect(source.withVariant.has("mods.thumbnailResolution::ok::allResolvingSome")).toBe(true);
+    expect(source.withVariant.has("mods.thumbnailResolution::ok::allResolvingNone")).toBe(true);
+    expect(source.withVariant.has("mods.thumbnailResolution::warn::someFailing")).toBe(true);
+    expect(source.plain.has("mods.thumbnailResolution::fail")).toBe(true);
+    expect(source.withVariant.has("rcon.commandRejections::warn::statusUnavailable")).toBe(true);
+    expect(source.plain.has("rcon.commandRejections::ok")).toBe(true);
+    expect(source.withVariant.has("rcon.commandRejections::warn::someRejected")).toBe(true);
+  });
+
+  // The failure to fear here is a scanner that PASSES WHILE SEEING LESS
+  // than it used to -- a regression in extractNamedFunctionBody() or the
+  // boundary scan could easily make one of these true by accident while
+  // still reporting green everywhere else. Deliberately checks an id the
+  // scanner already handled BEFORE this fix (a plain, boundary-inside
+  // call), not one of the two new ones -- proving the new capability works
+  // says nothing about whether the old one still does.
+  it("still catches an id it already handled before this fix, not just the newly-visible ones", () => {
+    expect(source.plain.has("server.process::ok")).toBe(true);
+    expect(en.plain.get("server.process::ok")).toBeTruthy();
   });
 
   for (const id of KNOWN_TRANSLATED_IDS) {

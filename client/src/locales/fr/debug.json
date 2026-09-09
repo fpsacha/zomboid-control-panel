@@ -538,6 +538,28 @@
             "message": "Le serveur est en cours d'exécution mais RCON n'est pas connecté. Vérifiez le port et le mot de passe RCON.",
             "hint": "Paramètres → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "État des rejets de commande RCON indisponible",
+              "message": "Impossible de déterminer si le serveur de jeu a récemment rejeté des commandes RCON.",
+              "hint": "Tout ce que le panneau peut identifier avec certitude comme un rejet est listé ci-dessus. Pour tout ce qui semble anormal sans l'être, l'historique des commandes de la page Console affiche la réponse brute exacte reçue pour chaque commande RCON, afin de repérer ce qu'aucun contrôle automatique ne détecte."
+            },
+            "statusUnavailableWithError": {
+              "label": "État des rejets de commande RCON indisponible",
+              "message": "Impossible de déterminer si le serveur de jeu a récemment rejeté des commandes RCON : {{error}}"
+            },
+            "someRejected": {
+              "label": "Le serveur de jeu a rejeté certaines commandes RCON",
+              "message": "{{total}} commande(s) rejetée(s) par le serveur de jeu au cours des dernières 24 heures : {{list}}."
+            }
+          },
+          "ok": {
+            "label": "Aucun rejet de commande RCON",
+            "message": "Aucune commande RCON n'a été rejetée par le serveur de jeu récemment.",
+            "hint": "Tout ce que le panneau peut identifier avec certitude comme un rejet est listé ci-dessus. Pour tout ce qui semble anormal sans l'être, l'historique des commandes de la page Console affiche la réponse brute exacte reçue pour chaque commande RCON, afin de repérer ce qu'aucun contrôle automatique ne détecte."
+          }
         }
       },
       "modChecker": {
@@ -995,6 +1017,38 @@
               "message": "{{count}} entrées Map= sont introuvables. {{trulyMissingCount}} introuvables dans un mod installé : {{trulyMissingList}}.",
               "hint": "Les joueurs apparaîtront dans le vide. Ajoutez le mod de carte correspondant ou corrigez l'orthographe dans la configuration du serveur."
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "État de résolution des vignettes de mods indisponible",
+              "message": "Impossible de déterminer l'état de résolution des vignettes de mods."
+            },
+            "statusUnavailableWithError": {
+              "label": "État de résolution des vignettes de mods indisponible",
+              "message": "Impossible de déterminer l'état de résolution des vignettes de mods : {{error}}"
+            },
+            "someFailing": {
+              "label": "Certaines vignettes de mods ne se résolvent pas",
+              "message": "{{failing}} vignette(s) manquante(s) sur {{total}} mods suivis. Dernier échec : {{reason}} (ID Workshop {{workshopId}}, il y a {{age}}).",
+              "hint": "Signifie généralement que ces éléments Workshop précis ont été supprimés, rendus privés ou restreints par région sur Steam — vérifiez l'ID Workshop ci-dessus sur steamcommunity.com. La résolution est retentée automatiquement toutes les 5 minutes ; cela se résout tout seul si l'élément redevient public et que Steam est accessible."
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "Vignettes de mods résolues normalement",
+              "message": "{{total}} mod(s) suivi(s), toutes les vignettes se résolvent."
+            },
+            "allResolvingNone": {
+              "label": "Vignettes de mods résolues normalement",
+              "message": "Aucun échec de résolution de vignette."
+            }
+          },
+          "fail": {
+            "label": "Aucune vignette de mod ne se résout",
+            "message": "Les {{total}} mods suivis n'ont actuellement aucune vignette. Dernier échec : {{reason}}.",
+            "hint": "Un échec touchant tous les mods à la fois, plutôt que seulement quelques-uns, signifie généralement que cet hôte ne peut pas du tout accéder à Steam plutôt qu'un problème propre à un mod — vérifiez l'accès HTTPS sortant vers api.steampowered.com et steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com (pare-feu, proxy ou DNS). Une fois l'accès rétabli, les vignettes se résolvent automatiquement en 5 minutes — aucun redémarrage nécessaire."
           }
         }
       },

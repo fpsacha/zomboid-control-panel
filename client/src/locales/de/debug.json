@@ -533,6 +533,28 @@
             "message": "Der Server läuft, aber RCON ist nicht verbunden. Prüfe RCON-Port und -Passwort.",
             "hint": "Einstellungen → RCON · server.ini → RCONPassword"
           }
+        },
+        "commandRejections": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "Status abgelehnter RCON-Befehle nicht verfügbar",
+              "message": "Konnte nicht ermitteln, ob der Spielserver kürzlich RCON-Befehle abgelehnt hat.",
+              "hint": "Alles, was das Panel eindeutig als Ablehnung erkennen kann, ist oben aufgeführt. Bei allem, das falsch wirkt, es aber nicht ist, zeigt der Befehlsverlauf auf der Console-Seite die genaue Rohantwort jedes RCON-Befehls, damit auch erkennbar wird, was keine automatische Prüfung erfasst."
+            },
+            "statusUnavailableWithError": {
+              "label": "Status abgelehnter RCON-Befehle nicht verfügbar",
+              "message": "Konnte nicht ermitteln, ob der Spielserver kürzlich RCON-Befehle abgelehnt hat: {{error}}"
+            },
+            "someRejected": {
+              "label": "Der Spielserver hat einige RCON-Befehle abgelehnt",
+              "message": "{{total}} Befehl(e) wurden in den letzten 24 Stunden vom Spielserver abgelehnt: {{list}}."
+            }
+          },
+          "ok": {
+            "label": "Keine abgelehnten RCON-Befehle",
+            "message": "Der Spielserver hat kürzlich keine RCON-Befehle abgelehnt.",
+            "hint": "Alles, was das Panel eindeutig als Ablehnung erkennen kann, ist oben aufgeführt. Bei allem, das falsch wirkt, es aber nicht ist, zeigt der Befehlsverlauf auf der Console-Seite die genaue Rohantwort jedes RCON-Befehls, damit auch erkennbar wird, was keine automatische Prüfung erfasst."
+          }
         }
       },
       "modChecker": {
@@ -990,6 +1012,38 @@
               "message": "{{count}} Map=-Einträge wurden nicht gefunden. {{trulyMissingCount}} wurden in keiner installierten Mod gefunden: {{trulyMissingList}}.",
               "hint": "Spieler erscheinen sonst im Leeren. Füge die passende Karten-Mod hinzu oder korrigiere die Schreibweise in der Serverkonfiguration."
             }
+          }
+        },
+        "thumbnailResolution": {
+          "warn": {
+            "statusUnavailable": {
+              "label": "Status der Mod-Vorschaubilder nicht verfügbar",
+              "message": "Konnte den Auflösungsstatus der Mod-Vorschaubilder nicht ermitteln."
+            },
+            "statusUnavailableWithError": {
+              "label": "Status der Mod-Vorschaubilder nicht verfügbar",
+              "message": "Konnte den Auflösungsstatus der Mod-Vorschaubilder nicht ermitteln: {{error}}"
+            },
+            "someFailing": {
+              "label": "Einige Mod-Vorschaubilder werden nicht aufgelöst",
+              "message": "{{failing}} von {{total}} verfolgten Mods haben derzeit kein Vorschaubild. Letzter Fehler: {{reason}} (Workshop-ID {{workshopId}}, vor {{age}}).",
+              "hint": "Bedeutet meist, dass diese Workshop-Objekte gelöscht, privat gestellt oder regional gesperrt wurden — prüfe die Workshop-ID oben auf steamcommunity.com. Die Auflösung wird automatisch alle 5 Minuten erneut versucht und behebt sich von selbst, sobald das Objekt wieder öffentlich und Steam erreichbar ist."
+            }
+          },
+          "ok": {
+            "allResolvingSome": {
+              "label": "Mod-Vorschaubilder werden normal aufgelöst",
+              "message": "{{total}} verfolgte(r) Mod(s), alle Vorschaubilder werden aufgelöst."
+            },
+            "allResolvingNone": {
+              "label": "Mod-Vorschaubilder werden normal aufgelöst",
+              "message": "Keine Fehler bei der Vorschaubild-Auflösung."
+            }
+          },
+          "fail": {
+            "label": "Keine Mod-Vorschaubilder werden aufgelöst",
+            "message": "Alle {{total}} verfolgten Mods haben derzeit kein Vorschaubild. Letzter Fehler: {{reason}}.",
+            "hint": "Wenn alle Mods gleichzeitig fehlschlagen, statt nur einzelne, bedeutet das meist, dass dieser Host Steam gar nicht erreichen kann, statt eines Problems mit einem einzelnen Mod — prüfe den ausgehenden HTTPS-Zugriff auf api.steampowered.com und steamuserimages-a.akamaihd.net / *.steamstatic.com / *.akamaihd.net / images.steamusercontent.com (Firewall, Proxy oder DNS). Sobald die Verbindung besteht, werden Vorschaubilder automatisch innerhalb von 5 Minuten aufgelöst — kein Neustart nötig."
           }
         }
       },
