@@ -55,14 +55,20 @@ function createResponse() {
 }
 
 beforeEach(() => {
-  getStatusReturn = { alive: false };
+  getStatusReturn = { alive: false, modStatus: null };
   isModConnectedReturn = false;
 });
 
 describe("GET /panel-bridge/status -- remote servers get a version-string check, not a misleading local-install status", () => {
   it("reports remoteBridgeVersionCheck and leaves localInstall null for a remote server", async () => {
     activeServer = { id: "s1", name: "Remote Server", isRemote: true };
-    getStatusReturn = { alive: true, version: "0.0.1" };
+    // Real shape: bridge.getStatus() nests the mod's live version under
+    // modStatus, never as a top-level field -- see the fix comment at
+    // routes/panelBridge.js's remoteBridgeVersionCheck block. This mock
+    // used to hand the route a top-level `version` field the real service
+    // never produces, which is exactly why the bug this file now guards
+    // against (liveVersion always null in production) went undetected here.
+    getStatusReturn = { alive: true, modStatus: { alive: true, version: "0.0.1" } };
 
     const response = createResponse();
     await getHandler("/status", "get")({}, response);
@@ -78,7 +84,10 @@ describe("GET /panel-bridge/status -- remote servers get a version-string check,
 
   it("reports behind:false when the remote live version matches what's bundled", async () => {
     activeServer = { id: "s1", isRemote: true };
-    getStatusReturn = { alive: true, version: getBundledBridgeVersion() };
+    getStatusReturn = {
+      alive: true,
+      modStatus: { alive: true, version: getBundledBridgeVersion() },
+    };
 
     const response = createResponse();
     await getHandler("/status", "get")({}, response);
@@ -90,7 +99,7 @@ describe("GET /panel-bridge/status -- remote servers get a version-string check,
 
   it("reports behind:null when the remote server has never reported a live version", async () => {
     activeServer = { id: "s1", isRemote: true };
-    getStatusReturn = { alive: false, version: null };
+    getStatusReturn = { alive: false, modStatus: null };
 
     const response = createResponse();
     await getHandler("/status", "get")({}, response);
@@ -98,6 +107,27 @@ describe("GET /panel-bridge/status -- remote servers get a version-string check,
     const check = response.json.mock.calls[0][0].remoteBridgeVersionCheck;
     expect(check.liveVersion).toBeNull();
     expect(check.behind).toBeNull();
+  });
+
+  it("regression: a top-level status.version (a shape the real service never produces) must NOT be read -- liveVersion only ever comes from modStatus.version", async () => {
+    activeServer = { id: "s1", isRemote: true };
+    // If the route ever regresses back to reading status.version directly,
+    // this top-level field would be picked up and the test would wrongly
+    // pass -- modStatus deliberately carries a DIFFERENT version so a
+    // regression is caught by liveVersion equalling the wrong one, not by
+    // an absent field going unnoticed.
+    getStatusReturn = {
+      alive: true,
+      version: "9.9.9-wrong-top-level-field",
+      modStatus: { alive: true, version: "0.0.1" },
+    };
+
+    const response = createResponse();
+    await getHandler("/status", "get")({}, response);
+
+    expect(
+      response.json.mock.calls[0][0].remoteBridgeVersionCheck.liveVersion,
+    ).toBe("0.0.1");
   });
 
   it("still reports localInstall (not remoteBridgeVersionCheck) for a local server -- unchanged behavior", async () => {

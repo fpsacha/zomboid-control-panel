@@ -490,7 +490,21 @@ router.get(
       };
       if (activeServer.isRemote) {
         const bundledVersion = getBundledBridgeVersion();
-        const liveVersion = status.version || null;
+        // Found while building the client-side staleness surfacing card
+        // (remote-bridge-version-staleness-is-never-surfaced-to-sftp-users):
+        // PanelBridge.getStatus() (services/panelBridge.js) has no
+        // top-level `.version` field -- the mod's live version lives at
+        // `status.modStatus.version`, exactly where the comment above this
+        // block already says it comes from ("status.version, from its
+        // status.json heartbeat"). Reading `status.version` directly always
+        // read `undefined`, so `liveVersion` was always null and `behind`
+        // could never be anything but null -- the signal this whole card
+        // exists to surface had never actually been able to fire. The
+        // existing test for this route (panelBridgeStatusRemoteVersionCheck
+        // .test.js) didn't catch it because it mocks bridge.getStatus() to
+        // return a top-level `version` field directly, a shape the real
+        // service never produces -- fixed alongside this.
+        const liveVersion = status.modStatus?.version || null;
         remoteBridgeVersionCheck = {
           bundledVersion,
           liveVersion,

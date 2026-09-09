@@ -111,6 +111,12 @@ import {
   getAllowOutOfRangeSandboxValues,
   setAllowOutOfRangeSandboxValues,
 } from "@/lib/serverConfigSchema";
+import {
+  detectBridgeStaleness,
+  getBridgeStalenessActionLabel,
+  getBridgeStalenessBody,
+  getBridgeStalenessTitle,
+} from "@/lib/bridgeVersionStaleness";
 import { useSocket } from "@/contexts/SocketContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, type ThemeName } from "@/contexts/ThemeContext";
@@ -491,11 +497,25 @@ export default function Settings() {
       timestamp: number;
       age?: number;
       error?: string;
+      protocolVersionMismatch?: { expected: string; actual: string };
     } | null;
     detectedPaths?: {
       serverName: string;
       installPath: string;
       zomboidDataPath: string;
+    } | null;
+    localInstall?: {
+      canAutoInstall: boolean;
+      installed: boolean;
+      version: string | null;
+      needsUpdate: boolean;
+      sourcePath: string | null;
+      targetPath: string | null;
+    } | null;
+    remoteBridgeVersionCheck?: {
+      bundledVersion: string | null;
+      liveVersion: string | null;
+      behind: boolean | null;
     } | null;
   } | null>(null);
   const [bridgeLoading, setBridgeLoading] = useState(false);
@@ -4180,6 +4200,50 @@ export default function Settings() {
                     </p>
                   </Alert>
                 )}
+
+                {/* Bridge version staleness -- WARNING only, never blocks
+                    anything (matches the server side, which never rejects a
+                    command over either signal). Reads GET /panel-bridge/
+                    status's remoteBridgeVersionCheck/localInstall.needsUpdate
+                    (computed, never read anywhere before this card) and
+                    modStatus.protocolVersionMismatch (Kevin's 71e45705) as
+                    ONE prioritized signal, not two banners -- see
+                    detectBridgeStaleness's own comment for why. */}
+                {(() => {
+                  const staleness = detectBridgeStaleness(bridgeStatus);
+                  if (!staleness) return null;
+                  const actionLabel = getBridgeStalenessActionLabel(staleness);
+                  return (
+                    <Alert
+                      className="border-warning/40 bg-warning/10"
+                      aria-live="polite"
+                    >
+                      <AlertTriangle className="h-4 w-4 text-warning" />
+                      <AlertTitle className="text-warning">
+                        {getBridgeStalenessTitle(staleness)}
+                      </AlertTitle>
+                      <AlertDescription className="space-y-3">
+                        <p>{getBridgeStalenessBody(staleness)}</p>
+                        {actionLabel && (
+                          <Button
+                            onClick={() => handleAutoConfigure()}
+                            disabled={bridgeLoading}
+                            size="sm"
+                            variant="outline"
+                            className="gap-2"
+                          >
+                            {bridgeLoading ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            )}
+                            {actionLabel}
+                          </Button>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  );
+                })()}
 
                 {/* Not running - setup flow */}
                 {!bridgeStatus?.isRunning && (
