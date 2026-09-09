@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**TL;DR:**
+
+- **The Docker/Unraid experience has been rebuilt end to end: the panel now finds your existing Project Zomboid server for you instead of asking you to type paths, and a serious bug that broke RCON forever for anyone following our own official Unraid template is fixed.**
+- **Server Configuration → Mod Settings, and vehicle lookups, no longer time out on modded or high-population servers.**
+- **The Sandbox tab now reads real min/max limits from your running server, and a sandbox value saved out of range can no longer permanently disable Save.**
+- A handful of smaller fixes: the Backups page no longer says "Never" after a restart when real backups exist on disk, World Map's Heal/God buttons show the real error instead of a bare toast, and an in-app update can no longer show the wrong version in its own success message.
+
+### Added
+
+**Docker/Unraid onboarding**
+
+- **The panel can now find your Project Zomboid server for you.** Instead of typing a path and hoping, it scans the common Docker/Unraid mount locations (including this project's own container layout and the popular community Unraid template's) and tells you in plain language what it found at each one — a complete server, files with no data, data with no files, a folder it can't read, or nothing mounted — so you can add the one that's ready with one click. This now runs every time you visit the Servers page, not only when you have no servers yet, and the Dashboard's "Quick Start" button now sends you here instead of always defaulting to the from-scratch install wizard.
+- **If you run the official Unraid template with the panel and Project Zomboid in separate containers, you can now let the panel read your Docker socket** — an optional, off-by-default field in the template — so it automatically translates a path you can see on the host into the path it can see inside its own container, instead of you having to guess which side's path to type.
+- **Installing Project Zomboid no longer requires typing the SteamCMD path by hand.** If you leave it blank, the panel now looks in the same places it already checks automatically, and inside our own all-in-one Docker image it already knows exactly where SteamCMD lives. You only need to type a path yourself if none of that finds it, and if so the panel now tells you exactly where it looked.
+
+**Sandbox settings**
+
+- **The Sandbox tab now reads the real minimum/maximum for every value from your running server**, instead of a table baked into the panel that goes stale whenever a game update changes the defaults. A new toggle in Settings lets you save a value outside that range anyway, for the rare case you know better than the game's own limits.
+
+### Fixed
+
+**Docker/Unraid (RCON)**
+
+- **A server profile created through "Find my server" could look completely set up and still never connect, with no error anywhere.** If you followed our own official Unraid template with the panel and the game server in separate containers, the panel would find your install, your save data, and your settings file, correctly read the real RCON port and password out of it — and then hard-code the one RCON address our own template explicitly warns you never to use in that setup. Every step looked like it worked; no command from the panel ever reached the server. The panel now uses the RCON host you actually configured.
+
+**PanelBridge / mod communication**
+
+- **Server Configuration → Mod Settings could fail with "The request timed out. Check your connection and try again" even when your connection was fine.** On a heavily modded server, reading every sandbox option can legitimately take longer than the panel allowed for — and there turned out to be two separate, disagreeing internal deadlines (one in your browser, one on the panel's own server side), so raising only one changed nothing. Both are now raised together.
+- **The same "no response from mod" timeout could also hit vehicle lookups on servers with a lot of vehicles**, for the same reason, and now gets the same longer allowance. Safehouse and faction lookups stay fast regardless of server size and were deliberately left unchanged.
+- **World Map's Heal and God-mode buttons showed a bare, reasonless error whenever the connection to the game was down**, unlike every other button on that page. They now show the same real explanation the rest of the panel already gives.
+- **The panel now tells you when your bridge mod is out of date or speaking a different protocol version than it expects**, including when you connect over remote/SFTP — previously this got no signal about it at all.
+
+**Sandbox settings**
+
+- **Once a sandbox value was saved outside its valid range, it could never be saved again — not even back to a valid value.** The panel's own range check, meant to stop you saving a bad value, was also blocking the fix. Fixed.
+
+**Backups**
+
+- **The Backups page could say "Last Backup: Never" right next to a correct, non-zero backup count, on every panel restart**, even with real backups already on disk. The displayed value only tracked backups made since the panel last started and never checked disk on its own. It now does.
+
+**Scheduler & installer**
+
+- **A scheduled restart's "another operation is already in progress" message now names the server it's actually about**, in the common case where it previously always read as a generic, unhelpful message.
+- **Installing Project Zomboid, running Quick Setup, or updating SteamCMD for a server could start while a wipe, restore, or template apply was already running for that same server.** All three now wait for the same lock those operations already respect.
+- **An in-app update could, in a rare timing case, report the wrong version number in its own "update complete" message** if a routine background update-check happened to land in the middle of a download. Fixed.
+
+### Internal
+
+- A failed bridge command, a missing thumbnail, and a client retry could each happen without leaving any line in the log files the panel's own documentation tells you to check when troubleshooting. All three now log.
+- The i18n duplicate-string checker used in CI no longer flags plural forms that don't exist in English but are required in other languages, which had been failing CI on every commit.
+- Routine dependency updates and error-code documentation cleanup.
+
 ## [1.2.21] - 2026-09-09
 
 **TL;DR:**
