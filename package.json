@@ -43,11 +43,11 @@
     "jsonwebtoken": "^9.0.3",
     "lowdb": "^7.0.1",
     "node-cron": "^4.6.0",
-    "openid-client": "^6.8.7",
+    "openid-client": "^6.8.8",
     "socket.io": "^4.8.3",
     "sql.js": "^1.14.2",
     "ssh2-sftp-client": "^12.1.1",
-    "undici": "^8.10.0",
+    "undici": "^8.10.2",
     "unzipper": "^0.12.5",
     "uuid": "^13.0.0",
     "winston": "^3.17.0"
@@ -62,7 +62,7 @@
     "globals": "^14.0.0",
     "jose": "^6.2.10",
     "nodemon": "^3.1.14",
-    "playwright": "^1.62.1",
+    "playwright": "^1.63.0",
     "vitest": "^4.1.11"
   },
   "overrides": {
