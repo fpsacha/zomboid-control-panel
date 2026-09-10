@@ -171,6 +171,7 @@
   "STATS_INVALID_MODE": "Invalid mode. Valid: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Missing required fields: steamcmdPath, installPath",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "A Steam operation is already in progress for this server. Please wait for it to complete.",
+  "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS": "A SteamCMD download is already in progress.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Invalid installation path",
   "INVALID_PATH": "Invalid path",
   "PATH_NOT_FOUND": "Path does not exist",

@@ -420,6 +420,17 @@ async function findSteamCmdPath() {
 // comment for why this couldn't just be a reverse import instead.
 const activeSteamOperations = getActiveSteamOperations();
 
+// Guards POST /steamcmd/download (below) against two overlapping calls both
+// writing the same steamcmd.zip/steamcmd_linux.tar.gz -- fire-and-forget
+// sweep, 2026-09-10: with no lock, a second request's fs.createWriteStream()
+// truncates the first mid-download (and, on error, the first attempt's own
+// fire-and-forget cleanup unlink can land on the second attempt's now-live
+// file). Module-level like panelUpdateChecker.js's isDownloading -- there is
+// exactly one SteamCMD provisioning flow per running panel process, no need
+// for activeSteamOperations' per-path keying (that guards the SteamCMD
+// *process* once installed, a separate concern from provisioning it).
+let steamcmdDownloadInProgress = false;
+
 // True only for the exact shape that crashes PZ on first boot: no admin
 // password configured AND this server has never actually started (its
 // world-save directory doesn't exist yet, so PZ has no admin account and
@@ -4460,6 +4471,23 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
       return res.status(400).json({ error: "Invalid installation path", code: ErrorCode.STEAMCMD_DOWNLOAD_INVALID_PATH });
     }
 
+    // Claim the guard NOW, before the first `await` below -- mirrors
+    // panelUpdateChecker.js's isDownloading (see its own comment at
+    // downloadUpdate() for the double-click corruption bug that ordering
+    // exists to prevent: claiming it after an await leaves a TOCTOU window
+    // where a second overlapping request reads the flag still false and
+    // passes this same check too). Released at every place below where this
+    // attempt is done writing to zipPath/tarPath -- both success and
+    // failure -- not just at the end of the function, since the actual
+    // download/extract runs in the background after this handler responds.
+    if (steamcmdDownloadInProgress) {
+      return res.status(409).json({
+        error: "A SteamCMD download is already in progress",
+        code: ErrorCode.STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS,
+      });
+    }
+    steamcmdDownloadInProgress = true;
+
     // This route's whole job is provisioning SteamCMD at installPath --
     // persist it as the configured steamcmdPath setting now, before
     // runFirstTimeSetup()'s spawn() resolves an executable from it below
@@ -4497,7 +4525,17 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
 
       const handleDownloadError = (err) => {
         file.close();
-        fs.unlink(zipPath, () => {});
+        // Synchronous, matching the Linux branch's tar cleanup below --
+        // this attempt's write to zipPath is done the moment this runs, so
+        // the guard release right after is what actually needs to be
+        // ordered before a retry reopens the same path; a fire-and-forget
+        // unlink here previously had no such ordering guarantee at all.
+        try {
+          fs.unlinkSync(zipPath);
+        } catch (e) {
+          /* ignore */
+        }
+        steamcmdDownloadInProgress = false;
         io.emit("steamcmd:status", {
           status: "error",
           message: `Download failed: ${err.message}`,
@@ -4571,6 +4609,11 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
             params: { reason: sanitizeError(extractError.message) },
           });
           log.error(`SteamCMD extraction failed: ${extractError.message}`);
+        } finally {
+          // Either way, this attempt is done writing to zipPath by now
+          // (extracted and unlinked, or the extraction failed outright) --
+          // safe for a new download to reuse the path.
+          steamcmdDownloadInProgress = false;
         }
       }
     } else {
@@ -4603,6 +4646,7 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
             return;
           }
           if (dlErr) {
+            steamcmdDownloadInProgress = false;
             io.emit("steamcmd:status", {
               status: "error",
               message: `Download failed: ${dlErr.message}. Ensure curl or wget is installed.`,
@@ -4637,6 +4681,9 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
             } catch (e) {
               /* ignore */
             }
+            // Either way, this attempt is done writing to tarPath now --
+            // safe for a new download to reuse it.
+            steamcmdDownloadInProgress = false;
 
             if (tarErr) {
               io.emit("steamcmd:status", {
@@ -4761,6 +4808,13 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
 
     res.json({ success: true, message: "SteamCMD download started" });
   } catch (error) {
+    // Reached only by a failure in this handler's own synchronous setup
+    // (getSetting/setSetting/mkdirSync/the `import("unzipper")` above) --
+    // the background download/extract never throws back into this try
+    // block (see downloadAndExtract()/extractAndSetup()'s own release
+    // points below), so this is the one guard-release site outside the
+    // platform-specific paths.
+    steamcmdDownloadInProgress = false;
     log.error(`SteamCMD download failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
   }

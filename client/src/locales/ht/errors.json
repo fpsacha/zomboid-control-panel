@@ -171,6 +171,7 @@
   "STATS_INVALID_MODE": "Mòd envalid. Valid: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Chan obligatwa manke: steamcmdPath, installPath",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Gen yon operasyon Steam k ap fèt deja pou sèvè sa a. Tanpri tann li fini.",
+  "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS": "Gen yon telechajman SteamCMD k ap fèt deja.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Chemen enstalasyon envalid",
   "INVALID_PATH": "Chemen envalid",
   "PATH_NOT_FOUND": "Chemen an pa egziste",

@@ -651,6 +651,19 @@ export const ErrorCode = Object.freeze({
    * operation already running for this server. See STEAM_OPERATION_IN_
    * PROGRESS_PATH above for why this stays a separate code. */
   STEAM_OPERATION_IN_PROGRESS_SERVER: "STEAM_OPERATION_IN_PROGRESS_SERVER",
+  /** server/routes/server.js -- POST /api/server/steamcmd/download, a
+   * second call arrives while one is already downloading/extracting.
+   * Deliberately its own flag rather than reusing activeSteamOperations
+   * (path-keyed, used by /steam-update and /install for the SteamCMD
+   * *process* itself) -- this guards the earlier provisioning step, before
+   * any installPath necessarily has a steamcmdPath configured to key on,
+   * and shares nothing with those routes' state. Claimed synchronously
+   * before this route's first `await`, mirroring panelUpdateChecker.js's
+   * isDownloading (see its own comment for the double-click corruption bug
+   * that ordering exists to prevent) -- without it, two overlapping calls
+   * both `fs.createWriteStream()` the same steamcmd.zip/tar.gz, and the
+   * second truncates the first mid-write. */
+  STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS: "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS",
   /** server/routes/server.js -- POST /api/server/steamcmd/download,
    * installPath fails isValidPath(). Own wording ("installation path") from
    * INSTALL_PATH_INVALID/STEAMCMD_PATH_INVALID above -- different route,

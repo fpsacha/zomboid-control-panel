@@ -171,6 +171,7 @@
   "STATS_INVALID_MODE": "Mode invalide. Valides : {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Champs requis manquants : steamcmdPath, installPath",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Une opération Steam est déjà en cours pour ce serveur. Veuillez attendre qu'elle se termine.",
+  "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS": "Un téléchargement de SteamCMD est déjà en cours.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Chemin d'installation invalide",
   "INVALID_PATH": "Chemin invalide",
   "PATH_NOT_FOUND": "Le chemin n'existe pas",

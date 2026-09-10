@@ -171,6 +171,7 @@
   "STATS_INVALID_MODE": "Некоректний режим. Доступні: {{valid}}",
   "STEAM_UPDATE_MISSING_FIELDS": "Відсутні обов'язкові поля: steamcmdPath, installPath",
   "STEAM_OPERATION_IN_PROGRESS_SERVER": "Операція Steam для цього сервера вже виконується. Зачекайте на її завершення.",
+  "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS": "Завантаження SteamCMD вже виконується.",
   "STEAMCMD_DOWNLOAD_INVALID_PATH": "Некоректний шлях інсталяції",
   "INVALID_PATH": "Некоректний шлях",
   "PATH_NOT_FOUND": "Шлях не існує",
