@@ -81,11 +81,30 @@ export class LogTailer extends EventEmitter {
   // creating the "already existing" file it was supposed to represent,
   // which is backwards from how this is ever true in production and is
   // exactly the tight regime where the clock skew becomes visible.
-  startOffsetFor(filePath, firstDiscovery) {
+  //
+  // 2026-09-09 (start-offset-replays-the-whole-file-on-every-non-first-
+  // rotation): `firstDiscovery` used to gate the birthtime check at all --
+  // any switch mid-polling unconditionally returned 0, on the assumption
+  // that only a genuinely fresh, near-empty file ever wins that comparison.
+  // Reachable counterexample, confirmed by direct measurement (see
+  // logTailerStartOffsetReplay.test.js): this application never writes into
+  // Logs/ itself, but nothing stops an external actor (an admin's `touch`,
+  // a backup/volume-restore tool, an NFS/SMB remount) from bumping an old,
+  // already-populated file's mtime past the currently-tailed file's while
+  // the panel keeps running with no reloadConfig()-triggering event. That
+  // file then wins the plain `b.mtime - a.mtime` sort -- no tie needed, so
+  // this predates tonight's tie-break work entirely -- and firstDiscovery
+  // was false (chatLogPath/userLogPath was already set), so its entire
+  // existing content got replayed as brand-new chat/user events on the
+  // next poll. Fixed by dropping the firstDiscovery gate and applying the
+  // SAME born-vs-watchStartedAt rule to every discovery, not just the
+  // first: a file that predates this tailer's watch start is never new
+  // content, however it ends up winning the "latest" comparison.
+  startOffsetFor(filePath) {
     try {
         const stats = fs.statSync(filePath);
         const born = stats.birthtimeMs || 0;
-        if (!firstDiscovery || (born > 0 && born >= this.watchStartedAt)) return 0;
+        if (born > 0 && born >= this.watchStartedAt) return 0;
         return stats.size;
     } catch (e) {
         log.debug(`LogTailer: stat failed for ${filePath}: ${e.message}`);
@@ -110,8 +129,8 @@ export class LogTailer extends EventEmitter {
   // different server. Nulling the discovery state before re-running
   // findLogPath() forces it to re-read the (now updated) active server's
   // zomboidDataPath and rediscover everything under it, and reusing
-  // findLogPath's own firstDiscovery/startOffsetFor logic means we pick up
-  // the new server's current log tail rather than replaying its history.
+  // findLogPath's own startOffsetFor logic means we pick up the new
+  // server's current log tail rather than replaying its history.
   async reloadConfig() {
     this.basePath = null;
     this.logsDir = null;
@@ -184,7 +203,7 @@ export class LogTailer extends EventEmitter {
         try {
             fs.accessSync(consoleLogPath, fs.constants.R_OK);
             this.logPath = consoleLogPath;
-            this.currentSize = this.startOffsetFor(consoleLogPath, true);
+            this.currentSize = this.startOffsetFor(consoleLogPath);
             log.info(`Found console log at ${consoleLogPath}`);
         } catch {
             /* not there yet */
@@ -278,11 +297,10 @@ export class LogTailer extends EventEmitter {
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.chatLogPath) {
-                const firstDiscovery = !this.chatLogPath;
                 this.chatLogPath = latest;
                 this.everTrackedChatPaths.add(latest);
                 this.chatRemainder = '';
-                this.chatLogSize = this.startOffsetFor(latest, firstDiscovery);
+                this.chatLogSize = this.startOffsetFor(latest);
                 log.info(`Tailing B42 chat log: ${latest}`);
             }
         }
@@ -320,11 +338,10 @@ export class LogTailer extends EventEmitter {
         if (files.length > 0) {
             const latest = files[0].path;
             if (latest !== this.userLogPath) {
-                const firstDiscovery = !this.userLogPath;
                 this.userLogPath = latest;
                 this.everTrackedUserPaths.add(latest);
                 this.userRemainder = '';
-                this.userLogSize = this.startOffsetFor(latest, firstDiscovery);
+                this.userLogSize = this.startOffsetFor(latest);
                 log.info(`Tailing B42 user log: ${latest}`);
             }
         }
