@@ -94,7 +94,7 @@ describe("LogTailer: a re-touched, already-populated OLD file is NOT replayed fr
     expect(tailer.chatLogSize).toBe(realSize);
   });
 
-  it("a genuinely new file (born after watchStartedAt) is still read from byte zero on a live switch -- ordinary rotation is unaffected", () => {
+  it("a genuinely new file (born after watchStartedAt) is still read from byte zero on a live switch -- ordinary rotation is unaffected", async () => {
     dir = fs.mkdtempSync(path.join(process.env.TEMP || "/tmp", "pz-logtail-rotation-"));
     const logsDir = path.join(dir, "Logs");
     fs.mkdirSync(logsDir);
@@ -107,6 +107,18 @@ describe("LogTailer: a re-touched, already-populated OLD file is NOT replayed fr
     tailer.chatLogPath = oldChat;
     tailer.everTrackedChatPaths.add(oldChat);
     tailer.chatLogSize = fs.statSync(oldChat).size;
+
+    // Own near-miss caught by the gate, not by review: this test originally
+    // constructed the tailer (capturing watchStartedAt) and then created
+    // newChat with NO real elapsed time between them -- exactly the "tight
+    // timescale" scenario startOffsetFor's own comment warns against, and
+    // the identical ordering trap linuxLogTailerRotation.test.js already
+    // documents and works around elsewhere in this same investigation. A
+    // real wait, comfortably larger than BIRTHTIME_CLOCK_SKEW_GRACE_MS,
+    // is the honest way to guarantee newChat's birth reads as genuinely
+    // after watchStartedAt rather than trusting synchronous statements to
+    // take long enough on their own.
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
     // A real new-session rotation: freshly created, born after watchStartedAt.
     const newChat = path.join(logsDir, "02-01-26_chat.txt");

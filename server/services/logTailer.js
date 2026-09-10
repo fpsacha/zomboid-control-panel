@@ -14,6 +14,13 @@ const SHOUT_CHAT_ROOM_ID = 2;
 
 const DELIVERY_LINE = /Message ChatMessage\{chat=([^,]+),\s*author='(.*?)',\s*text='(.*)'\} sent to chat \(id = (\d+)\)/;
 
+// startOffsetFor's watchStartedAt (Date.now()) vs a file's birthtimeMs come
+// from two different clock sources measured up to ~20ms apart on this stack
+// (see startOffsetFor's own comment). This is 5x that measured figure as a
+// safety margin, not a guess -- see start-offset-replays-the-whole-file-on-
+// every-non-first-rotation, 2026-09-09.
+const BIRTHTIME_CLOCK_SKEW_GRACE_MS = 100;
+
 export function chatMessageKey(chatType, author, text) {
   return `${chatType}\u0000${author}\u0000${text}`;
 }
@@ -100,11 +107,28 @@ export class LogTailer extends EventEmitter {
   // SAME born-vs-watchStartedAt rule to every discovery, not just the
   // first: a file that predates this tailer's watch start is never new
   // content, however it ends up winning the "latest" comparison.
+  //
+  // Gate failure on that same commit, same day: extending the check to
+  // every discovery means the already-documented ~20ms cross-clock skew
+  // above (previously only ever exercised by the ONE first-discovery
+  // decision, which in every real deployment has seconds of margin to
+  // spare) is now also exercised by every switch -- and a switch can
+  // legitimately happen within a few ms of watchStartedAt (a fast test
+  // with no real elapsed time between constructing the tailer and the
+  // next file appearing; in production, any rotation landing unusually
+  // soon after the tailer starts watching). `born` reading a few ms
+  // EARLIER than watchStartedAt purely from clock disagreement, for a
+  // file that was actually created AFTER, misclassifies it as
+  // pre-existing and skips its real (in this case: brand new) content.
+  // A grace margin absorbs the measured skew with room to spare, and
+  // costs nothing against a truly pre-existing file, whose gap is always
+  // orders of magnitude larger (seconds at an absolute minimum, per the
+  // comment above).
   startOffsetFor(filePath) {
     try {
         const stats = fs.statSync(filePath);
         const born = stats.birthtimeMs || 0;
-        if (born > 0 && born >= this.watchStartedAt) return 0;
+        if (born > 0 && born >= this.watchStartedAt - BIRTHTIME_CLOCK_SKEW_GRACE_MS) return 0;
         return stats.size;
     } catch (e) {
         log.debug(`LogTailer: stat failed for ${filePath}: ${e.message}`);
