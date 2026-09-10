@@ -76,6 +76,41 @@ vi.mock("../routes/chunks.js", () => ({
   invalidateMapFolderScan: vi.fn(),
 }));
 
+// windows-steamcmd-selfheal red-gate fix, 2026-09-10: /install's own
+// PRE-EXISTING running-check (resolveTargetServerForRunningCheck ->
+// checkSpecificServerStopped) runs BEFORE the self-heal code this file
+// tests, and its non-managed branch does a REAL host-wide process scan via
+// ServerManager.scanHostForServerProcesses() -- on Windows that shells out
+// to a REAL powershell.exe. Forcing process.platform to "win32" (below)
+// makes server.js's OWN isWindows branch into self-heal follow that
+// override correctly, but it ALSO makes this UNRELATED, earlier code
+// believe it's on Windows and attempt that same real spawn -- which
+// ENOENTs on any host that doesn't actually have powershell.exe (i.e. real
+// Linux, and CI), and getServerProcessDetails() turns a failed scan into
+// scanFailed:true, which checkSpecificServerStopped() turns into a 503
+// returned BEFORE this file's own self-heal/guard code ever runs. Verified
+// via a real WSL Linux run reproducing exactly this: log line
+// "getServerProcessDetails: Windows process scan failed (spawn
+// .../powershell.exe ENOENT), cannot determine server state" fired ahead of
+// either test's own assertions. Mocked here to "nothing running anywhere"
+// -- same technique and same reasoning as
+// steamcmdRoutesLifecycleLockGuard.test.js's own identical mock in this
+// directory -- so this suite is deterministic on every host, not just one
+// that happens to have a real powershell.exe on PATH.
+const scanHostForServerProcesses = vi.fn(async () => ({
+  scanFailed: false,
+  matched: [],
+}));
+vi.mock("../services/serverManager.js", async () => {
+  const actual = await vi.importActual("../services/serverManager.js");
+  return {
+    ...actual,
+    ServerManager: vi.fn().mockImplementation(function () {
+      this.scanHostForServerProcesses = scanHostForServerProcesses;
+    }),
+  };
+});
+
 function createResponse() {
   const response = { status: vi.fn(), json: vi.fn() };
   response.status.mockReturnValue(response);

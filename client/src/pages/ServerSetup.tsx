@@ -393,6 +393,18 @@ export default function ServerSetup() {
     useUpnp,
   ]);
 
+  // windows-steamcmd-selfheal client wiring, 2026-09-10: same reasoning as
+  // formStateRef above -- the socket-handler effect below (handleSteamCmdStatus/
+  // handleSteamCmdLog) has a [socket, toast, t] dependency array, not
+  // [installViaSteamCmd], so a direct read of installViaSteamCmd inside those
+  // closures would always see whichever value was current when that effect
+  // last (re)ran, not the value at the moment a socket event actually
+  // arrives. Mirrors formStateRef's fix for the identical class of problem.
+  const installViaSteamCmdRef = useRef(installViaSteamCmd);
+  useEffect(() => {
+    installViaSteamCmdRef.current = installViaSteamCmd;
+  }, [installViaSteamCmd]);
+
   // Clean up navigate timer on unmount
   useEffect(
     () => () => {
@@ -760,6 +772,26 @@ export default function ServerSetup() {
       setDownloadStalled(false);
       const displayMessage = getInstallProgressMessage(data, data.message);
       setSteamCmdStatus(displayMessage);
+      // windows-steamcmd-selfheal client wiring, 2026-09-10: steamCmdStatus
+      // (set above) only ever RENDERS inside Step 1's own "no SteamCMD yet"
+      // panel (the manual-download button's label) -- once the operator has
+      // hasSteamCmd===true and reaches Step 2, that panel is unmounted, so
+      // these same events updating steamCmdStatus were invisible on screen.
+      // Self-heal triggered from handleInstall (Step 2, POST /install) emits
+      // these exact events while installViaSteamCmd is true -- gated on that
+      // ref (not unconditional) so Step 1's own manual-download flow, which
+      // already has its own dedicated status display, isn't handed a second,
+      // redundant log surface it was never showing before.
+      if (installViaSteamCmdRef.current) {
+        addLog(
+          data.status === "complete"
+            ? "success"
+            : data.status === "error"
+              ? "error"
+              : "info",
+          displayMessage,
+        );
+      }
       if (data.status === "complete" && data.path) {
         setSteamCmdPath(data.path);
         setHasSteamCmd(true);
@@ -787,6 +819,18 @@ export default function ServerSetup() {
       downloadLastActivityRef.current = Date.now();
       setDownloadStalled(false);
       setSteamCmdStatus(getInstallProgressMessage(data, data.text.trim()));
+      // Same reasoning as handleSteamCmdStatus above -- raw SteamCMD
+      // stdout/stderr lines from the self-heal step were equally invisible
+      // during a Step-2-triggered install. Reuses handleInstallLog's own
+      // type mapping (data.type is "stdout"/"stderr", passed straight
+      // through, not re-labeled "info") for consistency with how the same
+      // raw-line shape already renders elsewhere on this page.
+      if (installViaSteamCmdRef.current) {
+        addLog(
+          data.type === "stderr" ? "stderr" : "stdout",
+          getInstallProgressMessage(data, data.text.trim()),
+        );
+      }
     };
 
     socket.on("steamcmd:status", handleSteamCmdStatus);
