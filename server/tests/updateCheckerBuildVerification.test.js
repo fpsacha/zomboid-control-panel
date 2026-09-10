@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { EventEmitter } from "events";
 
 // 2026-09-03, updater-sweep: runAutoUpdate() used to declare success purely
 // because SteamCMD's own process exited with code 0 -- it never re-read the
@@ -43,13 +44,22 @@ vi.mock("../database/init.js", () => ({
 
 const { UpdateChecker } = await import("../services/updateChecker.js");
 
+// timeout-handling-consistency-sweep, 2026-09-10: runAutoUpdate() now
+// attaches an idle watchdog to this spawn (fix #4, mirrors routes/server.js's
+// own install/update watchdog), which unconditionally listens on
+// child.stdout/child.stderr to track output activity -- a real
+// child_process.spawn() result always has these (unless stdio is
+// overridden), so the fixture needs them too, not just `once()`/`_fireClose`.
 function fakeChild(code) {
   const handlers = {};
   return {
+    stdout: new EventEmitter(),
+    stderr: new EventEmitter(),
     once(event, cb) {
       handlers[event] = cb;
       return this;
     },
+    kill: vi.fn(),
     _fireClose: () => handlers.close?.(code),
   };
 }

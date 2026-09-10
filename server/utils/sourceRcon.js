@@ -14,6 +14,9 @@
  * (Project Zomboid's RCON implementation follows this protocol.)
  */
 import net from 'net';
+import { createLogger } from './logger.js';
+
+const log = createLogger('SourceRcon');
 
 const TYPE_AUTH = 3;
 const TYPE_AUTH_RESPONSE = 2;
@@ -225,6 +228,18 @@ export class SourceRconClient {
           clearTimeout(entry.timer);
           this._pending.delete(packet.id);
           entry.resolve(entry.parts.join(''));
+        } else {
+          // timeout-handling-consistency-sweep, 2026-09-10: the server DID
+          // answer -- just not before execute()'s own timer (above) already
+          // fired, rejected the caller with "RCON command timed out", and
+          // deleted this id from _pending. Without this log, that answer
+          // vanishes with zero trace -- the identical orphan-response class
+          // panelBridge.js's processResult() was just fixed for (b7177e1b),
+          // unfixed here because that fix's scope never reached this file.
+          // No timestamp is available to report lateness (unlike
+          // panelBridge's file-based results, a raw RCON response packet
+          // carries no send-time of its own), so this only names the id.
+          log.warn(`Orphaned RCON response for id=${packet.id} -- arrived after its command's own timeout had already fired; discarded, caller already saw a timeout failure`);
         }
       }
     }

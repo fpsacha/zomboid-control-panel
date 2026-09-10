@@ -2489,9 +2489,17 @@ public static extern bool CloseHandle(System.IntPtr hObject);
           },
         );
         req.on("error", reject);
-        req.setTimeout(GITHUB_API_TIMEOUT_MS, () =>
-          req.destroy(new Error("Timed out")),
-        );
+        // timeout-handling-consistency-sweep, 2026-09-10: this was the only
+        // GITHUB_API_TIMEOUT_MS call site that didn't tag .code="ETIMEDOUT"
+        // the way its two siblings (line 491 above, line ~1714's download
+        // timeout) both do -- isRetryableGitHubError() branches on .code, so
+        // a checksum-fetch timeout here silently fell into the non-retryable
+        // bucket while an identical timeout anywhere else was retried.
+        req.setTimeout(GITHUB_API_TIMEOUT_MS, () => {
+          const timeoutError = new Error("Timed out");
+          timeoutError.code = "ETIMEDOUT";
+          req.destroy(timeoutError);
+        });
       };
 
       follow(url, 0);

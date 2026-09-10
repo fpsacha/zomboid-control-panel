@@ -11,6 +11,8 @@ import {
   getActiveSteamOperations,
   clearActiveSteamOperation,
   recordActiveSteamOperationPid,
+  isSteamOperationIdle,
+  STEAM_OPERATION_IDLE_TIMEOUT_MS,
 } from "./activeSteamOperations.js";
 import { acquireLifecycleLock } from "./lifecycleCoordinator.js";
 
@@ -748,6 +750,7 @@ export class UpdateChecker {
       normalizedInstallPath = candidateInstallPath;
 
       let code;
+      let killedByWatchdog = false;
       try {
         const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, ...loginArgs, "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
         // Listeners attached synchronously, in the same tick as spawn --
@@ -761,6 +764,35 @@ export class UpdateChecker {
           child.once("error", reject);
           child.once("close", resolve);
         });
+        // timeout-handling-consistency-sweep, 2026-09-10: this was the ONE
+        // SteamCMD spawn site left with no idle watchdog at all, while
+        // routes/server.js's manual /install and /steam-update attach this
+        // exact STEAM_OPERATION_IDLE_TIMEOUT_MS watchdog to the identical
+        // action. Worse here than there: this run is UNATTENDED, with the
+        // game server already stopped -- a stall left this spawn to hang
+        // indefinitely with nobody watching until morning. Mirrors
+        // routes/server.js's own watchdog shape exactly (same constant, same
+        // 30s poll, same lastOutputAt bump on stdout/stderr) rather than
+        // inventing a second mechanism.
+        const bumpLastOutput = () => {
+          const op = getActiveSteamOperations().get(candidateInstallPath);
+          if (op) op.lastOutputAt = Date.now();
+        };
+        child.stdout.on("data", bumpLastOutput);
+        child.stderr.on("data", bumpLastOutput);
+        const operation = getActiveSteamOperations().get(candidateInstallPath);
+        if (operation) {
+          operation.watchdog = setInterval(() => {
+            const activeOperation = getActiveSteamOperations().get(candidateInstallPath);
+            if (!activeOperation || !isSteamOperationIdle(activeOperation)) return;
+            log.error(
+              `Auto-update SteamCMD produced no output for ${STEAM_OPERATION_IDLE_TIMEOUT_MS / 60000} minutes; terminating the stalled process`,
+            );
+            killedByWatchdog = true;
+            child.kill();
+          }, 30_000);
+          operation.watchdog.unref?.();
+        }
         await recordActiveSteamOperationPid(candidateInstallPath, child.pid);
         code = await exitPromise;
       } finally {
@@ -769,8 +801,22 @@ export class UpdateChecker {
         // restart-the-server step that follows, which has nothing to do
         // with whether SteamCMD is still touching the install directory
         // and shouldn't hold a manual /install or /steam-update queued
-        // any longer than necessary.
+        // any longer than necessary. Also clears the watchdog interval
+        // (activeSteamOperations.js's clearActiveSteamOperation does this).
         clearActiveSteamOperation(normalizedInstallPath);
+      }
+      // A signal-killed process reports code=null to the close handler, not
+      // an exit code -- distinguish "we gave up on it" from "it genuinely
+      // failed" the same way routes/server.js's own watchdog branch does,
+      // instead of letting this fall into STEAMCMD_EXIT_CODE's generic
+      // "exited with code null" (indistinguishable from any other crash).
+      if (killedByWatchdog) {
+        const idleMinutes = STEAM_OPERATION_IDLE_TIMEOUT_MS / 60000;
+        fail(
+          "STEAMCMD_STALLED",
+          `SteamCMD produced no output for ${idleMinutes} minutes and was stopped`,
+          { minutes: idleMinutes },
+        );
       }
       if (code !== 0) fail("STEAMCMD_EXIT_CODE", `SteamCMD exited with code ${code}`, { code });
 
