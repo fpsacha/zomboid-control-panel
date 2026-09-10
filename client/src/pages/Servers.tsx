@@ -257,6 +257,29 @@ export function resolveDockerCardHostStatus(
   return container.state === 'running' ? 'running' : 'stopped'
 }
 
+// unknown-window-instances-outside-the-bridge, 2026-09-10: whether the
+// Start/Stop controls for a docker-mapped server's card render AT ALL.
+// Deliberately does NOT take dockerAvailable, unlike its neighbour above --
+// fetchDockerState's periodic poll leaves dockerContainers stale-but-intact
+// on a transient fetch failure while flipping dockerAvailable to false (a
+// GENUINELY confirmed "Docker unavailable" response clears both together,
+// see fetchDockerState's success branch, so this stays safe there too).
+// Gating visibility on dockerAvailable as well used to hide these actions
+// for as long as the next poll took, on nothing more than one dropped
+// request -- for a container the panel still has recent, likely-accurate
+// evidence is running. The asymmetry that justifies this: hiding Stop
+// during that window costs an operator control of a possibly-misbehaving
+// container; showing it during that window costs, at worst, a click that
+// fails cleanly with a toast and immediately re-fetches (handleDockerAction).
+// Not comparable -- resolveDockerCardHostStatus above still independently
+// renders 'unknown' rather than a confident state during the same window,
+// so the label stays honest either way.
+export function shouldShowDockerCardActions<T>(
+  container: T | null | undefined,
+): container is T {
+  return container != null
+}
+
 export default function Servers() {
   const { t, i18n } = useTranslation('servers')
   const runtimeInfo = useRuntimeInfo()
@@ -2148,7 +2171,7 @@ export default function Servers() {
                   const container = server.dockerContainerName
                     ? dockerContainers.find((item) => item.name === server.dockerContainerName || item.id === server.dockerContainerName)
                     : null
-                  if (!container || !dockerAvailable) return null
+                  if (!shouldShowDockerCardActions(container)) return null
                   const stats = dockerStats[container.id] || dockerStats[container.name]
                   const isRunning = container.state === 'running'
                   const pending = dockerActionPending !== null

@@ -802,9 +802,26 @@ export default function WorldMap() {
       let isB41 = false
       if (serverRes.status === 'fulfilled') {
         setHasActiveServer(!!serverRes.value.server)
-      } else {
-        setHasActiveServer(false)
       }
+      // unknown-window-instances-outside-the-bridge, 2026-09-10: a REJECTED
+      // fetch (network blip, momentary API hiccup) is not "confirmed no
+      // active server" -- it's "we don't know." Asserting false here used
+      // to collapse both into the same value, which cascades hard: every
+      // hasActiveServer-gated effect (checkBridgeStatus, fetchPlayerPositions,
+      // fetchOverlays, and the cleanup effect that clears players/vehicles/
+      // safehouses) treats false as "definitely no server" and tears itself
+      // down -- including forcibly zeroing bridgeConnected, an otherwise
+      // independent signal that's already correctly fail-closed on its own
+      // terms (see fetchPlayerPositions), before it ever gets a chance to
+      // report its own honest status. Unlike Docker's dockerAvailable (a
+      // 10s poll that self-heals on its own), this only re-runs on mount or
+      // an 'activeServerChanged' socket event -- which may not fire again
+      // for the rest of this page load -- so a wrong false here can be
+      // effectively permanent, silently killing live player/vehicle
+      // tracking for a server that may be fully running. Fail open: keep
+      // whatever hasActiveServer already was rather than asserting false.
+      // On a cold first load with no prior value, this can't do better than
+      // the existing false default -- there's nothing to fall back to yet.
       if (statusRes.status === 'fulfilled' && statusRes.value.gameVersion) {
         isB41 = statusRes.value.gameVersion.startsWith('41.')
       }
