@@ -1,7 +1,7 @@
 // Server INI settings schema with descriptions from PZ Wiki
 // https://pzwiki.net/wiki/Server_settings
 
-import { resolveRegisteredTranslation } from './paramTranslation'
+import { resolveRegisteredTranslation, type TranslationParams } from './paramTranslation'
 
 export interface IniSetting {
   key: string
@@ -4781,8 +4781,24 @@ export function getSandboxSetting(key: string, section?: string): SandboxSetting
 // category/group arrays with these exact same derivations to audit coverage;
 // nobody should invent a second key shape by hand.
 
-function translatedOrFallback(key: string, fallback: string): string {
-  return resolveRegisteredTranslation('serverconfig', key, undefined) ?? fallback
+// i18n-debt follow-up, 2026-09-10: `params` is optional and defaults to
+// `undefined` so every existing zero-placeholder call site (the schema-
+// derived labels/descriptions above, and most of this file's other ad hoc
+// strings) is unaffected. A call site whose registered text DOES contain a
+// `{{placeholder}}` but omits `params` is not silently broken by this --
+// resolveRegisteredTranslation's own backstop (paramTranslation.ts) returns
+// null whenever a required param name is missing, so the `?? fallback`
+// below still lands on the caller's already-interpolated JS fallback
+// string, same as before. What omitting params actually costs is quieter
+// than a visible bug: the key can never resolve to a REAL translation, ever
+// -- not today's English placeholder, not a real French/German/etc string
+// written into it later -- because resolveRegisteredTranslation will keep
+// returning null for it forever, regardless of what any locale file says.
+// Registering a key without a way to satisfy its own placeholders is a
+// permanently inert registration, not a safe one; see
+// getUnrecognizedSandboxOptionWarning below for the case that prompted this.
+function translatedOrFallback(key: string, fallback: string, params?: TranslationParams): string {
+  return resolveRegisteredTranslation('serverconfig', key, params) ?? fallback
 }
 
 // Sandbox setting/option LABELS ONLY (never descriptions) additionally check
@@ -4907,6 +4923,7 @@ export function getUnrecognizedSandboxOptionWarning(value: number | string): str
   return translatedOrFallback(
     'unrecognizedSandboxOptionWarning',
     `This server is currently set to ${value}, which this panel does not recognize. The value is preserved and will not be changed unless you pick a different option here.`,
+    { value },
   )
 }
 
