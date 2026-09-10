@@ -2389,20 +2389,37 @@ router.post("/restore/:filename", async (req, res) => {
 
     const targetPath = path.join(configPath, originalName);
 
+    // re-entrancy-followups, 2026-09-10: every sibling writer in this file
+    // (PUT /ini, /sandbox, /sandbox-option, /spawnpoints, /spawnregions,
+    // /raw/:type) wraps its write in withFileLock(filePath, ...) and writes
+    // via writeFileAtomic (temp file in the same dir, then rename) -- this
+    // route was the one exception, writing straight onto targetPath with
+    // fs.promises.copyFile: no lock (a concurrent PUT/restore on the same
+    // targetPath could interleave with this one) AND no temp+rename (a
+    // reader mid-copy could observe a partially-restored file, since
+    // copyFile streams directly onto the live path rather than replacing it
+    // atomically). Read the backup into memory first so writeFileAtomic --
+    // the same helper every sibling already uses, not a second mechanism --
+    // can do the temp+rename for us, keyed on the same targetPath the lock
+    // guards.
+    const backupData = await fs.promises.readFile(backupPath);
+
     // Create backup of current before restoring. The restore itself is a
     // deliberate, well-defined choice (the operator picked this exact
     // backup file), not a guess -- so a failed pre-restore backup doesn't
     // block it. But it must be said plainly: if this failed, the state as
     // of right before this restore is not recoverable through this panel.
     let preRestoreBackupWarning = null;
-    if (fs.existsSync(targetPath)) {
-      const backup = await createBackup(configPath, originalName);
-      if (!backup.backedUp && backup.reason !== "no-source") {
-        preRestoreBackupWarning = `Could not back up the current ${originalName} before restoring over it: ${backup.error}. The version that was in place before this restore is not recoverable through this panel.`;
+    await withFileLock(targetPath, async () => {
+      if (fs.existsSync(targetPath)) {
+        const backup = await createBackup(configPath, originalName);
+        if (!backup.backedUp && backup.reason !== "no-source") {
+          preRestoreBackupWarning = `Could not back up the current ${originalName} before restoring over it: ${backup.error}. The version that was in place before this restore is not recoverable through this panel.`;
+        }
       }
-    }
 
-    await fs.promises.copyFile(backupPath, targetPath);
+      writeFileAtomic(targetPath, backupData);
+    });
 
     log.info(`Restored from backup: ${filename} -> ${originalName}`);
     res.json({
