@@ -154,7 +154,6 @@
   "WRITABLE_PATH_INSTALL_CONTAINER": "安裝路徑不可寫：{{path}}。請在 .env 檔案中設定 PUID/PGID，使其與此繫結掛載的主機資料夾的所有者一致（參見 docker-compose.yml 中的快速入門說明），然後重新建立容器。",
   "WRITABLE_PATH_DATA_BAREMETAL": "Zomboid 資料資料夾不可寫：{{path}}。執行面板的使用者不是此資料夾的所有者，或沒有寫入權限 -- 請使用 chown/chmod 修復，或選擇一個面板已經可以寫入的資料夾。",
   "WRITABLE_PATH_DATA_CONTAINER": "Zomboid 資料資料夾不可寫：{{path}}。請在 .env 檔案中設定 PUID/PGID，使其與此繫結掛載的主機資料夾的所有者一致（參見 docker-compose.yml 中的快速入門說明），然後重新建立容器。",
-  "STEAMCMD_NOT_FOUND_AT_PATH": "在以下位置未找到 SteamCMD：{{path}}",
   "STEAMCMD_AUTO_DOWNLOAD_FAILED": "未找到 SteamCMD，且自動下載失敗：{{reason}}",
   "STEAM_OPERATION_IN_PROGRESS_PATH": "此路徑已有 Steam 操作正在進行，請等待其完成。",
   "QUICK_SETUP_MISSING_FIELDS": "缺少必填欄位：installPath、serverName",

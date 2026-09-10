@@ -124,10 +124,11 @@ function getSteamCmdExe(steamcmdPath) {
 // THE RULE, not a count of call sites: no spawn() of a SteamCMD-family
 // executable may ever resolve steamcmdExe from a path that wasn't
 // persisted as the saved steamcmdPath setting first. Calling this function
-// is how an async call site does that. A synchronous context that can't
-// await it (see runFirstTimeSetup() below) may resolve via the lower-level
+// is how an async call site does that. A context that doesn't want to
+// re-await it (see POST /steamcmd/download's own fire-and-forget call into
+// runSteamCmdFirstTimeSetup() below) may resolve via the lower-level
 // getSteamCmdExe() directly instead, but ONLY when reusing a path this
-// function already persisted earlier in the SAME request -- runFirstTimeSetup
+// function already persisted earlier in the SAME request -- that call site
 // documents exactly that at its own call. "The single point every spawn()
 // goes through" was asserted here once (bughunt-2026-08-31-b,
 // completeness-claims audit) and was already false the day it was written;
@@ -296,46 +297,292 @@ async function ensureSteamCmdLinux(installPath, io) {
     /* ignore */
   }
 
-  emit("steamcmd:status", {
-    status: "initializing",
-    message: "Initializing SteamCMD (first run)...",
-    progressCode: ProgressCode.STEAMCMD_INITIALIZING,
-  });
-  await new Promise((resolve, reject) => {
-    const proc = spawn(steamcmdExe, ["+quit"], {
-      cwd: installPath,
-      env: buildLinuxSteamCmdEnv(installPath),
-    });
-    proc.stdout.on("data", (d) =>
-      emitRawSteamCmdLine(io, "steamcmd:log", "stdout", d.toString()),
-    );
-    proc.stderr.on("data", (d) =>
-      emitRawSteamCmdLine(io, "steamcmd:log", "stderr", d.toString()),
-    );
-    proc.on("close", (code) => {
-      if (code === 0 || code === 7) {
-        resolve();
-      } else {
-        reject(new Error(`SteamCMD first-run setup exited with code ${code}`));
-      }
-    });
-    proc.on("error", reject);
-  });
+  // windows-steamcmd-selfheal, 2026-09-10: the first-run step used to be
+  // inlined here as its own Promise -- now shared with ensureSteamCmdWindows
+  // and both branches of the manual POST /steamcmd/download route via
+  // runSteamCmdFirstTimeSetup() below, so a future change to the
+  // success/failure contract (what counts as "done", what gets emitted)
+  // can't drift between four independently-maintained copies of the same
+  // spawn(...+quit) logic.
+  return runSteamCmdFirstTimeSetup(steamcmdExe, installPath, io);
+}
 
-  if (!fs.existsSync(steamcmdExe)) {
-    throw new Error(
-      `SteamCMD download completed but ${steamcmdExe} still missing`,
-    );
+// Shared "first launch" step for a freshly-provisioned SteamCMD binary on
+// EITHER platform: a non-interactive `+quit` run (SteamCMD downloads its own
+// client update and writes its local cache on first launch, no stdin
+// prompt -- proven safe already, this is exactly what real users already
+// trigger via the manual download button below on both platforms). Exit
+// code 7 is SteamCMD's own "no command given" code, expected here since
+// +quit is the only argument -- both 0 and 7 mean the binary launched and
+// initialized correctly, matching every pre-existing caller's own check.
+//
+// windows-steamcmd-selfheal, 2026-09-10 (god-directed unification): before
+// this, TWO independent first-run implementations existed -- this one
+// (inlined in ensureSteamCmdLinux, awaitable, re-verified fs.existsSync
+// after close) and POST /steamcmd/download's own runFirstTimeSetup()
+// (shared only between that route's own Linux/Windows branches,
+// fire-and-forget, no existence re-check). Unified into the one function
+// below, used by all four call sites now, so the success/failure contract
+// can't drift between them the way ensureSteamCmdLinux and Kevin's download
+// guard already had (see ensureSteamCmdInstalled's own comment). The one
+// observable behavior change from unifying: the manual route's path now
+// also re-verifies fs.existsSync(steamcmdExe) after a 0/7 close before
+// declaring success -- purely additive, cannot fail on a real successful
+// run, only catches the same "exited clean but the binary still isn't
+// there" edge case ensureSteamCmdLinux already guarded against.
+function runSteamCmdFirstTimeSetup(steamcmdExe, installPath, io) {
+  return new Promise((resolve, reject) => {
+    const firstRunOpts = { cwd: installPath };
+    if (!isWindows) {
+      firstRunOpts.env = buildLinuxSteamCmdEnv(installPath);
+    }
+
+    io?.emit("steamcmd:status", {
+      status: "initializing",
+      message: "Initializing SteamCMD (first run)...",
+      progressCode: ProgressCode.STEAMCMD_INITIALIZING,
+    });
+    log.info("Running SteamCMD first-time setup...");
+
+    const steamcmd = spawn(steamcmdExe, ["+quit"], firstRunOpts);
+
+    steamcmd.stdout.on("data", (data) => {
+      emitRawSteamCmdLine(io, "steamcmd:log", "stdout", data.toString());
+    });
+    steamcmd.stderr.on("data", (data) => {
+      emitRawSteamCmdLine(io, "steamcmd:log", "stderr", data.toString());
+    });
+
+    steamcmd.on("close", (code) => {
+      if (code !== 0 && code !== 7) {
+        io?.emit("steamcmd:status", {
+          status: "error",
+          message: `SteamCMD setup failed with code ${code}`,
+          progressCode: ProgressCode.STEAMCMD_SETUP_FAILED,
+          params: { code },
+        });
+        log.error(`SteamCMD first-run failed with code ${code}`);
+        reject(new Error(`SteamCMD first-run setup exited with code ${code}`));
+        return;
+      }
+      if (!fs.existsSync(steamcmdExe)) {
+        // windows-steamcmd-selfheal, 2026-09-10: this rejection previously
+        // emitted nothing (matching ensureSteamCmdLinux's own pre-existing
+        // gap, faithfully preserved by this unification) -- now that the
+        // MANUAL route also goes through this same function, that silence
+        // became a real UX gap there: the operator's last visible status
+        // would stay "Initializing SteamCMD (first run)..." forever, no
+        // completion, no error toast, for a run that exits claiming success
+        // (0 or 7) but somehow still leaves the binary missing. Reuses
+        // STEAMCMD_SELF_SETUP_UNEXPECTED_ERROR -- previously a generic
+        // caller-side backstop for a failure mode that could never actually
+        // reach it (see that route's own historical comment) -- for the one
+        // genuinely-unexpected outcome this function can produce.
+        const message = `SteamCMD download completed but ${steamcmdExe} still missing`;
+        io?.emit("steamcmd:status", {
+          status: "error",
+          message: `SteamCMD setup failed unexpectedly: ${message}`,
+          progressCode: ProgressCode.STEAMCMD_SELF_SETUP_UNEXPECTED_ERROR,
+          params: { reason: message },
+        });
+        log.error(message);
+        reject(new Error(message));
+        return;
+      }
+      io?.emit("steamcmd:status", {
+        status: "complete",
+        message: "SteamCMD installed successfully!",
+        path: installPath,
+        progressCode: ProgressCode.STEAMCMD_INSTALL_COMPLETE,
+      });
+      log.info(`SteamCMD installed successfully to ${installPath}`);
+      resolve(steamcmdExe);
+    });
+
+    steamcmd.on("error", (error) => {
+      io?.emit("steamcmd:status", {
+        status: "error",
+        message: `Failed to run SteamCMD: ${sanitizeError(error.message)}`,
+        progressCode: ProgressCode.STEAMCMD_RUN_FAILED,
+        params: { reason: sanitizeError(error.message) },
+      });
+      log.error(`SteamCMD run error: ${error.message}`);
+      reject(error);
+    });
+  });
+}
+
+// Windows counterpart to the Linux manual-download branch inside POST
+// /steamcmd/download below -- download the steamcmd.zip and extract it.
+// Deliberately does NOT also run first-time-setup (call
+// runSteamCmdFirstTimeSetup separately once this resolves) and does NOT
+// touch steamcmdDownloadInProgress: this function is pure download+extract
+// mechanics, reused by two callers with two different policies around both
+// of those. The manual route (below) always reprovisions unconditionally
+// when clicked -- a deliberate repair path -- claims the guard itself
+// before calling this, and releases it the moment this settles, BEFORE
+// starting first-time-setup -- preserving the pre-existing timing (the
+// guard protects the shared zip-path write, not the whole provisioning
+// process; both platforms' manual branches already released it at this
+// same point before this unification). ensureSteamCmdWindows (next) skips
+// calling this entirely when steamcmdExe already exists, and ITS caller,
+// ensureSteamCmdInstalled, holds the guard through first-run too instead --
+// a deliberately simpler, slightly more conservative policy for the
+// auto-heal path, documented at ensureSteamCmdInstalled itself. Throws on
+// any failure.
+//
+// windows-steamcmd-selfheal, 2026-09-10: extracted from POST
+// /steamcmd/download's own Windows branch, which used to be the only
+// Windows download+extract+first-run implementation -- see
+// ensureSteamCmdInstalled's own comment for why a second, independent
+// implementation for the auto-heal path was rejected in favor of sharing
+// this one.
+async function provisionSteamCmdWindows(installPath, io) {
+  const unzipper = await import("unzipper");
+  const steamcmdUrl =
+    "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
+  const zipPath = path.join(installPath, "steamcmd.zip");
+
+  log.info(`Downloading SteamCMD to ${installPath}`);
+
+  // https.get's `timeout` option is a SOCKET-IDLE timeout: it only fires if
+  // the connection goes quiet, not if the download is simply slow but still
+  // receiving bytes -- a different GUARANTEE than curl's {timeout:120000}
+  // below (and in ensureSteamCmdLinux), which is a hard wall-clock kill
+  // regardless of activity. Reusing the same 120000ms NUMBER here is
+  // deliberate (an already-considered value, not invented), but the two are
+  // not interchangeable mechanisms -- said explicitly so a future reader
+  // doesn't assume "same number" means "same behavior" (god's instruction,
+  // 2026-09-10).
+  try {
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(zipPath);
+      let settled = false;
+
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        file.close();
+        try {
+          fs.unlinkSync(zipPath);
+        } catch {
+          /* ignore */
+        }
+        reject(err);
+      };
+
+      // The original inline version of this code (pre-unification) never
+      // attached its own error listener to the write stream -- only to the
+      // https request. A write-side failure (disk full, permission denied,
+      // or installPath's directory disappearing mid-write) had no listener
+      // at all, which is an unhandled 'error' event on an EventEmitter --
+      // an uncaught exception, not a rejected promise this function's own
+      // callers could catch. Routes through the same fail() as every other
+      // failure here.
+      file.on("error", fail);
+
+      const download = (url) => {
+        const request = https
+          .get(url, { timeout: 120000 }, (response) => {
+            if (response.statusCode === 301 || response.statusCode === 302) {
+              download(response.headers.location);
+              return;
+            }
+            if (response.statusCode !== 200) {
+              fail(new Error(`HTTP ${response.statusCode}`));
+              return;
+            }
+            response.pipe(file);
+            file.on("close", () => {
+              if (settled) return;
+              settled = true;
+              resolve();
+            });
+          })
+          .on("error", fail)
+          .on("timeout", () => {
+            request.destroy();
+            fail(new Error("Download timed out after 120000ms"));
+          });
+      };
+      download(steamcmdUrl);
+    });
+  } catch (downloadError) {
+    io?.emit("steamcmd:status", {
+      status: "error",
+      message: `Download failed: ${downloadError.message}`,
+      progressCode: ProgressCode.STEAMCMD_DOWNLOAD_FAILED,
+      params: { reason: downloadError.message },
+    });
+    log.error(`SteamCMD download failed: ${downloadError.message}`);
+    throw downloadError;
   }
 
-  emit("steamcmd:status", {
-    status: "complete",
-    message: "SteamCMD installed successfully!",
-    path: installPath,
-    progressCode: ProgressCode.STEAMCMD_INSTALL_COMPLETE,
+  io?.emit("steamcmd:status", {
+    status: "extracting",
+    message: "Extracting SteamCMD...",
+    progressCode: ProgressCode.STEAMCMD_EXTRACTING,
   });
-  log.info(`SteamCMD auto-installed to ${installPath}`);
-  return steamcmdExe;
+  log.info("Extracting SteamCMD...");
+  try {
+    await fs
+      .createReadStream(zipPath)
+      .pipe(unzipper.default.Extract({ path: installPath }))
+      .promise();
+  } catch (extractError) {
+    io?.emit("steamcmd:status", {
+      status: "error",
+      message: `Extraction failed: ${sanitizeError(extractError.message)}`,
+      progressCode: ProgressCode.STEAMCMD_EXTRACTION_FAILED,
+      params: { reason: sanitizeError(extractError.message) },
+    });
+    log.error(`SteamCMD extraction failed: ${extractError.message}`);
+    throw extractError;
+  }
+  try {
+    fs.unlinkSync(zipPath);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Self-heal "SteamCMD not found" for Windows -- SAME awaitable contract as
+// ensureSteamCmdLinux above (check-existing, return the existing path
+// immediately, else provision and return the newly-installed path, throws
+// on failure), built on provisionSteamCmdWindows + runSteamCmdFirstTimeSetup
+// so there is exactly one Windows download+extract+first-run implementation
+// rather than two independently drifting ones. Called only through
+// ensureSteamCmdInstalled below, which owns the steamcmdDownloadInProgress
+// claim for this whole call (including first-run) -- this function does not
+// touch that guard itself.
+async function ensureSteamCmdWindows(installPath, io) {
+  const steamcmdExe = await saveAndResolveSteamCmdExe(installPath);
+  if (steamcmdExe && fs.existsSync(steamcmdExe)) return steamcmdExe;
+
+  log.warn(
+    `SteamCMD not found at ${steamcmdExe}; auto-downloading to ${installPath}...`,
+  );
+  // STEAMCMD_LINUX_AUTO_DOWNLOAD_START's constant name says LINUX but its
+  // text ("SteamCMD missing -- downloading it now...") is already
+  // platform-neutral -- deliberately reused here rather than adding a
+  // same-text Windows-named twin, which would touch progressCodes.js and
+  // all 9 locale files for zero user-visible change (god's call, 2026-09-10).
+  io?.emit("steamcmd:status", {
+    status: "downloading",
+    message: "SteamCMD missing — downloading it now...",
+    progressCode: ProgressCode.STEAMCMD_LINUX_AUTO_DOWNLOAD_START,
+  });
+
+  if (!fs.existsSync(installPath)) {
+    fs.mkdirSync(installPath, { recursive: true });
+  }
+
+  await provisionSteamCmdWindows(installPath, io);
+  return runSteamCmdFirstTimeSetup(
+    getSteamCmdExe(installPath),
+    installPath,
+    io,
+  );
 }
 
 function normalizeSteamBranch(branch) {
@@ -420,16 +667,58 @@ async function findSteamCmdPath() {
 // comment for why this couldn't just be a reverse import instead.
 const activeSteamOperations = getActiveSteamOperations();
 
-// Guards POST /steamcmd/download (below) against two overlapping calls both
-// writing the same steamcmd.zip/steamcmd_linux.tar.gz -- fire-and-forget
-// sweep, 2026-09-10: with no lock, a second request's fs.createWriteStream()
-// truncates the first mid-download (and, on error, the first attempt's own
+// Guards POST /steamcmd/download (below) AND ensureSteamCmdInstalled (next)
+// against overlapping calls both writing the same
+// steamcmd.zip/steamcmd_linux.tar.gz -- fire-and-forget sweep, 2026-09-10:
+// with no lock, a second request's fs.createWriteStream() truncates the
+// first mid-download (and, on error, the first attempt's own
 // fire-and-forget cleanup unlink can land on the second attempt's now-live
 // file). Module-level like panelUpdateChecker.js's isDownloading -- there is
 // exactly one SteamCMD provisioning flow per running panel process, no need
 // for activeSteamOperations' per-path keying (that guards the SteamCMD
 // *process* once installed, a separate concern from provisioning it).
+//
+// windows-steamcmd-selfheal, 2026-09-10: originally documented here as
+// "shares nothing with those routes' state" -- that was true only because
+// ensureSteamCmdLinux() claimed nothing at all, not because the two flows
+// were actually independent. They write to the identical file path. See
+// ensureSteamCmdInstalled's own comment for the gap that left open and how
+// it closes now.
 let steamcmdDownloadInProgress = false;
+
+// The ONE place that claims steamcmdDownloadInProgress for the auto-heal
+// path (POST /steamcmd/download, below, still claims it independently for
+// the manual-button path -- both check/release the SAME module-level flag,
+// so a manual download and an auto-heal correctly refuse each other in
+// either direction; they just enter through two different call sites by
+// design, one operator-initiated with its own pre-checks, one triggered
+// implicitly from inside /install and /steam-update).
+//
+// windows-steamcmd-selfheal, 2026-09-10 (god-directed): before this,
+// ensureSteamCmdLinux() claimed nothing here -- a manual download and a
+// concurrent /install auto-heal could both write to
+// installPath/steamcmd_linux.tar.gz with zero coordination, the exact
+// corruption shape the guard above was built to prevent, just never
+// extended to this second call path. Building a Windows equivalent without
+// closing this would have planted the identical gap on Windows too (racing
+// on installPath/steamcmd.zip instead). This function is that close, and
+// the single point both ensureSteamCmdLinux and ensureSteamCmdWindows now
+// go through -- not two independent claims that can drift again.
+async function ensureSteamCmdInstalled(installPath, io) {
+  if (steamcmdDownloadInProgress) {
+    const err = new Error("A SteamCMD download is already in progress");
+    err.code = ErrorCode.STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS;
+    throw err;
+  }
+  steamcmdDownloadInProgress = true;
+  try {
+    return isWindows
+      ? await ensureSteamCmdWindows(installPath, io)
+      : await ensureSteamCmdLinux(installPath, io);
+  } finally {
+    steamcmdDownloadInProgress = false;
+  }
+}
 
 // True only for the exact shape that crashes PZ on first boot: no admin
 // password configured AND this server has never actually started (its
@@ -2893,26 +3182,26 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     // Sanitize string inputs for batch file
     const safeAdminPassword = sanitizeForBatch(adminPassword);
 
-    // Check if steamcmd exists — auto-download it on Linux instead of
-    // hard-failing (see ensureSteamCmdLinux for why: fresh volumes, or a
-    // previous install that never finished, shouldn't force a manual
-    // re-run of the setup wizard).
+    // Check if steamcmd exists — auto-download it instead of hard-failing
+    // on either platform (see ensureSteamCmdInstalled for why: fresh
+    // volumes, or a previous install that never finished, shouldn't force a
+    // manual re-run of the setup wizard -- windows-steamcmd-selfheal,
+    // 2026-09-10, closed the Windows-only gap this comment used to describe
+    // as a Linux-only capability).
     // Persist steamcmdPath as the configured setting before resolving an
     // executable from it -- see saveAndResolveSteamCmdExe's header comment
     // (CodeQL js/command-line-injection #12).
     let steamcmdExe = await saveAndResolveSteamCmdExe(steamcmdPath);
     if (!steamcmdExe || !fs.existsSync(steamcmdExe)) {
-      if (isWindows) {
-        return res
-          .status(400)
-          .json({ error: `SteamCMD not found at: ${steamcmdExe}`, code: ErrorCode.STEAMCMD_NOT_FOUND_AT_PATH });
-      }
       try {
-        steamcmdExe = await ensureSteamCmdLinux(
+        steamcmdExe = await ensureSteamCmdInstalled(
           steamcmdPath,
           req.app.get("io"),
         );
       } catch (dlErr) {
+        if (dlErr.code === ErrorCode.STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS) {
+          return res.status(409).json({ error: dlErr.message, code: dlErr.code });
+        }
         return res.status(500).json({
           error: `SteamCMD not found and auto-download failed: ${sanitizeError(dlErr.message)}`,
           code: ErrorCode.STEAMCMD_AUTO_DOWNLOAD_FAILED,
@@ -4192,24 +4481,24 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
       return res.status(409).json(lifecycleInProgressResponse());
     }
 
-    // Auto-download SteamCMD on Linux instead of hard-failing — see
-    // ensureSteamCmdLinux.
+    // Auto-download SteamCMD instead of hard-failing on either platform —
+    // see ensureSteamCmdInstalled (windows-steamcmd-selfheal, 2026-09-10,
+    // closed the Windows-only gap this comment used to describe as a
+    // Linux-only capability).
     // Persist steamcmdPath as the configured setting before resolving an
     // executable from it -- see saveAndResolveSteamCmdExe's header comment
     // (CodeQL js/command-line-injection #13).
     let steamcmdExe = await saveAndResolveSteamCmdExe(steamcmdPath);
     if (!steamcmdExe || !fs.existsSync(steamcmdExe)) {
-      if (isWindows) {
-        return res
-          .status(400)
-          .json({ error: `SteamCMD not found at: ${steamcmdExe}`, code: ErrorCode.STEAMCMD_NOT_FOUND_AT_PATH });
-      }
       try {
-        steamcmdExe = await ensureSteamCmdLinux(
+        steamcmdExe = await ensureSteamCmdInstalled(
           steamcmdPath,
           req.app.get("io"),
         );
       } catch (dlErr) {
+        if (dlErr.code === ErrorCode.STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS) {
+          return res.status(409).json({ error: dlErr.message, code: dlErr.code });
+        }
         return res.status(500).json({
           error: `SteamCMD not found and auto-download failed: ${sanitizeError(dlErr.message)}`,
           code: ErrorCode.STEAMCMD_AUTO_DOWNLOAD_FAILED,
@@ -4244,7 +4533,7 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
 
     // Prevent concurrent operations on the same install path. Deliberately
     // placed HERE -- after every await above (saveAndResolveSteamCmdExe,
-    // ensureSteamCmdLinux), not before them -- matching POST /install's
+    // ensureSteamCmdInstalled), not before them -- matching POST /install's
     // check/claim placement (which does it in this same order, right before
     // its own activeSteamOperations.set()). This check used to sit BEFORE
     // saveAndResolveSteamCmdExe's await, which meant two concurrent
@@ -4501,8 +4790,8 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
 
     // This route's whole job is provisioning SteamCMD at installPath --
     // persist it as the configured steamcmdPath setting now, before
-    // runFirstTimeSetup()'s spawn() resolves an executable from it below
-    // (CodeQL js/command-line-injection #297; see
+    // runSteamCmdFirstTimeSetup()'s spawn() resolves an executable from it
+    // below (CodeQL js/command-line-injection #297; see
     // saveAndResolveSteamCmdExe's header comment). Also makes /install and
     // /steam-update find this location afterward without the operator
     // re-typing it.
@@ -4519,114 +4808,44 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
     }
 
     if (isWindows) {
-      // Windows: Download and extract zip
-      const unzipper = await import("unzipper");
-      const steamcmdUrl =
-        "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip";
-      const zipPath = path.join(installPath, "steamcmd.zip");
-
       io.emit("steamcmd:status", {
         status: "downloading",
         message: "Downloading SteamCMD...",
         progressCode: ProgressCode.STEAMCMD_DOWNLOADING,
       });
-      log.info(`Downloading SteamCMD to ${installPath}`);
-
-      const file = fs.createWriteStream(zipPath);
-
-      const handleDownloadError = (err) => {
-        file.close();
-        // Synchronous, matching the Linux branch's tar cleanup below --
-        // this attempt's write to zipPath is done the moment this runs, so
-        // the guard release right after is what actually needs to be
-        // ordered before a retry reopens the same path; a fire-and-forget
-        // unlink here previously had no such ordering guarantee at all.
-        try {
-          fs.unlinkSync(zipPath);
-        } catch (e) {
-          /* ignore */
-        }
-        steamcmdDownloadInProgress = false;
-        io.emit("steamcmd:status", {
-          status: "error",
-          message: `Download failed: ${err.message}`,
-          progressCode: ProgressCode.STEAMCMD_DOWNLOAD_FAILED,
-          params: { reason: err.message },
-        });
-        log.error(`SteamCMD download failed: ${err.message}`);
-      };
-
-      const downloadAndExtract = (url) => {
-        https
-          .get(url, (response) => {
-            if (response.statusCode === 301 || response.statusCode === 302) {
-              downloadAndExtract(response.headers.location);
-              return;
-            }
-            if (response.statusCode !== 200) {
-              handleDownloadError(new Error(`HTTP ${response.statusCode}`));
-              return;
-            }
-            response.pipe(file);
-            file.on("close", async () => {
-              // extractAndSetup() already fully guards itself and reports
-              // its own failures via steamcmd:status -- this try/catch is
-              // the CALLER'S OWN backstop, not a duplicate of that. An
-              // EventEmitter listener whose returned promise nothing
-              // awaits or .catches is exactly the shape that turns a
-              // future change to extractAndSetup's internals into an
-              // unhandledRejection -> fatalExit() panel kill (2026-08-26,
-              // same class as the install setSetting crash). Latent, not
-              // live: extractAndSetup cannot reject today.
-              try {
-                await extractAndSetup(zipPath);
-              } catch (unexpectedError) {
-                log.error(`SteamCMD self-setup failed unexpectedly: ${unexpectedError.message}`);
-                io.emit("steamcmd:status", {
-                  status: "error",
-                  message: `SteamCMD setup failed unexpectedly: ${sanitizeError(unexpectedError.message)}`,
-                  progressCode: ProgressCode.STEAMCMD_SELF_SETUP_UNEXPECTED_ERROR,
-                  params: { reason: sanitizeError(unexpectedError.message) },
-                });
-              }
-            });
-          })
-          .on("error", handleDownloadError);
-      };
-
-      downloadAndExtract(steamcmdUrl);
-
-      async function extractAndSetup(zipFile) {
-        try {
-          io.emit("steamcmd:status", {
-            status: "extracting",
-            message: "Extracting SteamCMD...",
-            progressCode: ProgressCode.STEAMCMD_EXTRACTING,
-          });
-          log.info("Extracting SteamCMD...");
-
-          await fs
-            .createReadStream(zipFile)
-            .pipe(unzipper.default.Extract({ path: installPath }))
-            .promise();
-
-          fs.unlinkSync(zipFile);
-          runFirstTimeSetup();
-        } catch (extractError) {
-          io.emit("steamcmd:status", {
-            status: "error",
-            message: `Extraction failed: ${sanitizeError(extractError.message)}`,
-            progressCode: ProgressCode.STEAMCMD_EXTRACTION_FAILED,
-            params: { reason: sanitizeError(extractError.message) },
-          });
-          log.error(`SteamCMD extraction failed: ${extractError.message}`);
-        } finally {
-          // Either way, this attempt is done writing to zipPath by now
-          // (extracted and unlinked, or the extraction failed outright) --
-          // safe for a new download to reuse the path.
+      // windows-steamcmd-selfheal, 2026-09-10 (god-directed unification):
+      // this branch used to inline its own download+extract+first-run
+      // implementation -- now shares provisionSteamCmdWindows() +
+      // runSteamCmdFirstTimeSetup() with ensureSteamCmdWindows (the Windows
+      // auto-heal path used by /install and /steam-update), so there is
+      // exactly one Windows download+extract+first-run implementation
+      // instead of two independently drifting ones. This route's own
+      // contract is unchanged: res.json() below still returns immediately,
+      // real progress still travels over steamcmd:status/steamcmd:log.
+      // provisionSteamCmdWindows() already emits its own error events and
+      // does not touch steamcmdDownloadInProgress itself (this route's own
+      // claim above owns that) -- released via .finally() the moment
+      // download+extract settles, BEFORE first-time-setup starts, matching
+      // the Linux branch below and the pre-unification timing (the guard
+      // protects the shared zip-path write, not the whole provisioning
+      // process). The trailing .catch() is this call site's own
+      // unhandledRejection backstop (same reasoning the old
+      // extractAndSetup() caller comment gave) -- runSteamCmdFirstTimeSetup
+      // already emits its own error status/log on failure.
+      provisionSteamCmdWindows(installPath, io)
+        .finally(() => {
           steamcmdDownloadInProgress = false;
-        }
-      }
+        })
+        .then(() =>
+          runSteamCmdFirstTimeSetup(
+            getSteamCmdExe(installPath),
+            installPath,
+            io,
+          ),
+        )
+        .catch((err) => {
+          log.error(`SteamCMD download failed unexpectedly: ${err.message}`);
+        });
     } else {
       // Linux: Download and extract tar.gz, then make executable
       const execCb = exec;
@@ -4748,7 +4967,25 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
                     progressCode: ProgressCode.STEAMCMD_32BIT_LIB_WARNING,
                   });
                 }
-                runFirstTimeSetup();
+                // steamcmdDownloadInProgress was already released above,
+                // right after tar extraction -- this call, like the
+                // Windows branch's own equivalent, is fire-and-forget from
+                // this route's perspective; runSteamCmdFirstTimeSetup()
+                // already emits its own status/log on both success and
+                // failure, this .catch() is only the unhandledRejection
+                // backstop (windows-steamcmd-selfheal, 2026-09-10 --
+                // unified with ensureSteamCmdLinux/ensureSteamCmdWindows's
+                // shared first-run implementation, see that function's own
+                // header comment).
+                runSteamCmdFirstTimeSetup(
+                  getSteamCmdExe(installPath),
+                  installPath,
+                  io,
+                ).catch((err) => {
+                  log.error(
+                    `SteamCMD first-run failed unexpectedly: ${err.message}`,
+                  );
+                });
               },
             );
           },
@@ -4756,74 +4993,13 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
       }
     }
 
-    function runFirstTimeSetup() {
-      io.emit("steamcmd:status", {
-        status: "initializing",
-        message: "Initializing SteamCMD (first run)...",
-        progressCode: ProgressCode.STEAMCMD_INITIALIZING,
-      });
-      log.info("Running SteamCMD first-time setup...");
-
-      // installPath was already persisted as the steamcmdPath setting
-      // earlier in this same request (before the download even started),
-      // so this closure's value is provably the saved one -- not converted
-      // to the async saveAndResolveSteamCmdExe() here because
-      // runFirstTimeSetup() is a synchronous, fire-and-forget inner
-      // function invoked from a spawn/stream callback, not awaited by
-      // either caller.
-      const steamcmdExe = getSteamCmdExe(installPath);
-      const firstRunOpts = { cwd: installPath };
-      if (!isWindows) {
-        firstRunOpts.env = buildLinuxSteamCmdEnv(installPath);
-      }
-      const steamcmd = spawn(steamcmdExe, ["+quit"], firstRunOpts);
-
-      steamcmd.stdout.on("data", (data) => {
-        emitRawSteamCmdLine(io, "steamcmd:log", "stdout", data.toString());
-      });
-
-      steamcmd.stderr.on("data", (data) => {
-        emitRawSteamCmdLine(io, "steamcmd:log", "stderr", data.toString());
-      });
-
-      steamcmd.on("close", (code) => {
-        if (code === 0 || code === 7) {
-          io.emit("steamcmd:status", {
-            status: "complete",
-            message: "SteamCMD installed successfully!",
-            path: installPath,
-            progressCode: ProgressCode.STEAMCMD_INSTALL_COMPLETE,
-          });
-          log.info(`SteamCMD installed successfully to ${installPath}`);
-        } else {
-          io.emit("steamcmd:status", {
-            status: "error",
-            message: `SteamCMD setup failed with code ${code}`,
-            progressCode: ProgressCode.STEAMCMD_SETUP_FAILED,
-            params: { code },
-          });
-          log.error(`SteamCMD first-run failed with code ${code}`);
-        }
-      });
-
-      steamcmd.on("error", (error) => {
-        io.emit("steamcmd:status", {
-          status: "error",
-          message: `Failed to run SteamCMD: ${sanitizeError(error.message)}`,
-          progressCode: ProgressCode.STEAMCMD_RUN_FAILED,
-          params: { reason: sanitizeError(error.message) },
-        });
-        log.error(`SteamCMD run error: ${error.message}`);
-      });
-    }
-
     res.json({ success: true, message: "SteamCMD download started" });
   } catch (error) {
     // Reached only by a failure in this handler's own synchronous setup
-    // (getSetting/setSetting/mkdirSync/the `import("unzipper")` above) --
-    // the background download/extract never throws back into this try
-    // block (see downloadAndExtract()/extractAndSetup()'s own release
-    // points below), so this is the one guard-release site outside the
+    // (getSetting/setSetting/mkdirSync above) -- the background
+    // download/extract/first-run never throws back into this try block (see
+    // provisionSteamCmdWindows/runSteamCmdFirstTimeSetup's own release
+    // points above), so this is the one guard-release site outside the
     // platform-specific paths.
     steamcmdDownloadInProgress = false;
     log.error(`SteamCMD download failed: ${error.message}`);

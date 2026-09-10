@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { EventEmitter } from "events";
 
 // steamcmd-ops-never-check-the-lifecycle-lock, 2026-09-09: /install,
 // /quick-setup and /steam-update never checked lifecycleCoordinator's
@@ -46,6 +47,40 @@ vi.mock("../services/serverManager.js", async () => {
     ServerManager: vi.fn().mockImplementation(function () {
       this.scanHostForServerProcesses = scanHostForServerProcesses;
     }),
+  };
+});
+
+// windows-steamcmd-selfheal, 2026-09-10: /steam-update's own
+// "does NOT refuse via the lock guard" test below used to prove it got past
+// the guard by asserting Windows's then-deterministic 400
+// STEAMCMD_NOT_FOUND_AT_PATH hard-fail -- both platforms now self-heal
+// (ensureSteamCmdInstalled) instead, which would otherwise attempt a real
+// network download here. Mocked to fail fast and deterministically on
+// EITHER platform so that test no longer needs an isWindows skip, and so
+// this whole file never does real network I/O. None of this file's other
+// tests reach the download step (each is blocked by an earlier,
+// deterministic check -- minMemory:0 for /install, no server files for
+// /quick-setup), so these mocks are inert everywhere except that one test.
+vi.mock("https", () => ({
+  default: {
+    get: () => {
+      const req = new EventEmitter();
+      req.destroy = () => {};
+      queueMicrotask(() =>
+        req.emit("error", new Error("mock network unavailable")),
+      );
+      return req;
+    },
+  },
+}));
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    exec: (_cmd, _opts, cb) => {
+      cb(new Error("mock exec unavailable"));
+      return new EventEmitter();
+    },
   };
 });
 
@@ -197,16 +232,8 @@ describe("POST /api/server/quick-setup same-server lifecycle-lock guard", () => 
   });
 });
 
-// isWindows-gated the same way steamUpdateConcurrency.test.js's own test
-// is: on a missing/unresolvable steamcmd path this route answers
-// deterministically with STEAMCMD_NOT_FOUND_AT_PATH on Windows without
-// spawning anything; on Linux it instead attempts a real auto-download
-// (ensureSteamCmdLinux), which is a different, heavier code path this file
-// doesn't otherwise exercise.
-const isWindows = process.platform === "win32";
-
 describe("POST /api/server/steam-update same-server lifecycle-lock guard", () => {
-  it.skipIf(!isWindows)(
+  it(
     "refuses with 409 SERVER_LIFECYCLE_IN_PROGRESS when the held lock names the SAME resolved server",
     async () => {
       const lock = acquireLifecycleLock("template-apply", "server-same");
@@ -224,17 +251,26 @@ describe("POST /api/server/steam-update same-server lifecycle-lock guard", () =>
     },
   );
 
-  it.skipIf(!isWindows)(
-    "does NOT refuse via the lock guard when the held lock names a DIFFERENT server -- proceeds to the (deterministic on Windows) steamcmd-not-found error instead",
+  // windows-steamcmd-selfheal, 2026-09-10: used to assert Windows's
+  // then-deterministic 400 STEAMCMD_NOT_FOUND_AT_PATH hard-fail as proof of
+  // "got past the guard" (isWindows-gated, Linux skipped as a heavier code
+  // path this file didn't otherwise exercise). Both platforms now self-heal
+  // via ensureSteamCmdInstalled -- the https/child_process mocks above make
+  // that self-heal fail fast and deterministically on EITHER platform, so
+  // this runs everywhere now instead of Windows-only, asserting the new
+  // shared failure shape (500 STEAMCMD_AUTO_DOWNLOAD_FAILED) both platforms
+  // produce when auto-heal itself fails.
+  it(
+    "does NOT refuse via the lock guard when the held lock names a DIFFERENT server -- proceeds to the (mocked-to-fail) steamcmd auto-download instead",
     async () => {
       const lock = acquireLifecycleLock("template-apply", "server-different");
       try {
         const handler = getHandler("/steam-update");
         const response = createResponse();
         await handler({ app, body: { steamcmdPath, installPath } }, response);
-        expect(response.status).toHaveBeenCalledWith(400);
+        expect(response.status).toHaveBeenCalledWith(500);
         expect(response.json).toHaveBeenCalledWith(
-          expect.objectContaining({ code: "STEAMCMD_NOT_FOUND_AT_PATH" }),
+          expect.objectContaining({ code: "STEAMCMD_AUTO_DOWNLOAD_FAILED" }),
         );
         expect(response.json).not.toHaveBeenCalledWith(
           expect.objectContaining({ code: LIFECYCLE_IN_PROGRESS_CODE }),
