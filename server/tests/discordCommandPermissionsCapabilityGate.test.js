@@ -90,6 +90,10 @@ function mockDiscordBot(current) {
   return {
     getCommandPermissions: vi.fn(() => ({ ...current })),
     updateCommandPermissions: vi.fn(async (perms) => ({ ...current, ...perms })),
+    // re-entrancy sweep finding #5: the route now serializes its
+    // read-check-write critical section via withConfigMutex(). Passthrough
+    // here -- this file tests the capability gate, not concurrency.
+    withConfigMutex: vi.fn((fn) => fn()),
   };
 }
 

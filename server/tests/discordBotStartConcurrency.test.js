@@ -50,7 +50,9 @@ vi.mock("../utils/uiSecretFile.js", () => ({
   writeUiSecretFile: vi.fn(() => {}),
 }));
 
-const { DiscordBot } = await import("../services/discordBot.js");
+const { DiscordBot, START_ALREADY_IN_PROGRESS } = await import(
+  "../services/discordBot.js"
+);
 
 function makeBot() {
   const rconService = { connected: false };
@@ -77,7 +79,16 @@ describe("DiscordBot.start(): concurrency guard", () => {
     const callB = bot.start();
 
     const resultB = await callB;
-    expect(resultB).toBe(true);
+    // re-entrancy sweep finding #5 follow-up (2026-09-10): B's refusal used
+    // to return bare `true`, indistinguishable from a genuine start.
+    // routes/discord.js's PUT /config credential-change branch now needs
+    // to tell "refused, someone else is already starting it" apart from
+    // "I just started it myself" so it doesn't claim credit for a
+    // reconnect this call never performed -- see
+    // discordConfigReconnectHonesty.test.js. Still truthy, so the OTHER
+    // caller (POST /discord/start's plain `if (started)`) needs no change.
+    expect(resultB).toBe(START_ALREADY_IN_PROGRESS);
+    expect(resultB).toBeTruthy();
 
     // Let call A's own chain of awaits (loadConfig()'s several getSetting
     // calls) actually reach the point of constructing a Client, so the

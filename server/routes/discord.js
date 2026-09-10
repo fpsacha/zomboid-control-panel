@@ -1,7 +1,10 @@
 import express from "express";
 import { createLogger } from "../utils/logger.js";
 import { sanitizeError, sanitizeErrorParams } from "../utils/sanitize.js";
-import { normalizeChatRelayScope } from "../services/discordBot.js";
+import {
+  normalizeChatRelayScope,
+  START_ALREADY_IN_PROGRESS,
+} from "../services/discordBot.js";
 import { describeStartFailure } from "../services/discordStartFailure.js";
 import { requirePermission, getRoleByName } from "../services/permissions.js";
 import { ErrorCode } from "../utils/errorCodes.js";
@@ -121,132 +124,163 @@ router.put("/config", async (req, res) => {
       });
     }
 
-    // Load current config to check for existing token
-    await discordBot.loadConfig();
+    // re-entrancy sweep finding #5: everything from here on reads and
+    // writes this singleton's persisted config (loadConfig() refreshes it,
+    // updateConfig()/updateChatRelay() write it, the credential-change
+    // branch below tears down and restarts the live connection), so the
+    // whole thing is one critical section serialized against any other
+    // concurrent /config, /webhook-events, or /permissions save via
+    // discordBot.withConfigMutex(). Without this, two overlapping /config
+    // saves could each read a not-yet-committed value from the other and
+    // could each run their own stop()+start() sequence concurrently --
+    // the exact scenario that made start()'s own _starting guard
+    // (finding #1) necessary. Validation stays inside too: it depends on
+    // discordBot.token from the loadConfig() call right below.
+    await discordBot.withConfigMutex(async () => {
+      // Load current config to check for existing token
+      await discordBot.loadConfig();
 
-    // Handle KEEP_EXISTING token marker
-    const finalToken =
-      token === "KEEP_EXISTING" && discordBot.token ? discordBot.token : token;
+      // Handle KEEP_EXISTING token marker
+      const finalToken =
+        token === "KEEP_EXISTING" && discordBot.token
+          ? discordBot.token
+          : token;
 
-    if (!finalToken || !guildId) {
-      return res.status(400).json({
-        error: "Token and Guild ID are required",
-        code: ErrorCode.DISCORD_TOKEN_AND_GUILD_REQUIRED,
-      });
-    }
-
-    // Validate Discord Snowflake format for IDs
-    const SNOWFLAKE = /^\d{15,21}$/;
-    if (!SNOWFLAKE.test(guildId)) {
-      return res.status(400).json({
-        error: "Invalid Guild ID format (must be a Discord Snowflake)",
-        code: ErrorCode.DISCORD_INVALID_GUILD_ID,
-      });
-    }
-    if (adminRoleId && !SNOWFLAKE.test(adminRoleId)) {
-      return res.status(400).json({
-        error: "Invalid Admin Role ID format",
-        code: ErrorCode.DISCORD_INVALID_ADMIN_ROLE_ID,
-      });
-    }
-    if (modRoleId && !SNOWFLAKE.test(modRoleId)) {
-      return res.status(400).json({
-        error: "Invalid Mod Role ID format",
-        code: ErrorCode.DISCORD_INVALID_MOD_ROLE_ID,
-      });
-    }
-    if (channelId && !SNOWFLAKE.test(channelId)) {
-      return res.status(400).json({
-        error: "Invalid Channel ID format",
-        code: ErrorCode.DISCORD_INVALID_CHANNEL_ID,
-      });
-    }
-    if (chatRelayChannelId && !SNOWFLAKE.test(chatRelayChannelId)) {
-      return res.status(400).json({
-        error: "Invalid Chat Relay Channel ID format",
-        code: ErrorCode.DISCORD_INVALID_CHAT_RELAY_CHANNEL_ID,
-      });
-    }
-    if (
-      chatRelayScope !== undefined &&
-      chatRelayScope !== "public" &&
-      chatRelayScope !== "no-yell" &&
-      chatRelayScope !== "general"
-    ) {
-      return res.status(400).json({
-        error: "Invalid Chat Relay Scope",
-        code: ErrorCode.DISCORD_INVALID_CHAT_RELAY_SCOPE,
-      });
-    }
-
-    // Snapshot current auth credentials before overwriting them so we know
-    // whether a full Discord reconnection is actually needed.
-    const prevToken = discordBot.token;
-    const prevGuildId = discordBot.guildId;
-
-    await discordBot.updateConfig(
-      finalToken,
-      guildId,
-      adminRoleId,
-      channelId,
-      modRoleId,
-    );
-
-    // Save auto-start preference
-    if (typeof autoStart === "boolean") {
-      const { setSetting } = await import("../database/init.js");
-      await setSetting("discordAutoStart", autoStart);
-    }
-
-    // Save chat relay settings
-    if (
-      typeof chatRelayEnabled === "boolean" ||
-      typeof chatRelayChannelId === "string" ||
-      typeof chatRelayScope === "string"
-    ) {
-      await discordBot.updateChatRelay(
-        typeof chatRelayEnabled === "boolean"
-          ? chatRelayEnabled
-          : discordBot.chatRelayEnabled,
-        typeof chatRelayChannelId === "string"
-          ? chatRelayChannelId
-          : discordBot.chatRelayChannelId,
-        typeof chatRelayScope === "string"
-          ? chatRelayScope
-          : discordBot.chatRelayScope,
-      );
-    }
-
-    // Only reconnect if authentication-relevant credentials (token or guild ID)
-    // changed. channelId, role IDs, and autoStart are hot-applied by updateConfig()
-    // and do not require tearing down the Discord WebSocket connection.
-    const credentialsChanged =
-      prevToken !== finalToken || prevGuildId !== (guildId || null);
-    if (discordBot.isRunning && credentialsChanged) {
-      await discordBot.stop();
-      // start()'s return value used to be discarded here even though the
-      // sibling route POST /start (below) already checks it correctly --
-      // start() genuinely returns false (not a throw) on a bad token or a
-      // ready-timeout, so a failed reconnect looked identical to a
-      // successful one. The saved config really is correct either way
-      // (that part doesn't depend on the reconnect), so this stays
-      // success:true and surfaces the reconnect outcome separately rather
-      // than conflating "your settings were saved" with "the bot is now
-      // running".
-      const started = await discordBot.start();
-      if (!started) {
-        return res.json({
-          success: true,
-          message: "Discord bot configuration saved, but the bot failed to reconnect.",
-          botStarted: false,
-          botStartError: describeStartFailure(discordBot.lastStartError),
+      if (!finalToken || !guildId) {
+        return res.status(400).json({
+          error: "Token and Guild ID are required",
+          code: ErrorCode.DISCORD_TOKEN_AND_GUILD_REQUIRED,
         });
       }
-    }
 
-    res.json({
-      success: true,
-      message: "Discord bot configuration updated",
+      // Validate Discord Snowflake format for IDs
+      const SNOWFLAKE = /^\d{15,21}$/;
+      if (!SNOWFLAKE.test(guildId)) {
+        return res.status(400).json({
+          error: "Invalid Guild ID format (must be a Discord Snowflake)",
+          code: ErrorCode.DISCORD_INVALID_GUILD_ID,
+        });
+      }
+      if (adminRoleId && !SNOWFLAKE.test(adminRoleId)) {
+        return res.status(400).json({
+          error: "Invalid Admin Role ID format",
+          code: ErrorCode.DISCORD_INVALID_ADMIN_ROLE_ID,
+        });
+      }
+      if (modRoleId && !SNOWFLAKE.test(modRoleId)) {
+        return res.status(400).json({
+          error: "Invalid Mod Role ID format",
+          code: ErrorCode.DISCORD_INVALID_MOD_ROLE_ID,
+        });
+      }
+      if (channelId && !SNOWFLAKE.test(channelId)) {
+        return res.status(400).json({
+          error: "Invalid Channel ID format",
+          code: ErrorCode.DISCORD_INVALID_CHANNEL_ID,
+        });
+      }
+      if (chatRelayChannelId && !SNOWFLAKE.test(chatRelayChannelId)) {
+        return res.status(400).json({
+          error: "Invalid Chat Relay Channel ID format",
+          code: ErrorCode.DISCORD_INVALID_CHAT_RELAY_CHANNEL_ID,
+        });
+      }
+      if (
+        chatRelayScope !== undefined &&
+        chatRelayScope !== "public" &&
+        chatRelayScope !== "no-yell" &&
+        chatRelayScope !== "general"
+      ) {
+        return res.status(400).json({
+          error: "Invalid Chat Relay Scope",
+          code: ErrorCode.DISCORD_INVALID_CHAT_RELAY_SCOPE,
+        });
+      }
+
+      // Snapshot current auth credentials before overwriting them so we know
+      // whether a full Discord reconnection is actually needed.
+      const prevToken = discordBot.token;
+      const prevGuildId = discordBot.guildId;
+
+      await discordBot.updateConfig(
+        finalToken,
+        guildId,
+        adminRoleId,
+        channelId,
+        modRoleId,
+      );
+
+      // Save auto-start preference
+      if (typeof autoStart === "boolean") {
+        const { setSetting } = await import("../database/init.js");
+        await setSetting("discordAutoStart", autoStart);
+      }
+
+      // Save chat relay settings
+      if (
+        typeof chatRelayEnabled === "boolean" ||
+        typeof chatRelayChannelId === "string" ||
+        typeof chatRelayScope === "string"
+      ) {
+        await discordBot.updateChatRelay(
+          typeof chatRelayEnabled === "boolean"
+            ? chatRelayEnabled
+            : discordBot.chatRelayEnabled,
+          typeof chatRelayChannelId === "string"
+            ? chatRelayChannelId
+            : discordBot.chatRelayChannelId,
+          typeof chatRelayScope === "string"
+            ? chatRelayScope
+            : discordBot.chatRelayScope,
+        );
+      }
+
+      // Only reconnect if authentication-relevant credentials (token or guild ID)
+      // changed. channelId, role IDs, and autoStart are hot-applied by updateConfig()
+      // and do not require tearing down the Discord WebSocket connection.
+      const credentialsChanged =
+        prevToken !== finalToken || prevGuildId !== (guildId || null);
+      if (discordBot.isRunning && credentialsChanged) {
+        await discordBot.stop();
+        // start()'s return value used to be discarded here even though the
+        // sibling route POST /start (below) already checks it correctly --
+        // start() genuinely returns false (not a throw) on a bad token or a
+        // ready-timeout, so a failed reconnect looked identical to a
+        // successful one. The saved config really is correct either way
+        // (that part doesn't depend on the reconnect), so this stays
+        // success:true and surfaces the reconnect outcome separately rather
+        // than conflating "your settings were saved" with "the bot is now
+        // running".
+        const started = await discordBot.start();
+        if (started === START_ALREADY_IN_PROGRESS) {
+          // Cannot happen from a second /config save any more -- the mutex
+          // above already serializes those. Only reachable if a separate
+          // POST /discord/start landed in the narrow window between this
+          // request's own stop() and start() (outside this mutex, on
+          // purpose -- widening the mutex to cover /start and /stop is a
+          // different, unrequested change). Say so rather than claiming a
+          // reconnect this request never performed.
+          return res.json({
+            success: true,
+            message:
+              "Discord bot configuration saved. A start/stop request from elsewhere was already in progress, so this request did not itself reconnect the bot -- check the bot status to confirm it is running with the new configuration.",
+            botStarted: null,
+          });
+        }
+        if (!started) {
+          return res.json({
+            success: true,
+            message: "Discord bot configuration saved, but the bot failed to reconnect.",
+            botStarted: false,
+            botStartError: describeStartFailure(discordBot.lastStartError),
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Discord bot configuration updated",
+      });
     });
   } catch (error) {
     log.error(`Failed to update Discord config: ${error.message}`);
@@ -559,9 +593,18 @@ router.put("/webhook-events", async (req, res) => {
     }
 
     // Merge rather than replace so a partial update can't silently wipe the
-    // events it didn't mention.
-    const merged = { ...(discordBot.webhookEvents || {}), ...sanitizedEvents };
-    await discordBot.saveWebhookEvents(merged);
+    // events it didn't mention -- reading discordBot.webhookEvents and
+    // saving the merge is one critical section serialized via
+    // withConfigMutex() (re-entrancy sweep finding #5), so a concurrent
+    // save can't read this request's not-yet-committed merge and clobber
+    // it with its own.
+    await discordBot.withConfigMutex(async () => {
+      const merged = {
+        ...(discordBot.webhookEvents || {}),
+        ...sanitizedEvents,
+      };
+      await discordBot.saveWebhookEvents(merged);
+    });
 
     res.json({ success: true, message: "Webhook events updated" });
   } catch (error) {
@@ -617,37 +660,52 @@ router.put("/permissions", async (req, res) => {
     // same shape earlier tonight), and re-submitting an unchanged value
     // must never require a capability the caller never needed for the
     // status quo.
-    const current = discordBot.getCommandPermissions();
-    const missing = [];
-    let callerCapabilities = null;
-    for (const [command, tier] of Object.entries(permissions)) {
-      const requiredCapability = DISCORD_COMMAND_CAPABILITY[command];
-      if (!requiredCapability) continue; // unmapped/no-op key, or status (null)
-      if (!(command in current) || current[command] === tier) continue;
-      if (callerCapabilities === null) {
-        const role = req.user ? await getRoleByName(req.user.role) : null;
-        callerCapabilities = Array.isArray(role?.capabilities)
-          ? role.capabilities
-          : [];
+    // discordBot.updateCommandPermissions() does not itself read-merge
+    // against this.commandPermissions (it merges the submitted object onto
+    // DEFAULT_COMMAND_PERMISSIONS, relying on the settings UI to resend
+    // every command's tier each save, same as the comment above already
+    // notes) -- verified before fixing, per the card's instruction, since
+    // this route was pattern-matched to /config and /webhook-events but
+    // not confirmed: it does NOT share their server-side unguarded
+    // read-merge-then-save mechanism, so a config-mutex cannot close a
+    // stale-CLIENT-snapshot lost update here the way it closes the other
+    // two. Still wrapped in the same mutex as /config and /webhook-events
+    // so this write, the capability check's `current` read just below, and
+    // /config's loadConfig() (which also reads discordCommandPermissions)
+    // can't interleave with each other.
+    await discordBot.withConfigMutex(async () => {
+      const current = discordBot.getCommandPermissions();
+      const missing = [];
+      let callerCapabilities = null;
+      for (const [command, tier] of Object.entries(permissions)) {
+        const requiredCapability = DISCORD_COMMAND_CAPABILITY[command];
+        if (!requiredCapability) continue; // unmapped/no-op key, or status (null)
+        if (!(command in current) || current[command] === tier) continue;
+        if (callerCapabilities === null) {
+          const role = req.user ? await getRoleByName(req.user.role) : null;
+          callerCapabilities = Array.isArray(role?.capabilities)
+            ? role.capabilities
+            : [];
+        }
+        if (!callerCapabilities.includes(requiredCapability)) {
+          missing.push({ command, requiredCapability });
+        }
       }
-      if (!callerCapabilities.includes(requiredCapability)) {
-        missing.push({ command, requiredCapability });
+      if (missing.length > 0) {
+        const detail = missing
+          .map((m) => `"${m.command}" needs ${m.requiredCapability}`)
+          .join(", ");
+        return res.status(403).json({
+          error: `Cannot change the Discord tier for ${detail} without holding that capability yourself.`,
+          code: ErrorCode.DISCORD_PERMISSIONS_CAPABILITY_REQUIRED,
+          params: sanitizeErrorParams({ detail }),
+          missing,
+        });
       }
-    }
-    if (missing.length > 0) {
-      const detail = missing
-        .map((m) => `"${m.command}" needs ${m.requiredCapability}`)
-        .join(", ");
-      return res.status(403).json({
-        error: `Cannot change the Discord tier for ${detail} without holding that capability yourself.`,
-        code: ErrorCode.DISCORD_PERMISSIONS_CAPABILITY_REQUIRED,
-        params: sanitizeErrorParams({ detail }),
-        missing,
-      });
-    }
 
-    const updated = await discordBot.updateCommandPermissions(permissions);
-    res.json({ success: true, permissions: updated });
+      const updated = await discordBot.updateCommandPermissions(permissions);
+      res.json({ success: true, permissions: updated });
+    });
   } catch (error) {
     log.error(`Failed to update command permissions: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
