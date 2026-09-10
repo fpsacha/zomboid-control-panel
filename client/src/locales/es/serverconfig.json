@@ -161,7 +161,11 @@
     "sectionLabel": "Sandbox",
     "sectionSublabel": "mundo, zombis, supervivencia",
     "build42Title": "Optimizado para Build 42",
-    "build42Body": "Los valores de Sandbox y la redacción de las opciones en este editor están alineados con los valores predeterminados de Project Zomboid Build 42."
+    "build42Body": "Los valores de Sandbox y la redacción de las opciones en este editor están alineados con los valores predeterminados de Project Zomboid Build 42.",
+    "liveRangesUnavailableTitle": "Showing built-in ranges",
+    "liveRangesUnavailableBody": "Couldn't reach a running server to confirm the real minimum/maximum for these settings, so the ranges shown are this panel's own built-in table and may be out of date. Start the server and retry for the exact bounds.",
+    "outOfRangeAllowedTitle": "Values outside the known range will still be saved",
+    "outOfRangeAllowedBody": "{{settings}} are outside the range this panel knows, but the sandbox range override in Settings is on, so Save will not block them."
   },
   "spawnPointsTab": {
     "sectionLabel": "Puntos de aparición",
@@ -4054,5 +4058,6 @@
     "advanced": {
       "label": "Advanced"
     }
-  }
+  },
+  "unrecognizedSandboxOptionWarning": "This server is currently set to {{value}}, which this panel does not recognize. The value is preserved and will not be changed unless you pick a different option here."
 }

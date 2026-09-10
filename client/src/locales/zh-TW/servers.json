@@ -252,7 +252,10 @@
     "saveChanges": "儲存更改",
     "noPermission": "儲存伺服器設定需要 servers.manage 權限，而該角色沒有此權限。",
     "customStartCommandPlaceholderWindows": "例如：StartServer64.bat -servername MyServer",
-    "customStartCommandPlaceholderPosix": "例如：./start-server.sh -servername MyServer"
+    "customStartCommandPlaceholderPosix": "例如：./start-server.sh -servername MyServer",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "從面板中移除伺服器？",

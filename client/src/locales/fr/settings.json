@@ -19,7 +19,8 @@
     "newPasswordLocalReset": "Nouveau mot de passe pour la réinitialisation locale",
     "confirmNewPasswordLocalReset": "Confirmer le nouveau mot de passe pour la réinitialisation locale",
     "buyMeCoffeeKofi": "M'offrir un café sur Ko-fi",
-    "recoveryTokenLocalReset": "Jeton de récupération pour la réinitialisation locale"
+    "recoveryTokenLocalReset": "Jeton de récupération pour la réinitialisation locale",
+    "sandboxRangeOverride": "Allow sandbox values outside known range"
   },
   "tabs": {
     "groups": {
@@ -143,7 +144,11 @@
     "restartGameServerPreserved": "Le launcher détecté isole les redémarrages du panneau. Les serveurs Project Zomboid en cours d'exécution resteront en ligne.",
     "restartGameServerRisk": "Cette installation n'utilise pas le launcher Linux protégé. Redémarrer le panneau peut arrêter les processus de serveur Project Zomboid en cours d'exécution.",
     "restartGameServerUnknown": "Le panneau n'a pas pu déterminer si les serveurs Project Zomboid en cours d'exécution survivront à ce redémarrage.",
-    "confirmRestartRisk": "Je comprends que les serveurs de jeu en cours d'exécution peuvent être arrêtés."
+    "confirmRestartRisk": "Je comprends que les serveurs de jeu en cours d'exécution peuvent être arrêtés.",
+    "sandboxRangeOverrideTitle": "Sandbox Value Ranges",
+    "sandboxRangeOverrideDesc": "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+    "sandboxRangeOverrideLabel": "Allow values outside the known range",
+    "sandboxRangeOverrideHint": "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version."
   },
   "access": {
     "cardTitle": "Accès distant (CORS)",
@@ -476,7 +481,15 @@
     "remoteInstallWarning": "Serveur distant : copiez PanelBridge.lua dans le dossier Lua distant via SFTP ou le gestionnaire de fichiers du fournisseur. L'installation locale automatique n'est pas disponible.",
     "destinationLabel": "Destination :",
     "serversLoadFailed": "Impossible de charger la liste des serveurs — essayez de rouvrir cette page",
-    "statusFetchFailedFallback": "Impossible de joindre le point de terminaison de statut du bridge."
+    "statusFetchFailedFallback": "Impossible de joindre le point de terminaison de statut du bridge.",
+    "staleness": {
+      "protocolMismatchTitle": "Panel and bridge mod don't match",
+      "updateAvailableTitle": "Bridge mod update available",
+      "updateNowButton": "Update Now",
+      "protocolMismatchBody": "This panel expects bridge protocol '{{expected}}', but the mod on your server reports '{{actual}}'. They ship as a matched pair, so some features may not work correctly until they're back in sync.",
+      "remoteUpdateBody": "Your server is running bridge mod v{{liveVersion}}, older than the v{{bundledVersion}} this panel bundles. This panel can't update a remote/SFTP-managed server's files for you -- re-upload the updated PanelBridge.lua the same way you installed it.",
+      "localUpdateBody": "The installed bridge mod (v{{liveVersion}}) is older than what this panel bundles."
+    }
   },
   "mods": {
     "cardTitle": "Paramètres de mise à jour des mods",

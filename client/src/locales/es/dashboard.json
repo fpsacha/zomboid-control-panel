@@ -245,7 +245,13 @@
     "step3Desc": "Cuando el estado, los jugadores y el chat se actualizan, el control en vivo está listo.",
     "installNewServer": "Instalar servidor nuevo",
     "addExistingServer": "Añadir servidor existente",
-    "addRemoteServer": "Añadir servidor remoto"
+    "addRemoteServer": "Añadir servidor remoto",
+    "foundHeading": "We found an existing Project Zomboid server",
+    "foundDesc": "ready to add with its RCON settings already read from its own config.",
+    "reviewAndConnect": "Review & Connect",
+    "setUpDifferently": "Set up differently instead",
+    "needNewServerLabel": "I don't have a server yet",
+    "haveExistingServerLabel": "I already have server files"
   },
   "liveActivity": {
     "heading": "Actividad en vivo",

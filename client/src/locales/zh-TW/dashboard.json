@@ -243,7 +243,13 @@
     "step3Desc": "當狀態、玩家和聊天開始更新時，即時控制即已就緒。",
     "installNewServer": "安裝新伺服器",
     "addExistingServer": "新增現有伺服器",
-    "addRemoteServer": "新增遠端伺服器"
+    "addRemoteServer": "新增遠端伺服器",
+    "foundHeading": "We found an existing Project Zomboid server",
+    "foundDesc": "ready to add with its RCON settings already read from its own config.",
+    "reviewAndConnect": "Review & Connect",
+    "setUpDifferently": "Set up differently instead",
+    "needNewServerLabel": "I don't have a server yet",
+    "haveExistingServerLabel": "I already have server files"
   },
   "liveActivity": {
     "heading": "即時動態",
