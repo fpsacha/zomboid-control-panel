@@ -104,6 +104,7 @@ import {
   PanelUpdatePreflight,
   PanelUpdateMessage,
   ServerInstance,
+  PanelBridgeGameTimeData,
 } from "@/lib/api";
 import { getUserErrorMessage } from "@/lib/errorMessage";
 import { resolveRegisteredTranslation } from "@/lib/paramTranslation";
@@ -532,6 +533,9 @@ export default function Settings() {
   ): string | undefined =>
     entry ? t(`bridge.diagnostics.${entry.key}`, { ...(entry.params ?? {}), defaultValue: entry.text }) : undefined;
   const [pinging, setPinging] = useState(false);
+  const [gameTimeLoading, setGameTimeLoading] = useState(false);
+  const [gameTimeError, setGameTimeError] = useState<string | null>(null);
+  const [gameTimeResult, setGameTimeResult] = useState<PanelBridgeGameTimeData | null>(null);
   const [manualBridgePath, setManualBridgePath] = useState("");
   const [testingSftp, setTestingSftp] = useState(false);
   const [remoteLogs, setRemoteLogs] = useState<
@@ -1863,6 +1867,28 @@ export default function Settings() {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
   };
 
+  const formatWorldAge = (worldAgeHours: number): string => {
+    const totalMinutes = Math.max(0, Math.floor(worldAgeHours * 60));
+    const days = Math.floor(totalMinutes / (24 * 60));
+    const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    const minutes = totalMinutes % 60;
+    return `${days}d ${hours}h ${minutes}m`;
+  };
+
+  const formatPzDateTime = (gameTime: PanelBridgeGameTimeData): string => {
+    const year = String(gameTime.year);
+    const month = String(gameTime.month).padStart(2, "0");
+    const day = String(gameTime.day).padStart(2, "0");
+    const hour = String(Math.floor(gameTime.hour)).padStart(2, "0");
+    const minute = String(gameTime.minute).padStart(2, "0");
+    return `${year}-${month}-${day} ${hour}:${minute}`;
+  };
+
+  const formatMultiplier = (multiplier?: number): string => {
+    if (typeof multiplier !== "number" || Number.isNaN(multiplier)) return "1x";
+    return `${Number.isInteger(multiplier) ? multiplier : Number(multiplier.toFixed(2))}x`;
+  };
+
   // Listen for real-time bridge status updates via Socket.IO
   // Use ref to avoid stale closure issues with fetchBridgeStatus
   const fetchBridgeStatusRef = useRef(fetchBridgeStatus);
@@ -2173,6 +2199,24 @@ export default function Settings() {
       });
     } finally {
       setPinging(false);
+    }
+  };
+
+  const handleGetGameTime = async () => {
+    setGameTimeLoading(true);
+    setGameTimeError(null);
+    try {
+      const result = await panelBridgeApi.getGameTime();
+      if (!result.success || !result.data) {
+        throw new Error("Could not read the current world time.");
+      }
+      setGameTimeResult(result.data);
+    } catch (error) {
+      setGameTimeError(
+        getUserErrorMessage(error, "Could not read the current world time."),
+      );
+    } finally {
+      setGameTimeLoading(false);
     }
   };
 
@@ -4556,6 +4600,81 @@ export default function Settings() {
                     </Button>
                   </div>
                 )}
+
+                <Card className="border-border/60 bg-background/40">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Clock className="h-4 w-4 text-primary" />
+                      {"Get World Time"}
+                    </CardTitle>
+                    <CardDescription>
+                      {"Read the live PZ date, time, world age, and multiplier from PanelBridge."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGetGameTime}
+                        disabled={gameTimeLoading || bridgeLoading}
+                        className="gap-2"
+                      >
+                        {gameTimeLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Clock className="h-4 w-4" />
+                        )}
+                        {gameTimeLoading ? "Reading World Time" : "Get World Time"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        {"This reads the in-game clock from the currently connected PanelBridge."}
+                      </p>
+                    </div>
+
+                    {gameTimeError && (
+                      <Alert variant="destructive" aria-live="assertive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>{"World time lookup failed"}</AlertTitle>
+                        <AlertDescription>{gameTimeError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {gameTimeResult ? (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {"PZ Date / Time"}
+                          </p>
+                          <p className="mt-1 font-mono text-sm text-foreground">
+                            {formatPzDateTime(gameTimeResult)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {"World Age"}
+                          </p>
+                          <p className="mt-1 font-mono text-sm text-foreground">
+                            {formatWorldAge(gameTimeResult.worldAgeHours)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border/50 bg-muted/20 p-3">
+                          <p className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+                            {"Time Multiplier"}
+                          </p>
+                          <p className="mt-1 font-mono text-sm text-foreground">
+                            {formatMultiplier(gameTimeResult.multiplier)}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-border/50 bg-muted/10 p-3 text-xs text-muted-foreground">
+                        {"No world time loaded yet. Click Get World Time to fetch the current in-game clock."}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <div className="border-t border-border/60 pt-5 space-y-4">
                   <div>

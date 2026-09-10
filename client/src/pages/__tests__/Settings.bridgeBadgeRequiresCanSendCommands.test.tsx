@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import Settings from '../Settings'
@@ -49,9 +49,12 @@ vi.mock('@/lib/api', async () => {
           checks: { bridgePathExists: true, bridgePathWritable: true, statusFilePresent: true, statusFresh: false },
         },
       }),
+      getGameTime: vi.fn(),
     },
   }
 })
+
+const getGameTime = vi.mocked(panelBridgeApi.getGameTime)
 
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
@@ -80,5 +83,58 @@ describe('Settings -> Bridge tab: badge and Ping button when modConnected but !c
 
     expect(screen.queryByText('Bridge connected')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ping Mod' })).toBeDisabled()
+  })
+
+  it('fetches and renders the current world time', async () => {
+    getGameTime.mockResolvedValue({
+      success: true,
+      data: {
+        year: 1993,
+        month: 7,
+        day: 15,
+        hour: 12.5,
+        minute: 30,
+        dayOfWeek: 3,
+        worldAgeHours: 100,
+        moonPhase: 0.5,
+        nightsSurvived: 4,
+        multiplier: 2,
+      },
+    } as never)
+
+    render(
+      <MemoryRouter initialEntries={['/settings?tab=bridge']}>
+        <TooltipProvider>
+          <Settings />
+        </TooltipProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Get World Time' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get World Time' }))
+
+    await waitFor(() => expect(screen.getByText('1993-07-15 12:30')).toBeInTheDocument())
+    expect(screen.getByText('4d 4h 0m')).toBeInTheDocument()
+    expect(screen.getByText('2x')).toBeInTheDocument()
+  })
+
+  it('shows a readable error when the world time lookup fails', async () => {
+    getGameTime.mockRejectedValueOnce(new Error('bridge timeout'))
+
+    render(
+      <MemoryRouter initialEntries={['/settings?tab=bridge']}>
+        <TooltipProvider>
+          <Settings />
+        </TooltipProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Get World Time' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Get World Time' }))
+
+    await waitFor(() => expect(screen.getByText('World time lookup failed')).toBeInTheDocument())
+    expect(screen.getByText('bridge timeout')).toBeInTheDocument()
   })
 })
