@@ -11,6 +11,10 @@ import archiver from "archiver";
 import { createLogger } from "../utils/logger.js";
 import { getDiskFree } from "../utils/diskSpace.js";
 import { resolveLaunchMode } from "../services/serverManager.js";
+import {
+  acquireLifecycleLock,
+  lifecycleInProgressResponse,
+} from "../services/lifecycleCoordinator.js";
 const log = createLogger("API:Debug");
 import { getDataPaths, setDataPaths } from "../utils/paths.js";
 import { isLockProtectionDisabled } from "../utils/pidLock.js";
@@ -5918,6 +5922,24 @@ router.post("/database/compact", requirePermission("diagnostics.manage"), async 
 // holds open. Only deletes files older than 1 hour (matches the
 // diagnostics threshold in scanSaveStats).
 router.post("/clear-stale-locks", requirePermission("diagnostics.manage"), async (req, res) => {
+  // re-entrancy sweep, 2026-09-10 (HIGH #2): this route's own comment
+  // below already named FIVE sibling routes (wipe, delete-files, chunks.js's
+  // delete-chunks/delete-region, backup.js's restore, templates.js's apply)
+  // fixed for the exact "checked-then-race" shape this route was itself
+  // still in -- an async running-check, followed well after it resolves by
+  // a real unlink loop over the live save directory's .lock files, with
+  // nothing stopping a /start from landing in the gap and launching the JVM
+  // against a save mid-delete. Same fix as those five: take the process-wide
+  // lifecycleCoordinator lock for the whole handler, acquired before the
+  // running-check itself, not just around the delete loop.
+  const activeServerForLock = await getActiveServer().catch(() => null);
+  const lifecycleLock = acquireLifecycleLock(
+    "clear-stale-locks",
+    activeServerForLock?.id ?? null,
+  );
+  if (!lifecycleLock) {
+    return res.status(409).json(lifecycleInProgressResponse());
+  }
   try {
     log.info("POST /clear-stale-locks");
     const serverManager = req.app.get("serverManager");
@@ -6079,6 +6101,8 @@ router.post("/clear-stale-locks", requirePermission("diagnostics.manage"), async
     res
       .status(500)
       .json({ success: false, error: sanitizeError(error.message) });
+  } finally {
+    lifecycleLock.release();
   }
 });
 

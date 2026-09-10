@@ -606,6 +606,31 @@ function makeError(code, message, status = 400, params) {
 // Role CRUD -- lockout rules enforced here
 // ============================================
 
+// re-entrancy sweep, 2026-09-10: createRole/updateRole/deleteRole each
+// read the roles collection (name-uniqueness) and/or run
+// checkLockoutRulesForCapabilityChange (the roles.manage/users.manage
+// recovery invariant) BEFORE writing -- two concurrent role edits could
+// each validate against the same pre-change state and both proceed,
+// together leaving zero users able to manage roles or users at all, a
+// lockout with no recovery path. services/auth.js's changeUserRoleById/
+// deleteUser already close the identical race for the per-USER side of
+// this exact invariant via AuthService._withMutex; this is that same
+// shape for the per-ROLE side, which never got it. A promise-chain mutex,
+// not a boolean flag, so the check runs INSIDE the same critical section
+// as the write it gates, not just the write itself -- a lock that only
+// serializes the write while the check still reads stale state fixes
+// nothing (the exact "check-then-claim-across-an-await" shape this sweep
+// is about, just wearing a lock).
+let roleMutex = Promise.resolve();
+function withRoleMutex(fn) {
+  const run = roleMutex.then(fn, fn);
+  roleMutex = run.then(
+    () => {},
+    () => {},
+  );
+  return run;
+}
+
 export async function listRolesWithMemberCounts() {
   const roles = await getRoles();
   const withCounts = [];
@@ -617,41 +642,43 @@ export async function listRolesWithMemberCounts() {
 }
 
 export async function createRole({ name, capabilities }, { actingUser } = {}) {
-  if (typeof name !== "string" || !name.trim()) {
-    throw makeError(null, "name is required", 400);
-  }
-  const trimmedName = name.trim();
-  const capError = validateCapabilitiesArray(capabilities);
-  if (capError) {
-    throw makeError(
-      ErrorCode.INVALID_CAPABILITY,
-      capError.message,
-      400,
-      capError.capability !== undefined ? { capability: capError.capability } : undefined,
-    );
-  }
+  return withRoleMutex(async () => {
+    if (typeof name !== "string" || !name.trim()) {
+      throw makeError(null, "name is required", 400);
+    }
+    const trimmedName = name.trim();
+    const capError = validateCapabilitiesArray(capabilities);
+    if (capError) {
+      throw makeError(
+        ErrorCode.INVALID_CAPABILITY,
+        capError.message,
+        400,
+        capError.capability !== undefined ? { capability: capError.capability } : undefined,
+      );
+    }
 
-  await assertNoRoleEditEscalation(actingUser, [], capabilities);
+    await assertNoRoleEditEscalation(actingUser, [], capabilities);
 
-  const existingRoles = await getRoles();
-  if (existingRoles.some((r) => r.name === trimmedName)) {
-    throw makeError(
-      ErrorCode.ROLE_NAME_TAKEN,
-      `A role named "${trimmedName}" already exists`,
-      409,
-      { name: trimmedName },
-    );
-  }
+    const existingRoles = await getRoles();
+    if (existingRoles.some((r) => r.name === trimmedName)) {
+      throw makeError(
+        ErrorCode.ROLE_NAME_TAKEN,
+        `A role named "${trimmedName}" already exists`,
+        409,
+        { name: trimmedName },
+      );
+    }
 
-  const role = {
-    id: `role-${randomToken()}`,
-    name: trimmedName,
-    capabilities: [...new Set(capabilities)],
-    isSeeded: false,
-    createdAt: new Date().toISOString(),
-  };
-  await insertRole(role);
-  return role;
+    const role = {
+      id: `role-${randomToken()}`,
+      name: trimmedName,
+      capabilities: [...new Set(capabilities)],
+      isSeeded: false,
+      createdAt: new Date().toISOString(),
+    };
+    await insertRole(role);
+    return role;
+  });
 }
 
 // sweep-round5 (2026-09-07): mirrors services/auth.js's
@@ -764,6 +791,7 @@ export async function updateRole(
   { name, capabilities },
   { actingUser, confirmSelfCapabilityLoss = false } = {},
 ) {
+  return withRoleMutex(async () => {
   const roles = await getRoles();
   const existing = roles.find((r) => String(r.id) === String(id));
   if (!existing) {
@@ -864,6 +892,7 @@ export async function updateRole(
   }
 
   return updated;
+  });
 }
 
 /**
@@ -889,6 +918,7 @@ export async function updateRole(
  * if there is no reassignTo and no members -- vacuously safe).
  */
 export async function deleteRole(id, { reassignTo, actingUser } = {}) {
+  return withRoleMutex(async () => {
   const role = await getRoleById(id);
   if (!role) {
     throw makeError(ErrorCode.ROLE_NOT_FOUND, "Role not found", 404);
@@ -948,6 +978,7 @@ export async function deleteRole(id, { reassignTo, actingUser } = {}) {
     throw makeError(ErrorCode.ROLE_NOT_FOUND, "Role not found", 404);
   }
   return { deleted: true, reassigned, reassignedTo: targetRole?.id || null };
+  });
 }
 
 function randomToken() {

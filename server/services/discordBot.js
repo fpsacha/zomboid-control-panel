@@ -182,6 +182,9 @@ export class DiscordBot {
     this.modRoleId = null;
     this.channelId = null;
     this.isRunning = false;
+    // Claimed synchronously at the top of start(), released in a finally --
+    // see start()'s own comment for the double-start race this closes.
+    this._starting = false;
     // Last start() failure, surfaced through routes/discord.js so a bad
     // token, disallowed privileged intents, and a network timeout stop
     // wearing the same "check configuration" message. Same pattern as
@@ -1635,6 +1638,34 @@ export class DiscordBot {
       return true;
     }
 
+    // re-entrancy sweep, 2026-09-10 (HIGH #1): the check above is not
+    // enough on its own to stop a SECOND, near-simultaneous start() call --
+    // this.client isn't assigned until well after the first await
+    // (loadConfig(), right below) and this.isRunning not until later still
+    // (post-login, clientReady). Two overlapping start() calls both pass
+    // the check above before either assigns this.client, and both go on to
+    // create a Client and attach their own messageCreate listener, doubling
+    // every in-game chat relay message. Reachable two ways: a POST
+    // /discord/start double-click, AND PUT /discord/config's own internal
+    // restart-on-credential-change (routes/discord.js) calling start() a
+    // second way -- a guard covering only one of the two callers would
+    // still leave the other live, so this is claimed once, synchronously,
+    // right here in start() itself (both callers go through this same
+    // method), before the first await -- mirrors panelUpdateChecker.js's
+    // isDownloading.
+    if (this._starting) {
+      log.warn("start() called while a previous start() call is still in flight — ignoring");
+      return true;
+    }
+    this._starting = true;
+    try {
+      return await this._doStart();
+    } finally {
+      this._starting = false;
+    }
+  }
+
+  async _doStart() {
     await this.loadConfig();
 
     // If a previous stop() detached the chatMessage listener, reattach it

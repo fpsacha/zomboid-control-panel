@@ -11,6 +11,22 @@ import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 // and the delete proceeded. Same fail-open class already fixed at /wipe,
 // /delete-files, chunks.js's delete-chunks/delete-region, backup.js's
 // restore, and templates.js's apply.
+//
+// re-entrancy sweep, 2026-09-10: this route now ALSO takes the process-wide
+// lifecycleCoordinator lock for the whole handler -- the fail-open class
+// above was never this route's only gap; it also had no guard at all
+// against a concurrent /start racing its own unlink loop, unlike those same
+// five sibling routes (server/tests/clearStaleLocksConcurrency.test.js
+// covers that race directly). Acquiring that lock needs a server identity
+// for its 409 message, so getActiveServer() is now called ONCE, before the
+// running-check, purely for the lock -- the same shape /wipe already uses
+// (see server.js's own comment: "the lifecycle lock now held for the rest
+// of this request guarantees the active server can't change under us").
+// The three assertions below were written when getActiveServer() was only
+// ever reached AFTER a passing running-check; updated to reflect that it's
+// now called once for the lock regardless of what the running-check
+// decides. The actual fail-closed BEHAVIOR under test -- 503/409, refused
+// before the delete loop -- is unchanged and still asserted via statusCode.
 
 const getActiveServer = vi.fn();
 vi.mock("../database/init.js", async () => {
@@ -71,7 +87,7 @@ beforeEach(() => {
 });
 
 describe("debug.js POST /clear-stale-locks: an undetermined server state must refuse, not be read as 'stopped'", () => {
-  it("refuses (503) and never reaches the active-server lookup when the running-scan itself failed (scanFailed:true)", async () => {
+  it("refuses (503) and never reaches the delete loop when the running-scan itself failed (scanFailed:true)", async () => {
     const res = await postClearStaleLocks({
       // Old method the route used to call directly -- collapses the failed
       // scan into a plain `false`, which is exactly the bug.
@@ -80,7 +96,10 @@ describe("debug.js POST /clear-stale-locks: an undetermined server state must re
     });
 
     expect(res.getStatusCode()).toBe(503);
-    expect(getActiveServer).not.toHaveBeenCalled();
+    // Called once, for the lifecycle lock's identity -- not the two-call
+    // shape the "proceeds past" test below exercises, since this path
+    // never reaches the second, deeper lookup.
+    expect(getActiveServer).toHaveBeenCalledTimes(1);
   });
 
   it("refuses (503) rather than falling back to the unrelated isRunning flag when the running-check itself throws", async () => {
@@ -95,7 +114,7 @@ describe("debug.js POST /clear-stale-locks: an undetermined server state must re
     });
 
     expect(res.getStatusCode()).toBe(503);
-    expect(getActiveServer).not.toHaveBeenCalled();
+    expect(getActiveServer).toHaveBeenCalledTimes(1);
   });
 
   it("still refuses (409) on a confirmed-running server", async () => {
@@ -105,7 +124,7 @@ describe("debug.js POST /clear-stale-locks: an undetermined server state must re
     });
 
     expect(res.getStatusCode()).toBe(409);
-    expect(getActiveServer).not.toHaveBeenCalled();
+    expect(getActiveServer).toHaveBeenCalledTimes(1);
   });
 
   it("proceeds past the running-check when the scan confirms the server is stopped", async () => {
@@ -114,10 +133,13 @@ describe("debug.js POST /clear-stale-locks: an undetermined server state must re
       getServerProcessDetails: async () => ({ running: false, scanFailed: false }),
     });
 
-    // getActiveServer resolves null (default), so the route stops one step
-    // later with its own "no active server" 400 -- proving it got PAST the
+    // Called twice: once before the running-check (lock identity, resolves
+    // null -> the lock is taken with no server id, same "no id available"
+    // shape lifecycleCoordinator.js's own comment documents for a genuinely
+    // unresolved target) and once more past it, where the route's own
+    // "no active server" 400 stops it -- proving it got PAST the
     // running-check without needing a full save-folder fixture.
-    expect(getActiveServer).toHaveBeenCalled();
+    expect(getActiveServer).toHaveBeenCalledTimes(2);
     expect(res.getStatusCode()).toBe(400);
   });
 });
