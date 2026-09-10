@@ -5425,6 +5425,19 @@ if ($result -eq 'OK') { Write-Output $dialog.SelectedPath } else { Write-Output 
 
     let output = "";
     let errorOutput = "";
+    let settled = false;
+    // platform-divergence-sweep (2026-09-10): the Linux branch above bounds
+    // both zenity and kdialog with { timeout: 120000 } -- this branch had no
+    // ceiling at all, and neither does this Express app at the HTTP server
+    // level (no requestTimeout/headersTimeout configured anywhere in
+    // index.js), so a FolderBrowserDialog left open (lost focus behind
+    // another window, a known WinForms/STA quirk, or the operator just
+    // walked away) hung the request indefinitely. 120000 matches the Linux
+    // branch's own already-considered value rather than inventing a new one.
+    const timeoutId = setTimeout(() => {
+      log.warn("Folder browser dialog timed out after 120000ms; killing it");
+      powershell.kill();
+    }, 120000);
 
     powershell.stdout.on("data", (data) => {
       output += data.toString();
@@ -5435,12 +5448,18 @@ if ($result -eq 'OK') { Write-Output $dialog.SelectedPath } else { Write-Output 
     });
 
     powershell.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       const selectedPath = output.trim();
 
       if (code !== 0 || errorOutput) {
         log.warn(`Folder browser had issues: ${errorOutput}`);
       }
 
+      // A killed-by-timeout process closes with an empty selectedPath just
+      // like an ordinary Cancel click does, so this resolves the same way
+      // Linux's own cancelled case does -- no new response shape to learn.
       res.json({
         success: !!selectedPath,
         path: selectedPath || null,
@@ -5449,6 +5468,9 @@ if ($result -eq 'OK') { Write-Output $dialog.SelectedPath } else { Write-Output 
     });
 
     powershell.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       log.error(`Folder browser error: ${error.message}`);
       res.status(500).json({ error: "Failed to open folder browser", code: ErrorCode.BROWSE_FOLDER_OPEN_FAILED });
     });
