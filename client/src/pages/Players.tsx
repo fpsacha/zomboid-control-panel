@@ -436,6 +436,12 @@ export default function Players() {
 
   // Bridge status for character export/import
   const [bridgeConnected, setBridgeConnected] = useState(false)
+  // Distinct from bridgeConnected itself: true until the first getStatus()
+  // answer lands, so "haven't checked yet" doesn't render as the same
+  // confident false as "checked, and it's offline" (bridge-tri-state sweep,
+  // 2026-09-10). Gates DISPLAY text only -- every disabled={!bridgeConnected}
+  // GM/export control stays fail-closed on the raw boolean, unchanged.
+  const [bridgeStatusLoading, setBridgeStatusLoading] = useState(true)
 
   // Auto-export on login
   const [autoExportEnabled, setAutoExportEnabled] = useState(false)
@@ -444,6 +450,10 @@ export default function Players() {
   // Ref for copy timeout cleanup
   const copiedTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Guards checkBridgeStatus's setState calls the same way Events.tsx's own
+  // mountedRef does -- it's called from the 15s interval and the
+  // activeServerChanged handler, both of which can fire after unmount.
+  const mountedRef = useRef(true)
 
   // Cleanup copy timeout on unmount
   useEffect(() => {
@@ -644,6 +654,25 @@ export default function Players() {
     } catch {
       // Bridge down or unreachable -- leave whatever was last fetched (or
       // nothing) rather than clearing it on a single transient failure.
+    }
+  }, [])
+
+  // bridge-tri-state sweep (2026-09-10): this used to run once, inline in
+  // the mount effect below, and never again -- unlike Events.tsx (10s
+  // interval) and WorldMap.tsx (re-checked on its own poll), Players.tsx had
+  // no way to notice the bridge connecting or dropping after mount. A GM
+  // control or the import/export gate would stay stuck on the mount-time
+  // read until the user navigated away and back. Extracted so the 15s
+  // roster interval and the activeServerChanged handler can both call it,
+  // matching the siblings.
+  const checkBridgeStatus = useCallback(async () => {
+    try {
+      const status = await panelBridgeApi.getStatus()
+      if (mountedRef.current) setBridgeConnected(Boolean(status.modConnected && status.isRunning))
+    } catch {
+      if (mountedRef.current) setBridgeConnected(false)
+    } finally {
+      if (mountedRef.current) setBridgeStatusLoading(false)
     }
   }, [])
 
@@ -869,35 +898,34 @@ export default function Players() {
   }, [])
 
   useEffect(() => {
+    mountedRef.current = true
     Promise.all([fetchPlayers(), fetchData(), fetchNotesAndStats(), fetchBannedSteamIds(), fetchWhitelist(), fetchAccessLevels()]).catch(err => {
       reportClientError('Failed to load initial player data.', err)
     })
-    let isMounted = true
     // Check bridge status for character export/import
-    panelBridgeApi.getStatus().then(status => {
-      if (isMounted) setBridgeConnected(Boolean(status.modConnected && status.isRunning))
-    }).catch(() => { if (isMounted) setBridgeConnected(false) })
+    checkBridgeStatus()
     // Load auto-export setting
     configApi.getAppSettings().then(response => {
-      if (isMounted && response?.settings) {
+      if (mountedRef.current && response?.settings) {
         setAutoExportEnabled(response.settings.autoExportOnLogin === true || response.settings.autoExportOnLogin === 'true')
       }
     }).catch(() => {})
     // Load saved exports
     playersApi.getExports().then(response => {
-      if (isMounted && response?.exports) setSavedExports(response.exports)
+      if (mountedRef.current && response?.exports) setSavedExports(response.exports)
     }).catch(() => {})
     if (canGmTools) fetchRosterVitals()
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return
       fetchPlayers()
+      checkBridgeStatus()
       if (canGmTools) fetchRosterVitals()
     }, 15000)
     return () => {
-      isMounted = false
+      mountedRef.current = false
       clearInterval(interval)
     }
-  }, [fetchPlayers, fetchData, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, canGmTools])
+  }, [fetchPlayers, fetchData, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, checkBridgeStatus, canGmTools])
 
   // bug-hunt-2026-09-04/06 (activeServerChanged sweep): this page never
   // re-read the active server after mount, same gap as Console.tsx/
@@ -917,13 +945,14 @@ export default function Players() {
       fetchBannedSteamIds()
       fetchWhitelist()
       fetchAccessLevels()
+      checkBridgeStatus()
       if (canGmTools) fetchRosterVitals()
     }
     socket.on('activeServerChanged', handleActiveServerChanged)
     return () => {
       socket.off('activeServerChanged', handleActiveServerChanged)
     }
-  }, [socket, fetchPlayers, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, canGmTools])
+  }, [socket, fetchPlayers, fetchNotesAndStats, fetchBannedSteamIds, fetchWhitelist, fetchAccessLevels, fetchRosterVitals, checkBridgeStatus, canGmTools])
 
   const requestedPlayerAppliedRef = useRef(false)
   useEffect(() => {
@@ -2173,6 +2202,10 @@ export default function Players() {
                   <p className="text-sm text-muted-foreground">{t('vitals.noTarget')}</p>
                 ) : !isSelectedPlayerOnline ? (
                   <p className="text-sm text-muted-foreground">{t('vitals.offline')}</p>
+                ) : bridgeStatusLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> {t('vitals.loading')}
+                  </div>
                 ) : !bridgeConnected ? (
                   <p className="text-sm text-muted-foreground">{t('vitals.bridgeRequired')}</p>
                 ) : playerVitalsLoading && !playerVitals ? (
@@ -3510,7 +3543,7 @@ export default function Players() {
               {t('importExport.description')}
             </DialogDescription>
           </DialogHeader>
-          {!bridgeConnected && (
+          {!bridgeStatusLoading && !bridgeConnected && (
             <Alert className="border-warning/40 bg-warning/10">
               <AlertTriangle className="h-4 w-4 text-warning" />
               <AlertTitle className="text-warning">{t('importExport.bridgeOfflineTitle')}</AlertTitle>

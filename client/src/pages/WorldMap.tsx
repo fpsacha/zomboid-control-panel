@@ -666,7 +666,12 @@ export default function WorldMap() {
   }, [contextMenu])
   const [selectedPlayer, setSelectedPlayer] = useState<MapPlayer | null>(null)
   const [bridgeConnected, setBridgeConnected] = useState(false)
-  const [bridgeLoading, setBridgeLoading] = useState(false)
+  // Inits true (bridge-tri-state sweep, 2026-09-10): checkBridgeStatus sets
+  // this true itself once it runs, but that's a mount-effect tick after the
+  // first paint -- an init of false let that first paint render "Offline"
+  // (bridgeConnected's own default) for one frame before flipping to the
+  // loading state BridgeStatusBadge is meant to show instead.
+  const [bridgeLoading, setBridgeLoading] = useState(true)
   // Bridge's self-reported PanelBridge.VERSION -- gates the player-status
   // fields (isAlive/isInfected/accessLevel) added in bridge v1.7.39. See
   // worldMapBridgeVersion.ts for why this is a real version comparison
@@ -3014,7 +3019,7 @@ export default function WorldMap() {
                 <span className="text-muted-foreground/50">·</span>
                 <span className={cn('flex items-center gap-1', bridgeConnected ? 'text-emerald-400/90' : 'text-muted-foreground/60')}>
                   <span className={cn('h-1.5 w-1.5 rounded-full', bridgeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/40')} />
-                  {bridgeConnected ? t('roster.live') : t('roster.offline')}
+                  {bridgeLoading ? t('roster.loading') : bridgeConnected ? t('roster.live') : t('roster.offline')}
                 </span>
               </span>
               <span className="flex items-center gap-1.5">

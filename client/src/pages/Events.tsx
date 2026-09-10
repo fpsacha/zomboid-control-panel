@@ -1168,6 +1168,12 @@ export default function Events() {
 
   // Panel Bridge state
   const [bridgeConnected, setBridgeConnected] = useState(false)
+  // Distinct from bridgeConnected: true until the first checkBridgeStatus()
+  // answer lands, so "haven't checked yet" doesn't render as the same
+  // confident false as "checked, and it's offline" (bridge-tri-state sweep,
+  // 2026-09-10). Gates DISPLAY text only -- every disabled={!bridgeConnected}
+  // control below stays fail-closed on the raw boolean, unchanged.
+  const [bridgeStatusLoading, setBridgeStatusLoading] = useState(true)
   const [bridgeLoading, setBridgeLoading] = useState<string | null>(null)
   const [blizzardDuration, setBlizzardDuration] = useState(2)
   const [tropicalDuration, setTropicalDuration] = useState(2)
@@ -1320,6 +1326,7 @@ export default function Events() {
       const status = await panelBridgeApi.getStatus()
       if (!mountedRef.current) return
       setBridgeConnected(status.modConnected)
+      setBridgeStatusLoading(false)
       // status.connection.summary is {key, params, text} -- resolve through
       // i18next the same way Settings.tsx's resolveBridgeDiagText() does,
       // reaching into settings.json's bridge.diagnostics tree (same
@@ -1429,6 +1436,7 @@ export default function Events() {
     } catch (error) {
       if (mountedRef.current) {
         setBridgeConnected(false)
+        setBridgeStatusLoading(false)
         setBridgeConnectionSummary(t('toasts.unableToReadBridgeStatus'))
         setUtilitiesStatus(null)
       }
@@ -2252,33 +2260,39 @@ export default function Events() {
       {/* Scope and connection state stay visible before event controls. */}
       <div className={cn(
         'rounded-md border bg-card px-4 py-3',
-        bridgeConnected ? 'border-border/70' : 'border-amber-400/55'
+        bridgeStatusLoading ? 'border-border/60' : bridgeConnected ? 'border-border/70' : 'border-amber-400/55'
       )}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Bridge status */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground whitespace-nowrap">
-              <Zap className={cn('w-3.5 h-3.5', bridgeConnected ? 'text-primary' : 'text-amber-400')} />
+              <Zap className={cn('w-3.5 h-3.5', bridgeStatusLoading ? 'text-muted-foreground' : bridgeConnected ? 'text-primary' : 'text-amber-400')} />
               <span>{t('statusBar.panelBridge')}</span>
             </div>
             <div className={cn(
               'flex items-center gap-2 px-2.5 py-1 rounded-md border',
-              bridgeConnected
-                ? 'border-emerald-400/30 bg-emerald-400/10'
-                : 'border-amber-400/30 bg-amber-400/10'
+              bridgeStatusLoading
+                ? 'border-border/40 bg-muted/30'
+                : bridgeConnected
+                  ? 'border-emerald-400/30 bg-emerald-400/10'
+                  : 'border-amber-400/30 bg-amber-400/10'
             )}>
-              <span className={cn(
-                'w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]',
-                bridgeConnected ? 'bg-emerald-400 text-emerald-400 animate-pulse' : 'bg-amber-400 text-amber-400'
-              )} />
+              {bridgeStatusLoading ? (
+                <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+              ) : (
+                <span className={cn(
+                  'w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]',
+                  bridgeConnected ? 'bg-emerald-400 text-emerald-400 animate-pulse' : 'bg-amber-400 text-amber-400'
+                )} />
+              )}
               <span className={cn(
                 'text-sm font-semibold',
-                bridgeConnected ? 'text-emerald-300' : 'text-amber-300'
+                bridgeStatusLoading ? 'text-muted-foreground' : bridgeConnected ? 'text-emerald-300' : 'text-amber-300'
               )}>
-                {bridgeConnected ? t('statusBar.online') : t('statusBar.offline')}
+                {bridgeStatusLoading ? t('loading.label', { ns: 'bridgeStatusBadge' }) : bridgeConnected ? t('statusBar.online') : t('statusBar.offline')}
               </span>
             </div>
-            {!bridgeConnected && (
+            {!bridgeStatusLoading && !bridgeConnected && (
               <Link to="/settings" className="hidden sm:inline-flex text-sm font-medium text-primary hover:text-primary/80 underline-offset-2 hover:underline">
                 {t('statusBar.configureLink')}
               </Link>
