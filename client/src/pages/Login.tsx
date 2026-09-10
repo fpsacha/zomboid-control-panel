@@ -80,6 +80,13 @@ export default function Login() {
   const [resetAvailable, setResetAvailable] = useState(false)
   const [resetToken, setResetToken] = useState('')
   const [recoveryCodesAvailable, setRecoveryCodesAvailable] = useState(false)
+  // unknown-window-instances-outside-the-bridge, 2026-09-10: distinguishes
+  // "the two mount-time status fetches haven't settled yet" from "confirmed
+  // unavailable" at handleLostPassword's decision point below -- same split
+  // Debug.tsx's bridge tab already uses (there, loading only delays showing
+  // a premature negative; here, on the fail-open side, loading is treated
+  // the same as a confirmed-available answer instead of the same as false).
+  const [recoveryStatusLoading, setRecoveryStatusLoading] = useState(true)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [resetSuccess, setResetSuccess] = useState('')
@@ -141,15 +148,22 @@ export default function Login() {
 
   useEffect(() => {
     const controller = new AbortController()
+    let resetSettled = false
+    let recoverySettled = false
+    const maybeDoneLoading = () => {
+      if (resetSettled && recoverySettled) setRecoveryStatusLoading(false)
+    }
     fetchResetStatus(controller.signal)
       .catch(() => {
         setResetAvailable(false)
         setLocalResetSupported(false)
       })
+      .finally(() => { resetSettled = true; maybeDoneLoading() })
     fetch('/api/auth/recovery-status', { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => setRecoveryCodesAvailable(d?.recoveryCodesAvailable === true))
       .catch(() => setRecoveryCodesAvailable(false))
+      .finally(() => { recoverySettled = true; maybeDoneLoading() })
     return () => controller.abort()
   }, [])
 
@@ -241,7 +255,21 @@ export default function Login() {
   const handleLostPassword = () => {
     setError('')
     setResetSuccess('')
-    if (resetAvailable || recoveryCodesAvailable) {
+    // Fail open, same side as resolveServerRunning/WorldMap's hasActiveServer/
+    // Servers.tsx's dockerAvailable: the two status fetches this screen's
+    // mount effect kicks off default both flags to false and haven't
+    // necessarily settled by the time someone clicks this on a slow
+    // connection -- exactly the situation a locked-out user under stress is
+    // more likely to hit. Treating "still loading" the same as "confirmed
+    // available" routes to the token/code entry screen instead of attempting
+    // a local reset that was never going to find anything for someone who
+    // actually holds a real token or code. Checked the alternative isn't
+    // worse for someone who holds neither: reset-password's own
+    // RESET_TOKEN_NOT_FOUND response ("No reset token found. Create
+    // data/reset-token.txt on the server first.") is at least as specific
+    // and actionable as handleCreateLocalReset's LOCAL_RESET_NOT_LOCAL/
+    // BEHIND_PROXY errors below -- neither path is a dead end.
+    if (recoveryStatusLoading || resetAvailable || recoveryCodesAvailable) {
       setShowRecoveryHelp(false)
       setResetMode(true)
       return
