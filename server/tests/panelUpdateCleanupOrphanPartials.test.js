@@ -13,6 +13,15 @@ import path from "node:path";
 // stageClientDist(), or the gap before downloadAndStageUpdate()'s own
 // cleanup) left one of these on disk on every single scan forever -- an
 // accumulating leak matching only half of "interrupted download".
+//
+// 2026-09-10 (panel-update-download-temp-path-is-per-process-not-per-call):
+// the callId embedded in both shapes changed from a bare `<pid>` (e.g.
+// "4242") to `<pid>-<seq>` (e.g. "4242-1") -- fixtures below use the new
+// shape throughout. The dedicated test near the bottom of this file
+// generates its fixture's callId via the REAL nextPartialCallId(), not a
+// hardcoded guess at the current shape -- a regex change made without also
+// updating the naming convention (or vice versa) fails this test the same
+// way it would fail cleanup in production: silently, by no longer matching.
 process.pkg = {};
 
 const { PanelUpdateChecker } = await import("../services/panelUpdateChecker.js");
@@ -37,9 +46,9 @@ describe("cleanupOrphanPartials() sweeps both partial-download naming shapes", (
     fs.writeFileSync(exePath, "fake-exe");
     setExecPath(exePath);
 
-    const staleBinaryPartial = "ZomboidControlPanel.exe.new.partial.4242";
-    const staleZipPartial = ".client-dist-1.3.0.partial.4242.zip";
-    const staleTarPartial = ".client-dist-1.3.0.partial.4242.tar.gz";
+    const staleBinaryPartial = "ZomboidControlPanel.exe.new.partial.4242-1";
+    const staleZipPartial = ".client-dist-1.3.0.partial.4242-1.zip";
+    const staleTarPartial = ".client-dist-1.3.0.partial.4242-1.tar.gz";
     const unrelatedFile = "update-bundle.json";
     for (const name of [staleBinaryPartial, staleZipPartial, staleTarPartial, unrelatedFile]) {
       fs.writeFileSync(path.join(scratchDir, name), "leftover");
@@ -68,8 +77,8 @@ describe("cleanupOrphanPartials() sweeps both partial-download naming shapes", (
     // tool (or the operator's own file) sharing this folder could produce.
     // exeDir is wherever the operator installed the panel, not a directory
     // this process owns exclusively.
-    const foreignPartial = "quarterly-report.xlsx.partial.4242";
-    const realPartial = "ZomboidControlPanel.exe.new.partial.4242";
+    const foreignPartial = "quarterly-report.xlsx.partial.4242-1";
+    const realPartial = "ZomboidControlPanel.exe.new.partial.4242-1";
     fs.writeFileSync(path.join(scratchDir, foreignPartial), "someone else's file");
     fs.writeFileSync(path.join(scratchDir, realPartial), "leftover");
 
@@ -86,7 +95,7 @@ describe("cleanupOrphanPartials() sweeps both partial-download naming shapes", (
     const exePath = path.join(scratchDir, "ZomboidControlPanel.exe");
     fs.writeFileSync(exePath, "fake-exe");
     setExecPath(exePath);
-    const zipPartial = ".client-dist-1.3.0.partial.4242.zip";
+    const zipPartial = ".client-dist-1.3.0.partial.4242-1.zip";
     fs.writeFileSync(path.join(scratchDir, zipPartial), "leftover");
 
     const previousPkg = process.pkg;
@@ -99,5 +108,57 @@ describe("cleanupOrphanPartials() sweeps both partial-download naming shapes", (
     }
 
     expect(fs.existsSync(path.join(scratchDir, zipPartial))).toBe(true);
+  });
+
+  it("panel-update-download-temp-path-is-per-process-not-per-call, 2026-09-10: matches a file named with the REAL callId nextPartialCallId() produces, not a hardcoded guess at its shape", () => {
+    // This is the test god asked for: proof the cleanup regex MATCHES the
+    // current naming convention, not proof the regex merely compiles or
+    // that the OLD shape still matches (which would prove nothing about a
+    // shape that changed). Deriving the fixture's name from the real
+    // production method means a future change to nextPartialCallId() that
+    // isn't mirrored in cleanupOrphanPartials()'s regex fails THIS test,
+    // the same silent way it would fail cleanup for real -- no match, no
+    // delete, but here as a red test instead of an invisible leak.
+    originalExecPath = process.execPath;
+    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "cleanup-partials-real-callid-"));
+    const exePath = path.join(scratchDir, "ZomboidControlPanel.exe");
+    fs.writeFileSync(exePath, "fake-exe");
+    setExecPath(exePath);
+
+    const checker = new PanelUpdateChecker();
+    const callId = checker.nextPartialCallId();
+
+    const binaryPartial = `ZomboidControlPanel.exe.new.partial.${callId}`;
+    const zipPartial = `.client-dist-1.3.0.partial.${callId}.zip`;
+    const tarPartial = `.client-dist-1.3.0.partial.${callId}.tar.gz`;
+    for (const name of [binaryPartial, zipPartial, tarPartial]) {
+      fs.writeFileSync(path.join(scratchDir, name), "leftover");
+    }
+
+    checker.cleanupOrphanPartials();
+
+    expect(fs.existsSync(path.join(scratchDir, binaryPartial))).toBe(false);
+    expect(fs.existsSync(path.join(scratchDir, zipPartial))).toBe(false);
+    expect(fs.existsSync(path.join(scratchDir, tarPartial))).toBe(false);
+  });
+
+  it("also sweeps the pre-fix bare-<pid> shape (no counter suffix) -- a one-time transitional orphan from a panel binary that crashed before this commit shipped", () => {
+    originalExecPath = process.execPath;
+    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "cleanup-partials-legacy-shape-"));
+    const exePath = path.join(scratchDir, "ZomboidControlPanel.exe");
+    fs.writeFileSync(exePath, "fake-exe");
+    setExecPath(exePath);
+
+    const legacyBinaryPartial = "ZomboidControlPanel.exe.new.partial.4242";
+    const legacyZipPartial = ".client-dist-1.3.0.partial.4242.zip";
+    for (const name of [legacyBinaryPartial, legacyZipPartial]) {
+      fs.writeFileSync(path.join(scratchDir, name), "leftover");
+    }
+
+    const checker = new PanelUpdateChecker();
+    checker.cleanupOrphanPartials();
+
+    expect(fs.existsSync(path.join(scratchDir, legacyBinaryPartial))).toBe(false);
+    expect(fs.existsSync(path.join(scratchDir, legacyZipPartial))).toBe(false);
   });
 });

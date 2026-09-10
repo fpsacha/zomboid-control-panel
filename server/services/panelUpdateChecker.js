@@ -240,6 +240,33 @@ export class PanelUpdateChecker {
     // started). Prevents a second concurrent /api/panel/restart from
     // spawning a second helper that would race for the staged file.
     this.isApplying = false;
+    // panel-update-download-temp-path-is-per-process-not-per-call,
+    // 2026-09-10: monotonic per-process counter, incremented once per
+    // downloadAndStageUpdate() call, so its temp paths are per-CALL, not
+    // merely per-process (see nextPartialCallId() below for why
+    // process.pid alone wasn't enough). NOT a bare timestamp -- two calls
+    // landing in the same millisecond is real, not theoretical (two files
+    // with an identical fs birthtime, same night, same real Windows disk,
+    // in an unrelated part of this codebase).
+    this._downloadAttemptSeq = 0;
+  }
+
+  // A fresh id for this attempt's temp files: process.pid alone is stable
+  // for the whole process lifetime, so a failed download followed by an
+  // operator retry (same process, no restart) reused the exact same
+  // tmpDownloadPath/tmpClientArchivePath. That let the FIRST attempt's own
+  // deferred cleanup (downloadFile()'s fail(): the destroyed write
+  // stream's "close" event fires the actual unlink, arbitrarily later --
+  // see its own comment for why the unlink can't happen immediately) land
+  // on the SECOND attempt's actively-writing file, if that deferred close
+  // happened to arrive mid-retry. Appending a monotonic counter makes each
+  // call's id unique regardless of how long the previous attempt's
+  // cleanup takes to actually fire. cleanupOrphanPartials()'s own patterns
+  // are updated to match this shape in the same commit -- see its comment
+  // for why that pairing is not optional.
+  nextPartialCallId() {
+    this._downloadAttemptSeq += 1;
+    return `${process.pid}-${this._downloadAttemptSeq}`;
   }
 
   /**
@@ -588,13 +615,15 @@ export class PanelUpdateChecker {
     // sees isDownloading still false and passes this same guard too.
     // Confirmed reachable, not theoretical: two near-simultaneous downloadUpdate()
     // calls (e.g. a double-click) both got past the guard and both proceeded
-    // into asset lookup / the real download in a repro. With the SAME pid,
-    // a second binary download would target the identical
-    // `${stagedPath}.partial.${process.pid}` temp path as the first, so both
-    // writes interleave into one corrupted file. Every return below that
-    // does NOT go on to actually download resets isDownloading before
-    // returning, mirroring the finally-based reset the real download itself
-    // already used only for its own errors.
+    // into asset lookup / the real download in a repro. Both downloads would
+    // still land on DIFFERENT temp paths since 2026-09-10 (each call gets its
+    // own id from nextPartialCallId() -- see its own comment), but two
+    // uncoordinated downloads sharing one `isDownloading`/`downloadProgress`
+    // state and both racing to stage over the same stagedPath is still worth
+    // rejecting outright, not just no-longer-corrupting-a-single-file. Every
+    // return below that does NOT go on to actually download resets
+    // isDownloading before returning, mirroring the finally-based reset the
+    // real download itself already used only for its own errors.
     this.isDownloading = true;
 
     // Preflight gates the download — we refuse to stage anything if we already
@@ -723,11 +752,21 @@ export class PanelUpdateChecker {
     // (ends in .new or .new2). We must stage into a slot that is NOT the file
     // we're running from, otherwise we'd try to overwrite our own binary.
     const stagedPath = this.getStageSlotPath();
-    const tmpDownloadPath = `${stagedPath}.partial.${process.pid}`;
+    // panel-update-download-temp-path-is-per-process-not-per-call,
+    // 2026-09-10: was `.partial.${process.pid}` alone -- stable for the
+    // whole process, so a failed download followed by an operator retry
+    // (same process, no restart) reused the identical temp path, letting
+    // the FIRST attempt's own deferred cleanup unlink the SECOND attempt's
+    // actively-writing file. See nextPartialCallId()'s own comment for the
+    // full mechanism. Both temp paths share one call id -- they're always
+    // created and cleaned up together within a single downloadAndStageUpdate()
+    // call, so there's no reason to burn two counter values on one attempt.
+    const partialCallId = this.nextPartialCallId();
+    const tmpDownloadPath = `${stagedPath}.partial.${partialCallId}`;
     const clientArchiveExtension = isWindows ? ".zip" : ".tar.gz";
     const tmpClientArchivePath = path.join(
       exeDir,
-      `.client-dist-${this.latestRelease.version}.partial.${process.pid}${clientArchiveExtension}`,
+      `.client-dist-${this.latestRelease.version}.partial.${partialCallId}${clientArchiveExtension}`,
     );
     let incomingClientPath = null;
 
@@ -3196,16 +3235,17 @@ public static extern bool CloseHandle(System.IntPtr hObject);
   }
 
   /**
-   * Remove orphan .partial.<pid> files left behind by interrupted downloads.
-   * Called at start() — at that moment no download can be in progress, so
-   * everything matching either partial pattern is safe to delete.
+   * Remove orphan .partial.<callId> files left behind by interrupted
+   * downloads. Called at start() — at that moment no download can be in
+   * progress, so everything matching either partial pattern is safe to
+   * delete.
    *
    * Two distinct naming shapes, both written by downloadAndStageUpdate():
-   *   - the staged binary download: `<stagedPath>.partial.<pid>` (no further
-   *     suffix -- matches partialPattern below).
-   *   - the client archive download: `.client-dist-<version>.partial.<pid>.zip`
+   *   - the staged binary download: `<stagedPath>.partial.<callId>` (no
+   *     further suffix -- matches partialPattern below).
+   *   - the client archive download: `.client-dist-<version>.partial.<callId>.zip`
    *     (or `.tar.gz` on Linux) -- did NOT match partialPattern (its `$`
-   *     anchor requires the digits to be the last characters in the name,
+   *     anchor requires the callId to be the last characters in the name,
    *     but the archive extension follows them), so a process crash between
    *     a successful client-archive download and its own happy-path unlink
    *     (anywhere inside stageClientDist(), or the gap before line ~714's
@@ -3226,6 +3266,23 @@ public static extern bool CloseHandle(System.IntPtr hObject);
    * exactly what downloadAndStageUpdate() actually names its own file and
    * nothing else -- same fix shape as the client-archive pattern below,
    * which was already correctly prefix-anchored.
+   *
+   * 2026-09-10 (panel-update-download-temp-path-is-per-process-not-per-call):
+   * <callId> changed shape from a bare `<pid>` to `<pid>-<seq>` (see
+   * nextPartialCallId()) so a retry within the same process gets its own
+   * temp path instead of colliding with a still-pending deferred cleanup
+   * from the attempt before it. This regex is a HARD dependency on that
+   * shape: cleanup fails CLOSED (no match, no delete, no error), so if the
+   * callId shape ever changes again without updating the pattern below in
+   * the SAME commit, every orphan of the new shape leaks silently,
+   * forever, on every single start() -- see
+   * panelUpdateCleanupOrphanPartials.test.js's dedicated coverage for this
+   * exact shape, which asserts the cleanup actually MATCHES it, not just
+   * that the regex compiles. The trailing `-\d+` is optional so an orphan
+   * left by a panel binary from BEFORE this change (bare `<pid>`, no
+   * counter) still gets swept once the operator upgrades to a binary that
+   * has this fix -- a one-time transitional file, not an ongoing shape
+   * this code ever writes again after this commit.
    */
   cleanupOrphanPartials() {
     if (typeof process.pkg === "undefined") return;
@@ -3239,8 +3296,8 @@ public static extern bool CloseHandle(System.IntPtr hObject);
     const exeBaseName = path.basename(this.getExeBasePath());
     const escapedBaseName = exeBaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const partialPatterns = [
-      new RegExp(`^${escapedBaseName}\\.new2?\\.partial\\.\\d+$`),
-      /^\.client-dist-.+\.partial\.\d+\.(?:zip|tar\.gz)$/,
+      new RegExp(`^${escapedBaseName}\\.new2?\\.partial\\.\\d+(?:-\\d+)?$`),
+      /^\.client-dist-.+\.partial\.\d+(?:-\d+)?\.(?:zip|tar\.gz)$/,
     ];
     for (const name of entries) {
       if (!partialPatterns.some((pattern) => pattern.test(name))) continue;
