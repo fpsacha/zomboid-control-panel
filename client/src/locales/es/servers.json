@@ -253,7 +253,10 @@
     "saveChanges": "Guardar cambios",
     "noPermission": "Guardar la configuración del servidor requiere el permiso servers.manage, del cual este rol no dispone.",
     "customStartCommandPlaceholderWindows": "p. ej., StartServer64.bat -servername MyServer",
-    "customStartCommandPlaceholderPosix": "p. ej., ./start-server.sh -servername MyServer"
+    "customStartCommandPlaceholderPosix": "p. ej., ./start-server.sh -servername MyServer",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "¿Quitar servidor del panel?",

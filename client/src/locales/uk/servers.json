@@ -260,7 +260,10 @@
     "cancel": "Скасувати",
     "saving": "Збереження...",
     "saveChanges": "Зберегти зміни",
-    "noPermission": "Збереження налаштувань сервера потребує дозволу servers.manage, якого ця роль не має."
+    "noPermission": "Збереження налаштувань сервера потребує дозволу servers.manage, якого ця роль не має.",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "Видалити сервер із панелі?",

@@ -321,7 +321,13 @@
     "step3Desc": "عندما تتحدّث الحالة واللاعبون والدردشة، يكون التحكّم المباشر جاهزًا.",
     "installNewServer": "تثبيت خادم جديد",
     "addExistingServer": "إضافة خادم موجود",
-    "addRemoteServer": "إضافة خادم بعيد"
+    "addRemoteServer": "إضافة خادم بعيد",
+    "foundHeading": "We found an existing Project Zomboid server",
+    "foundDesc": "ready to add with its RCON settings already read from its own config.",
+    "reviewAndConnect": "Review & Connect",
+    "setUpDifferently": "Set up differently instead",
+    "needNewServerLabel": "I don't have a server yet",
+    "haveExistingServerLabel": "I already have server files"
   },
   "liveActivity": {
     "heading": "النشاط المباشر",
