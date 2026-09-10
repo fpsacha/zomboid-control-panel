@@ -2022,7 +2022,13 @@ async function pathWritableAsync(p) {
 // step actually crashed.
 //
 // Returns null if no log; otherwise { ids, results, crashed, logMtime }.
-async function scanWorkshopFailures(zPath) {
+// Exported for direct testing (same reason getServerProcessState is
+// exported below) -- GET /diagnostics' full handler has enough of its own
+// dependency surface (req.app-injected services, several other database/
+// init.js lookups) that reaching this one check through a real route
+// invocation is its own, much larger undertaking; testing the function
+// directly proves its own behavior without needing that.
+export async function scanWorkshopFailures(zPath) {
   if (!zPath) return null;
   const logPath = path.join(zPath, "server-console.txt");
   let stat;
@@ -2088,8 +2094,9 @@ async function scanWorkshopFailures(zPath) {
 
 // Generic crash scanner. Tail server-console.txt and report the most
 // recent fatal symptom (OOM, main-thread exception, FATAL log line).
-// Returns null when nothing notable is in the tail.
-async function scanRecentCrash(zPath) {
+// Returns null when nothing notable is in the tail. Exported for direct
+// testing -- see scanWorkshopFailures's own comment above for why.
+export async function scanRecentCrash(zPath) {
   if (!zPath) return null;
   const logPath = path.join(zPath, "server-console.txt");
   let stat;
@@ -2476,10 +2483,21 @@ async function probeSteamWorkshopApi() {
   }
 }
 
-// Wrap a promise with a timeout. Used to keep slow / unreachable mounts
-// (broken NFS, dead SMB share, suspended VM) from hanging the entire
-// diagnostics request. Returns `fallback` on timeout instead of throwing.
-function withTimeout(promise, ms, fallback) {
+// Races an ALREADY-CREATED promise against a timer and returns `fallback`
+// if the timer wins. Used to keep slow / unreachable mounts (broken NFS,
+// dead SMB share, suspended VM) from hanging the entire diagnostics
+// request. Named raceWithFallback (not withTimeout, which diskSpace.js's
+// own real-cancel helper earned) deliberately -- this function is handed
+// an opaque promise it did not create, so it structurally CANNOT cancel
+// whatever is running inside it (no child process, no AbortSignal, nothing
+// to kill); it can only stop waiting and move on. That is a different,
+// weaker guarantee than "timeout" implies, and the old shared name made
+// diskSpace.js's real SIGTERM-on-timeout and this abandon-in-place read as
+// the same behavior when they never were (timeout-handling-consistency-
+// sweep, 2026-09-10). Never rejects -- always resolves either the real
+// value or `fallback`. Exported for direct testing, same reason as
+// scanWorkshopFailures/scanRecentCrash above.
+export function raceWithFallback(promise, ms, fallback) {
   let timer;
   const timeoutPromise = new Promise((resolve) => {
     timer = setTimeout(() => resolve(fallback), ms);
@@ -2499,6 +2517,22 @@ function withTimeout(promise, ms, fallback) {
   ]);
 }
 
+// A distinguishable "we gave up waiting" marker, applied below to the two
+// checks where the gap matters most: scanWorkshopFailures/scanRecentCrash
+// both use `null` as their OWN natural "nothing wrong here" answer, which
+// used to be the exact same value raceWithFallback substituted on a
+// timeout -- so a slow tail-read of server-console.txt read as a
+// confirmed-clean result instead of "we don't actually know," a false
+// all-clear from a page whose whole job is telling the operator what's
+// wrong. This is deliberately NOT applied to every raceWithFallback call
+// in this file (per god's steer: convert only where it changes what the
+// user sees, not all ~20 sites) -- safePathExists/safePathWritable's own
+// `false` fallback has the identical ambiguity in principle, but retrofitting
+// it means auditing 40+ call sites of those two helpers for how each one
+// currently treats a bare `false`, a materially bigger and separate job
+// than these two self-contained, single-consumer checks.
+export const CHECK_TIMED_OUT = Symbol("debug-check-timed-out");
+
 export async function getServerProcessState(
   serverManager,
   timeoutMs = FS_TIMEOUT_MS,
@@ -2506,7 +2540,7 @@ export async function getServerProcessState(
   if (!serverManager) return { running: false, scanFailed: false };
 
   if (typeof serverManager.getServerProcessDetails === "function") {
-    const details = await withTimeout(
+    const details = await raceWithFallback(
       Promise.resolve().then(() => serverManager.getServerProcessDetails()),
       timeoutMs,
       null,
@@ -2518,7 +2552,7 @@ export async function getServerProcessState(
   }
 
   if (typeof serverManager.checkServerRunning === "function") {
-    const running = await withTimeout(
+    const running = await raceWithFallback(
       // eslint-disable-next-line local/no-fail-open-check-server-running -- already fail-closed on its own terms: the typeof check below converts anything that isn't a real boolean into { running: null, scanFailed: true } before returning, and this function's only two callers are both read-only diagnostics routes in this file -- nothing destructive is gated on the result.
       Promise.resolve().then(() => serverManager.checkServerRunning()),
       timeoutMs,
@@ -2534,25 +2568,20 @@ export async function getServerProcessState(
 
 const FS_TIMEOUT_MS = 2000;
 const safePathExists = (p) =>
-  withTimeout(pathExistsAsync(p), FS_TIMEOUT_MS, false);
+  raceWithFallback(pathExistsAsync(p), FS_TIMEOUT_MS, false);
 const safePathWritable = (p) =>
-  withTimeout(pathWritableAsync(p), FS_TIMEOUT_MS, false);
+  raceWithFallback(pathWritableAsync(p), FS_TIMEOUT_MS, false);
 
-async function safeReaddir(p) {
-  try {
-    return await withTimeout(fs.promises.readdir(p), FS_TIMEOUT_MS, null);
-  } catch {
-    return null;
-  }
-}
-
-async function safeStat(p) {
-  try {
-    return await withTimeout(fs.promises.stat(p), FS_TIMEOUT_MS, null);
-  } catch {
-    return null;
-  }
-}
+// timeout-handling-consistency-sweep, 2026-09-10: these used to wrap the
+// raceWithFallback() call in a try/catch that could never fire -- the
+// helper never throws, it always resolves (the real value or `fallback`).
+// That dead handling read as "the rejection case is covered here," which
+// is exactly backwards: there IS no rejection case to cover. Plain
+// expressions now, matching safePathExists/safePathWritable above.
+const safeReaddir = (p) =>
+  raceWithFallback(fs.promises.readdir(p), FS_TIMEOUT_MS, null);
+const safeStat = (p) =>
+  raceWithFallback(fs.promises.stat(p), FS_TIMEOUT_MS, null);
 
 // Run a single check function, catching any unexpected throw and converting
 // it into a 'fail' diag entry rather than aborting the whole report.
@@ -2847,28 +2876,28 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
       serverState,
       dbStats,
     ] = await Promise.all([
-      withTimeout(
+      raceWithFallback(
         getActiveServer().catch(() => null),
         FS_TIMEOUT_MS,
         null,
       ),
-      withTimeout(
+      raceWithFallback(
         getAllSettings().catch(() => ({})),
         FS_TIMEOUT_MS,
         {},
       ),
-      withTimeout(
+      raceWithFallback(
         getTrackedMods().catch(() => []),
         FS_TIMEOUT_MS,
         [],
       ),
-      withTimeout(
+      raceWithFallback(
         getScheduledTasks().catch(() => []),
         FS_TIMEOUT_MS,
         [],
       ),
       serverStatePromise,
-      withTimeout(
+      raceWithFallback(
         getDatabaseStats().catch(() => null),
         FS_TIMEOUT_MS,
         null,
@@ -3530,12 +3559,32 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
         // offending IDs so the user can remove them from the .ini.
         let workshopCrashed = false;
         if (zPath) {
-          const wf = await withTimeout(
+          const wf = await raceWithFallback(
             scanWorkshopFailures(zPath),
             FS_TIMEOUT_MS,
-            null,
+            CHECK_TIMED_OUT,
           );
-          if (wf && wf.ids.length > 0) {
+          if (wf === CHECK_TIMED_OUT) {
+            // Reuses the existing server.error id/shape (see the try/catch
+            // below that already emits this for an unexpected throw) rather
+            // than a new check id or variant -- "some active-server checks
+            // could not run" is exactly true here too, and it's already
+            // translated in every locale this file supports.
+            checks.push(
+              diagWarn(
+                "server.error",
+                "Server checks errored",
+                "Some active-server checks could not run: the Workshop-crash scan did not finish within the time limit",
+                {
+                  category: "server",
+                  params: {
+                    reason:
+                      "the Workshop-crash scan did not finish within the time limit",
+                  },
+                },
+              ),
+            );
+          } else if (wf && wf.ids.length > 0) {
             const shown = wf.ids.slice(0, 5).join(", ");
             const idList =
               wf.ids.length > 5
@@ -3602,12 +3651,27 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
         // and FATAL log entries that aren't the Workshop install crash (which
         // we already flagged above with richer detail).
         if (zPath) {
-          const rc = await withTimeout(
+          const rc = await raceWithFallback(
             scanRecentCrash(zPath),
             FS_TIMEOUT_MS,
-            null,
+            CHECK_TIMED_OUT,
           );
-          if (rc && !(workshopCrashed && rc.kind === "workshop")) {
+          if (rc === CHECK_TIMED_OUT) {
+            checks.push(
+              diagWarn(
+                "server.error",
+                "Server checks errored",
+                "Some active-server checks could not run: the recent-crash scan did not finish within the time limit",
+                {
+                  category: "server",
+                  params: {
+                    reason:
+                      "the recent-crash scan did not finish within the time limit",
+                  },
+                },
+              ),
+            );
+          } else if (rc && !(workshopCrashed && rc.kind === "workshop")) {
             const ageMin = Math.max(
               0,
               Math.round((Date.now() - rc.logMtime.getTime()) / 60000),
@@ -3681,7 +3745,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             ? path.join(zPath, "Server", `${activeServer.serverName}.ini`)
             : null;
         const ini = iniPathForActive
-          ? await withTimeout(
+          ? await raceWithFallback(
               parseServerIni(iniPathForActive),
               FS_TIMEOUT_MS,
               null,
@@ -3693,12 +3757,12 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
           // local mod folder. Anything unresolved means "this mod will not
           // load" — silent and one of the most painful PZ-server gotchas.
           const [wsScan, localScan] = await Promise.all([
-            withTimeout(
+            raceWithFallback(
               scanWorkshopMods(installPath),
               FS_TIMEOUT_MS,
               new Map(),
             ),
-            withTimeout(scanLocalMods(zPath), FS_TIMEOUT_MS, {
+            raceWithFallback(scanLocalMods(zPath), FS_TIMEOUT_MS, {
               mods: new Set(),
               maps: new Set(),
             }),
@@ -4162,13 +4226,13 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             const st = await safeStat(sp);
             if (st && st.isDirectory()) {
               // scanSaveStats gets a budget comfortably under the outer
-              // withTimeout below, so it almost always finishes (with
+              // raceWithFallback below, so it almost always finishes (with
               // truncated: true if it ran out of room) rather than being
               // raced away -- the outer wrap stays only as a last-resort
               // safety net. Both `null` (raced away) and `truncated: true`
               // (self-bounded early exit) mean the same thing to the check
               // below: this scan could not fully confirm the save is clean.
-              saveStats = await withTimeout(
+              saveStats = await raceWithFallback(
                 scanSaveStats(sp, FS_TIMEOUT_MS * 3),
                 FS_TIMEOUT_MS * 4,
                 null,
@@ -4201,7 +4265,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
             }
           }
           if (javaBin) {
-            const probe = await withTimeout(probeJre(javaBin), 5000, {
+            const probe = await raceWithFallback(probeJre(javaBin), 5000, {
               ok: false,
               error: "timeout",
             });
@@ -4852,7 +4916,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
     // ─── Updates ───────────────────────────────────────────────────────
     // Steam Workshop API probe is needed by both update.steamApi and the
     // host-clock check (we read its Date response header). Compute once.
-    const steamProbe = await withTimeout(probeSteamWorkshopApi(), 6000, {
+    const steamProbe = await raceWithFallback(probeSteamWorkshopApi(), 6000, {
       reachable: false,
       error: "timeout",
     });
@@ -5277,7 +5341,7 @@ router.get("/worldmap", requirePermission("diagnostics.manage"), async (req, res
   try {
     // Gather context with the same hard timeout we use for /diagnostics.
     const [activeServer] = await Promise.all([
-      withTimeout(
+      raceWithFallback(
         getActiveServer().catch(() => null),
         FS_TIMEOUT_MS,
         null,
