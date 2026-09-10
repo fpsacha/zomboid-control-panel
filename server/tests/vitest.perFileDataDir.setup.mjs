@@ -59,5 +59,17 @@ process.env.PANEL_PATHS_CONFIG_PATH = configPath;
 
 afterAll(() => {
   delete process.env.PANEL_PATHS_CONFIG_PATH;
-  fs.rmSync(tempRoot, { recursive: true, force: true });
+  // map-proxy-enotempty, 2026-09-09: a test file can leave its own
+  // fire-and-forget disk writes (e.g. mapProxy.js's writeDiskCacheAsync)
+  // still landing a file under tempRoot when its last `it()` returns --
+  // reproduced directly (100 concurrent copies of
+  // mapProxyTileBrowserCacheStaleness.test.js, fired twice) as
+  // `ENOTEMPTY` thrown by this exact rmSync on Windows, with every real
+  // assertion in the file already green. rmSync's own maxRetries defaults
+  // to 0, so it never retries on its own. A few short retries give an
+  // already-in-flight write (mkdir/writeFile/rename on this process's own
+  // libuv threadpool) time to land; deliberately NOT unbounded -- a
+  // genuinely stuck handle should still surface as ENOTEMPTY rather than
+  // hang the teardown.
+  fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });

@@ -209,17 +209,33 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    // A tile path not shared with any other test (see captureFirstRename's
+    // header comment) -- this test's own disk write must be awaited before
+    // returning, and if it shared "2_3.jpg" with the in-memory-hit test
+    // below, awaiting here would make that test's own tier-1 miss land on
+    // disk first and turn it into a false "hit-disk".
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "0_0.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
       const res = makeRes();
-      await handler({ params: { level: "5", tile: "2_3.jpg" }, query: {} }, res);
+      await handler({ params: { level: "5", tile: "0_0.jpg" }, query: {} }, res);
 
       expect(res.headers["X-Tile-Cache"]).toBe("miss");
       expect(res.headers["Cache-Control"]).not.toMatch(/604800/);
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+
+      // writeDiskCacheAsync() is fire-and-forget in production (correct --
+      // a live request never blocks on it) but this test must not return
+      // while it's still landing a file: vitest.perFileDataDir.setup.mjs's
+      // afterAll deletes this file's own temp dataDir the moment every
+      // `it()` here has returned, and a write still in flight at that
+      // instant can lose an ENOTEMPTY race against that rmSync on Windows
+      // (reproduced directly, see that file's own comment).
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -227,6 +243,7 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "2_3.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
@@ -234,6 +251,11 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
       const first = makeRes();
       await handler({ params: { level: "5", tile: "2_3.jpg" }, query: {} }, first);
       expect(first.headers["X-Tile-Cache"]).toBe("miss");
+      // The second call below hits tier-1 (in-memory) regardless of disk
+      // state, so awaiting here doesn't affect it -- it just makes sure
+      // this test's own write has landed before the test (and eventually
+      // the file's afterAll) returns.
+      await awaitFirstRename();
 
       const second = makeRes();
       await handler({ params: { level: "5", tile: "2_3.jpg" }, query: {} }, second);
@@ -241,6 +263,7 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
       expect(second.headers["Cache-Control"]).toBe("public, max-age=3600");
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -345,6 +368,7 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
     });
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "2_3.webp" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/toptiles/:level/:tile", "get");
@@ -353,14 +377,17 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
 
       expect(res.headers["X-Tile-Cache"]).toBe("miss");
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
   it("/b41tiles: also capped, even though B41's directory is a fixed constant -- the freshness bound is uniform across all three tile routes since they share serveTile()", async () => {
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "2_3.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/b41tiles/:level/:tile", "get");
@@ -369,8 +396,10 @@ describe("suspect 4 (REAL): tile Cache-Control must not outlive the build-resolu
 
       expect(res.headers["X-Tile-Cache"]).toBe("miss");
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 });
@@ -396,6 +425,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_4.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
@@ -407,8 +437,10 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
 
       expect(res.headers["X-Tile-Cache"]).toBe("miss");
       expect(res.headers["Cache-Control"]).toBe("public, max-age=604800, immutable");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -416,6 +448,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_5.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
@@ -426,6 +459,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
         first,
       );
       expect(first.headers["X-Tile-Cache"]).toBe("miss");
+      await awaitFirstRename();
 
       const second = makeRes();
       await handler(
@@ -436,6 +470,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
       expect(second.headers["Cache-Control"]).toBe("public, max-age=604800, immutable");
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -443,6 +478,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_6.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
@@ -450,8 +486,10 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
       await handler({ params: { level: "6", tile: "3_6.jpg" }, query: {} }, res);
 
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -459,6 +497,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
     mockCurlForB42_20_0();
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_7.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/tiles/:level/:tile", "get");
@@ -466,8 +505,10 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
       await handler({ params: { level: "6", tile: "3_7.jpg" }, query: { v: "" } }, res);
 
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
@@ -485,6 +526,7 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
     });
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_8.webp" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/toptiles/:level/:tile", "get");
@@ -495,14 +537,17 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
       );
 
       expect(res.headers["Cache-Control"]).toBe("public, max-age=604800, immutable");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 
   it("/b41tiles: NEVER switches to the long-lived value, even with ?v= supplied -- its directory is a hardcoded literal, not dynamically resolved, so there's nothing to accurately version against", async () => {
     const originalFetch = global.fetch;
     global.fetch = mockFetchServingTiles();
+    const { renameSpy, awaitFirstRename } = captureFirstRename({ tileFileName: "3_9.jpg" });
     try {
       const { default: router } = await freshModule();
       const handler = findRoute(router, "/b41tiles/:level/:tile", "get");
@@ -513,8 +558,10 @@ describe("suspect 4 follow-up (REAL): a versioned request (?v=<build>) gets a lo
       );
 
       expect(res.headers["Cache-Control"]).toBe("public, max-age=3600");
+      await awaitFirstRename();
     } finally {
       global.fetch = originalFetch;
+      renameSpy.mockRestore();
     }
   });
 });
