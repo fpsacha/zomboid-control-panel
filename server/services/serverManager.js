@@ -524,6 +524,13 @@ export class ServerManager {
     this.rconHost = null;
     this.rconPort = null;
     this.isRunning = false;
+    // timeout-handling-consistency-sweep, 2026-09-10: bumped by every
+    // _scanDedicatedServerProcesses() call and again by that call's own
+    // outer timeout if it fires first -- lets a scan whose result arrives
+    // late (after its own timeout already gave up, or after a newer scan
+    // superseded it) recognize it is no longer current and refuse to write
+    // this.isRunning, rather than merely being unlikely to arrive late.
+    this._scanGeneration = 0;
     this.startTime = null;
     this.configLoaded = false;
     // "managed" (the panel owns and regenerates the launch script) or
@@ -907,6 +914,21 @@ export class ServerManager {
   // Raw OS scan: every Project Zomboid dedicated server process on this host,
   // regardless of which configured server it belongs to.
   async _scanDedicatedServerProcesses() {
+    // timeout-handling-consistency-sweep, 2026-09-10: widening the outer
+    // guard below (to comfortably exceed the Linux/macOS fallback chain's
+    // ~16000ms worst case) only makes the race rarer, not gone -- whenever
+    // the outer guard DOES still win (it is a widened ceiling, not a
+    // rewritten mechanism), the real scan's callback can still land later
+    // and unconditionally write this.isRunning, superseding a caller who
+    // already moved on with a stale answer. This generation stamp makes
+    // that write structurally impossible instead of merely unlikely: bumped
+    // here at the start of every scan attempt, and again by this attempt's
+    // own timeout if it fires first (see below) -- a late callback checks
+    // it's still the current generation before writing this.isRunning, and
+    // simply skips the write (still resolves the promise; the caller
+    // already has its own answer) if a newer attempt or its own timeout has
+    // superseded it.
+    const scanGeneration = ++this._scanGeneration;
     return new Promise((resolve) => {
       log.debug(
         `getServerProcessDetails: starting detection (platform=${process.platform})`,
@@ -919,12 +941,27 @@ export class ServerManager {
         matched.push(pid ? { pid: String(pid), cmd: full } : { cmd: full });
       };
 
+      // This outer guard races BOTH platform branches below, and the
+      // Linux/macOS branch is a SEQUENTIAL fallback chain -- pgrep (own
+      // 8000ms timeout), and only if that fails/empties, ps aux (another
+      // 8000ms) -- whose worst case is ~16000ms, well past the old 10000ms
+      // ceiling here. Widened past that worst case with real margin so this
+      // fires less often; the generation bump below is what makes it safe
+      // on the (still possible) occasions it fires anyway. The Windows
+      // branch's own execFile timeout (8000ms) is unaffected -- it already
+      // settles this promise well before either the old or new outer
+      // ceiling could ever fire.
       const timeout = setTimeout(() => {
+        // Invalidate THIS attempt (only if nothing already has -- a newer
+        // scan call bumping the counter first is just as valid a
+        // supersession) so its own real callback, whenever it eventually
+        // lands, sees a stale generation and skips the this.isRunning write.
+        if (this._scanGeneration === scanGeneration) this._scanGeneration++;
         log.warn(
           "getServerProcessDetails: process detection timed out, cannot determine server state",
         );
         resolve({ running: false, matched: [], scanFailed: true });
-      }, 10000);
+      }, 18000);
 
       if (isWindows) {
         const powershellPath = path.join(
@@ -977,7 +1014,7 @@ export class ServerManager {
             // check -- which is exactly the state every fail-closed guard
             // (/wipe included) exists to detect. This is what a real user hit.
             if (!psStdout) {
-              this.isRunning = false;
+              if (this._scanGeneration === scanGeneration) this.isRunning = false;
               resolve({ running: false, matched: [] });
               return;
             }
@@ -1039,7 +1076,7 @@ export class ServerManager {
               return;
             }
 
-            this.isRunning = matched.length > 0;
+            if (this._scanGeneration === scanGeneration) this.isRunning = matched.length > 0;
             resolve({ running: matched.length > 0, matched });
           },
         );
@@ -1129,7 +1166,7 @@ export class ServerManager {
                 resolve({ running: false, matched: [], scanFailed: true });
                 return;
               }
-              this.isRunning = matched.length > 0;
+              if (this._scanGeneration === scanGeneration) this.isRunning = matched.length > 0;
               resolve({ running: matched.length > 0, matched });
               return;
             }
@@ -1181,7 +1218,7 @@ export class ServerManager {
                 resolve({ running: false, matched: [], scanFailed: true });
                 return;
               }
-              this.isRunning = matched.length > 0;
+              if (this._scanGeneration === scanGeneration) this.isRunning = matched.length > 0;
               resolve({ running: matched.length > 0, matched });
             });
           },
@@ -2171,8 +2208,20 @@ export class ServerManager {
     const processDetails = Promise.resolve()
       .then(() => this.getServerProcessDetails())
       .catch(() => null);
+    // timeout-handling-consistency-sweep, 2026-09-10: this raced
+    // getServerProcessDetails() (whose own worst case is
+    // _scanDedicatedServerProcesses's outer guard, now 18000ms -- see that
+    // function's comment) at a mere 3000ms -- the second, stacked layer of
+    // the same "outer shorter than inner" shape. On the rare slow-host path
+    // this returned false (no confirmation) before the real scan finished,
+    // and that now-orphaned scan's callback could still land afterward and
+    // mutate this.isRunning behind this function's own already-returned
+    // answer. Matched to the scan's own ceiling with margin; the common
+    // case (a healthy host, scan resolves in well under a second) is
+    // unaffected -- this only changes how long a genuinely pathological
+    // scan is allowed to actually finish before being given up on.
     const timeout = new Promise((resolve) => {
-      timeoutId = setTimeout(() => resolve(null), 3000);
+      timeoutId = setTimeout(() => resolve(null), 19000);
     });
 
     try {
@@ -2230,8 +2279,8 @@ export class ServerManager {
     try {
       // Helper to send message with timeout (don't let RCON failures block restart)
       const sendWarning = async (msg) => {
+        let timeoutId;
         try {
-          let timeoutId;
           const timeoutPromise = new Promise((_, reject) => {
             timeoutId = setTimeout(
               () => reject(new Error("RCON timeout")),
@@ -2239,9 +2288,15 @@ export class ServerManager {
             );
           });
           await Promise.race([rconService.serverMessage(msg), timeoutPromise]);
-          clearTimeout(timeoutId);
         } catch (e) {
           log.warn(`Failed to send restart warning: ${e.message}`);
+        } finally {
+          // timeout-handling-consistency-sweep, 2026-09-10: was only cleared
+          // on the success path -- a reject (RCON failure OR this same
+          // timer firing) skipped straight to the catch above and left the
+          // timer live, firing later into an already-settled race. Harmless
+          // (nothing listens to it by then) but real handle litter.
+          clearTimeout(timeoutId);
         }
       };
 
@@ -2259,8 +2314,8 @@ export class ServerManager {
       await this.sleep(5000);
 
       // Save the world (with timeout)
+      let saveTimeoutId;
       try {
-        let saveTimeoutId;
         const saveTimeout = new Promise((_, reject) => {
           saveTimeoutId = setTimeout(
             () => reject(new Error("Save timeout")),
@@ -2268,7 +2323,6 @@ export class ServerManager {
           );
         });
         const saveResult = await Promise.race([rconService.save(), saveTimeout]);
-        clearTimeout(saveTimeoutId);
         if (!saveResult?.success) {
           throw new Error(
             `Save before restart failed: ${saveResult?.error || "unknown error"}`,
@@ -2276,6 +2330,8 @@ export class ServerManager {
         }
       } catch (e) {
         throw new Error(`Save before restart failed: ${e.message}`);
+      } finally {
+        clearTimeout(saveTimeoutId);
       }
       await this.sleep(3000);
 
@@ -2303,8 +2359,8 @@ export class ServerManager {
       }
 
       // Quit the server (with timeout)
+      let quitTimeoutId;
       try {
-        let quitTimeoutId;
         const quitTimeout = new Promise((_, reject) => {
           quitTimeoutId = setTimeout(
             () => reject(new Error("Quit timeout")),
@@ -2312,9 +2368,10 @@ export class ServerManager {
           );
         });
         await Promise.race([rconService.quit(), quitTimeout]);
-        clearTimeout(quitTimeoutId);
       } catch (e) {
         log.warn(`RCON quit failed, will force stop: ${e.message}`);
+      } finally {
+        clearTimeout(quitTimeoutId);
       }
       await this.sleep(10000);
 

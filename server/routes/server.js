@@ -2540,7 +2540,18 @@ router.get("/branches", requirePermission("server.install"), async (req, res) =>
     ];
 
     const result = await new Promise((resolve, reject) => {
-      const branchSpawnOpts = { cwd: steamcmdPath, timeout: 60000 };
+      // timeout-handling-consistency-sweep, 2026-09-10: this used to also
+      // carry `timeout: 60000` -- spawn()'s own built-in timeout option --
+      // alongside the manual 30-second kill-timer below on the SAME child.
+      // The manual one always wins (30000 < 60000), so the spawn option
+      // could never actually govern anything; it was dead code that could
+      // mislead a future editor into thinking raising "the" timeout here
+      // (this one) would change behavior when only the 30-second timer
+      // below does. Deleted rather than reconciled to one value, since the
+      // manual timer already does everything needed (kills the process,
+      // rejects with a clear message) and duplicating that via spawn's own
+      // option would just be two mechanisms for the same thing again.
+      const branchSpawnOpts = { cwd: steamcmdPath };
       if (!isWindows) {
         branchSpawnOpts.env = buildLinuxSteamCmdEnv(steamcmdPath);
       }

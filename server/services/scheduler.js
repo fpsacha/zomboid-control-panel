@@ -1809,17 +1809,18 @@ export class Scheduler {
         }
 
         // Attempt connection with a 15s timeout to prevent hanging
+        let connectTimeoutId;
         try {
           log.info(
             `Auto-restart: RCON attempting connection ${i + 1}/${rconDelays.length}...`,
           );
           const connectPromise = rconService.connect();
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(
+          const timeoutPromise = new Promise((_, reject) => {
+            connectTimeoutId = setTimeout(
               () => reject(new Error("Connection attempt timed out after 15s")),
               15000,
-            ),
-          );
+            );
+          });
 
           const connectResult = await Promise.race([
             connectPromise,
@@ -1841,6 +1842,15 @@ export class Scheduler {
           if (rconService.forceResetConnectionState) {
             rconService.forceResetConnectionState();
           }
+        } finally {
+          // timeout-handling-consistency-sweep, 2026-09-10: this timer's id
+          // was never captured at all, so it could never be cleared even in
+          // principle -- every loop iteration where connect() settled
+          // faster than 15s left a dangling timer, and across the retry
+          // loop these could stack. Masked in practice by the explicit
+          // forceResetConnectionState() calls above/below (state gets
+          // reset regardless), but real handle litter, now closed.
+          clearTimeout(connectTimeoutId);
         }
         // Don't toggle serverStarting - keep it true to block auto-reconnect
       }
