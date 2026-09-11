@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**v1.3.2 candidate:**
+
+- **SteamCMD setup and updates now recover when SteamCMD is missing on Windows as well as Linux**, report the self-heal progress in the visible installation log, reject concurrent downloads safely, and avoid false Linux 503 responses caused by an unavailable Windows-only process probe.
+- **Discord configuration changes are serialized against the running bot**, preventing overlapping config, webhook-event, or command-permission saves from racing with reconnects.
+- **Translation fallback parameters now resolve correctly**, and 31 previously unmirrored fallback keys are present across all nine supported locales.
+- **Support bundles now collect deeper and broader logs**, including nested PZ/install logs, SteamCMD logs, alternate server paths, additional log extensions, and per-root scan counts.
+- **Support bundles now include sandbox-option diagnostics**, with PZ and PanelBridge versions, exception excerpts, triggering command counts, configured mods, and installed mod metadata for Build 42 compatibility investigations.
+
+### Fixed
+
+**SteamCMD / installer**
+
+- Windows now self-heals a missing SteamCMD installation instead of failing immediately, matching the Linux path.
+- Concurrent SteamCMD downloads are rejected before they can overwrite one another.
+- The setup UI now shows SteamCMD self-heal progress when installation begins from a later setup step.
+- Linux no longer reports a false 503 when a Windows-only process-state probe is unavailable.
+
+**Discord**
+
+- Configuration, webhook-event, and command-permission updates now serialize against the Discord bot singleton, preventing stale overlapping writes and reconnect races.
+
+**Localization**
+
+- Registered fallback keys with interpolation parameters now receive their values correctly instead of rendering unresolved placeholders.
+- Missing fallback keys are mirrored across every supported locale and guarded by tests.
+
+**Diagnostics**
+
+- Support bundles now retain enough PZ, SteamCMD, and PanelBridge context to investigate sandbox-option exceptions and identify candidate mods without guessing.
+
 ## [1.3.1] - 2026-09-10
 
 **TL;DR:**
