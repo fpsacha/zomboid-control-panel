@@ -15,11 +15,35 @@ import {
 import {
   compareDefinitionSets,
   createConflictScanSnapshots,
+  extractWorkshopModId,
   filterOwnedClientModIds,
   getModDetailsFromWorkshop,
   groupIntoPairs,
   scoreWorkshopDependencyMatch,
 } from "../routes/mods.js";
+
+describe("extractWorkshopModId", () => {
+  it("rejects a spaced description value instead of truncating it to the first word", () => {
+    expect(
+      extractWorkshopModId(
+        "Workshop ID: 3785483068\\nMod ID: Kentucky Cellar",
+        "Kentucky Cellar",
+      ),
+    ).toBeNull();
+  });
+
+  it("accepts a clean Mod ID from the description", () => {
+    expect(extractWorkshopModId("Mod ID: KentuckyCellar", "Kentucky Cellar")).toBe(
+      "KentuckyCellar",
+    );
+  });
+
+  it("accepts a clean title as the final fallback", () => {
+    expect(extractWorkshopModId("No mod ID listed", "KentuckyCellar")).toBe(
+      "KentuckyCellar",
+    );
+  });
+});
 import {
   ModChecker,
   getWorkshopAcfCandidates,

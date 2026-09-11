@@ -1641,35 +1641,49 @@ export class ModChecker extends EventEmitter {
           );
         }
 
+        const restartEligibleUpdates =
+          iniWorkshopIds === null
+            ? newUpdates
+            : newUpdates.filter((mod) =>
+                iniWorkshopIds.has(String(mod.workshopId)),
+              );
+        if (newUpdates.length > 0 && restartEligibleUpdates.length === 0) {
+          log.info(
+            "All pending mod updates belong to deactivated mods — skipping auto-restart",
+          );
+        }
+
         // Check startup grace period — don't trigger auto-restart too soon after startup
         const inGracePeriod =
           this.startedAt &&
           performance.now() - this.startedAt < this.startupGraceMs;
-        if (inGracePeriod && newUpdates.length > 0) {
+        if (inGracePeriod && restartEligibleUpdates.length > 0) {
           const remaining = Math.round(
             (this.startupGraceMs - (performance.now() - this.startedAt)) / 1000,
           );
           log.info(
-            `Startup grace period active (${remaining}s remaining) — skipping auto-restart for ${newUpdates.length} update(s)`,
+            `Startup grace period active (${remaining}s remaining) — skipping auto-restart for ${restartEligibleUpdates.length} update(s)`,
           );
-          newUpdates.length = 0; // Clear — don't trigger callback during grace
+          restartEligibleUpdates.length = 0;
         }
 
         // Only trigger callback if NOT already pending a restart AND there are genuinely new updates
         if (
           this.onUpdateCallback &&
           !this.pendingRestart &&
-          newUpdates.length > 0
+          restartEligibleUpdates.length > 0
         ) {
           try {
             log.info(
-              `Triggering auto-restart callback for ${newUpdates.length} new update(s)`,
+              `Triggering auto-restart callback for ${restartEligibleUpdates.length} new update(s)`,
             );
-            const callbackResult = await this.onUpdateCallback(newUpdates);
+            const callbackResult = await this.onUpdateCallback(
+              restartEligibleUpdates,
+            );
             // Mark updates only when work actually happened or no restart is needed.
             // Transient aborts, such as a running server with disconnected RCON, retry.
             if (this.pendingRestart || callbackResult?.markProcessed === true) {
-              for (const m of newUpdates) {
+              for (const m of restartEligibleUpdates) {
                 const steamTs = m.latestTimestamp?.getTime?.() || 0;
                 if (steamTs) {
                   this.processedUpdates.set(m.workshopId, steamTs);

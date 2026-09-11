@@ -12,6 +12,7 @@ const {
   buildBundleDiagnostics,
   buildSystemInfo,
   buildServerConfigSummary,
+  buildSandboxOptionsDiagnostics,
   buildOidcStatus,
   buildRolesAndPermissions,
   checkCurlAvailable,
@@ -21,12 +22,49 @@ const {
   buildDiscordBotStatus,
   buildDockerContainerLogsText,
   buildManagedServiceLogsText,
+  collectBundleFilesFromDir,
 } = await import("../routes/debug.js");
 const { setDockerClient } = await import("../services/managedContainer.js");
 
 function fakeReq(services = {}, headers = {}) {
   return { app: { get: (key) => services[key] }, headers };
 }
+
+describe("support bundle: recursive log discovery", () => {
+  let root;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-log-tree-"));
+    fs.mkdirSync(path.join(root, "nested", "runtime"), { recursive: true });
+    fs.mkdirSync(path.join(root, "Saves", "Multiplayer"), { recursive: true });
+    fs.writeFileSync(path.join(root, "root.txt"), "root");
+    fs.writeFileSync(path.join(root, "nested", "runtime", "server.err"), "err");
+    fs.writeFileSync(path.join(root, "Saves", "Multiplayer", "ignored.log"), "save");
+  });
+
+  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it("finds nested log extensions while skipping game data directories", async () => {
+    const entries = [];
+    const result = await collectBundleFilesFromDir(
+      root,
+      (name) => /\.(log|txt|err)$/i.test(name),
+      "server-logs",
+      entries,
+      new Set(),
+      { maxDepth: 3, skipDirectories: ["saves"] },
+    );
+
+    expect(result.addedFiles).toBe(2);
+    expect(entries.map((entry) => entry.archivePath)).toEqual(
+      expect.arrayContaining([
+        "server-logs/root.txt",
+        "server-logs/nested/runtime/server.err",
+      ]),
+    );
+    expect(entries.some((entry) => entry.archivePath.includes("ignored.log"))).toBe(false);
+  });
+});
 
 describe("support bundle: curl availability (World Map's runtime dependency)", () => {
   afterEach(() => mockExecFile.mockReset());
@@ -290,6 +328,86 @@ describe("support bundle: server config summary flags a Mods/WorkshopItems lengt
       serverName: "servertest",
     });
     expect(result.ini.modsWorkshopCountMismatch).toBe(false);
+  });
+});
+
+describe("support bundle: sandbox-options diagnostics identify the failure and candidate mods", () => {
+  let dataDir;
+  let configDir;
+  let installDir;
+
+  beforeEach(() => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-sandbox-data-"));
+    configDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-sandbox-config-"));
+    installDir = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-sandbox-install-"));
+    const modRoot = path.join(
+      installDir,
+      "steamapps",
+      "workshop",
+      "content",
+      "108600",
+      "123",
+      "mods",
+      "ExampleMod",
+      "42",
+    );
+    fs.mkdirSync(path.join(modRoot, "media"), { recursive: true });
+    fs.writeFileSync(
+      path.join(configDir, "servertest.ini"),
+      "Mods=ExampleMod\nWorkshopItems=123\n",
+    );
+    fs.writeFileSync(
+      path.join(dataDir, "server-console.txt"),
+      [
+        "version=42.20.4 b0bbce05d5 demo=false",
+        "[PanelBridge] Initializing v1.7.57",
+        "POST /command: action=getAllSandboxOptions args={}",
+        "java.lang.ArrayIndexOutOfBoundsException at SandboxOptions$EnumSandboxOption.getValueTranslationByIndexOrNull(SandboxOptions.java:1270).",
+        "Lua(Vanilla).getAllSandboxOptions(PanelBridge.lua:4864)",
+      ].join("\n"),
+    );
+    fs.writeFileSync(
+      path.join(modRoot, "mod.info"),
+      "name=Example Mod\nid=ExampleMod\nmodversion=2.4.1\npzversion=42.20\n",
+    );
+    fs.writeFileSync(
+      path.join(modRoot, "media", "sandbox-options.txt"),
+      "option=ExampleMod.SomeOption\n",
+    );
+  });
+
+  afterEach(() => {
+    for (const directory of [dataDir, configDir, installDir]) {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("captures the PZ exception, versions, and installed mod metadata", async () => {
+    const result = await buildSandboxOptionsDiagnostics({
+      name: "servertest",
+      serverName: "servertest",
+      serverConfigPath: configDir,
+      zomboidDataPath: dataDir,
+      installPath: installDir,
+    });
+
+    expect(result.detected).toBe(true);
+    expect(result.pzVersion).toBe("42.20.4");
+    expect(result.panelBridgeVersion).toBe("1.7.57");
+    expect(result.error.javaMethod).toContain("getValueTranslationByIndexOrNull");
+    expect(result.error.optionName).toBeNull();
+    expect(result.candidateMods).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Example Mod",
+          modversion: "2.4.1",
+          workshopId: "123",
+          sandboxOptionFiles: expect.arrayContaining([
+            expect.stringContaining("sandbox-options.txt"),
+          ]),
+        }),
+      ]),
+    );
   });
 });
 

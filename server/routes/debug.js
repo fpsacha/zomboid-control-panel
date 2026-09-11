@@ -234,9 +234,9 @@ async function getAvailableLogFiles(logsDir) {
   return files;
 }
 
-const SUPPORT_LOG_FILE_RE = /\.(log|txt)$/i;
+const SUPPORT_LOG_FILE_RE = /\.(log|txt|out|err|trace)$/i;
 const CRASH_FILE_RE =
-  /^(hs_err_pid.*|.*(?:crash|error|exception).*)\.(log|txt)$/i;
+  /^(hs_err_pid.*|.*(?:crash|error|exception).*)\.(log|txt|out|err|trace)$/i;
 
 async function resolveSearchRoot(candidate) {
   if (!candidate) return null;
@@ -257,31 +257,53 @@ async function collectBundleFilesFromDir(
   archivePrefix,
   entries,
   seenFiles,
+  {
+    maxDepth = 0,
+    skipDirectories = [],
+    maxFiles = 500,
+  } = {},
 ) {
-  if (!dir) return;
+  if (!dir) return { addedFiles: 0, visitedDirectories: 0 };
 
-  try {
-    await fs.promises.access(dir);
-  } catch {
-    return;
-  }
+  const skipped = new Set(skipDirectories.map((name) => name.toLowerCase()));
+  let addedFiles = 0;
+  let visitedDirectories = 0;
 
-  const dirEntries = await fs.promises.readdir(dir, { withFileTypes: true });
+  const visit = async (currentDir, relativeParts, depth) => {
+    if (addedFiles >= maxFiles) return;
+    let dirEntries;
+    try {
+      dirEntries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    visitedDirectories += 1;
 
-  for (const entry of dirEntries) {
-    if (!entry.isFile()) continue;
-    if (!matcher(entry.name)) continue;
+    for (const entry of dirEntries) {
+      if (addedFiles >= maxFiles) break;
+      const filePath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (depth < maxDepth && !skipped.has(entry.name.toLowerCase())) {
+          await visit(filePath, [...relativeParts, entry.name], depth + 1);
+        }
+        continue;
+      }
+      if (!entry.isFile() || !matcher(entry.name)) continue;
 
-    const filePath = path.join(dir, entry.name);
-    const dedupeKey = path.resolve(filePath).toLowerCase();
-    if (seenFiles.has(dedupeKey)) continue;
+      const dedupeKey = path.resolve(filePath).toLowerCase();
+      if (seenFiles.has(dedupeKey)) continue;
 
-    seenFiles.add(dedupeKey);
-    entries.push({
-      filePath,
-      archivePath: `${archivePrefix}/${entry.name}`,
-    });
-  }
+      seenFiles.add(dedupeKey);
+      entries.push({
+        filePath,
+        archivePath: `${archivePrefix}/${[...relativeParts, entry.name].join("/")}`,
+      });
+      addedFiles += 1;
+    }
+  };
+
+  await visit(path.resolve(dir), [], 0);
+  return { addedFiles, visitedDirectories };
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -685,6 +707,205 @@ const SUPPORT_INI_KEYS = [
   "HideDisguisedUserName",
   "AntiCheatProtectionType",
 ];
+
+const SANDBOX_DIAGNOSTIC_MAX_LOG_BYTES = 512 * 1024;
+const SANDBOX_DIAGNOSTIC_MAX_EXCERPTS = 8;
+const SANDBOX_DIAGNOSTIC_MAX_MODS = 500;
+
+async function readTailText(filePath, maxBytes = SANDBOX_DIAGNOSTIC_MAX_LOG_BYTES) {
+  let handle = null;
+  try {
+    const stats = await fs.promises.stat(filePath);
+    if (!stats.isFile()) return null;
+    const length = Math.min(stats.size, maxBytes);
+    handle = await fs.promises.open(filePath, "r");
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, stats.size - length);
+    return buffer.subarray(0, bytesRead).toString("utf8");
+  } catch {
+    return null;
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+  }
+}
+
+function parseModInfoMetadata(content, infoPath, fallbackName) {
+  const fields = {};
+  const ids = [];
+  for (const raw of String(content || "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    const separator = line.indexOf("=");
+    if (separator <= 0) continue;
+    const key = line.slice(0, separator).trim().toLowerCase();
+    const value = line.slice(separator + 1).trim();
+    if (key === "id" && value) ids.push(value);
+    if (["name", "modversion", "pzversion", "require"].includes(key)) fields[key] = value;
+  }
+  if (ids.length === 0 && fallbackName) ids.push(fallbackName);
+  return {
+    path: infoPath,
+    ids,
+    name: fields.name || null,
+    modversion: fields.modversion || null,
+    pzversion: fields.pzversion || null,
+    require: fields.require || null,
+  };
+}
+
+async function inspectModDirectory(modDir, fallbackName, source, workshopId, configuredMods) {
+  const roots = [modDir];
+  for (const child of (await safeReaddir(modDir)) || []) {
+    const childPath = path.join(modDir, child);
+    const stats = await safeStat(childPath);
+    if (stats?.isDirectory()) roots.push(childPath);
+  }
+
+  const records = [];
+  for (const root of roots) {
+    const infoPath = path.join(root, "mod.info");
+    const infoStats = await safeStat(infoPath);
+    if (!infoStats?.isFile()) continue;
+    let metadata;
+    try {
+      metadata = parseModInfoMetadata(
+        await fs.promises.readFile(infoPath, "utf8"),
+        infoPath,
+        fallbackName,
+      );
+    } catch {
+      continue;
+    }
+
+    const sandboxOptionFiles = [];
+    const mediaPath = path.join(root, "media");
+    for (const name of (await safeReaddir(mediaPath)) || []) {
+      if (!/sandbox/i.test(name)) continue;
+      const candidate = path.join(mediaPath, name);
+      const stats = await safeStat(candidate);
+      if (stats?.isFile()) sandboxOptionFiles.push(candidate);
+    }
+
+    records.push({
+      source,
+      workshopId: workshopId || null,
+      folder: fallbackName,
+      configuredIds: metadata.ids.filter((id) => configuredMods.has(id)),
+      ...metadata,
+      sandboxOptionFiles,
+    });
+  }
+  return records;
+}
+
+async function collectSandboxModMetadata(activeServer, ini) {
+  const configuredMods = new Set(ini?.Mods || []);
+  const records = [];
+  const inspectRoot = async (root, source, workshopId = null) => {
+    for (const name of (await safeReaddir(root)) || []) {
+      if (records.length >= SANDBOX_DIAGNOSTIC_MAX_MODS) break;
+      const modDir = path.join(root, name);
+      const stats = await safeStat(modDir);
+      if (!stats?.isDirectory()) continue;
+      records.push(...await inspectModDirectory(
+        modDir,
+        name,
+        source,
+        workshopId,
+        configuredMods,
+      ));
+    }
+  };
+
+  if (activeServer?.installPath) {
+    const workshopBase = path.join(
+      activeServer.installPath,
+      "steamapps",
+      "workshop",
+      "content",
+      "108600",
+    );
+    for (const workshopId of ini?.WorkshopItems || []) {
+      if (!/^\d+$/.test(workshopId)) continue;
+      await inspectRoot(
+        path.join(workshopBase, workshopId, "mods"),
+        "workshop",
+        workshopId,
+      );
+      if (records.length >= SANDBOX_DIAGNOSTIC_MAX_MODS) break;
+    }
+  }
+
+  if (activeServer?.zomboidDataPath && records.length < SANDBOX_DIAGNOSTIC_MAX_MODS) {
+    for (const directoryName of ["mods", "Mods"]) {
+      await inspectRoot(
+        path.join(activeServer.zomboidDataPath, directoryName),
+        "local",
+      );
+      if (records.length >= SANDBOX_DIAGNOSTIC_MAX_MODS) break;
+    }
+  }
+  return records.slice(0, SANDBOX_DIAGNOSTIC_MAX_MODS);
+}
+
+async function buildSandboxOptionsDiagnostics(activeServer, knownSecrets = []) {
+  if (!activeServer?.zomboidDataPath || !activeServer?.serverConfigPath) {
+    return { available: false, reason: "Active server paths are not configured" };
+  }
+
+  const serverName = activeServer.serverName || activeServer.name || null;
+  const ini = serverName
+    ? await parseServerIni(path.join(activeServer.serverConfigPath, `${serverName}.ini`))
+    : null;
+  const logPath = path.join(activeServer.zomboidDataPath, "server-console.txt");
+  const logText = await readTailText(logPath);
+  const lines = logText ? logText.split(/\r?\n/) : [];
+  const signature = /ArrayIndexOutOfBoundsException|SandboxOptions\$EnumSandboxOption\.getValueTranslationByIndexOrNull/;
+  const exceptionCount = lines.filter((line) => /ArrayIndexOutOfBoundsException/.test(line)).length;
+  const actionCount = lines.filter((line) => /getAllSandboxOptions/.test(line)).length;
+  const excerpts = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!signature.test(lines[index])) continue;
+    const excerpt = lines.slice(Math.max(0, index - 4), index + 8).join("\n");
+    const redacted = redactRawLogText(excerpt, knownSecrets);
+    if (!excerpts.some((entry) => entry.excerpt === redacted)) {
+      excerpts.push({ path: logPath, excerpt: redacted });
+    }
+    if (excerpts.length >= SANDBOX_DIAGNOSTIC_MAX_EXCERPTS) break;
+  }
+
+  const installedMods = await collectSandboxModMetadata(activeServer, ini);
+  const pzVersion = logText?.match(/\bversion=([^\s]+)\s+b[0-9a-f]+/i)?.[1] || null;
+  const bridgeVersion = logText?.match(/\[PanelBridge\]\s+Initializing v([^\s]+)/i)?.[1] || null;
+  const detected = exceptionCount > 0;
+  return {
+    available: true,
+    serverName,
+    pzVersion,
+    panelBridgeVersion: bridgeVersion,
+    configuredMods: ini?.Mods || [],
+    workshopItems: ini?.WorkshopItems || [],
+    detected,
+    error: detected
+      ? {
+          type: "sandbox-enum-index",
+          exception: "java.lang.ArrayIndexOutOfBoundsException",
+          javaMethod: "SandboxOptions$EnumSandboxOption.getValueTranslationByIndexOrNull",
+          action: "getAllSandboxOptions",
+          exceptionCount,
+          actionCount,
+          excerpts,
+          optionName: null,
+          note: "The PZ stack does not include the option name. Candidate mods are listed below from installed mod.info and sandbox-option metadata.",
+        }
+      : { exceptionCount: 0, actionCount },
+    candidateMods: installedMods.filter(
+      (mod) => mod.configuredIds.length > 0 || mod.sandboxOptionFiles.length > 0,
+    ),
+    installedMods,
+    logFiles: logText ? [logPath] : [],
+  };
+}
 
 async function buildServerConfigSummary(activeServer) {
   const configDir = activeServer?.serverConfigPath;
@@ -1342,13 +1563,14 @@ function buildBundleReadme() {
     "11. `network-interfaces.json` — local IPs (no MACs).",
     "12. `process.json` — process flags, versions, active handle counts.",
     "13. `server-config-summary.json` — sanitized effective server settings, mod/map lists, sandbox integrity, and whether the Mods/WorkshopItems lists are the same length (a mismatch is a cheap signal of an unresolved mod).",
-    "14. `pz-build-info.json` — installed Project Zomboid branch and Steam build ID.",
-    "15. `oidc-status.json` — whether SSO is configured, issuer/client/redirect/scope, which fields are pinned by an env var, and whether a client secret is set (never its value). No live IdP check — see the file's own notes.",
-    "16. `roles-and-permissions.json` — every role, what it grants, how many/which local users hold it. Start here for \"why can't this person see X\".",
-    "17. `world-map-diagnostics.json` — whether `curl` is present on this host (a missing one is the most likely new World Map support ticket this release) and the resolved B42 tile-build source/directory/reason.",
-    "18. `db-write-health.json` — db.json's write circuit-breaker state and retry count. Does NOT cover config-file (INI/Lua) writes — see the file's own notes for why.",
-    "19. `backups-summary.json` — the last 20 backup runs. Only successful runs are recorded; a failed scheduled backup shows up in `admin-panel/error.log` instead, not here.",
-    "20. `discord-bot-status.json` — connected or not, which guild/channel/mod-role it's wired to, and the last start failure if any (token presence only, never the value).",
+    "14. `sandbox-options-diagnostics.json` — PZ/PanelBridge versions, sandbox-option exception signatures and excerpts, triggering action counts, configured mods, and installed mod.info/sandbox-option metadata.",
+    "15. `pz-build-info.json` — installed Project Zomboid branch and Steam build ID.",
+    "16. `oidc-status.json` — whether SSO is configured, issuer/client/redirect/scope, which fields are pinned by an env var, and whether a client secret is set (never its value). No live IdP check — see the file's own notes.",
+    "17. `roles-and-permissions.json` — every role, what it grants, how many/which local users hold it. Start here for \"why can't this person see X\".",
+    "18. `world-map-diagnostics.json` — whether `curl` is present on this host (a missing one is the most likely new World Map support ticket this release) and the resolved B42 tile-build source/directory/reason.",
+    "19. `db-write-health.json` — db.json's write circuit-breaker state and retry count. Does NOT cover config-file (INI/Lua) writes — see the file's own notes for why.",
+    "20. `backups-summary.json` — the last 20 backup runs. Only successful runs are recorded; a failed scheduled backup shows up in `admin-panel/error.log` instead, not here.",
+    "21. `discord-bot-status.json` — connected or not, which guild/channel/mod-role it's wired to, and the last start failure if any (token presence only, never the value).",
     "",
     "## Then the raw logs",
     "",
@@ -1409,6 +1631,9 @@ async function buildBundleDiagnostics(activeServer, req, knownSecrets) {
     wrap("process.json", () => buildProcessSnapshot()),
     wrap("network-interfaces.json", () => buildNetworkInterfaces()),
     wrap("server-config-summary.json", () => buildServerConfigSummary(activeServer)),
+    wrap("sandbox-options-diagnostics.json", () =>
+      buildSandboxOptionsDiagnostics(activeServer, knownSecrets),
+    ),
     wrap("pz-build-info.json", () => buildPzBuildInfo(activeServer)),
     wrap("oidc-status.json", () => buildOidcStatus()),
     wrap("roles-and-permissions.json", () => buildRolesAndPermissions()),
@@ -1458,85 +1683,145 @@ async function buildBundleDiagnostics(activeServer, req, knownSecrets) {
 async function getSupportBundleEntries() {
   const paths = getDataPaths();
   const activeServer = await getActiveServer().catch(() => null);
+  const settings = await getAllSettings().catch(() => ({}));
 
   const installRoot = await resolveSearchRoot(activeServer?.installPath || "");
+  const serverPathRoot = await resolveSearchRoot(activeServer?.serverPath || "");
+  const steamcmdRoot = await resolveSearchRoot(settings?.steamcmdPath || "");
   const zomboidDataRoot = await resolveSearchRoot(
     activeServer?.zomboidDataPath || "",
   );
 
   const entries = [];
   const seenFiles = new Set();
+  const collectionReports = [];
+  const scan = async (root, matcher, archivePrefix, options = {}) => {
+    const result = await collectBundleFilesFromDir(
+      root,
+      matcher,
+      archivePrefix,
+      entries,
+      seenFiles,
+      options,
+    );
+    collectionReports.push({
+      root,
+      archivePrefix,
+      ...result,
+      maxDepth: options.maxDepth ?? 0,
+      maxFiles: options.maxFiles ?? 500,
+    });
+  };
 
-  await collectBundleFilesFromDir(
+  await scan(
     paths.logsDir,
     (name) => SUPPORT_LOG_FILE_RE.test(name) && !name.startsWith("."),
     "admin-panel",
-    entries,
-    seenFiles,
+    { maxDepth: 2, maxFiles: 200 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     zomboidDataRoot,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-server/root",
-    entries,
-    seenFiles,
+    {
+      maxDepth: 1,
+      maxFiles: 500,
+      skipDirectories: [
+        "backups",
+        "lua",
+        "map",
+        "maps",
+        "mods",
+        "saves",
+        "workshop",
+      ],
+    },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     zomboidDataRoot ? path.join(zomboidDataRoot, "Logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-server/Logs",
-    entries,
-    seenFiles,
+    { maxDepth: 3, maxFiles: 1000 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     installRoot ? path.join(installRoot, "logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-install/logs",
-    entries,
-    seenFiles,
+    { maxDepth: 3, maxFiles: 1000 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
+    installRoot ? path.join(installRoot, "steamapps", "logs") : null,
+    (name) => SUPPORT_LOG_FILE_RE.test(name),
+    "zomboid-install/steamapps-logs",
+    { maxDepth: 3, maxFiles: 1000 },
+  );
+
+  await scan(
+    steamcmdRoot ? path.join(steamcmdRoot, "logs") : null,
+    (name) => SUPPORT_LOG_FILE_RE.test(name),
+    "steamcmd/logs",
+    { maxDepth: 3, maxFiles: 1000 },
+  );
+
+  const alternateServerRoots = [serverPathRoot].filter(
+    (root) => root && root.toLowerCase() !== installRoot?.toLowerCase(),
+  );
+  for (const root of alternateServerRoots) {
+    await scan(
+      root,
+      (name) => SUPPORT_LOG_FILE_RE.test(name),
+      "zomboid-server/alternate-root",
+      { maxDepth: 1, maxFiles: 500 },
+    );
+    await scan(
+      path.join(root, "logs"),
+      (name) => SUPPORT_LOG_FILE_RE.test(name),
+      "zomboid-server/alternate-logs",
+      { maxDepth: 3, maxFiles: 1000 },
+    );
+  }
+
+  await scan(
     installRoot,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/install-root",
-    entries,
-    seenFiles,
+    { maxDepth: 2, maxFiles: 100 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     installRoot ? path.join(installRoot, "logs") : null,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/install-logs",
-    entries,
-    seenFiles,
+    { maxDepth: 3, maxFiles: 200 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     zomboidDataRoot,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/server-root",
-    entries,
-    seenFiles,
+    { maxDepth: 2, maxFiles: 200 },
   );
 
-  await collectBundleFilesFromDir(
+  await scan(
     zomboidDataRoot ? path.join(zomboidDataRoot, "Logs") : null,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/server-logs",
-    entries,
-    seenFiles,
+    { maxDepth: 3, maxFiles: 200 },
   );
 
   return {
     entries,
     activeServer,
+    collectionReports,
     sources: {
       panelLogsDir: paths.logsDir,
       installRoot,
+      serverPathRoot,
+      steamcmdRoot,
       zomboidDataRoot,
     },
   };
@@ -1596,7 +1881,8 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
   try {
     log.info("GET /logs/download-zip");
 
-    const { entries, activeServer, sources } = await getSupportBundleEntries();
+    const { entries, activeServer, sources, collectionReports } =
+      await getSupportBundleEntries();
     if (entries.length === 0) {
       return res.status(404).json({ error: "No support logs found" });
     }
@@ -1640,6 +1926,7 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
       `Zomboid Data Dir: ${sources.zomboidDataRoot || "n/a"}`,
       `Install Dir: ${sources.installRoot || "n/a"}`,
       `Included Files: ${entries.length}`,
+      `Scanned Roots: ${collectionReports.filter((report) => report.root).length}`,
       "",
       "WARNING: This bundle contains real logs. Known credential shapes",
       "(RCON/join/SFTP passwords, the Discord bot token, the Steam Web API",
@@ -1651,8 +1938,17 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
       "- admin-panel: panel combined/error logs",
       "- zomboid-server: server-console and runtime logs",
       "- zomboid-install: install-side connection/workshop/system logs",
+      "- steamcmd: SteamCMD download/update logs when the configured path is available",
       "- crash-logs: matching crash/error dump files",
       "- docker-container-logs.txt / managed-service-logs.txt: container/service stdout+stderr for a Docker- or systemd-managed server (see README.md)",
+      "",
+      "Log scan results:",
+      ...collectionReports
+        .filter((report) => report.root)
+        .map(
+          (report) =>
+            `- ${report.archivePrefix}: ${report.addedFiles} file(s), ${report.visitedDirectories} directorie(s) visited, depth ${report.maxDepth}`,
+        ),
     ].join("\n");
 
     archive.append(manifest, { name: "support-bundle-info.txt" });
@@ -6573,6 +6869,7 @@ export {
   buildBundleDiagnostics,
   buildSystemInfo,
   buildServerConfigSummary,
+  buildSandboxOptionsDiagnostics,
   buildOidcStatus,
   buildRolesAndPermissions,
   checkCurlAvailable,
@@ -6590,6 +6887,7 @@ export {
   redactRawLogText,
   collectBundleKnownSecrets,
   createRedactingLogStream,
+  collectBundleFilesFromDir,
 };
 // Exported for direct unit testing of the GET /diagnostics thumbnail-
 // resolution check -- see server/tests/thumbnailResolutionCheck.test.js.

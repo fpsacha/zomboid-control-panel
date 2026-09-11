@@ -155,6 +155,26 @@ describe("modChecker.js does not treat every mod in a (possibly host-shared) Wor
       expect(result.mods.map((m) => m.workshopId)).toEqual([MOD_RELEVANT]);
     });
 
+    it("reports a deactivated tracked mod without triggering its auto-restart", async () => {
+      getTrackedMods.mockResolvedValue([
+        { workshop_id: MOD_RELEVANT, name: "Deactivated Mod" },
+      ]);
+      const checker = makeChecker({
+        acfMods: [MOD_RELEVANT],
+        steamUpdates: [MOD_RELEVANT],
+      });
+      checker.serverManager = {
+        getServerConfig: async () => ({ WorkshopItems: MOD_PHANTOM }),
+      };
+      const callback = vi.fn(async () => ({ markProcessed: true }));
+      await checker.setUpdateCallback(callback);
+
+      const result = await checker.checkForUpdates();
+
+      expect(result.mods.map((m) => m.workshopId)).toEqual([MOD_RELEVANT]);
+      expect(callback).not.toHaveBeenCalled();
+    });
+
     it("still excludes a genuine phantom (neither in the ini nor tracked for this server) even when the ini IS readable and lists something else", async () => {
       getTrackedMods.mockResolvedValue([
         { workshop_id: MOD_RELEVANT, name: "Relevant Mod" },
