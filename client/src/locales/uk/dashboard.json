@@ -283,7 +283,13 @@
     "step3Desc": "Коли стан, гравці та чат оновлюються — живе керування готове.",
     "installNewServer": "Встановити новий сервер",
     "addExistingServer": "Додати наявний сервер",
-    "addRemoteServer": "Додати віддалений сервер"
+    "addRemoteServer": "Додати віддалений сервер",
+    "foundHeading": "We found an existing Project Zomboid server",
+    "foundDesc": "ready to add with its RCON settings already read from its own config.",
+    "reviewAndConnect": "Review & Connect",
+    "setUpDifferently": "Set up differently instead",
+    "needNewServerLabel": "I don't have a server yet",
+    "haveExistingServerLabel": "I already have server files"
   },
   "liveActivity": {
     "heading": "Активність у реальному часі",

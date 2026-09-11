@@ -19,7 +19,8 @@
     "recoveryTokenLocalReset": "Jeton rekiperasyon pou reyinisyalizasyon lokal",
     "newPasswordLocalReset": "Nouvo modpas pou reyinisyalizasyon lokal",
     "confirmNewPasswordLocalReset": "Konfime nouvo modpas pou reyinisyalizasyon lokal",
-    "buyMeCoffeeKofi": "Ofri m yon kafe sou Ko-fi"
+    "buyMeCoffeeKofi": "Ofri m yon kafe sou Ko-fi",
+    "sandboxRangeOverride": "Allow sandbox values outside known range"
   },
   "tabs": {
     "groups": {
@@ -89,7 +90,11 @@
     "restartGameServerPreserved": "Lansè yo detekte a izole redemaraj panèl yo. Sèvè Project Zomboid k ap kouri yo ap rete anliy.",
     "restartGameServerRisk": "Enstalasyon sa a pa itilize lansè Linux ki pwoteje a. Redemare panèl la ka sispann pwosesis sèvè Project Zomboid k ap kouri yo.",
     "restartGameServerUnknown": "Panèl la pa t kapab detèmine si sèvè Project Zomboid k ap kouri yo ap siviv redemaraj sa a.",
-    "confirmRestartRisk": "Mwen konprann sèvè jwèt k ap kouri yo ka sispann."
+    "confirmRestartRisk": "Mwen konprann sèvè jwèt k ap kouri yo ka sispann.",
+    "sandboxRangeOverrideTitle": "Sandbox Value Ranges",
+    "sandboxRangeOverrideDesc": "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+    "sandboxRangeOverrideLabel": "Allow values outside the known range",
+    "sandboxRangeOverrideHint": "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version."
   },
 
   "access": {
@@ -424,7 +429,15 @@
     "activeSuffix": "(Aktif)",
     "installButton": "Enstale Mod",
     "remoteInstallWarning": "Sèvè adistans: kopye PanelBridge.lua nan dosye Lua adistans lan ak SFTP oswa jesyonè fichye founisè a. Enstalasyon lokal otomatik pa disponib.",
-    "destinationLabel": "Destinasyon:"
+    "destinationLabel": "Destinasyon:",
+    "staleness": {
+      "protocolMismatchTitle": "Panel and bridge mod don't match",
+      "updateAvailableTitle": "Bridge mod update available",
+      "updateNowButton": "Update Now",
+      "protocolMismatchBody": "This panel expects bridge protocol '{{expected}}', but the mod on your server reports '{{actual}}'. They ship as a matched pair, so some features may not work correctly until they're back in sync.",
+      "remoteUpdateBody": "Your server is running bridge mod v{{liveVersion}}, older than the v{{bundledVersion}} this panel bundles. This panel can't update a remote/SFTP-managed server's files for you -- re-upload the updated PanelBridge.lua the same way you installed it.",
+      "localUpdateBody": "The installed bridge mod (v{{liveVersion}}) is older than what this panel bundles."
+    }
   },
 
   "mods": {

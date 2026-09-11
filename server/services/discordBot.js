@@ -169,6 +169,18 @@ const PLAYER_PRESENCE_INTERVAL_MS = 60_000;
 // shardDisconnect, which never clears on its own) reaches the operator.
 const GATEWAY_DEGRADED_THRESHOLD_MS = 30_000;
 
+// start()'s distinguishable return for "a DIFFERENT start() call is already
+// in flight, this call was a no-op" (its _starting guard, re-entrancy sweep
+// finding #1). Truthy like the plain `true` success return -- POST
+// /discord/start's existing `if (started)` still reads it as success with
+// no code change needed there, since the bot genuinely is (or is about to
+// be) running either way -- but PUT /config's credential-change branch can
+// tell it apart from a real reconnect it just performed itself, so it does
+// not claim credit for a reconnect this request never attempted.
+export const START_ALREADY_IN_PROGRESS = Symbol(
+  "discord-start-already-in-progress",
+);
+
 export class DiscordBot {
   constructor(rconService, serverManager, scheduler, logTailer = null) {
     this.client = null;
@@ -190,6 +202,18 @@ export class DiscordBot {
     // wearing the same "check configuration" message. Same pattern as
     // DockerClient.lastError.
     this.lastStartError = null;
+    // Serializes PUT /config, /webhook-events, and /permissions (all three
+    // read this singleton's current persisted config and write back a
+    // merge) against each other -- re-entrancy sweep finding #5, same
+    // promise-chain-mutex shape as AuthService._withMutex
+    // (services/auth.js) and permissions.js's withRoleMutex. Without this,
+    // two overlapping saves each read a not-yet-committed value and the
+    // second write clobbers a field the first one just changed; it also
+    // means PUT /config's own stop()+start() reconnect sequence runs to
+    // completion before a second concurrent /config save can begin its
+    // own, closing the specific compounding race with finding #1 (two
+    // overlapping start() calls) that motivated start()'s _starting guard.
+    this._configMutex = Promise.resolve();
     this.webhookEvents = {};
     this.commandPermissions = { ...DEFAULT_COMMAND_PERMISSIONS };
     this.chatRelayEnabled = true;
@@ -347,6 +371,17 @@ export class DiscordBot {
       `**<${cleanAuthor}>** ${cleanMessage}`,
       { label: "game chat relay" },
     );
+  }
+
+  // Run a critical section serialized against other config-mutex holders.
+  // Same shape as AuthService._withMutex (services/auth.js).
+  withConfigMutex(fn) {
+    const run = this._configMutex.then(fn, fn);
+    this._configMutex = run.then(
+      () => {},
+      () => {},
+    );
+    return run;
   }
 
   async loadConfig() {
@@ -1655,7 +1690,7 @@ export class DiscordBot {
     // isDownloading.
     if (this._starting) {
       log.warn("start() called while a previous start() call is still in flight — ignoring");
-      return true;
+      return START_ALREADY_IN_PROGRESS;
     }
     this._starting = true;
     try {

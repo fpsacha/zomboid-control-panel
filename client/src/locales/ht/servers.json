@@ -252,7 +252,10 @@
     "saveChanges": "Sove Chanjman",
     "noPermission": "Pou ou sove paramèt sèvè yo, ou bezwen pèmisyon servers.manage, e wòl sa a pa genyen li.",
     "customStartCommandPlaceholderWindows": "pa egzanp, StartServer64.bat -servername MyServer",
-    "customStartCommandPlaceholderPosix": "pa egzanp, ./start-server.sh -servername MyServer"
+    "customStartCommandPlaceholderPosix": "pa egzanp, ./start-server.sh -servername MyServer",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "Retire Sèvè nan Panèl la?",

@@ -599,11 +599,9 @@ export const ErrorCode = Object.freeze({
    * Docker-specific addendum stays English-only in the `error` fallback
    * text, a known partial-translation gap, not a bug. */
   WRITABLE_PATH_ERROR: "WRITABLE_PATH_ERROR",
-  /** server/routes/server.js (sites: /install, /steam-update) -- steamcmd
-   * executable missing on Windows (no auto-download there). */
-  STEAMCMD_NOT_FOUND_AT_PATH: "STEAMCMD_NOT_FOUND_AT_PATH",
-  /** server/routes/server.js (sites: /install, /steam-update) -- Linux
-   * auto-download of steamcmd (ensureSteamCmdLinux) itself failed. */
+  /** server/routes/server.js (sites: /install, /steam-update) --
+   * auto-download of steamcmd (ensureSteamCmdInstalled, either platform as
+   * of windows-steamcmd-selfheal, 2026-09-10) itself failed. */
   STEAMCMD_AUTO_DOWNLOAD_FAILED: "STEAMCMD_AUTO_DOWNLOAD_FAILED",
   /** server/routes/server.js -- POST /api/server/install, another Steam
    * operation already running for this install path. Own code from the
@@ -652,17 +650,24 @@ export const ErrorCode = Object.freeze({
    * PROGRESS_PATH above for why this stays a separate code. */
   STEAM_OPERATION_IN_PROGRESS_SERVER: "STEAM_OPERATION_IN_PROGRESS_SERVER",
   /** server/routes/server.js -- POST /api/server/steamcmd/download, a
-   * second call arrives while one is already downloading/extracting.
-   * Deliberately its own flag rather than reusing activeSteamOperations
-   * (path-keyed, used by /steam-update and /install for the SteamCMD
-   * *process* itself) -- this guards the earlier provisioning step, before
-   * any installPath necessarily has a steamcmdPath configured to key on,
-   * and shares nothing with those routes' state. Claimed synchronously
-   * before this route's first `await`, mirroring panelUpdateChecker.js's
+   * second call arrives while one is already downloading/extracting; also
+   * returned (as of windows-steamcmd-selfheal, 2026-09-10) by /install and
+   * /steam-update's own auto-heal (ensureSteamCmdInstalled) when a manual
+   * download is already claiming the same guard, mapped to a 409 there too
+   * instead of falling into STEAMCMD_AUTO_DOWNLOAD_FAILED's 500. Both entry
+   * points check/claim the SAME module-level steamcmdDownloadInProgress
+   * flag -- deliberately its own flag rather than reusing
+   * activeSteamOperations (path-keyed, used by /steam-update and /install
+   * for the SteamCMD *process* itself) -- this guards the earlier
+   * provisioning step, before any installPath necessarily has a
+   * steamcmdPath configured to key on. Claimed synchronously before the
+   * first `await` on either entry point, mirroring panelUpdateChecker.js's
    * isDownloading (see its own comment for the double-click corruption bug
-   * that ordering exists to prevent) -- without it, two overlapping calls
-   * both `fs.createWriteStream()` the same steamcmd.zip/tar.gz, and the
-   * second truncates the first mid-write. */
+   * that ordering exists to prevent) -- without it, two overlapping
+   * provisioning attempts both write the same steamcmd.zip/tar.gz, and the
+   * second truncates the first mid-write (this was, for a while, still
+   * true of a manual download racing an auto-heal specifically -- see
+   * ensureSteamCmdInstalled's own comment). */
   STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS: "STEAMCMD_DOWNLOAD_ALREADY_IN_PROGRESS",
   /** server/routes/server.js -- POST /api/server/steamcmd/download,
    * installPath fails isValidPath(). Own wording ("installation path") from

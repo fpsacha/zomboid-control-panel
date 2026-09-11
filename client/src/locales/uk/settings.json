@@ -25,7 +25,8 @@
     "recoveryTokenLocalReset": "Токен відновлення для локального скидання",
     "newPasswordLocalReset": "Новий пароль для локального скидання",
     "confirmNewPasswordLocalReset": "Підтвердьте новий пароль для локального скидання",
-    "buyMeCoffeeKofi": "Пригостити мене кавою на Ko-fi"
+    "buyMeCoffeeKofi": "Пригостити мене кавою на Ko-fi",
+    "sandboxRangeOverride": "Allow sandbox values outside known range"
   },
   "tabs": {
     "groups": {
@@ -149,7 +150,11 @@
     "appearanceTitle": "Вигляд",
     "appearanceDesc": "Тема та візуальний стиль панелі.",
     "themeLabel": "Тема",
-    "themeDesc": "Оберіть похмурий survival-стиль або чисту світлу тему."
+    "themeDesc": "Оберіть похмурий survival-стиль або чисту світлу тему.",
+    "sandboxRangeOverrideTitle": "Sandbox Value Ranges",
+    "sandboxRangeOverrideDesc": "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+    "sandboxRangeOverrideLabel": "Allow values outside the known range",
+    "sandboxRangeOverrideHint": "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version."
   },
   "access": {
     "cardTitle": "Віддалений доступ (CORS)",
@@ -482,7 +487,15 @@
     "activeSuffix": "(Активний)",
     "installButton": "Встановити мод",
     "remoteInstallWarning": "Віддалений сервер: скопіюйте PanelBridge.lua до віддаленої теки Lua через SFTP або файловий менеджер провайдера. Автоматичне локальне встановлення недоступне.",
-    "destinationLabel": "Призначення:"
+    "destinationLabel": "Призначення:",
+    "staleness": {
+      "protocolMismatchTitle": "Panel and bridge mod don't match",
+      "updateAvailableTitle": "Bridge mod update available",
+      "updateNowButton": "Update Now",
+      "protocolMismatchBody": "This panel expects bridge protocol '{{expected}}', but the mod on your server reports '{{actual}}'. They ship as a matched pair, so some features may not work correctly until they're back in sync.",
+      "remoteUpdateBody": "Your server is running bridge mod v{{liveVersion}}, older than the v{{bundledVersion}} this panel bundles. This panel can't update a remote/SFTP-managed server's files for you -- re-upload the updated PanelBridge.lua the same way you installed it.",
+      "localUpdateBody": "The installed bridge mod (v{{liveVersion}}) is older than what this panel bundles."
+    }
   },
   "mods": {
     "cardTitle": "Налаштування оновлення модів",

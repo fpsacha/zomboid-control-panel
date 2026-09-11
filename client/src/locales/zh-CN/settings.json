@@ -19,7 +19,8 @@
     "newPasswordLocalReset": "本地重置的新密码",
     "confirmNewPasswordLocalReset": "确认本地重置的新密码",
     "buyMeCoffeeKofi": "在 Ko-fi 请我喝杯咖啡",
-    "recoveryTokenLocalReset": "用于本地重置的恢复令牌"
+    "recoveryTokenLocalReset": "用于本地重置的恢复令牌",
+    "sandboxRangeOverride": "Allow sandbox values outside known range"
   },
   "tabs": {
     "groups": {
@@ -143,7 +144,11 @@
     "restartGameServerPreserved": "检测到的启动器会将面板重启与游戏隔离。正在运行的 Project Zomboid 服务器将保持在线。",
     "restartGameServerRisk": "此安装未使用受保护的 Linux 启动器。重启面板可能会停止正在运行的 Project Zomboid 服务器进程。",
     "restartGameServerUnknown": "面板无法确定正在运行的 Project Zomboid 服务器是否能在此次重启后存活。",
-    "confirmRestartRisk": "我了解正在运行的游戏服务器可能会被停止。"
+    "confirmRestartRisk": "我了解正在运行的游戏服务器可能会被停止。",
+    "sandboxRangeOverrideTitle": "Sandbox Value Ranges",
+    "sandboxRangeOverrideDesc": "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+    "sandboxRangeOverrideLabel": "Allow values outside the known range",
+    "sandboxRangeOverrideHint": "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version."
   },
   "access": {
     "cardTitle": "远程访问（CORS）",
@@ -476,7 +481,15 @@
     "remoteInstallWarning": "远程服务器：请使用 SFTP 或托管服务商的文件管理器，将 PanelBridge.lua 复制到远程 Lua 文件夹。本地自动安装不可用。",
     "destinationLabel": "目标位置：",
     "serversLoadFailed": "无法加载服务器列表——请尝试重新打开此页面",
-    "statusFetchFailedFallback": "无法访问 Bridge 状态接口。"
+    "statusFetchFailedFallback": "无法访问 Bridge 状态接口。",
+    "staleness": {
+      "protocolMismatchTitle": "Panel and bridge mod don't match",
+      "updateAvailableTitle": "Bridge mod update available",
+      "updateNowButton": "Update Now",
+      "protocolMismatchBody": "This panel expects bridge protocol '{{expected}}', but the mod on your server reports '{{actual}}'. They ship as a matched pair, so some features may not work correctly until they're back in sync.",
+      "remoteUpdateBody": "Your server is running bridge mod v{{liveVersion}}, older than the v{{bundledVersion}} this panel bundles. This panel can't update a remote/SFTP-managed server's files for you -- re-upload the updated PanelBridge.lua the same way you installed it.",
+      "localUpdateBody": "The installed bridge mod (v{{liveVersion}}) is older than what this panel bundles."
+    }
   },
   "mods": {
     "cardTitle": "模组更新设置",

@@ -252,7 +252,10 @@
     "cancel": "Cancel",
     "saving": "Saving...",
     "saveChanges": "Save Changes",
-    "noPermission": "Saving server settings requires the servers.manage permission, which this role doesn't have."
+    "noPermission": "Saving server settings requires the servers.manage permission, which this role doesn't have.",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "Remove Server from Panel?",

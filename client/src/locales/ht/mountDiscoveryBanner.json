@@ -2,5 +2,11 @@
   "pzInstall": "Enstalasyon PZ",
   "dismissAria": "Ekate enstalasyon yo dekouvri a",
   "dismiss": "Ekate",
-  "add": "Ajoute"
+  "add": "Ajoute",
+  "foundPossibleTitle": "Possible PZ install found",
+  "foundPossibleDescFallback": "Found something here, but could not confirm it fully.",
+  "reviewAndAdd": "Review & Add",
+  "foundUnreadableTitle": "Found something here, but could not read it",
+  "foundUnreadableDesc": "This looks like the right folder, but the panel does not have permission to read it. On Unraid, check the PUID/PGID on this container match the folder owner.",
+  "retryScan": "Retry"
 }

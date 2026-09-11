@@ -204,7 +204,13 @@
     "step3Desc": "Lè estati, jwè, ak chat mete ajou, kontwòl an dirèk pare.",
     "installNewServer": "Enstale nouvo sèvè",
     "addExistingServer": "Ajoute sèvè ki egziste",
-    "addRemoteServer": "Ajoute sèvè aleka"
+    "addRemoteServer": "Ajoute sèvè aleka",
+    "foundHeading": "We found an existing Project Zomboid server",
+    "foundDesc": "ready to add with its RCON settings already read from its own config.",
+    "reviewAndConnect": "Review & Connect",
+    "setUpDifferently": "Set up differently instead",
+    "needNewServerLabel": "I don't have a server yet",
+    "haveExistingServerLabel": "I already have server files"
   },
   "liveActivity": {
     "heading": "Aktivite an dirèk",

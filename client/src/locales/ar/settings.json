@@ -29,7 +29,8 @@
     "recoveryTokenLocalReset": "رمز الاسترداد لإعادة التعيين المحلية",
     "newPasswordLocalReset": "كلمة المرور الجديدة لإعادة التعيين المحلية",
     "confirmNewPasswordLocalReset": "تأكيد كلمة المرور الجديدة لإعادة التعيين المحلية",
-    "buyMeCoffeeKofi": "ادعمني بقهوة على Ko-fi"
+    "buyMeCoffeeKofi": "ادعمني بقهوة على Ko-fi",
+    "sandboxRangeOverride": "Allow sandbox values outside known range"
   },
   "tabs": {
     "groups": {
@@ -153,7 +154,11 @@
     "appearanceTitle": "المظهر",
     "appearanceDesc": "سمة اللوحة والنمط البصري.",
     "themeLabel": "السمة",
-    "themeDesc": "اختر بين مظهر البقاء الخشن أو سمة فاتحة نظيفة."
+    "themeDesc": "اختر بين مظهر البقاء الخشن أو سمة فاتحة نظيفة.",
+    "sandboxRangeOverrideTitle": "Sandbox Value Ranges",
+    "sandboxRangeOverrideDesc": "Controls whether the Sandbox tab's Save button blocks a value outside its known minimum/maximum.",
+    "sandboxRangeOverrideLabel": "Allow values outside the known range",
+    "sandboxRangeOverrideHint": "Off by default. The Sandbox tab still shows when a value is outside its known range, but with this on, Save no longer blocks it -- useful when this panel's range table is out of date for your game version."
   },
   "access": {
     "cardTitle": "الوصول عن بُعد (CORS)",
@@ -486,7 +491,15 @@
     "activeSuffix": "(نشط)",
     "installButton": "تثبيت المود",
     "remoteInstallWarning": "خادم بعيد: انسخ PanelBridge.lua إلى مجلد Lua البعيد باستخدام SFTP أو مدير ملفات المزوّد. التثبيت المحلي التلقائي غير متاح.",
-    "destinationLabel": "الوجهة:"
+    "destinationLabel": "الوجهة:",
+    "staleness": {
+      "protocolMismatchTitle": "Panel and bridge mod don't match",
+      "updateAvailableTitle": "Bridge mod update available",
+      "updateNowButton": "Update Now",
+      "protocolMismatchBody": "This panel expects bridge protocol '{{expected}}', but the mod on your server reports '{{actual}}'. They ship as a matched pair, so some features may not work correctly until they're back in sync.",
+      "remoteUpdateBody": "Your server is running bridge mod v{{liveVersion}}, older than the v{{bundledVersion}} this panel bundles. This panel can't update a remote/SFTP-managed server's files for you -- re-upload the updated PanelBridge.lua the same way you installed it.",
+      "localUpdateBody": "The installed bridge mod (v{{liveVersion}}) is older than what this panel bundles."
+    }
   },
   "mods": {
     "cardTitle": "إعدادات تحديث المودات",

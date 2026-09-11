@@ -35,22 +35,33 @@
  */
 
 export const ProgressCode = Object.freeze({
-  /** ensureSteamCmdLinux() self-heal (2 call sites: /install, /steam-update
-   * when steamcmdPath is empty) -- download starting. */
+  /** ensureSteamCmdLinux()/ensureSteamCmdWindows() self-heal (both called
+   * from /install and /steam-update via ensureSteamCmdInstalled when
+   * steamcmdPath is empty) -- download starting. The constant name says
+   * LINUX (it predates Windows self-heal, windows-steamcmd-selfheal,
+   * 2026-09-10) but the text ("SteamCMD missing -- downloading it now...")
+   * is already platform-neutral -- deliberately reused for Windows rather
+   * than adding a same-text twin, which would touch this file and all 9
+   * locale files for zero user-visible change. Do not file the shared name
+   * as a bug. */
   STEAMCMD_LINUX_AUTO_DOWNLOAD_START: "STEAMCMD_LINUX_AUTO_DOWNLOAD_START",
-  /** Shared across 3 call sites with identical wording: ensureSteamCmdLinux
-   * (Linux self-heal) and both branches (Windows/Linux) of POST
-   * /steamcmd/download -- the extraction step starting. */
+  /** Shared with identical wording by ensureSteamCmdLinux, the Windows
+   * self-heal path (provisionSteamCmdWindows), and both branches of POST
+   * /steamcmd/download -- the extraction step starting. Windows/Linux
+   * download+extract is otherwise two separate implementations (one per
+   * platform); this is one of the pieces genuinely identical text-wise on
+   * both. */
   STEAMCMD_EXTRACTING: "STEAMCMD_EXTRACTING",
-  /** Shared across 2 call sites with identical wording: ensureSteamCmdLinux
-   * and POST /steamcmd/download's runFirstTimeSetup() -- first-run `+quit`
-   * about to start. */
+  /** Emitted from the single shared runSteamCmdFirstTimeSetup() (server.js,
+   * windows-steamcmd-selfheal 2026-09-10 unification) -- every first-run
+   * `+quit` on either platform, whether triggered by auto-heal
+   * (ensureSteamCmdLinux/ensureSteamCmdWindows) or the manual POST
+   * /steamcmd/download button, goes through that one function now. */
   STEAMCMD_INITIALIZING: "STEAMCMD_INITIALIZING",
-  /** Shared across 2 call sites with identical wording: ensureSteamCmdLinux
-   * and POST /steamcmd/download's runFirstTimeSetup() -- first-run
-   * completed successfully. The installed path travels in a separate
-   * structured `path` field, not interpolated into this message -- no
-   * params. */
+  /** Emitted from the single shared runSteamCmdFirstTimeSetup() -- see
+   * STEAMCMD_INITIALIZING above. First-run completed successfully. The
+   * installed path travels in a separate structured `path` field, not
+   * interpolated into this message -- no params. */
   STEAMCMD_INSTALL_COMPLETE: "STEAMCMD_INSTALL_COMPLETE",
   /** POST /api/server/install -- zomboidDataPath was not explicitly
    * configured, so the panel used the operator-provided (already-existing)
@@ -211,18 +222,17 @@ export const ProgressCode = Object.freeze({
    * SteamCMD passthrough) -- the exact call site that motivated
    * emitRawSteamCmdLine() existing at all (2026-08-22). No params. */
   STEAMCMD_32BIT_LIB_WARNING: "STEAMCMD_32BIT_LIB_WARNING",
-  /** POST /api/server/steamcmd/download -- runFirstTimeSetup()'s
-   * steamcmd.on("close") with a non-zero, non-7 exit code. Params: {code}. */
+  /** Shared runSteamCmdFirstTimeSetup()'s steamcmd.on("close") with a
+   * non-zero, non-7 exit code -- every caller (ensureSteamCmdLinux,
+   * ensureSteamCmdWindows, and both branches of POST /steamcmd/download)
+   * shares this now. Params: {code}. */
   STEAMCMD_SETUP_FAILED: "STEAMCMD_SETUP_FAILED",
-  /** POST /api/server/steamcmd/download, Windows branch -- extractAndSetup()
-   * already has its own full internal try/catch and reports its own
-   * failures via STEAMCMD_EXTRACTION_FAILED, so this cannot fire today.
-   * It exists because the call site -- file.on("close", async () => {
-   * await extractAndSetup(zipPath) }) -- was an unguarded await in an
-   * EventEmitter listener with nothing to catch a future rejection: same
-   * unhandledRejection -> fatalExit() panel-kill shape as the
-   * INSTALL_SETTINGS_SAVE_FAILED fix, just currently inert because the
-   * callee happens to guard itself. This is the caller's OWN backstop, not
-   * coupled to that staying true. Params: {reason}. */
+  /** windows-steamcmd-selfheal, 2026-09-10: repurposed from an inert
+   * generic caller-side backstop (see git history for the original
+   * reasoning, which no longer applies after this unification) to the one
+   * outcome runSteamCmdFirstTimeSetup() can genuinely produce that isn't
+   * already its own named failure: steamcmd.on("close") reports success (0
+   * or 7) but the binary still isn't at the expected path afterward.
+   * Params: {reason}. */
   STEAMCMD_SELF_SETUP_UNEXPECTED_ERROR: "STEAMCMD_SELF_SETUP_UNEXPECTED_ERROR",
 });

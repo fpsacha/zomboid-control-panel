@@ -266,7 +266,10 @@
     "cancel": "إلغاء",
     "saving": "جارٍ الحفظ...",
     "saveChanges": "حفظ التغييرات",
-    "noPermission": "يتطلب حفظ إعدادات الخادم صلاحية servers.manage، وهي غير متاحة لهذا الدور."
+    "noPermission": "يتطلب حفظ إعدادات الخادم صلاحية servers.manage، وهي غير متاحة لهذا الدور.",
+    "dockerContainerPickInstead": "Pick from detected containers instead",
+    "dockerContainerPickPlaceholder": "Select a container...",
+    "dockerContainerTypeManually": "Type it in manually..."
   },
   "deleteDialog": {
     "title": "إزالة الخادم من اللوحة؟",

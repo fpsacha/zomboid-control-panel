@@ -154,7 +154,6 @@
   "WRITABLE_PATH_INSTALL_CONTAINER": "مسار التثبيت غير قابل للكتابة: {{path}}. اضبط PUID/PGID في ملف .env لديك ليطابقا مالك مجلد المضيف المربوط bind-mount هذا (راجع قسم Quick Start في docker-compose.yml)، ثم أعِد إنشاء الحاوية.",
   "WRITABLE_PATH_DATA_BAREMETAL": "مجلد بيانات Zomboid غير قابل للكتابة: {{path}}. المستخدم الذي يشغّل اللوحة لا يملك هذا المجلد أو ليس لديه إذن الكتابة فيه -- أصلح ذلك عبر chown/chmod، أو اختر مجلدًا تستطيع اللوحة الكتابة فيه أصلًا.",
   "WRITABLE_PATH_DATA_CONTAINER": "مجلد بيانات Zomboid غير قابل للكتابة: {{path}}. اضبط PUID/PGID في ملف .env لديك ليطابقا مالك مجلد المضيف المربوط bind-mount هذا (راجع قسم Quick Start في docker-compose.yml)، ثم أعِد إنشاء الحاوية.",
-  "STEAMCMD_NOT_FOUND_AT_PATH": "لم يُعثر على SteamCMD في: {{path}}",
   "STEAMCMD_AUTO_DOWNLOAD_FAILED": "لم يُعثر على SteamCMD وفشل التنزيل التلقائي: {{reason}}",
   "STEAM_OPERATION_IN_PROGRESS_PATH": "هناك عملية Steam جارية بالفعل لهذا المسار. يرجى انتظار اكتمالها.",
   "QUICK_SETUP_MISSING_FIELDS": "حقول مطلوبة مفقودة: installPath, serverName",

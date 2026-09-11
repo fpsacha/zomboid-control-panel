@@ -154,7 +154,6 @@
   "WRITABLE_PATH_INSTALL_CONTAINER": "Le chemin d'installation n'est pas accessible en écriture : {{path}}. Définissez PUID/PGID dans votre fichier .env pour qu'ils correspondent au propriétaire de ce dossier hôte monté (bind-mount) (voir le guide de démarrage rapide dans docker-compose.yml), puis recréez le conteneur.",
   "WRITABLE_PATH_DATA_BAREMETAL": "Le dossier de données Zomboid n'est pas accessible en écriture : {{path}}. L'utilisateur qui exécute le panneau n'est pas propriétaire de ce dossier ou n'a pas la permission d'y écrire -- corrigez cela avec chown/chmod, ou choisissez un dossier dans lequel le panneau peut déjà écrire.",
   "WRITABLE_PATH_DATA_CONTAINER": "Le dossier de données Zomboid n'est pas accessible en écriture : {{path}}. Définissez PUID/PGID dans votre fichier .env pour qu'ils correspondent au propriétaire de ce dossier hôte monté (bind-mount) (voir le guide de démarrage rapide dans docker-compose.yml), puis recréez le conteneur.",
-  "STEAMCMD_NOT_FOUND_AT_PATH": "SteamCMD introuvable à : {{path}}",
   "STEAMCMD_AUTO_DOWNLOAD_FAILED": "SteamCMD introuvable et le téléchargement automatique a échoué : {{reason}}",
   "STEAM_OPERATION_IN_PROGRESS_PATH": "Une opération Steam est déjà en cours pour ce chemin. Veuillez attendre qu'elle se termine.",
   "QUICK_SETUP_MISSING_FIELDS": "Champs requis manquants : installPath, serverName",

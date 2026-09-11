@@ -154,7 +154,6 @@
   "WRITABLE_PATH_INSTALL_CONTAINER": "Шлях встановлення недоступний для запису: {{path}}. Установіть PUID/PGID у вашому файлі .env відповідно до власника цієї змонтованої теки хоста (див. Quick Start у docker-compose.yml), потім перестворіть контейнер.",
   "WRITABLE_PATH_DATA_BAREMETAL": "Тека даних Zomboid недоступна для запису: {{path}}. Користувач, від імені якого працює панель, не володіє цією текою або не має права запису до неї -- виправте це за допомогою chown/chmod або виберіть теку, до якої панель уже може писати.",
   "WRITABLE_PATH_DATA_CONTAINER": "Тека даних Zomboid недоступна для запису: {{path}}. Установіть PUID/PGID у вашому файлі .env відповідно до власника цієї змонтованої теки хоста (див. Quick Start у docker-compose.yml), потім перестворіть контейнер.",
-  "STEAMCMD_NOT_FOUND_AT_PATH": "SteamCMD не знайдено за шляхом: {{path}}",
   "STEAMCMD_AUTO_DOWNLOAD_FAILED": "SteamCMD не знайдено, і автозавантаження не вдалося: {{reason}}",
   "STEAM_OPERATION_IN_PROGRESS_PATH": "Операція Steam для цього шляху вже виконується. Зачекайте на її завершення.",
   "QUICK_SETUP_MISSING_FIELDS": "Відсутні обов'язкові поля: installPath, serverName",
