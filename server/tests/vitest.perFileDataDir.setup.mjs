@@ -57,7 +57,29 @@ fs.writeFileSync(
 );
 process.env.PANEL_PATHS_CONFIG_PATH = configPath;
 
-afterAll(() => {
+async function removeTempRoot() {
+  const retryableCodes = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
+  const attempts = 20;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await fs.promises.rm(tempRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 100,
+      });
+      return;
+    } catch (error) {
+      if (!retryableCodes.has(error?.code) || attempt === attempts - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
+
+afterAll(async () => {
   delete process.env.PANEL_PATHS_CONFIG_PATH;
   // map-proxy-enotempty, 2026-09-09: a test file can leave its own
   // fire-and-forget disk writes (e.g. mapProxy.js's writeDiskCacheAsync)
@@ -68,8 +90,8 @@ afterAll(() => {
   // assertion in the file already green. rmSync's own maxRetries defaults
   // to 0, so it never retries on its own. A few short retries give an
   // already-in-flight write (mkdir/writeFile/rename on this process's own
-  // libuv threadpool) time to land; deliberately NOT unbounded -- a
-  // genuinely stuck handle should still surface as ENOTEMPTY rather than
-  // hang the teardown.
-  fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  // libuv threadpool) time to land; deliberately bounded -- a genuinely
+  // stuck handle still surfaces after the retry budget instead of hanging
+  // the teardown.
+  await removeTempRoot();
 });
