@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-hePW80VL.js";import{m as t}from"./charts-CJxh0TaR.js";var n=e(t(),1);function r(){let e=(0,n.useRef)(0),t=(0,n.useCallback)(()=>++e.current,[]),r=(0,n.useCallback)(t=>t!==e.current,[]);return(0,n.useMemo)(()=>({next:t,isStale:r}),[t,r])}export{r as t};
