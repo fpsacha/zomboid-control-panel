@@ -1,12 +1,12 @@
 ---@diagnostic disable: undefined-global, deprecated
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.7.73
+    Version: 1.7.74
 
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
 
-                vNEXT Changes:
+                v1.7.74 Changes:
                 - Fix: the leaderboard tracks every player, not only the ones
                     online while someone had the panel's Leaderboard page
                     open. Kills and days were only read by getLeaderboard, so
@@ -702,7 +702,7 @@ if not (isServer and isServer()) then return end
 local json
 
 local PanelBridge = {
-    VERSION = "1.7.73",
+    VERSION = "1.7.74",
     -- Change only for a breaking wire-format change. Bridge changes must be additive: a
     -- Workshop server runs whatever version was last published, not the panel's bundled one.
     PROTOCOL_VERSION = "queue-v1",
