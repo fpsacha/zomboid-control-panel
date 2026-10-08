@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-10-08
+
 ### Security
 
 - **Delegated account managers:** a role allowed to manage users or roles can no longer demote, delete or sign out an account, or narrow or delete a role, that holds more than it does; a helper could depose every admin.
