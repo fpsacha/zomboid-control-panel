@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.10] - 2026-10-09
+
+### Fixed
+
+- **Zomboid data folder refused:** a data folder that also holds files or folders the panel does not know (beside Saves, Lua, db, Server...) is accepted again; v1.4.9 refused it with "the panel won't list or read it".
+
 ## [1.4.9] - 2026-10-08
 
 ### Security

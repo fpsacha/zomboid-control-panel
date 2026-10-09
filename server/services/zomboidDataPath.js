@@ -225,6 +225,13 @@ function isOperatorDataPath(resolved) {
 // The rule's on-disk half, for an absolute, resolved path. Links are
 // followed (statSync, readdirSync), so a link is judged by the folder it
 // leads to.
+function holdsGameFolders(folder, names) {
+  if (!names.includes("Saves")) return false;
+  const isFolder = (name) => statOf(path.join(folder, name))?.isDirectory() === true;
+  if (!isFolder("Saves")) return false;
+  return names.filter((name) => name !== "Saves" && GAME_DATA_FOLDERS.has(name) && isFolder(name)).length >= 2;
+}
+
 function judgeFolder(resolved) {
   if (isOperatorDataPath(resolved)) return { ok: true, missing: false };
   let stat;
@@ -253,6 +260,14 @@ function judgeFolder(resolved) {
   // sit under Saves/, which the check above already accepts.
   if (holdsSaveFiles(resolved, names)) return { ok: true, missing: false };
   if (holdsOnlyGameEntries(resolved, names)) return { ok: true, missing: false };
+  // A data folder the game has run in, with other things beside its own:
+  // a Saves folder plus at least two more of the game's folders, each a real
+  // folder. Strict "nothing but game entries" refused real installs (v1.4.9:
+  // "the panel no longer recognizes the Zomboid folder") because the folder
+  // also held a file or folder this list doesn't know, from the game itself,
+  // a mod or the user. Another program's folder doesn't have Saves/, Lua/,
+  // db/ and Server/ together.
+  if (holdsGameFolders(resolved, names)) return { ok: true, missing: false };
   // A Saves/Multiplayer folder named directly, as Map Cleanup's custom path
   // and "Save as default" allow (its hint names this shape, and
   // routes/chunks.js's resolveSavesPath() reads one): named as the game
