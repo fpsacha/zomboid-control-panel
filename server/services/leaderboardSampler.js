@@ -52,6 +52,20 @@ function bridgeSession(bridge) {
   return `${status?.version ?? ""}|${status?.startedAt ?? ""}`;
 }
 
+// What a read returned, for the log and the support bundle: how many rows,
+// which online players have none, how many were never read. The "missing
+// player" reports come with no other evidence.
+function summarize(bridge, data) {
+  const rows = Array.isArray(data?.players) ? data.players : [];
+  const online = Array.isArray(bridge?.modStatus?.players)
+    ? bridge.modStatus.players.filter((n) => typeof n === "string" && n)
+    : [];
+  const names = new Set(rows.map((r) => String(r?.username ?? "").toLowerCase()));
+  const noRow = online.filter((n) => !names.has(n.toLowerCase()));
+  const notRead = rows.filter((r) => r && r.everRead === false).length;
+  return { rows: rows.length, online: online.length, onlineWithoutRow: noRow.slice(0, 10), notRead, at: Date.now() };
+}
+
 async function sample(current) {
   if (current.inFlight || !bridgeConnected(current.bridge) || !hasOnlinePlayers(current.bridge)) return;
   const version = bridgeVersion(current.bridge);
@@ -65,6 +79,15 @@ async function sample(current) {
     const result = await current.bridge.getLeaderboard({ source: "sampler" });
     if (state !== current) return;
     current.lastSampleAt = Date.now();
+    current.lastSummary = summarize(current.bridge, result?.data);
+    if (Date.now() - (current.lastSummaryLogAt || 0) > 10 * 60 * 1000) {
+      current.lastSummaryLogAt = Date.now();
+      const x = current.lastSummary;
+      log.info(
+        `Leaderboard read: ${x.rows} rows, ${x.online} online, ${x.notRead} never read` +
+          (x.onlineWithoutRow.length ? `, online with no row: ${x.onlineWithoutRow.join(", ")}` : ""),
+      );
+    }
     if (typeof result?.data?.diagnostics?.lastSweepAt === "number") {
       current.bridgeSweeps = true;
       current.bridgeSweepsVersion = version;
@@ -119,5 +142,6 @@ export function getLeaderboardSamplerStatus() {
     bridgeSweepsVersion: state.bridgeSweeps ? state.bridgeSweepsVersion : null,
     bridgeLacksLeaderboard: state.unsupportedSession !== null,
     lastSampleAt: state.lastSampleAt,
+    lastSummary: state.lastSummary ?? null,
   };
 }

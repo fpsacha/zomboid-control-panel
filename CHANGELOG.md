@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.11] - 2026-10-10
+
+### Changed
+
+- **Leaderboard diagnostics:** the panel log and the support bundle now say how many leaderboard rows exist, which online players have none, and how many were never read.
+
 ## [1.4.10] - 2026-10-09
 
 ### Fixed
