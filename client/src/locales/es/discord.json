@@ -234,6 +234,7 @@
         "players": {
           "desc": "Listar jugadores en línea"
         },
+        "leaderboard": { "desc": "Mostrar la clasificación de estadísticas" },
         "save": {
           "desc": "Guardar el mundo"
         },

@@ -230,6 +230,7 @@
       "commands": {
         "status": { "desc": "Wè estati sèvè" },
         "players": { "desc": "Lis jwè anliy" },
+        "leaderboard": { "desc": "Montre klasman estatistik yo" },
         "save": { "desc": "Sove mond lan" },
         "broadcast": { "desc": "Voye mesaj sèvè" },
         "kick": { "desc": "Mete yon jwè deyò" },

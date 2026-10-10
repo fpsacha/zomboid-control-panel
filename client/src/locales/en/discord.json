@@ -230,6 +230,7 @@
       "commands": {
         "status": { "desc": "View server status" },
         "players": { "desc": "List online players" },
+        "leaderboard": { "desc": "Show the stats leaderboard" },
         "save": { "desc": "Save the world" },
         "broadcast": { "desc": "Send server message" },
         "kick": { "desc": "Kick a player" },

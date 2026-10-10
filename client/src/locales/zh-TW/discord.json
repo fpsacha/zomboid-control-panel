@@ -234,6 +234,7 @@
         "players": {
           "desc": "列出線上玩家"
         },
+        "leaderboard": { "desc": "顯示統計排行榜" },
         "save": {
           "desc": "儲存世界"
         },
