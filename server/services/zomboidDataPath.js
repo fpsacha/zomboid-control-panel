@@ -229,6 +229,9 @@ function holdsGameFolders(folder, names) {
   if (!names.includes("Saves")) return false;
   const isFolder = (name) => statOf(path.join(folder, name))?.isDirectory() === true;
   if (!isFolder("Saves")) return false;
+  // Saves/ must still hold only what the game keeps there (game mode folders
+  // holding world folders): another program's Saves/slot1/notes.txt is refused.
+  if (!holdsOnlyFolders(path.join(folder, "Saves"), 2)) return false;
   return names.filter((name) => name !== "Saves" && GAME_DATA_FOLDERS.has(name) && isFolder(name)).length >= 2;
 }
 
