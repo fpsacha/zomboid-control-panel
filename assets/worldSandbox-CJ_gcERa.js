@@ -1,0 +1,1 @@
+function e(e){let t=e?.worldSandboxSnapshot;return!t||typeof t!=`object`?null:t.refreshed===!0?`kept`:`undone`}export{e as t};

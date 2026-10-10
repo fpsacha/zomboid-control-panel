@@ -1,0 +1,1 @@
+import{a as e,s as t}from"./errorMessage-BqkfcSLe.js";function n(e,t){return!e||!t?`none`:t.success||t.recoveredAt?`ok`:t.skipReason===`restart`?`skippedForRestart`:`failing`}function r(n,r,i){return(r?t(`backups`,`scheduledAttempt.${r}`,e(i)):null)??n??null}export{n,r as t};
