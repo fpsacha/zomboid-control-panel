@@ -956,6 +956,21 @@ function extractLaunchArgValue(commandLine, flag) {
   return value || null;
 }
 
+// A process listing (pgrep -af, ps) joins the arguments with spaces and drops
+// their quotes, so `-servername "AU-NZ Auckland PvE"` reads back as
+// `-servername AU-NZ Auckland PvE` and extractLaunchArgValue() sees only
+// "AU-NZ": a running server whose name has spaces then looked like another
+// server's, was not detected, and the panel offered a second start (#223).
+// True when the text after the flag begins with the whole expected value.
+function launchArgStartsWith(commandLine, flag, expected, normalize = (v) => v.toLowerCase()) {
+  const want = normalize(String(expected || "")).trim();
+  if (!want) return false;
+  const match = String(commandLine || "").match(new RegExp(`(?:^|\\s)-${flag}(?:\\s*=\\s*|\\s+)(.*)$`, "i"));
+  if (!match) return false;
+  const rest = normalize(match[1].replace(/^["']/, "")).trim();
+  return rest === want || rest.startsWith(want + " ") || rest.startsWith(want + '"');
+}
+
 function normalizePathForCompare(value) {
   const normalized = String(value || "")
     .trim()
@@ -1029,7 +1044,10 @@ export function scoreServerProcessOwnership(commandLine, descriptor = {}) {
 
   const nameArg = extractLaunchArgValue(cmd, "servername");
   if (nameArg && descriptor.serverName) {
-    if (nameArg.toLowerCase() !== String(descriptor.serverName).toLowerCase()) {
+    if (
+      nameArg.toLowerCase() !== String(descriptor.serverName).toLowerCase() &&
+      !launchArgStartsWith(cmd, "servername", descriptor.serverName)
+    ) {
       return -1;
     }
     score += 3;
@@ -1038,8 +1056,8 @@ export function scoreServerProcessOwnership(commandLine, descriptor = {}) {
   const cacheArg = extractLaunchArgValue(cmd, "cachedir");
   if (cacheArg && descriptor.savePath) {
     if (
-      normalizePathForCompare(cacheArg) !==
-      normalizePathForCompare(descriptor.savePath)
+      normalizePathForCompare(cacheArg) !== normalizePathForCompare(descriptor.savePath) &&
+      !launchArgStartsWith(cmd, "cachedir", descriptor.savePath, normalizePathForCompare)
     ) {
       return -1;
     }
