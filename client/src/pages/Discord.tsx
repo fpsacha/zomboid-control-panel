@@ -1859,6 +1859,7 @@ export default function Discord() {
                   label: "/restart",
                   desc: t("management.commandPermissions.commands.restart.desc"),
                 },
+                { cmd: "leaderboard", label: "/leaderboard", desc: t("management.commandPermissions.commands.leaderboard.desc") },
                 { cmd: "rcon", label: "/rcon", desc: t("management.commandPermissions.commands.rcon.desc") },
               ].map((c) => {
                 const level = commandPermissions[c.cmd] || "admin";

@@ -173,6 +173,7 @@ export function allowedChatTypesForScope(scope) {
 const DEFAULT_COMMAND_PERMISSIONS = {
   status: "everyone",
   players: "everyone",
+  leaderboard: "everyone",
   save: "moderator",
   broadcast: "moderator",
   kick: "moderator",
@@ -868,6 +869,22 @@ export class DiscordBot {
       },
       {
         builder: new SlashCommandBuilder()
+          .setName("leaderboard")
+          .setDescription("Show the stats leaderboard")
+          .addStringOption((option) =>
+            option
+              .setName("sort")
+              .setDescription("What to rank by (default: all-time kills)")
+              .addChoices(
+                { name: "All-time kills", value: "kills" },
+                { name: "Longest survival", value: "days" },
+                { name: "Deaths", value: "deaths" },
+              ),
+          ),
+        name: "leaderboard",
+      },
+      {
+        builder: new SlashCommandBuilder()
           .setName("start")
           .setDescription("Start the Project Zomboid server"),
         name: "start",
@@ -1115,6 +1132,9 @@ export class DiscordBot {
         case "players":
           await this.handlePlayers(interaction);
           break;
+        case "leaderboard":
+          await this.handleLeaderboard(interaction);
+          break;
         case "start":
           await this.handleStart(interaction);
           break;
@@ -1293,6 +1313,46 @@ export class DiscordBot {
       .setFooter({ text: `${players.length} player(s)` })
       .setTimestamp();
 
+    await interaction.editReply({ embeds: [embed] });
+  }
+
+  // The stats leaderboard PanelBridge keeps (kills, longest survival, deaths):
+  // the same rows the panel's Leaderboard page shows, top 10 by one metric.
+  async handleLeaderboard(interaction) {
+    await interaction.deferReply();
+    const bridge = this.panelBridge;
+    if (!bridge?.isRunning) {
+      await interaction.editReply("❌ PanelBridge is not running, so there is no leaderboard to show.");
+      return;
+    }
+    let result;
+    try {
+      result = await bridge.getLeaderboard({ source: "discord" });
+    } catch (error) {
+      await interaction.editReply(`❌ Could not read the leaderboard: ${sanitizeError(error.message)}`);
+      return;
+    }
+    const rows = Array.isArray(result?.data?.players) ? result.data.players : [];
+    const sort = interaction.options?.getString?.("sort") || "kills";
+    const metrics = {
+      kills: { title: "All-time kills", value: (p) => Number(p.allTimeKills) || 0, show: (p) => `${Number(p.allTimeKills) || 0} kills` },
+      days: { title: "Longest survival", value: (p) => Number(p.bestDays) || 0, show: (p) => `${(Number(p.bestDays) || 0).toFixed(1)} days` },
+      deaths: { title: "Deaths", value: (p) => Number(p.deaths) || 0, show: (p) => `${Number(p.deaths) || 0} deaths` },
+    };
+    const metric = metrics[sort] || metrics.kills;
+    const ranked = rows
+      .filter((p) => p && typeof p.username === "string" && p.username)
+      .sort((a, b) => metric.value(b) - metric.value(a) || (Number(b.allTimeKills) || 0) - (Number(a.allTimeKills) || 0))
+      .slice(0, 10);
+    const description = ranked.length
+      ? ranked.map((p, i) => `**${i + 1}.** ${escapeMarkdown(p.username)} — ${metric.show(p)}`).join(String.fromCharCode(10))
+      : "No players on the leaderboard yet";
+    const embed = new EmbedBuilder()
+      .setTitle(`🏆 Leaderboard — ${metric.title}`)
+      .setColor(0xf1c40f)
+      .setDescription(description)
+      .setFooter({ text: `${rows.length} player(s) tracked` })
+      .setTimestamp();
     await interaction.editReply({ embeds: [embed] });
   }
 

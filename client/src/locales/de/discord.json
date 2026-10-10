@@ -234,6 +234,7 @@
         "players": {
           "desc": "Online-Spieler auflisten"
         },
+        "leaderboard": { "desc": "Die Statistik-Rangliste anzeigen" },
         "save": {
           "desc": "Welt speichern"
         },

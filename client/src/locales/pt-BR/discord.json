@@ -230,6 +230,7 @@
       "commands": {
         "status": { "desc": "Ver o status do servidor" },
         "players": { "desc": "Listar jogadores online" },
+        "leaderboard": { "desc": "Mostrar o ranking de estatísticas" },
         "save": { "desc": "Salvar o mundo" },
         "broadcast": { "desc": "Enviar transmissão do servidor" },
         "kick": { "desc": "Expulsar um jogador" },
