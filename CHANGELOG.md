@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.12] - 2026-10-10
+
+### Fixed
+
+- **Server name with spaces:** a running server whose name contains spaces is detected again, so the panel no longer shows it stopped and then refuses a second start with "RCON port already in use" (#223).
+
 ## [1.4.11] - 2026-10-10
 
 ### Changed
