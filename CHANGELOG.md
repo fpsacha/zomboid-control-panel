@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.14] - 2026-10-12
+
 ### Fixed
 
 - **Docker updater stuck on a stalled download:** the updater now gives up on a silent or stalled release download (30 s connect, 60 s below 1 KB/s, 30 min total), so the next update is accepted instead of answered "already in progress" until its container is restarted.
