@@ -42,8 +42,8 @@
     "cors": "^2.8.6",
     "discord.js": "^14.26.4",
     "dotenv": "^16.4.7",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.7.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lowdb": "^7.0.1",
@@ -60,14 +60,14 @@
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@yao-pkg/pkg": "^6.23.0",
-    "concurrently": "^9.1.0",
+    "concurrently": "^9.2.5",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "fengari": "^0.1.5",
     "globals": "^14.0.0",
     "jose": "^6.2.10",
     "nodemon": "^3.1.14",
-    "playwright": "^1.63.0",
+    "playwright": "^1.64.0",
     "vitest": "^4.1.11"
   },
   "overrides": {
