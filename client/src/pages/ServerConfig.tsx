@@ -1056,6 +1056,8 @@ export default function ServerConfig() {
   // zh-CN / zh-TW enumerates nouns with the ideographic comma instead.
   const listSep = i18n.language.startsWith('zh') ? '、' : ', '
   const [activeTab, setActiveTab] = useState(initialDeepLink.tab)
+  const activeTabRef = useRef(initialDeepLink.tab)
+  const pendingTabChangeRef = useRef<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [serverRunning, setServerRunning] = useState<boolean | null>(null)
@@ -1735,7 +1737,11 @@ export default function ServerConfig() {
   }
 
   const handleTabChange = (value: string) => {
+    if (value === activeTabRef.current || pendingTabChangeRef.current !== null) return
+
     const switchTab = () => {
+      activeTabRef.current = value
+      pendingTabChangeRef.current = null
       setActiveTab(value)
       if (editorMode === 'raw') {
         const typeMap: Record<string, 'ini' | 'sandbox' | 'spawnpoints' | 'spawnregions'> = {
@@ -1751,7 +1757,11 @@ export default function ServerConfig() {
       switchTab()
       return
     }
-    void confirmDiscardRawEdits().then((ok) => { if (ok) switchTab() })
+    pendingTabChangeRef.current = value
+    void confirmDiscardRawEdits().then((ok) => {
+      if (ok) switchTab()
+      else if (pendingTabChangeRef.current === value) pendingTabChangeRef.current = null
+    })
   }
 
   // GET/PUT /server-files/ini and /sandbox both resolve "the active server"
