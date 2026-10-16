@@ -1,0 +1,1 @@
+import{t as e}from"./durationText-T1n9rGOo.js";function t(t){let n={...t??{}};return typeof n.ageSeconds==`number`&&(n.age=e(n.ageSeconds)),n}export{t};
