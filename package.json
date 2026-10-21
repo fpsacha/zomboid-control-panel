@@ -50,9 +50,9 @@
     "node-cron": "^4.6.0",
     "openid-client": "^6.8.8",
     "socket.io": "^4.8.4",
-    "sql.js": "^1.14.2",
+    "sql.js": "^1.15.0",
     "ssh2-sftp-client": "^12.1.1",
-    "undici": "^8.10.2",
+    "undici": "^8.12.2",
     "unzipper": "^0.12.5",
     "uuid": "^13.0.0",
     "winston": "^3.17.0"
@@ -67,8 +67,8 @@
     "globals": "^14.0.0",
     "jose": "^6.2.10",
     "nodemon": "^3.1.14",
-    "playwright": "^1.64.0",
-    "vitest": "^4.1.11"
+    "playwright": "^1.64.1",
+    "vitest": "^4.1.12"
   },
   "overrides": {
     "esbuild": "$esbuild",
