@@ -1,0 +1,1 @@
+import{l as e,s as t}from"./errorMessage-DkONYHTy.js";function n(n,r){let i=typeof n.progressCode==`string`&&n.progressCode?n.progressCode:void 0;if(!i)return r;let a=t(n.params);return e(`installProgress`,i,a)??r}export{n as t};

@@ -1,0 +1,1 @@
+import{l as e,s as t}from"./errorMessage-DkONYHTy.js";function n(e,t){return!e||!t?`none`:t.success||t.recoveredAt?`ok`:t.skipReason===`restart`?`skippedForRestart`:`failing`}function r(n,r,i){return(r?e(`backups`,`scheduledAttempt.${r}`,t(i)):null)??n??null}export{n,r as t};
