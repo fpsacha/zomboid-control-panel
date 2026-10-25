@@ -166,6 +166,7 @@ import {
   INSTALLED_SORTS,
   filterActiveItems,
   filterInstalledMods,
+  modsOnServer,
   matchesActiveSearch,
   parseGroupFilter,
   sortActiveItems,
@@ -1310,16 +1311,23 @@ export default function Mods() {
   const installedGroupFilter = useMemo(() => parseGroupFilter(installedFilters.group, groupIds), [installedFilters.group, groupIds])
   // Installed: tracked mods that are in the server config, searched (names,
   // IDs, notes), filtered by the chips and sorted.
+  const installedMods = useMemo(
+    () => modsOnServer(mods, iniConfig === null ? null : configuredWorkshopIds),
+    [mods, iniConfig, configuredWorkshopIds],
+  )
+  // The Installed list's own updates: what its counts show, so "Updates
+  // only" never lists nothing under a count of 1 (a Deactivated item's
+  // update, e.g. a Workshop item no longer in WorkshopItems=).
+  const installedModsWithUpdates = useMemo(() => installedMods.filter((mod) => mod.update_available), [installedMods])
   const filteredMods = useMemo(() => {
-    const onServer = iniConfig === null ? mods : mods.filter((mod) => configuredWorkshopIds.has(mod.workshop_id))
     const filtered = filterInstalledMods(
-      onServer,
+      installedMods,
       deferredSearchQuery,
       { updatesOnly: showUpdatesOnly, hasNote: installedFilters.hasNote, group: installedGroupFilter },
       { noteText: notesStore.noteText, groupIdsOf: groupIdsOfWorkshop },
     )
     return sortInstalledMods(filtered, installedSort)
-  }, [mods, iniConfig, configuredWorkshopIds, deferredSearchQuery, showUpdatesOnly, installedFilters.hasNote, installedGroupFilter, notesStore.noteText, groupIdsOfWorkshop, installedSort])
+  }, [installedMods, deferredSearchQuery, showUpdatesOnly, installedFilters.hasNote, installedGroupFilter, notesStore.noteText, groupIdsOfWorkshop, installedSort])
 
   const groupedMods = useMemo(() => {
     const updateAvailable: TrackedMod[] = []
@@ -2623,7 +2631,9 @@ export default function Mods() {
     }
   }
 
-  // Memoized list of mods with updates available
+  // Every tracked mod flagged with an update, Deactivated ones too: only for
+  // the stale-flag check below, whose Steam count includes them. The
+  // Installed counts use installedModsWithUpdates.
   const modsWithUpdates = useMemo(() => mods.filter(m => m.update_available), [mods])
   const selectedCollectionCount = useMemo(() => collectionMods.filter(m => m.selected).length, [collectionMods])
 
@@ -3626,7 +3636,7 @@ export default function Mods() {
     items: group.views.map((view) => {
       const count =
         view === 'deactivated' ? deactivatedMods.length
-        : view === 'installed' ? modsWithUpdates.length
+        : view === 'installed' ? installedModsWithUpdates.length
         : 0
       const healthCounts = smart.health.health?.counts
       const healthCount = view === 'health' && healthCounts ? (healthCounts.critical > 0 ? healthCounts.critical : healthCounts.warning) : 0
@@ -4039,14 +4049,14 @@ export default function Mods() {
                 <p className="text-muted-foreground">{t('statusBar.modIdsTooltip', { count: iniConfig?.totalMods || 0 })}</p>
               </TooltipContent>
             </Tooltip>
-            {modsWithUpdates.length > 0 && (
+            {installedModsWithUpdates.length > 0 && (
               <button
                 type="button"
                 onClick={() => { selectView('installed'); setShowUpdatesOnly(true) }}
                 className="inline-flex items-center gap-1.5 rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
               >
                 <AlertTriangle className="h-4 w-4 text-warning" aria-hidden="true" />
-                {t('statusBar.updatesCount', { count: modsWithUpdates.length })}
+                {t('statusBar.updatesCount', { count: installedModsWithUpdates.length })}
               </button>
             )}
             {status && (
@@ -4250,7 +4260,7 @@ export default function Mods() {
                     >
                       {showUpdatesOnly ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Filter className="h-3.5 w-3.5" aria-hidden="true" />}
                       {t('installedTab.updatesOnly')}
-                      {modsWithUpdates.length > 0 && <span className="tabular-nums text-muted-foreground">{modsWithUpdates.length}</span>}
+                      {installedModsWithUpdates.length > 0 && <span className="tabular-nums text-muted-foreground">{installedModsWithUpdates.length}</span>}
                     </button>
                     <button
                       type="button"

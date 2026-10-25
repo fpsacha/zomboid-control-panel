@@ -46,6 +46,21 @@ export interface InstalledFilters {
   group: GroupFilter
 }
 
+/**
+ * The tracked mods the Installed list draws from: the ones in the server
+ * config's WorkshopItems= (every tracked mod until the config is read,
+ * `configuredWorkshopIds` null). A tracked item missing from the config
+ * (Deactivated) is not on the server, so its update is not one either: the
+ * Installed update counts (status bar, menu badge, "Updates only" chip)
+ * count this set, the list it filters.
+ */
+export function modsOnServer(
+  mods: readonly TrackedMod[],
+  configuredWorkshopIds: ReadonlySet<string> | null,
+): readonly TrackedMod[] {
+  return configuredWorkshopIds === null ? mods : mods.filter((mod) => configuredWorkshopIds.has(mod.workshop_id))
+}
+
 export type InstalledSort = 'status' | 'name' | 'updated'
 export const INSTALLED_SORTS: readonly InstalledSort[] = ['status', 'name', 'updated']
 
