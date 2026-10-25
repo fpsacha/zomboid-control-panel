@@ -488,6 +488,9 @@ export class ModChecker extends EventEmitter {
     // Update dedup — track which mod+timestamp combos have already triggered a restart
     // Prevents the same stale update from re-triggering every poll cycle
     this.processedUpdates = new Map(); // workshopId -> steamTimestamp that was already handled
+    // The active server processedUpdates and _lastReportedUpdateKey are
+    // about (checkForUpdates()); undefined before the first check.
+    this._checkedServerId = undefined;
   }
 
   // Initialize with scheduler and restore saved settings
@@ -1959,6 +1962,16 @@ export class ModChecker extends EventEmitter {
       // the current path. A server switch or edit replaces it outright
       // (refreshWorkshopChecker()); when one does while this lookup is in
       // flight, this lookup may have read the previous server and is dropped.
+      // What was handled is per server: a mod two servers share, updated
+      // and restarted for on one, still needs the other's restart once that
+      // one is active (processedUpdates would skip it as "already processed").
+      const checkedServerId = await this._resolveActiveServerId();
+      if (this._checkedServerId !== undefined && checkedServerId !== this._checkedServerId) {
+        this.processedUpdates.clear();
+        this._lastReportedUpdateKey = "";
+      }
+      this._checkedServerId = checkedServerId;
+
       const lookups = this.workshopAcfLookups;
       const resolvedAcfPath = await this.resolveWorkshopAcfPath();
       if (resolvedAcfPath && lookups === this.workshopAcfLookups) {

@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 // Several servers on one panel: a mod update found for server One while
 // players were on left a restart waiting for them to leave (up to the
@@ -87,6 +90,37 @@ describe("a mod-update restart waiting for players is the found server's, not th
     expect(checker.pendingRestart).toBe(false);
     expect(checker.processedUpdates.has(MOD.workshopId)).toBe(false);
     expect(checker.io.emit).toHaveBeenCalledWith("mods:restart_cancelled", { reason: "server_switched" });
+  });
+
+  // A mod both servers use, updated and restarted for on One, was "already
+  // processed" when Two was made active: Two, still on the old version,
+  // never got its restart.
+  it("an update handled on one server still restarts the next active server that has it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "modchecker-switch-"));
+    try {
+      const acfPath = path.join(dir, "appworkshop_108600.acf");
+      fs.writeFileSync(
+        acfPath,
+        `"AppWorkshop"\n{\n\t"WorkshopItemsInstalled"\n\t{\n\t\t"${MOD.workshopId}"\n\t\t{\n\t\t\t"timeupdated"\t\t"1000"\n\t\t}\n\t}\n}\n`,
+      );
+      const checker = new ModChecker();
+      checker.workshopAcfPath = acfPath;
+      checker.resolveWorkshopAcfPath = vi.fn(async () => acfPath);
+      checker.fetchSteamTimestamps = vi.fn(async () => new Map([[MOD.workshopId, { time_updated: 2000 }]]));
+      checker.serverManager = { getServerConfig: async () => ({ WorkshopItems: MOD.workshopId }) };
+      const callback = vi.fn(async () => ({ markProcessed: true }));
+      await checker.setUpdateCallback(callback);
+
+      await checker.checkForUpdates();
+      await checker.checkForUpdates();
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      db.active = { id: "s2", name: "Two" };
+      await checker.checkForUpdates();
+      expect(callback).toHaveBeenCalledTimes(2);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("still restarts when the players leave and the same server is active", async () => {
