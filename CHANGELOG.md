@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Mods: the Installed update count matches its list:** an update on a tracked Workshop item that is not in the server config (Deactivated) was counted in the status bar, the Installed badge and the "Updates only" chip, which then listed nothing.
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, the update check's read-only version lookup no longer holds a start at all, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
+- **Restart on crash after a cancelled restart:** a restart cancelled during its countdown, or called off by a failed save, left its "restart" mark behind, so the next crash was taken for that restart and the server was not brought back.
 
 ## [1.6.0] - 2026-10-23
 

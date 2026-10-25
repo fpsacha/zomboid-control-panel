@@ -2003,6 +2003,10 @@ export class Scheduler {
     // one a previous restart left stopped): a failure from then on leaves
     // the server down because of the panel, see getInterruptedRestart().
     let leavesServerStopped = false;
+    // True once this restart has asked the server to go down (RCON quit or
+    // Docker's restart). Until then the stopIntent set above names a stop
+    // that never came: the finally below withdraws it.
+    let stopRequested = false;
     try {
       // No fallback to checkServerRunning() when getServerProcessDetails
       // isn't available -- that call collapses a failed scan into a plain
@@ -2402,6 +2406,7 @@ export class Scheduler {
       // kills PID 1: the container exits, its restart policy races the panel to
       // bring the world back, and the panel cannot spawn a process that lives
       // inside another container anyway.
+      stopRequested = true;
       const managed = await runManagedLifecycle("restart", {
         serverId: pinnedServerId,
       });
@@ -2861,6 +2866,13 @@ export class Scheduler {
       }
       throw error;
     } finally {
+      // A restart that ended before asking the server to stop (a countdown
+      // cancelled, a failed save, a server that was not running) leaves no
+      // restart pending: the watchdog would take the next stop -- a crash
+      // hours later -- for this restart, and restart-on-crash skips those.
+      if (!stopRequested && serverManager.stopIntent === "restart") {
+        serverManager.stopIntent = null;
+      }
       this.restartInProgress = false;
       this.activeRestart = null;
       lifecycleLock.release();
