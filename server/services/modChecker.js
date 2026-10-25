@@ -1610,6 +1610,9 @@ export class ModChecker extends EventEmitter {
 
     // RCON readiness gate — verify RCON is connected before attempting restart
     const rconService = this.scheduler?.rconService;
+    // GH #269: the server is down because a panel restart stopped it and
+    // could not start it again -- only start it, no warning to give.
+    let relaunchOnly = false;
     if (!rconService || !rconService.connected) {
       // Default to "running" (the safe assumption: don't silently drop a
       // pending restart) unless detection positively confirms the server is
@@ -1631,9 +1634,21 @@ export class ModChecker extends EventEmitter {
           );
         }
       }
+      // GH #269: offline because a panel restart stopped it and could not
+      // start it again (a Steam operation held the relaunch past its wait,
+      // say) is not offline on purpose: start it, and keep retrying (the
+      // updates stay unprocessed) until that works or someone else starts it.
+      const interrupted = confirmedOffline
+        ? (this.scheduler?.getInterruptedRestart?.(await this._resolveActiveServerId()) ?? null)
+        : null;
       if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
-      if (confirmedOffline) {
+      if (confirmedOffline && interrupted) {
+        log.warn(
+          `Mod updates detected while the PZ server is offline because a panel restart stopped it and could not start it again (${interrupted.message}) — starting it.`,
+        );
+        relaunchOnly = true;
+      } else if (confirmedOffline) {
         log.info(
           "Mod updates detected while the PZ server is offline — no restart needed until the server is running.",
         );
@@ -1644,24 +1659,24 @@ export class ModChecker extends EventEmitter {
           markProcessed: true,
           reason: "server_offline",
         };
+      } else {
+        log.warn(
+          "RCON not connected while server appears to be running — cannot trigger mod restart safely. Will retry on next check cycle.",
+        );
+        // Clear processed updates so they'll be re-detected on next cycle when RCON may be ready
+        for (const m of updatedMods) {
+          this.processedUpdates.delete(m.workshopId);
+        }
+        releasePendingRestart();
+        return { success: false, retry: true, reason: "rcon_disconnected" };
       }
-
-      log.warn(
-        "RCON not connected while server appears to be running — cannot trigger mod restart safely. Will retry on next check cycle.",
-      );
-      // Clear processed updates so they'll be re-detected on next cycle when RCON may be ready
-      for (const m of updatedMods) {
-        this.processedUpdates.delete(m.workshopId);
-      }
-      releasePendingRestart();
-      return { success: false, retry: true, reason: "rcon_disconnected" };
     }
 
     const modNames = updatedMods
       .map((m) => String(m.name || "Unknown").replace(/[\r\n]/g, ""))
       .join(", ");
 
-    if (this.io) {
+    if (this.io && !relaunchOnly) {
       this.io.emit("mods:restart_starting", {
         mods: updatedMods,
         warningMinutes: this.restartWarningMinutes,
@@ -1669,66 +1684,68 @@ export class ModChecker extends EventEmitter {
     }
 
     try {
-      // Send warning message — use both PanelBridge (rich, UTF-8 safe) and RCON
-      // (always-on global broadcast). PZ's RCON does not handle non-ASCII so the
-      // RCON path strips emoji/unicode automatically inside serverMessage().
-      const trimmedNames =
-        modNames.length > 100 ? `${modNames.substring(0, 100)}...` : modNames;
-      const warningMessage = `🔧 Mod updates detected: ${trimmedNames}. Server will restart in ${this.restartWarningMinutes} minute(s).`;
-      log.info(
-        `Sending mod-restart warning: ${trimmedNames} — restart in ${this.restartWarningMinutes} min`,
-      );
-
-      // Players are being told a restart is coming, so a cancellation from
-      // here on tells them it isn't (_cancelPendingRestartAfterServerStart()).
-      if (context) context.announced = true;
-      let rconBroadcastOk = false;
-      try {
-        const rconResult =
-          await this.scheduler.rconService?.serverMessage(warningMessage);
-        if (rconResult?.success && !rconResult.rejected) {
-          rconBroadcastOk = true;
-        } else if (rconResult?.rejected) {
-          log.warn(
-            "RCON servermsg was rejected by PZ — will rely on PanelBridge fallback",
-          );
-        }
-      } catch (rconErr) {
-        log.warn(`RCON serverMessage failed: ${rconErr?.message || rconErr}`);
-      }
-      if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
-
-      // Always also try PanelBridge if available — it can render the full
-      // unicode message in chat and acts as a fallback if RCON was rejected.
-      try {
-        if (panelBridge?.isRunning && panelBridge?.isModConnected?.()) {
-          await panelBridge.sendCommand("sendToServerChat", {
-            message: warningMessage,
-            alert: true,
-          });
-        } else if (!rconBroadcastOk) {
-          log.warn(
-            "Mod restart warning: neither RCON broadcast nor PanelBridge succeeded — players may not see the warning",
-          );
-        }
-      } catch (bridgeErr) {
-        log.warn(
-          `PanelBridge sendToServerChat failed: ${bridgeErr?.message || bridgeErr}`,
+      // A relaunch of a server a failed restart left stopped (GH #269):
+      // nobody is online to warn.
+      if (!relaunchOnly) {
+        // Send warning message — use both PanelBridge (rich, UTF-8 safe) and RCON
+        // (always-on global broadcast). PZ's RCON does not handle non-ASCII so the
+        // RCON path strips emoji/unicode automatically inside serverMessage().
+        const trimmedNames =
+          modNames.length > 100 ? `${modNames.substring(0, 100)}...` : modNames;
+        const warningMessage = `🔧 Mod updates detected: ${trimmedNames}. Server will restart in ${this.restartWarningMinutes} minute(s).`;
+        log.info(
+          `Sending mod-restart warning: ${trimmedNames} — restart in ${this.restartWarningMinutes} min`,
         );
+
+        // Players are being told a restart is coming, so a cancellation from
+        // here on tells them it isn't (_cancelPendingRestartAfterServerStart()).
+        if (context) context.announced = true;
+        let rconBroadcastOk = false;
+        try {
+          const rconResult =
+            await this.scheduler.rconService?.serverMessage(warningMessage);
+          if (rconResult?.success && !rconResult.rejected) {
+            rconBroadcastOk = true;
+          } else if (rconResult?.rejected) {
+            log.warn(
+              "RCON servermsg was rejected by PZ — will rely on PanelBridge fallback",
+            );
+          }
+        } catch (rconErr) {
+          log.warn(`RCON serverMessage failed: ${rconErr?.message || rconErr}`);
+        }
+        if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
+
+        // Always also try PanelBridge if available — it can render the full
+        // unicode message in chat and acts as a fallback if RCON was rejected.
+        try {
+          if (panelBridge?.isRunning && panelBridge?.isModConnected?.()) {
+            await panelBridge.sendCommand("sendToServerChat", {
+              message: warningMessage,
+              alert: true,
+            });
+          } else if (!rconBroadcastOk) {
+            log.warn(
+              "Mod restart warning: neither RCON broadcast nor PanelBridge succeeded — players may not see the warning",
+            );
+          }
+        } catch (bridgeErr) {
+          log.warn(
+            `PanelBridge sendToServerChat failed: ${bridgeErr?.message || bridgeErr}`,
+          );
+        }
       }
 
       // Checked with nothing awaited before the flag below: from there on,
       // the restart's own relaunch must not cancel it.
       if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
-      // Perform restart with configured warning time
-      log.info(
-        `Calling scheduler.performRestart(${this.restartWarningMinutes})`,
-      );
+      // Perform restart with configured warning time (a stopped server's
+      // relaunch has nobody to warn)
+      const warningMinutes = relaunchOnly ? 0 : this.restartWarningMinutes;
+      log.info(`Calling scheduler.performRestart(${warningMinutes})`);
       this._modRestartInFlight = true;
-      const result = await this.scheduler.performRestart(
-        this.restartWarningMinutes,
-      );
+      const result = await this.scheduler.performRestart(warningMinutes);
 
       if (result && result.success === false) {
         log.warn(

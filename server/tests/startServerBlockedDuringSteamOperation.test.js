@@ -66,6 +66,10 @@ describe("startServer(): refuses to spawn the PZ JVM while SteamCMD is active fo
     await expect(manager.startServer({ skipRunningCheck: true })).rejects.toThrow(
       /steam install or update is currently in progress/i,
     );
+    // GH #269: the refusal names the operation, for a restart to wait out.
+    await expect(manager.startServer({ skipRunningCheck: true })).rejects.toMatchObject({
+      steamOperation: { type: "update", pid: process.pid, path: normalizedInstallPath },
+    });
   });
 
   it("proceeds normally once the tracked operation is cleared -- this is not a permanent lockout", async () => {

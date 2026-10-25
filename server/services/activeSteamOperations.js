@@ -93,8 +93,33 @@ export const WORKSHOP_DOWNLOAD_OPERATION_TYPE = "workshop-download";
 // install/update/verify (or anything else that writes the game files) still
 // blocks, a Workshop item download does not.
 export function hasStartBlockingSteamOperation(normalizedPath) {
-  if (!hasActiveSteamOperation(normalizedPath)) return false;
-  return activeSteamOperations.get(normalizedPath)?.type !== WORKSHOP_DOWNLOAD_OPERATION_TYPE;
+  return getStartBlockingSteamOperation(normalizedPath) !== null;
+}
+
+// The operation behind hasStartBlockingSteamOperation(), for logs and for a
+// restart that waits it out (GH #269): its type, pid (when known), start
+// time and the path it is keyed by, or null when nothing blocks a start.
+export function getStartBlockingSteamOperation(normalizedPath) {
+  if (!hasActiveSteamOperation(normalizedPath)) return null;
+  const operation = activeSteamOperations.get(normalizedPath);
+  if (!operation || operation.type === WORKSHOP_DOWNLOAD_OPERATION_TYPE) return null;
+  return {
+    type: operation.type || "unknown",
+    pid: Number.isInteger(operation.pid) ? operation.pid : null,
+    startTime: Number.isFinite(operation.startTime) ? operation.startTime : null,
+    path: normalizedPath,
+  };
+}
+
+// "install (pid 1234) on c:\pz, running for 95 s": the blocking operation
+// as one log phrase.
+export function describeSteamOperation(operation, now = Date.now()) {
+  if (!operation) return "unknown operation";
+  const pid = operation.pid ? ` (pid ${operation.pid})` : "";
+  const age = operation.startTime
+    ? `, running for ${Math.max(0, Math.round((now - operation.startTime) / 1000))} s`
+    : "";
+  return `${operation.type}${pid} on ${operation.path}${age}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
