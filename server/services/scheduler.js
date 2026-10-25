@@ -9,8 +9,8 @@ import { ServerManager } from "./serverManager.js";
 import { runManagedLifecycle } from "./managedContainer.js";
 import {
   acquireLifecycleLock,
-  currentLaunchSequence,
   holdServerUntilRcon,
+  lastLaunchSequenceFor,
   lifecycleInProgressResponse,
 } from "./lifecycleCoordinator.js";
 import {
@@ -333,6 +333,9 @@ export class Scheduler {
     // to -- lets a deferred backup tell a long countdown from a stuck
     // restart. Set and cleared alongside restartInProgress.
     this.activeRestart = null;
+    // serverId -> a restart that stopped it and could not start it again
+    // (see _noteInterruptedRestart()).
+    this.interruptedRestarts = new Map();
     // {since, running} while a scheduled backup that came due mid-restart
     // is waiting for (or running after) that restart -- see
     // _deferScheduledBackupUntilRestartEnds().
@@ -1569,6 +1572,24 @@ export class Scheduler {
       return;
     }
     for (const target of targets) {
+      // A restart that began while an earlier server was being zipped (a
+      // restart never waits for a backup -- see _onScheduledBackupTick()):
+      // the next server waits for it, as a tick that comes due during one
+      // does, instead of createBackup() refusing it ("A server restart is in
+      // progress") and Schedule History recording that server's backup as
+      // failed. Past the restart's own budget it is refused, as before.
+      if (this.restartInProgress) {
+        const heldAt = Date.now();
+        while (this.restartInProgress && Date.now() < this._deferredBackupDeadline(heldAt)) {
+          await this.sleep(DEFERRED_BACKUP_POLL_MS);
+        }
+        // Turned off while it waited: the rest are dropped.
+        const fresh = await this.backupService.getSettings?.();
+        if (fresh && !fresh.enabled) {
+          log.info("Scheduled backup: turned off while it waited for a server restart; the remaining servers are not backed up");
+          return;
+        }
+      }
       await this._runScheduledBackupOf(target, settings, lateNote);
     }
   }
@@ -1961,7 +1982,9 @@ export class Scheduler {
     // `this.restartInProgress = true`, see the resolution above.
     if (this.restartInProgress) {
       log.info("Restart already in progress, ignoring duplicate request");
-      return { success: false, message: "Restart already in progress" };
+      // `busy`: refused before anything began, so a caller may try again
+      // once that restart is over (services/serverWatch.js does).
+      return { success: false, busy: true, message: "Restart already in progress" };
     }
 
     const lifecycleLock =
@@ -3061,30 +3084,30 @@ export class Scheduler {
 
   // A restart that stopped the server and could not start it again (GH
   // #269): the mod checker must not take that server for one the operator
-  // left offline. Valid until anything launches a server again (the launch
-  // number moves), the restart is cancelled, or one brings it back up.
+  // left offline. Valid until that server is launched again (its launch
+  // number moves), the restart is cancelled, or one brings it back up. One
+  // record per server: with several servers, another server's launch (or
+  // its own failed restart) used to drop this one's record, and the server
+  // was left down as "offline on purpose" after all.
   _noteInterruptedRestart(serverId, message) {
-    this.interruptedRestart = {
-      serverId: serverId == null ? null : String(serverId),
+    const key = serverId == null ? null : String(serverId);
+    this.interruptedRestarts.set(key, {
+      serverId: key,
       message: String(message || "the server did not start again"),
       at: Date.now(),
-      launchSeq: currentLaunchSequence(),
-    };
+      launchSeq: lastLaunchSequenceFor(key),
+    });
   }
 
   _clearInterruptedRestart(serverId) {
-    const key = serverId == null ? null : String(serverId);
-    if (this.interruptedRestart && this.interruptedRestart.serverId === key) {
-      this.interruptedRestart = null;
-    }
+    this.interruptedRestarts.delete(serverId == null ? null : String(serverId));
   }
 
   getInterruptedRestart(serverId) {
-    const record = this.interruptedRestart;
-    if (!record) return null;
     const key = serverId == null ? null : String(serverId);
-    if (record.serverId !== key) return null;
-    if (record.launchSeq !== currentLaunchSequence()) return null;
+    const record = this.interruptedRestarts.get(key);
+    if (!record) return null;
+    if (record.launchSeq !== lastLaunchSequenceFor(key)) return null;
     return record;
   }
 

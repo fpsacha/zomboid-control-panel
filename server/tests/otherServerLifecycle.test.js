@@ -260,6 +260,32 @@ describe("stopOtherServer()", () => {
     expect(rcon.quit).not.toHaveBeenCalled();
     expect(outcome.body).toEqual({ success: true, confirmed: true });
   });
+
+  // The game runs in another container: the panel's process scan never
+  // sees it, and Stop used to answer "already stopped" for a running one.
+  it("asks Docker, not the process scan, whether a container's server runs", async () => {
+    const containerServer = { ...server, dockerContainerName: "pz-second" };
+    const rcon = fakeRcon();
+    const runManaged = vi.fn(async () => ({ handled: true, success: true }));
+    const dockerSignal = vi.fn(async () => ({ running: true, scanFailed: false }));
+    const outcome = await stopOtherServer(containerServer, {
+      createManager: async () => fakeManager(["stopped"]), createRcon: async () => rcon,
+      acquireLock: fakeLock().acquireLock, runManaged, dockerSignal, logEvent: vi.fn(),
+    });
+
+    expect(dockerSignal).toHaveBeenCalledWith(containerServer);
+    expect(runManaged).toHaveBeenCalledWith("stop", { serverId: "s2" });
+    expect(outcome.body).toEqual({ success: true, confirmed: true });
+
+    const started = await startOtherServer(containerServer, {
+      createManager: async () => fakeManager(["stopped"]),
+      acquireLock: fakeLock().acquireLock,
+      runManaged,
+      dockerSignal: vi.fn(async () => ({ running: true, scanFailed: false })),
+      logEvent: vi.fn(),
+    });
+    expect(started.body).toEqual({ success: true, alreadyRunning: true });
+  });
 });
 
 describe("restartOtherServer()", () => {

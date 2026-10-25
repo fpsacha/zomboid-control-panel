@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Mods: the Installed update count matches its list:** an update on a tracked Workshop item that is not in the server config (Deactivated) was counted in the status bar, the Installed badge and the "Updates only" chip, which then listed nothing.
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, the update check's read-only version lookup no longer holds a start at all, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
+- **Restart if it goes down: two servers that go down together both come back:** the second one's restart was refused while the first one's ran and it was left down; it now waits for the panel to be free, and a server unticked during the wait stays down.
+- **Servers run by a Docker container show their real state on the Dashboard's list:** the process scan can't see a game in another container, so such a server always read as stopped, offered no Stop (Stop answered "already stopped") and was never noticed going down; Docker's answer is used now, as for the active server.
+- **Play time isn't counted on a stopped server that shares an RCON port:** the server that was running answered on that port, so its players were recorded on the stopped one too and shown in its row on the Dashboard's list.
+- **Servers that share an install are restarted for mod updates too:** once another server's restart downloaded an update into the shared Workshop folder, a server still running the old version looked up to date and was never restarted; a mod published after the server started now counts as behind.
+- **Scheduled backups of several servers no longer fail when a restart begins part-way:** a restart that started while one server was being backed up made the next servers' backups fail with "A server restart is in progress"; they now wait for it to finish.
+- **Restart if it goes down leaves a server stopped with `quit` from the panel alone:** a `quit` typed in the Console or run by a scheduled task was taken for a crash, so the server was started again 15 seconds later.
 
 ## [1.6.0] - 2026-10-23
 

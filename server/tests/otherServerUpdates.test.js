@@ -13,6 +13,7 @@ function setup({
   local = { 111: 100, 222: 200, 333: 100 },
   steam = { 111: 150, 222: 200, 333: 999 },
   running = true,
+  startedAt = null,
   autoRestart = true,
   restartResult = { success: true },
   installed = { buildId: "10", branch: "public" },
@@ -35,7 +36,7 @@ function setup({
     })),
     installedBuild: vi.fn(async () => installed),
     latestBuild: vi.fn(async () => latest),
-    readStatuses: vi.fn(async () => [{ id: "s2", running, stateUnknown: false }]),
+    readStatuses: vi.fn(async () => [{ id: "s2", running, stateUnknown: false, startedAt }]),
     modRestartSettings: vi.fn(() => ({ autoRestart, warningMinutes: 3 })),
     restartServer: vi.fn(async () => restartResult),
     logEvent: vi.fn(async () => {}),
@@ -91,6 +92,29 @@ describe("OtherServerUpdates.checkAll()", () => {
     expect(deps.restartServer).toHaveBeenCalledTimes(1);
     expect(deps.restartServer).toHaveBeenCalledWith(expect.objectContaining({ id: "s2" }), 3);
     expect(deps.logEvent).toHaveBeenCalledWith("mod_update_restart", expect.stringContaining("Mod 111"), "s2");
+  });
+
+  // Two servers on one install share its Workshop folder: the other one's
+  // restart downloaded 222's update there, so the ACF matches Steam, but this
+  // server has run since before that version was published.
+  it("counts a mod installed after the server started as behind, and restarts the server for it", async () => {
+    const { updates, deps } = setup({
+      local: { 111: 150, 222: 300 },
+      steam: { 111: 150, 222: 300 },
+      startedAt: new Date(200 * 1000).toISOString(),
+    });
+    const [result] = await updates.checkAll();
+
+    expect(result.mods.outdated.map((mod) => mod.workshopId)).toEqual(["222"]);
+    expect(deps.restartServer).toHaveBeenCalledTimes(1);
+
+    // Started again after that version: up to date.
+    const fresh = setup({
+      local: { 111: 150, 222: 300 },
+      steam: { 111: 150, 222: 300 },
+      startedAt: new Date(400 * 1000).toISOString(),
+    });
+    expect((await fresh.updates.checkAll())[0].mods.outdated).toEqual([]);
   });
 
   it("tries again on the next check when the restart didn't happen", async () => {

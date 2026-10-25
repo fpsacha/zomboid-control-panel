@@ -54,6 +54,14 @@ vi.mock("../services/linuxServiceLifecycle.js", async () => {
   return { ...actual, createLinuxServiceLifecycle };
 });
 
+// What Docker says about a container-run server; real unless a test sets it.
+const resolveDockerHostSignal = vi.fn();
+vi.mock("../services/managedContainer.js", async () => {
+  const actual = await vi.importActual("../services/managedContainer.js");
+  resolveDockerHostSignal.mockImplementation(actual.resolveDockerHostSignal);
+  return { ...actual, resolveDockerHostSignal };
+});
+
 const { default: router } = await import("../routes/servers.js");
 
 function createResponse() {
@@ -79,6 +87,34 @@ describe("GET /api/servers/status", () => {
     getServers.mockReset();
     getActiveServer.mockReset().mockResolvedValue({ id: 1 });
     scanHostForServerProcesses.mockReset();
+  });
+
+  // The game runs in a container of its own, which the panel's process scan
+  // can't see: Docker's answer is the row's, as for the active server.
+  it("reads a container-run server's state from Docker", async () => {
+    getServers.mockResolvedValue([
+      { id: 1, name: "Active", installPath: "C:\\Servers\\Active" },
+      { id: 2, name: "Boxed", dockerContainerName: "pz-boxed" },
+      { id: 3, name: "Unreachable", dockerContainerName: "pz-gone" },
+    ]);
+    scanHostForServerProcesses.mockResolvedValue({ matched: [] });
+    resolveDockerHostSignal.mockImplementation(async (server) =>
+      server.id === 2
+        ? { running: true, scanFailed: false, startedAt: "2026-10-25T10:00:00.123456789Z" }
+        : { running: false, scanFailed: true },
+    );
+    const response = createResponse();
+
+    await getStatusHandler()({ app: fakeApp() }, response);
+
+    const rows = response.json.mock.calls[0][0].servers;
+    expect(rows.find((s) => s.id === 2)).toMatchObject({
+      running: true,
+      stateUnknown: false,
+      provider: "docker-local",
+      startedAt: "2026-10-25T10:00:00.123Z",
+    });
+    expect(rows.find((s) => s.id === 3)).toMatchObject({ running: false, stateUnknown: true });
   });
 
   it("reports a genuinely running NON-active server as running, not just the active one", async () => {

@@ -220,6 +220,20 @@ describe('ServersOverview', () => {
     expect(within(hosted).queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
+  it('counts nobody on a stopped server whose RCON port another server answers', async () => {
+    prime([ALIVE, OUTBREAK])
+    getRconStatuses.mockResolvedValue({
+      servers: [
+        { id: 's1', status: 'connected', players: 3 },
+        { id: 's2', status: 'connected', players: 3 },
+      ],
+    } as never)
+    renderOverview()
+
+    await waitFor(() => expect(within(rowOf('LNKAlive')).getByText('Players online: 3')).toBeInTheDocument())
+    expect(within(rowOf('LNK-OUTBREAK')).queryByText('Players online: 3')).not.toBeInTheDocument()
+  })
+
   it('lists many installed and linked servers in a scrolling list, the active one first', async () => {
     const many = Array.from({ length: 12 }, (_, i) =>
       server(`m${i}`, `Server ${i}`, { isRemote: i % 3 === 0, isActive: i === 7, serverPort: 16261 + i * 2 }))

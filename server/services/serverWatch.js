@@ -1,5 +1,5 @@
 import { createLogger } from "../utils/logger.js";
-import { lifecycleActivityCovers } from "./lifecycleCoordinator.js";
+import { LIFECYCLE_IN_PROGRESS_CODE, lifecycleActivityCovers } from "./lifecycleCoordinator.js";
 
 const log = createLogger("ServerWatch");
 
@@ -36,6 +36,21 @@ export const CRASH_RESTART_DELAY_MS = 15 * 1000;
 // the window, rather than started in a loop.
 export const CRASH_RESTART_LIMIT = 3;
 export const CRASH_RESTART_WINDOW_MS = 30 * 60 * 1000;
+// A restart refused because another server's operation holds the panel (the
+// scheduler runs one restart at a time, and starts and stops take the
+// lifecycle lock) is tried again every CRASH_RESTART_BUSY_POLL_MS, for as
+// long as a restart with the longest warning (an hour) and its sequence can
+// take. Two servers that go down together -- the host's memory ran out, a mod
+// both load broke -- used to leave the second one down for good.
+export const CRASH_RESTART_BUSY_POLL_MS = 15 * 1000;
+export const CRASH_RESTART_BUSY_WAIT_MS = 75 * 60 * 1000;
+
+// The refusal of a restart that never began because something else held the
+// panel: the lifecycle lock (LIFECYCLE_IN_PROGRESS_CODE) or the scheduler's
+// one-restart-at-a-time rule (`busy`).
+function refusedAsBusy(result) {
+  return Boolean(result && !result.success && (result.busy === true || result.code === LIFECYCLE_IN_PROGRESS_CODE));
+}
 
 export function restartOnCrashChosen(settingValue, serverId) {
   return (
@@ -84,6 +99,8 @@ export class ServerWatch {
     now = () => Date.now(),
     sleep = defaultSleep,
     restartDelayMs = CRASH_RESTART_DELAY_MS,
+    busyPollMs = CRASH_RESTART_BUSY_POLL_MS,
+    busyWaitMs = CRASH_RESTART_BUSY_WAIT_MS,
   }) {
     this.readStatuses = readStatuses;
     this.getServers = getServers;
@@ -97,6 +114,8 @@ export class ServerWatch {
     this.now = now;
     this.sleep = sleep;
     this.restartDelayMs = restartDelayMs;
+    this.busyPollMs = busyPollMs;
+    this.busyWaitMs = busyWaitMs;
     // Last confident state of each server other than the active one, by id.
     this.lastRunning = new Map();
     // When each server was restarted after going down, for the loop guard.
@@ -232,26 +251,50 @@ export class ServerWatch {
     }
 
     await this.sleep(this.restartDelayMs);
-    // Started again in the meantime (by hand, or from the game's host), or a
-    // panel operation took it over: nothing to do. Asked again because a
-    // restart of a server found running is a full restart, countdown and all.
-    if (this.activityCovers(id, PANEL_STOP_WINDOW_MS, this.now())) {
-      return { restarted: false, reason: "panelOperation" };
-    }
-    const stopped = await this.isStopped(server, { isActive });
-    if (stopped !== true) {
-      log.info(
-        stopped === false
-          ? `${name} is running again; no restart needed`
-          : `Could not tell whether ${name} is still down; not restarting it`,
-      );
-      return { restarted: false, reason: stopped === false ? "running" : "unknown" };
-    }
+    const busyDeadline = this.now() + this.busyWaitMs;
+    let announced = false;
+    let result;
+    for (;;) {
+      // Unticked while it waited: left down, as asked.
+      if (!restartOnCrashChosen(await this.getSetting("restartOnCrashServerIds"), id)) {
+        return { restarted: false, reason: "notChosen" };
+      }
+      // Started again in the meantime (by hand, or from the game's host), or
+      // a panel operation took it over: nothing to do. Asked again because a
+      // restart of a server found running is a full restart, countdown and all.
+      if (this.activityCovers(id, PANEL_STOP_WINDOW_MS, this.now())) {
+        return { restarted: false, reason: "panelOperation" };
+      }
+      const stopped = await this.isStopped(server, { isActive });
+      if (stopped !== true) {
+        log.info(
+          stopped === false
+            ? `${name} is running again; no restart needed`
+            : `Could not tell whether ${name} is still down; not restarting it`,
+        );
+        return { restarted: false, reason: stopped === false ? "running" : "unknown" };
+      }
 
-    recent.push(this.now());
-    log.warn(`Restarting ${name}: it went down without the panel asking`);
-    await this.logEvent("crash_restart", `${name} went down without the panel asking; starting it again`, id);
-    const result = await this.restartServer(server, { isActive });
+      if (!announced) {
+        announced = true;
+        recent.push(this.now());
+        log.warn(`Restarting ${name}: it went down without the panel asking`);
+        await this.logEvent("crash_restart", `${name} went down without the panel asking; starting it again`, id);
+      }
+      result = await this.restartServer(server, { isActive });
+      if (!refusedAsBusy(result)) break;
+      if (this.now() >= busyDeadline) {
+        const minutes = Math.round(this.busyWaitMs / 60000);
+        await this.logEvent(
+          "crash_restart_error",
+          `${name} could not be started again: another operation kept the panel busy for ${minutes} minutes`,
+          id,
+        );
+        return { restarted: false, reason: "busy" };
+      }
+      log.info(`${name} waits for another operation to finish before it is started again`);
+      await this.sleep(this.busyPollMs);
+    }
     if (!result?.success) {
       const reason = result?.message || result?.error || "no reason was given";
       await this.logEvent("crash_restart_error", `${name} could not be started again: ${reason}`, id);

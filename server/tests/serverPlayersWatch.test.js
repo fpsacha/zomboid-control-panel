@@ -9,17 +9,19 @@ import {
 // PanelBridge doesn't reach: who is on, a minute apart, over each server's
 // own RCON, turned into connects and disconnects under that server.
 
-function setup() {
+function setup({ rows } = {}) {
   const state = {
     servers: [{ id: "active", name: "Main" }, { id: "s2", name: "Second" }, { id: "far", isRemote: true }],
     activeId: "active",
     answers: [],
+    rows,
   };
   const deps = {
     getServers: vi.fn(async () => state.servers),
     getActiveServer: vi.fn(async () => state.servers.find((s) => s.id === state.activeId)),
     recordSession: vi.fn(async () => {}),
     readPlayers: vi.fn(async (server) => state.answers.shift() ?? { success: false, server }),
+    ...(rows ? { readStatuses: vi.fn(async () => state.rows) } : {}),
   };
   const watch = new ServerPlayersWatch(deps);
   const look = async (answer) => {
@@ -62,6 +64,20 @@ describe("ServerPlayersWatch", () => {
 
     await look({ success: false });
     expect(deps.recordSession).toHaveBeenCalledWith("Ana", "disconnect", "s2");
+  });
+
+  // Two servers on one RCON port, only one of them running: the stopped
+  // one's RCON port answers with the running one's players.
+  it("counts nobody on a server the scan confirms stopped, whatever its RCON port answers", async () => {
+    const { deps, state, look } = setup({ rows: [{ id: "s2", running: true, stateUnknown: false }] });
+    await look({ success: true, names: ["Ana"] });
+    expect(deps.recordSession).toHaveBeenCalledWith("Ana", "connect", "s2", { keepOpenSession: true });
+
+    deps.recordSession.mockClear();
+    state.rows = [{ id: "s2", running: false, stateUnknown: false }];
+    await look({ success: true, names: ["Ana", "Bob"] });
+    expect(deps.recordSession).toHaveBeenCalledWith("Ana", "disconnect", "s2");
+    expect(deps.recordSession).not.toHaveBeenCalledWith("Bob", "connect", "s2");
   });
 
   it("leaves a server that became the active one to PanelBridge, and starts over when it isn't any more", async () => {

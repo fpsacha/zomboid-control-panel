@@ -61,6 +61,8 @@ import {
   stopOtherServer,
 } from "../services/otherServerLifecycle.js";
 import { codedActionResultFields, emitActionResult } from "./scheduler.js";
+import { resolveDockerHostSignal } from "../services/managedContainer.js";
+import { resolveProvider } from "../utils/serverStatusModel.js";
 import {
   findLaunchTargetRefusal,
   launchTargetOf,
@@ -893,6 +895,34 @@ export async function readServerStatuses(serverManager, { memory = false } = {})
   };
 
   const statuses = await Promise.all(servers.map(async (server) => {
+    // A server run by a Docker container: what Docker says, as for the
+    // active server's own status (utils/serverStatus.js). The process scan
+    // never sees a game running in another container, so every such row read
+    // as stopped: no Stop on the Dashboard's list, and the server watch never
+    // saw it go down.
+    const provider = resolveProvider(server);
+    if (!server.isRemote && (provider === "docker-local" || provider === "docker-managed")) {
+      let signal;
+      try {
+        signal = await resolveDockerHostSignal(server);
+      } catch (error) {
+        log.debug(`Docker status of ${server.name} failed: ${error.message}`);
+        signal = { running: false, scanFailed: true };
+      }
+      const known = !signal.scanFailed;
+      // Docker's StartedAt carries nanoseconds; the rows' startedAt is a plain ISO string.
+      const startedMs = known && signal.running && signal.startedAt ? Date.parse(signal.startedAt) : NaN;
+      return {
+        id: server.id,
+        name: server.name,
+        running: known && Boolean(signal.running),
+        pid: null,
+        isActive: server.id === activeId,
+        provider,
+        stateUnknown: !known,
+        startedAt: Number.isFinite(startedMs) && startedMs > 0 ? new Date(startedMs).toISOString() : null,
+      };
+    }
     if (isManagedLifecycleProvider(server.lifecycleProvider)) {
       try {
         const status = await createLinuxServiceLifecycle(
