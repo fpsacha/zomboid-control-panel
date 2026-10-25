@@ -4158,6 +4158,7 @@ const serverPlayersWatch = new ServerPlayersWatch({
   getActiveServer: () => getActiveServer(),
   recordSession: (name, action, serverId, options) =>
     recordPlayerSession(name, action, serverId, options),
+  readStatuses: async () => (await readServerStatuses(serverManager)).statuses,
 });
 
 // Process detection can fail with wrappers (WinGSM) or restricted permissions.
