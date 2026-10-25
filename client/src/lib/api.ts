@@ -1093,6 +1093,26 @@ export const serverApi = {
     truncated?: boolean
   }> => apiGet("/server/console-log/error-count"),
   clearConsoleLog: () => apiPost("/server/console-log/clear"),
+  // The game's server-console.txt alone (secrets redacted by the server),
+  // saved under the name the server gives it.
+  downloadConsoleLog: async (): Promise<void> => {
+    const response = await fetchWithRetry(`${API_BASE}/server/console-log/download`);
+    if (!response.ok) {
+      const payload = await parseResponseBody(response);
+      throw buildResponseError(response, payload);
+    }
+    const disposition = response.headers.get("content-disposition") || "";
+    const name = /filename="([^"]+)"/.exec(disposition)?.[1] || "server-console.txt";
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
 };
 
 // Players API

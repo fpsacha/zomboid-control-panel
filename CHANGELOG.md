@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Download server-console.txt from the Console page:** the Server Log tab downloads the game's console log on its own, with the same secrets redacted as in the support bundle, instead of the whole bundle.
+
 ### Fixed
 
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
