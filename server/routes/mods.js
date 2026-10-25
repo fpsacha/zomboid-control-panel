@@ -98,7 +98,7 @@ import {
   sanitizeModIdListWithDiskBypass,
   shippedByListedItems,
 } from "../services/workshopModInfo.js";
-import { addWorkshopItemToIni } from "../services/modIniEdit.js";
+import { addMapFoldersToIni, addWorkshopItemToIni } from "../services/modIniEdit.js";
 import {
   extractClothingOutfits,
   extractLuaGlobals,
@@ -5869,6 +5869,13 @@ router.post("/groups/:id/enable", async (req, res) => {
           "WorkshopItems",
           `WorkshopItems=${sanitizeIniList([...workshopItems, ...workshopItemsAdded])}`,
         );
+        // An item this adds puts its maps in front of Map=, like every
+        // add-mod flow (addWorkshopItemToIni): without them a map mod of the
+        // group loads with no map.
+        const folders = workshopItemsAdded.flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath));
+        const maps = addMapFoldersToIni(content, folders);
+        content = maps.content;
+        if (maps.addedMapFolders.length > 0) result.mapFoldersAdded = maps.addedMapFolders;
       }
       backupWarning = backupWarningFor(await writeIniWithBackup(iniPath, content));
     });

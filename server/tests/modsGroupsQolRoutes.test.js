@@ -127,6 +127,19 @@ describe("POST /groups/:id/enable", () => {
     expect(fx.iniValue("Mods")).toBe("x;core;y");
   });
 
+  // A map mod of the group came in without its map: Mods= and WorkshopItems=
+  // got it, Map= did not, so the server loaded the mod and no map.
+  it("puts the maps of a Workshop item it adds in front of Map=, like every add-mod flow", async () => {
+    const mapDir = `${fx.writeMod(UNLISTED, "KI5Lib", modInfo("lib", "KI5 Library"))}/media/maps/KI5Town`;
+    fs.mkdirSync(mapDir, { recursive: true });
+    fs.writeFileSync(`${mapDir}/0_0.lotheader`, "");
+    await seed(["KI5", "lib", "core"]);
+    const res = await enable("seed-0");
+    expect(res.getBody()).toMatchObject({ enabled: ["lib"], workshopItemsAdded: [UNLISTED], mapFoldersAdded: ["KI5Town"] });
+    expect(fx.iniValue("Map")).toBe("KI5Town;Muldraugh, KY");
+    expect(fx.backups()).toHaveLength(1);
+  });
+
   it("places a group with no enabled member at the end, in the group's order", async () => {
     fx.writeIni(`Mods=x\nWorkshopItems=${LISTED}\n`);
     await seed(["KI5", "addon", "core"]);
