@@ -1527,7 +1527,7 @@ export class BackupService {
       let freed = 0;
       for (const backup of [...deletable].reverse()) {
         if (free + freed >= needed) break;
-        const deleted = await this.deleteBackup(backup.name);
+        const deleted = await this.deleteBackup(backup.name, activeServer);
         if (!deleted?.success) {
           log.warn(
             `Could not remove ${backup.name} to make room for a backup: ${deleted?.message || "unknown error"}`,
@@ -1745,9 +1745,14 @@ export class BackupService {
   /**
    * Delete a backup
    */
-  async deleteBackup(backupName) {
+  // `activeServerOverride`: the server whose backups folder holds it, for the
+  // retention of a scheduled backup of a server other than the active one
+  // (cleanupOldBackups(), _pruneOldestToFit()). Without it that pass looked
+  // for the file in the active server's folder ("Backup not found"), or,
+  // with both servers on one data folder, refused it as the other server's.
+  async deleteBackup(backupName, activeServerOverride) {
     try {
-      const backupsPath = await this.getBackupsPath();
+      const backupsPath = await this.getBackupsPath(activeServerOverride);
       if (!backupsPath) {
         throw new Error("Backups folder not found");
       }
@@ -1767,7 +1772,11 @@ export class BackupService {
       // round 18: refuse a delete whose name identifies it as another,
       // currently-colliding server's own backup -- see
       // _findForeignBackupOwner()'s own comment.
-      const foreignOwner = await this._findForeignBackupOwner(safeName, backupsPath);
+      const foreignOwner = await this._findForeignBackupOwner(
+        safeName,
+        backupsPath,
+        activeServerOverride,
+      );
       if (foreignOwner) {
         throw new Error(
           `This backup belongs to another server profile ("${foreignOwner}") that shares this backups folder -- refusing to delete it from here.`,
@@ -1782,7 +1791,11 @@ export class BackupService {
       }
       log.info(`Deleted backup: ${safeName}`);
       try {
-        await logServerEvent("backup_deleted", safeName);
+        await logServerEvent(
+          "backup_deleted",
+          safeName,
+          activeServerOverride?.id != null ? { serverId: activeServerOverride.id } : {},
+        );
       } catch (error) {
         // The file is already unlinked and the record already removed --
         // a logging failure here must not turn an actually-successful
@@ -1839,7 +1852,7 @@ export class BackupService {
 
       // Delete oldest backups
       for (const backup of toDelete) {
-        const deleted = await this.deleteBackup(backup.name);
+        const deleted = await this.deleteBackup(backup.name, activeServerOverride);
         if (!deleted?.success) {
           // deleteBackup() only ever sets .message on failure, never
           // .error -- this read the wrong field, so every real cleanup
