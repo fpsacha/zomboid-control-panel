@@ -5304,7 +5304,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       });
     }
 
-    const { serverConfigPath, serverName, configRefusal } = await getActiveServerPaths();
+    const { serverConfigPath, serverName, serverPath, configRefusal } = await getActiveServerPaths();
     const iniPath = getSanitizedIniPath(serverConfigPath, serverName);
 
     if (!iniPath) {
@@ -5326,6 +5326,38 @@ router.post("/presets/:id/apply", async (req, res) => {
     let backupWarning = null;
     await withIniLock(iniPath, async () => {
       let content = readTextFile(iniPath);
+
+      // Map= follows the items that come and go, as when they are added or
+      // removed one by one: a preset only keeps Mods= and WorkshopItems=, so
+      // a map mod's map stayed in Map= after a preset without it (and a
+      // preset with one loaded it without its map).
+      const itemsBefore = workshopItemsOf(content);
+      const itemsAfter = (preset.workshop_ids || []).map(String);
+      const isItemId = (id) => /^\d{1,15}$/.test(id);
+      const removedItems = itemsBefore.filter((id) => isItemId(id) && !itemsAfter.includes(id));
+      const addedItems = itemsAfter.filter((id) => isItemId(id) && !itemsBefore.includes(id));
+      const mapMatch = content.match(/^[ \t]*Map[ \t]*=[ \t]*(.*)$/m);
+      const mapsBefore = mapMatch ? splitIniList(mapMatch[1]) : null;
+      if (serverPath && mapsBefore) {
+        const leaving = removedItems
+          .flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath))
+          .filter((folder) => mapsBefore.includes(folder));
+        const kept = shippedByListedItems({ mapFolders: leaving, listedWorkshopIds: itemsAfter, serverPath }).maps;
+        const out = new Set(leaving.filter((folder) => !kept.has(folder)));
+        if (out.size > 0) {
+          const maps = mapsBefore.filter((folder) => !out.has(folder));
+          content = content.replace(
+            /^[ \t]*Map[ \t]*=.*/m,
+            () => `Map=${sanitizeIniList(maps.length ? maps : ["Muldraugh, KY"])}`,
+          );
+        }
+      }
+      if (serverPath && addedItems.length > 0) {
+        content = addMapFoldersToIni(
+          content,
+          addedItems.flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath)),
+        ).content;
+      }
 
       // Existence must be checked with the same anchored regex used to
       // replace it, not a plain .includes() -- see this file's first
