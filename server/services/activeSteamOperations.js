@@ -89,9 +89,23 @@ export function hasActiveSteamOperation(normalizedPath) {
 // the server stopped.
 export const WORKSHOP_DOWNLOAD_OPERATION_TYPE = "workshop-download";
 
+// The type updateChecker.js registers while SteamCMD looks up the branch's
+// build id (+app_info_update / +app_info_print, no +force_install_dir): it
+// reads Steam's app info and writes nothing in the install folder. GH #269:
+// it used to block a start like an install, so a restart's relaunch during
+// one (or during a hung one, up to its SteamCMD timeout) was refused.
+export const VERSION_CHECK_OPERATION_TYPE = "version-check";
+
+// Registered (still visible, still one SteamCMD at a time per folder) but
+// not a reason to refuse a start: nothing they do touches the game files.
+const NON_BLOCKING_START_TYPES = new Set([
+  WORKSHOP_DOWNLOAD_OPERATION_TYPE,
+  VERSION_CHECK_OPERATION_TYPE,
+]);
+
 // hasActiveSteamOperation() for the "may this server start" question: an
-// install/update/verify (or anything else that writes the game files) still
-// blocks, a Workshop item download does not.
+// install/update/verify/branch switch (anything that writes the game files)
+// still blocks; a Workshop item download or a version check does not.
 export function hasStartBlockingSteamOperation(normalizedPath) {
   return getStartBlockingSteamOperation(normalizedPath) !== null;
 }
@@ -102,7 +116,7 @@ export function hasStartBlockingSteamOperation(normalizedPath) {
 export function getStartBlockingSteamOperation(normalizedPath) {
   if (!hasActiveSteamOperation(normalizedPath)) return null;
   const operation = activeSteamOperations.get(normalizedPath);
-  if (!operation || operation.type === WORKSHOP_DOWNLOAD_OPERATION_TYPE) return null;
+  if (!operation || NON_BLOCKING_START_TYPES.has(operation.type)) return null;
   return {
     type: operation.type || "unknown",
     pid: Number.isInteger(operation.pid) ? operation.pid : null,

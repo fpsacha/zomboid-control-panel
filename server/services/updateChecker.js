@@ -13,6 +13,7 @@ import {
   recordActiveSteamOperationPid,
   isSteamOperationIdle,
   STEAM_OPERATION_IDLE_TIMEOUT_MS,
+  VERSION_CHECK_OPERATION_TYPE,
 } from "./activeSteamOperations.js";
 import { acquireLifecycleLock } from "./lifecycleCoordinator.js";
 import { waitForProcessExit } from "../utils/processScanRetry.js";
@@ -296,7 +297,8 @@ export class UpdateChecker {
         );
       }
       getActiveSteamOperations().set(normalizedInstallPath, {
-        type: "version-check",
+        // Read-only: does not block a server start (GH #269).
+        type: VERSION_CHECK_OPERATION_TYPE,
         startTime: Date.now(),
         lastOutputAt: Date.now(),
       });

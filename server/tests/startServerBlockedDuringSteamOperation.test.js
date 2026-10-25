@@ -104,6 +104,25 @@ describe("startServer(): refuses to spawn the PZ JVM while SteamCMD is active fo
     );
   });
 
+  // GH #269: the update checker's build-id lookup (+app_info_print) writes
+  // nothing in the install folder; one still running, or hung until its
+  // SteamCMD timeout, refused a restart's relaunch and left the server down.
+  it("does not block on the update checker's read-only version check, however long it runs", async () => {
+    const manager = makeManager();
+    getActiveSteamOperations().set(normalizedInstallPath, {
+      type: "version-check",
+      pid: process.pid,
+      startTime: Date.now() - 60 * 60 * 1000,
+      lastOutputAt: Date.now() - 60 * 60 * 1000,
+    });
+
+    await expect(manager.startServer({ skipRunningCheck: true })).rejects.not.toThrow(
+      /steam install or update is currently in progress/i,
+    );
+    // Still registered: one SteamCMD at a time per folder, and visible.
+    expect(getActiveSteamOperations().get(normalizedInstallPath)?.type).toBe("version-check");
+  });
+
   it.each(["install", "update", "verification", "auto-update", "unknown"])(
     "still blocks on a %s operation",
     async (type) => {

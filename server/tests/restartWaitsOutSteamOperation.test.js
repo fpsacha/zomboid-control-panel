@@ -230,6 +230,28 @@ describe("performRestart() waits out a Steam operation that holds the relaunch",
     expect(serverManager.startServer).toHaveBeenCalledTimes(1);
   });
 
+  it("relaunches at once over a hung update-check version lookup, which writes nothing", async () => {
+    const scheduler = new Scheduler({}, {});
+    const { rconService, serverManager } = makeServer();
+    getActiveSteamOperations().set(INSTALL, {
+      type: "version-check",
+      startTime: Date.now() - 30 * 60 * 1000,
+      lastOutputAt: Date.now() - 30 * 60 * 1000,
+    });
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+
+    await advanceUntil(() => settled);
+    const result = await restart;
+
+    expect(result).toMatchObject({ success: true, wasRunning: true });
+    expect(serverManager.startServer).toHaveBeenCalledTimes(1);
+  });
+
   it("still fails at once on any other launch error", async () => {
     const scheduler = new Scheduler({}, {});
     const { rconService, serverManager } = makeServer();
