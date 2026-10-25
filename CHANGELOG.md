@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Mods: the Installed update count matches its list:** an update on a tracked Workshop item that is not in the server config (Deactivated) was counted in the status bar, the Installed badge, the "Updates only" chip (which then listed nothing), the Mod Manager nav badge and the Dashboard.
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, the update check's read-only version lookup no longer holds a start at all, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
+- **Mods: "on server" in the status bar counts the Installed list:** it counted Deactivated items too (tracked, but not in WorkshopItems=), e.g. 431 on server over 415 in the config.
 - **Mods: removing or deleting an old Workshop item keeps its re-upload loading:** a mod id or map that an item still in WorkshopItems= ships too stays in Mods= and Map= (Remove, Deactivated's Delete from tracking, Delete from disk).
 
 ## [1.6.0] - 2026-10-23

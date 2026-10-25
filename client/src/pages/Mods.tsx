@@ -4035,7 +4035,8 @@ export default function Mods() {
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
               <Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              {t('statusBar.onServer', { count: status?.totalModsTracked || 0 })}
+              {/* The Installed list's mods: a Deactivated item is tracked, not on the server. */}
+              {t('statusBar.onServer', { count: iniConfig === null ? (status?.totalModsTracked || 0) : installedMods.length })}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
