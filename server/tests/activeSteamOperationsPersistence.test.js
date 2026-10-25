@@ -72,18 +72,48 @@ describe("activeSteamOperations survives a panel crash: persisted mirror + start
   });
 
   it("rehydrates a still-alive operation from disk and the existing guard blocks on it", async () => {
-    // process.pid (this test's own process) is unambiguously alive.
+    // process.pid (this test's own process) is unambiguously alive. It
+    // stands in for an orphaned SteamCMD here, so the panel's own pid is
+    // said to be another, and the operation began after the last boot.
     await setSetting(SETTING_KEY, {
-      "c:\\pzserver": { pid: process.pid, type: "auto-update", startTime: 1 },
+      "c:\\pzserver": { pid: process.pid, type: "auto-update", startTime: Date.now() - 60_000 },
     });
     // Simulates the panel process having crashed and restarted: the
     // in-memory Map is empty, exactly like a fresh module load.
     resetMap();
     expect(hasActiveSteamOperation("c:\\pzserver")).toBe(false);
 
-    await rehydrateActiveSteamOperationsFromDisk();
+    await rehydrateActiveSteamOperationsFromDisk({ ownPid: -1, uptimeSeconds: 24 * 3600 });
 
     expect(hasActiveSteamOperation("c:\\pzserver")).toBe(true);
+  });
+
+  // A host that rebooted during an update: the recorded pid is alive again,
+  // as another process's (Windows reuses small pids at once), and Start,
+  // Restart and every Steam operation on the folder were refused for as long
+  // as that process lived, with nothing in the panel to clear it.
+  it("drops an operation recorded before the machine last started, whatever now runs under its pid", async () => {
+    const now = Date.now();
+    await setSetting(SETTING_KEY, {
+      "c:\\pzserver": { pid: process.pid, type: "auto-update", startTime: now - 3 * 3600 * 1000 },
+    });
+    resetMap();
+
+    await rehydrateActiveSteamOperationsFromDisk({ now, ownPid: -1, uptimeSeconds: 3600 });
+
+    expect(hasActiveSteamOperation("c:\\pzserver")).toBe(false);
+    expect(await getSetting(SETTING_KEY)).not.toHaveProperty("c:\\pzserver");
+  });
+
+  it("drops an operation whose pid is now the panel's own", async () => {
+    await setSetting(SETTING_KEY, {
+      "c:\\pzserver": { pid: process.pid, type: "install", startTime: Date.now() - 60_000 },
+    });
+    resetMap();
+
+    await rehydrateActiveSteamOperationsFromDisk({ uptimeSeconds: 24 * 3600 });
+
+    expect(hasActiveSteamOperation("c:\\pzserver")).toBe(false);
   });
 
   it("self-heals a dead pid found on disk instead of blocking forever", async () => {
