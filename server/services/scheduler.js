@@ -1961,7 +1961,9 @@ export class Scheduler {
     // `this.restartInProgress = true`, see the resolution above.
     if (this.restartInProgress) {
       log.info("Restart already in progress, ignoring duplicate request");
-      return { success: false, message: "Restart already in progress" };
+      // `busy`: refused before anything began, so a caller may try again
+      // once that restart is over (services/serverWatch.js does).
+      return { success: false, busy: true, message: "Restart already in progress" };
     }
 
     const lifecycleLock =

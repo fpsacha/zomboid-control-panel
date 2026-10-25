@@ -187,6 +187,52 @@ describe("ServerWatch.tick()", () => {
     expect(deps.logEvent).toHaveBeenCalledWith("crash_restart_gave_up", expect.any(String), "s2");
   });
 
+  // Two servers that go down together: the second one's restart is refused
+  // while the first one's runs (one restart at a time, the lifecycle lock).
+  it("waits out another server's restart, then starts it", async () => {
+    const { deps, look } = setup();
+    deps.restartServer
+      .mockResolvedValueOnce({ success: false, busy: true, message: "Restart already in progress" })
+      .mockResolvedValueOnce({ success: false, code: "SERVER_LIFECYCLE_IN_PROGRESS", error: "busy" })
+      .mockResolvedValueOnce({ success: true });
+    await look([row("s2", true)]);
+    await look([row("s2", false)]);
+
+    expect(deps.restartServer).toHaveBeenCalledTimes(3);
+    expect(deps.logEvent.mock.calls.filter(([type]) => type === "crash_restart")).toHaveLength(1);
+    expect(deps.logEvent).not.toHaveBeenCalledWith("crash_restart_error", expect.any(String), "s2");
+  });
+
+  it("gives up on a restart the panel stays too busy for, and says so", async () => {
+    const { watch, deps, look } = setup({
+      restartResult: { success: false, busy: true, message: "Restart already in progress" },
+    });
+    let clock = 0;
+    watch.now = () => clock;
+    deps.sleep.mockImplementation(async (ms) => {
+      clock += ms;
+    });
+    await look([row("s2", true)]);
+    await look([row("s2", false)]);
+
+    expect(deps.logEvent).toHaveBeenCalledWith(
+      "crash_restart_error",
+      expect.stringContaining("busy"),
+      "s2",
+    );
+  });
+
+  it("leaves a server down when restart-if-down is unticked during the wait", async () => {
+    const { deps, state, look } = setup();
+    deps.sleep.mockImplementation(async () => {
+      state.chosen = [];
+    });
+    await look([row("s2", true)]);
+    await look([row("s2", false)]);
+
+    expect(deps.restartServer).not.toHaveBeenCalled();
+  });
+
   it("records a restart that failed", async () => {
     const { deps, look } = setup({ restartResult: { success: false, message: "port in use" } });
     await look([row("s2", true)]);
