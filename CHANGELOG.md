@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Play time isn't counted on a stopped server that shares an RCON port:** the server that was running answered on that port, so its players were recorded on the stopped one too and shown in its row on the Dashboard's list.
 - **Servers that share an install are restarted for mod updates too:** once another server's restart downloaded an update into the shared Workshop folder, a server still running the old version looked up to date and was never restarted; a mod published after the server started now counts as behind.
 - **Scheduled backups of several servers no longer fail when a restart begins part-way:** a restart that started while one server was being backed up made the next servers' backups fail with "A server restart is in progress"; they now wait for it to finish.
+- **Restart if it goes down leaves a server stopped with `quit` from the panel alone:** a `quit` typed in the Console or run by a scheduled task was taken for a crash, so the server was started again 15 seconds later.
 
 ## [1.6.0] - 2026-10-23
 

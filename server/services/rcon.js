@@ -13,6 +13,7 @@ import { readSecret } from "../utils/secrets.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
 import { redactRconCommandSecrets } from "../utils/rconCommandRedaction.js";
 import { ErrorCode } from "../utils/errorCodes.js";
+import { noteServerQuitRequested } from "./lifecycleCoordinator.js";
 
 // Settings > Connection > "Reconnect interval" is a number of seconds. The
 // service accepts 5 to 600 whatever is stored (a hand-edited db.json or an
@@ -1636,6 +1637,14 @@ export class RconService extends EventEmitter {
         throw new Error("RCON not connected");
       }
       commandSent = true;
+      // A `quit` typed in the Console or run by a scheduled task is a stop
+      // the panel was asked for, as one from quit() is: the stop that follows
+      // is no crash to the status watchdog (classifyStopReason()) or to the
+      // server watch's restart if it goes down.
+      if (/^\s*quit\s*$/i.test(String(command))) {
+        this.lastQuitAttemptAt = new Date().toISOString();
+        noteServerQuitRequested(this.serverId);
+      }
       let timeoutId;
       const executePromise = commandClient.execute(command);
       const timeoutPromise = new Promise((_, reject) => {
