@@ -1569,6 +1569,24 @@ export class Scheduler {
       return;
     }
     for (const target of targets) {
+      // A restart that began while an earlier server was being zipped (a
+      // restart never waits for a backup -- see _onScheduledBackupTick()):
+      // the next server waits for it, as a tick that comes due during one
+      // does, instead of createBackup() refusing it ("A server restart is in
+      // progress") and Schedule History recording that server's backup as
+      // failed. Past the restart's own budget it is refused, as before.
+      if (this.restartInProgress) {
+        const heldAt = Date.now();
+        while (this.restartInProgress && Date.now() < this._deferredBackupDeadline(heldAt)) {
+          await this.sleep(DEFERRED_BACKUP_POLL_MS);
+        }
+        // Turned off while it waited: the rest are dropped.
+        const fresh = await this.backupService.getSettings?.();
+        if (fresh && !fresh.enabled) {
+          log.info("Scheduled backup: turned off while it waited for a server restart; the remaining servers are not backed up");
+          return;
+        }
+      }
       await this._runScheduledBackupOf(target, settings, lateNote);
     }
   }

@@ -163,6 +163,33 @@ describe("the scheduled backup of each chosen server", () => {
     }
   });
 
+  // A restart never waits for a backup: one that begins while the first
+  // server is zipped must hold the next server's backup, not fail it.
+  it("waits for a restart that began during an earlier server's backup before the next one", async () => {
+    const scheduler = new Scheduler({}, {});
+    const order = [];
+    const createBackup = vi.fn(async ({ server }) => {
+      order.push(`backup:${server.name}:${scheduler.restartInProgress ? "mid-restart" : "clear"}`);
+      // Another server's restart starts while this one is zipped.
+      if (server.name === "HoldOne") scheduler.restartInProgress = true;
+      return { success: true, backup: { name: `${server.id}.zip` } };
+    });
+    scheduler.backupService = { createBackup, getSettings: vi.fn(async () => ({ enabled: true })) };
+    scheduler.sleep = vi.fn(async () => {
+      order.push("wait");
+      scheduler.restartInProgress = false;
+    });
+    const one = await createServer({ name: "HoldOne", serverName: "HoldOne" });
+    const two = await createServer({ name: "HoldTwo", serverName: "HoldTwo" });
+    try {
+      await scheduler._runScheduledBackup({ includeDb: false, serverIds: [String(one.id), String(two.id)] });
+      expect(order).toEqual(["backup:HoldOne:clear", "wait", "backup:HoldTwo:clear"]);
+    } finally {
+      await deleteServer(one.id).catch(() => {});
+      await deleteServer(two.id).catch(() => {});
+    }
+  });
+
   it("reads Schedule History per server", async () => {
     await logScheduleExecution(null, "Scheduled Backup", "backup", false, "other failed", 1, { serverId: "history-other" });
     await logScheduleExecution(null, "Scheduled Backup", "backup", true, "mine ok", 1, { serverId: "history-mine" });

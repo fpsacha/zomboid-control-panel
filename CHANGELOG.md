@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Servers run by a Docker container show their real state on the Dashboard's list:** the process scan can't see a game in another container, so such a server always read as stopped, offered no Stop (Stop answered "already stopped") and was never noticed going down; Docker's answer is used now, as for the active server.
 - **Play time isn't counted on a stopped server that shares an RCON port:** the server that was running answered on that port, so its players were recorded on the stopped one too and shown in its row on the Dashboard's list.
 - **Servers that share an install are restarted for mod updates too:** once another server's restart downloaded an update into the shared Workshop folder, a server still running the old version looked up to date and was never restarted; a mod published after the server started now counts as behind.
+- **Scheduled backups of several servers no longer fail when a restart begins part-way:** a restart that started while one server was being backed up made the next servers' backups fail with "A server restart is in progress"; they now wait for it to finish.
 
 ## [1.6.0] - 2026-10-23
 
