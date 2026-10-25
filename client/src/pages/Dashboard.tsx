@@ -49,6 +49,7 @@ import { getResultErrorMessage, getUserErrorMessage, getRecoveryUrl } from '@/li
 import { lifecycleBusyFromError, lifecycleBusyReason } from '@/lib/lifecycleBusy'
 import { useLifecycleState } from '@/hooks/useLifecycleState'
 import { formatTime } from '@/lib/dateFormat'
+import { modUpdatesOnServer } from '@/lib/modsShared'
 import { VerdictBand, WorkList } from '@/components/dashboard/DashboardVerdict'
 import type { Verdict, WorkItem } from '@/components/dashboard/DashboardVerdict'
 
@@ -677,7 +678,8 @@ export default function Dashboard() {
       backupCount: backupRes.status === 'fulfilled' ? (backupRes.value.backupCount ?? 0) : prev.backupCount,
       backupsEnabled: backupRes.status === 'fulfilled' ? !!backupRes.value.enabled : prev.backupsEnabled,
       lastScheduledBackupAttempt: backupRes.status === 'fulfilled' ? (backupRes.value.lastScheduledBackupAttempt ?? null) : prev.lastScheduledBackupAttempt,
-      modUpdatesAvailable: modsRes.status === 'fulfilled' ? ((modsRes.value as { updatesAvailable?: number }).updatesAvailable ?? 0) : prev.modUpdatesAvailable,
+      // The server's own (WorkshopItems=) updates, as the Mods page counts them.
+      modUpdatesAvailable: modsRes.status === 'fulfilled' ? (modUpdatesOnServer(modsRes.value as { updatesAvailable?: number; updatesOnServer?: number }) ?? 0) : prev.modUpdatesAvailable,
       modsTracked: modsRes.status === 'fulfilled' ? ((modsRes.value as { totalModsTracked?: number }).totalModsTracked ?? 0) : prev.modsTracked,
       scheduledTasksCount: tasksRes.status === 'fulfilled'
         ? (tasksRes.value.tasks ?? []).filter(t => t.enabled === 1 || t.enabled === true).length

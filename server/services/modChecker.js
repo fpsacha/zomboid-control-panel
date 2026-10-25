@@ -2472,14 +2472,23 @@ export class ModChecker extends EventEmitter {
     ]);
     const relevantWorkshopIds =
       relevantWorkshopIdsUnion.size > 0 ? relevantWorkshopIdsUnion : null;
-    const modsWithUpdates = Object.entries(workshopInfo).filter(
-      ([id, info]) => {
+    const idsWithUpdates = Object.entries(workshopInfo)
+      .filter(([id, info]) => {
         if (!info.needsUpdate) return false;
         if (relevantWorkshopIds && !relevantWorkshopIds.has(String(id)))
           return false;
         return true;
-      },
-    ).length;
+      })
+      .map(([id]) => String(id));
+    const modsWithUpdates = idsWithUpdates.length;
+    // The updates of the items the server loads (WorkshopItems=), what the
+    // Mods page's Installed counts show: a Deactivated item's update needs
+    // no server update or restart, so the nav badge and the Dashboard count
+    // these. updatesAvailable keeps the union for the stale-flag check.
+    const updatesOnServer =
+      iniWorkshopIds === null
+        ? modsWithUpdates
+        : idsWithUpdates.filter((id) => iniWorkshopIds.has(id)).length;
 
     return {
       running: !!this.intervalId,
@@ -2499,6 +2508,7 @@ export class ModChecker extends EventEmitter {
       totalModsInWorkshop: Object.keys(workshopInfo).length,
       totalModsTracked: Array.isArray(trackedMods) ? trackedMods.length : 0,
       updatesAvailable: modsWithUpdates,
+      updatesOnServer,
       // False only after a check that actually queried Steam and got
       // nothing back (outage/rate-limit/network block) -- true before the
       // first check ever runs, so this isn't itself a false alarm on a
