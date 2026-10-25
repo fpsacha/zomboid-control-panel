@@ -230,6 +230,69 @@ describe("performRestart() waits out a Steam operation that holds the relaunch",
     expect(serverManager.startServer).toHaveBeenCalledTimes(1);
   });
 
+  it("starts when the stopped evidence settles a scan that can't answer after the wait", async () => {
+    const scheduler = new Scheduler({}, {});
+    const { state, rconService, serverManager } = makeServer();
+    serverManager.checkStoppedEvidence = vi.fn(async () => ({
+      stopped: true,
+      reason: "the RCON port refuses connections and the game's console log ends with \"Shutdown handling finished\"",
+    }));
+    registerInstall();
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    state.scanFailed = true;
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 2);
+    state.scanFailed = false;
+    await advanceUntil(() => settled);
+
+    expect(await restart).toMatchObject({ success: true, wasRunning: true });
+    expect(serverManager.checkStoppedEvidence).toHaveBeenCalledWith({ serverId: 1 });
+  });
+
+  // rcon.js clears serverStarting by itself 5 minutes after it was set: a
+  // relaunch held longer than that booted as "unresponsive", with
+  // auto-reconnect racing the restart's own RCON wait.
+  it("relaunches as 'starting' after a wait longer than serverStarting's 5-minute failsafe", async () => {
+    const scheduler = new Scheduler({}, {});
+    const { rconService, serverManager } = makeServer();
+    let failsafe = null;
+    rconService.serverStarting = false;
+    rconService.setServerStarting = vi.fn((value) => {
+      rconService.serverStarting = value;
+      clearTimeout(failsafe);
+      if (value) failsafe = setTimeout(() => (rconService.serverStarting = false), 5 * 60 * 1000);
+    });
+    registerInstall();
+    let startingAtRelaunch = null;
+    const start = serverManager.startServer.getMockImplementation();
+    serverManager.startServer.mockImplementation(async (...args) => {
+      startingAtRelaunch = rconService.serverStarting;
+      return start(...args);
+    });
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    await vi.advanceTimersByTimeAsync(8 * 60 * 1000);
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 2);
+
+    expect(startingAtRelaunch).toBe(true);
+    await advanceUntil(() => settled);
+    await restart;
+  });
+
   it("relaunches at once over a hung update-check version lookup, which writes nothing", async () => {
     const scheduler = new Scheduler({}, {});
     const { rconService, serverManager } = makeServer();
@@ -270,6 +333,54 @@ describe("performRestart() waits out a Steam operation that holds the relaunch",
     expect(outcome.error?.message).toBe("RCON port 27015 is in use");
     expect(serverManager.startServer).toHaveBeenCalledTimes(1);
     expect(scheduler.getInterruptedRestart(1)).toMatchObject({ serverId: "1" });
+  });
+});
+
+// A scheduled backup that came due during such a restart waits for it, but
+// gives up (and writes "the restart looked stuck ... restart the panel")
+// once the restart outlasts its countdown plus a 20-minute budget sized
+// before this wait existed. A restart that waited ~15 min for the install
+// and then ~5 min for RCON passed it, and the advice would have meant
+// restarting the panel under a restart that was about to finish.
+describe("a scheduled backup held back by a restart that waits out a Steam operation", () => {
+  it("is not written off as a stuck restart; it runs once the restart ends", async () => {
+    const { logScheduleExecution } = await import("../database/init.js");
+    logScheduleExecution.mockClear();
+    const scheduler = new Scheduler({}, {});
+    const createBackup = vi.fn().mockResolvedValue({ success: true, backup: { name: "One.zip" } });
+    scheduler.setBackupService({
+      getSettings: vi.fn(async () => ({ enabled: true, includeDb: false })),
+      createBackup,
+    });
+    const { rconService, serverManager } = makeServer();
+    // RCON never answers the new server: the restart's full RCON wait.
+    const quit = rconService.quit;
+    rconService.quit = vi.fn(async () => {
+      rconService.connected = false;
+      return quit();
+    });
+    rconService.connect = vi.fn(() => new Promise(() => {}));
+    registerInstall();
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+    const backup = scheduler._onScheduledBackupTick({ enabled: true, includeDb: false });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    await vi.advanceTimersByTimeAsync(RESTART_STEAM_OPERATION_WAIT_MS - 30 * 1000);
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => settled, 1000, 40 * 60 * 1000);
+    await restart;
+    await advanceUntil(() => createBackup.mock.calls.length === 1, 1000, 60 * 1000);
+    await backup;
+
+    const backupRows = logScheduleExecution.mock.calls.filter((call) => call[2] === "backup");
+    expect(backupRows).toHaveLength(1);
+    expect(backupRows[0][3]).toBe(true);
+    expect(backupRows[0][4]).toMatch(/^Created: One\.zip -- held back until a server restart/);
   });
 });
 

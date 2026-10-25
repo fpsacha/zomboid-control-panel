@@ -160,6 +160,49 @@ describe("UpdateChecker.runAutoUpdate fails closed when process detection can't 
     ).rejects.toThrow(/steamcmd not found/i);
     expect(getServerProcessDetails).toHaveBeenCalledTimes(2);
   });
+
+  // The quit had worked, but detection never answered for the whole wait:
+  // the update was abandoned with the server already down, recorded as
+  // "still running", and nothing started it again. A restart settles the
+  // same doubt with the stopped evidence (RCON port refused + the console
+  // log's shutdown lines); the update now does too.
+  it("goes on once the stopped evidence shows the server shut down, and starts it again afterwards", async () => {
+    const getServerProcessDetails = vi
+      .fn()
+      .mockResolvedValueOnce({ running: true, scanFailed: false })
+      .mockResolvedValue({ running: false, scanFailed: true });
+    const { checker, serverManager } = buildChecker({ getServerProcessDetails });
+    serverManager.checkStoppedEvidence = vi.fn(async () => ({
+      stopped: true,
+      reason: 'the RCON port refuses connections and the game\'s console log ends with "Shutdown handling finished"',
+    }));
+    checker.sleep = vi.fn(async () => {});
+
+    // Past the stop: the SteamCMD step, where the mocked path can't exist.
+    await expect(
+      checker.runAutoUpdate({ installed: { branch: "stable" } }),
+    ).rejects.toThrow(/steamcmd not found/i);
+    expect(serverManager.checkStoppedEvidence).toHaveBeenCalledWith({ serverId: "server-1" });
+    expect(serverManager.startServer).toHaveBeenCalledTimes(1);
+  });
+
+  it("still abandons the update when the evidence doesn't show the server stopped", async () => {
+    const getServerProcessDetails = vi
+      .fn()
+      .mockResolvedValueOnce({ running: true, scanFailed: false })
+      .mockResolvedValue({ running: false, scanFailed: true });
+    const { checker, serverManager } = buildChecker({ getServerProcessDetails });
+    serverManager.checkStoppedEvidence = vi.fn(async () => ({
+      stopped: false,
+      reason: "the RCON port did not refuse a connection",
+    }));
+    checker.sleep = vi.fn(async () => {});
+
+    await expect(
+      checker.runAutoUpdate({ installed: { branch: "stable" } }),
+    ).rejects.toThrow(/lost the ability to verify/i);
+    expect(serverManager.startServer).not.toHaveBeenCalled();
+  });
 });
 
 // 2026-08-26: a live socket event only reaches whoever happens to be

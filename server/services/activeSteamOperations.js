@@ -1,3 +1,4 @@
+import os from "os";
 import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
 import { isPidAlive } from "../utils/pidLiveness.js";
@@ -203,7 +204,30 @@ export async function recordActiveSteamOperationPid(normalizedPath, pid) {
 // the Map and asks that same function to resolve each entry immediately,
 // rather than duplicating its liveness logic or waiting for whichever
 // caller happens to check first.
-export async function rehydrateActiveSteamOperationsFromDisk() {
+//
+// A live pid is not proof on its own: the system hands a dead SteamCMD's pid
+// to another process, and Windows does so freely after a reboot (pids are
+// small and reused at once). A host that rebooted during an install, update
+// or auto-update then found some unrelated process behind the recorded pid,
+// and every Start, Restart and Steam operation on that folder was refused
+// for as long as that process lived -- a service, until the next reboot --
+// with nothing in the panel to clear it. A pid recorded before the machine
+// last booted, or the pid of this panel itself, is that case.
+const BOOT_TIME_SLACK_MS = 60 * 1000;
+
+function pidReusedSinceRecorded(entry, { now, uptimeSeconds, ownPid }) {
+  if (entry.pid === ownPid) return true;
+  const startTime = Number(entry.startTime);
+  if (!Number.isFinite(startTime) || startTime <= 0) return false;
+  const bootedAt = now - uptimeSeconds * 1000;
+  return startTime < bootedAt - BOOT_TIME_SLACK_MS;
+}
+
+export async function rehydrateActiveSteamOperationsFromDisk({
+  now = Date.now(),
+  uptimeSeconds = os.uptime(),
+  ownPid = process.pid,
+} = {}) {
   let snapshot;
   try {
     snapshot = await getSetting(PERSISTED_SETTING_KEY);
@@ -213,8 +237,16 @@ export async function rehydrateActiveSteamOperationsFromDisk() {
   }
   if (!snapshot || typeof snapshot !== "object") return;
 
+  let droppedReusedPid = false;
   for (const [normalizedPath, entry] of Object.entries(snapshot)) {
     if (!Number.isInteger(entry?.pid)) continue;
+    if (pidReusedSinceRecorded(entry, { now, uptimeSeconds, ownPid })) {
+      droppedReusedPid = true;
+      log.info(
+        `A recorded Steam ${entry.type || "unknown"} operation for ${normalizedPath} is not running anymore: its pid ${entry.pid} belongs to another process now (recorded before this machine last started, or this panel's own) -- cleared.`,
+      );
+      continue;
+    }
     activeSteamOperations.set(normalizedPath, {
       type: entry.type || "unknown",
       startTime: entry.startTime || null,
@@ -230,4 +262,6 @@ export async function rehydrateActiveSteamOperationsFromDisk() {
       );
     }
   }
+  // The dropped entries leave the persisted snapshot too.
+  if (droppedReusedPid) await persistSnapshot();
 }

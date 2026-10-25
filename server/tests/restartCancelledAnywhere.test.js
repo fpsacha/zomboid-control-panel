@@ -133,6 +133,65 @@ describe("performRestart() ends the moment it is cancelled", () => {
   });
 });
 
+// The restart's stopIntent ("restart") outlived a restart that never stopped
+// the server, so the watchdog took the next stop -- a crash days later -- for
+// that restart, and restart-on-crash (serverWatch.onActiveServerStopped)
+// left the server down.
+describe("a restart that never stopped the server leaves no restart pending", () => {
+  it("a countdown cancelled by an operator", async () => {
+    setUp();
+    const scheduler = new Scheduler({}, {});
+    const rconService = makeRconService();
+    const serverManager = makeServerManager();
+
+    const restart = scheduler.performRestart(30, { rconService, serverManager });
+    await vi.waitFor(() => expect(rconService.serverMessage).toHaveBeenCalled());
+    expect(serverManager.stopIntent).toBe("restart");
+    scheduler.cancelRestart();
+    await restart;
+
+    expect(rconService.quit).not.toHaveBeenCalled();
+    expect(serverManager.stopIntent).toBeNull();
+  });
+
+  it("a save that failed, so the server was left running", async () => {
+    setUp();
+    const scheduler = new Scheduler({}, {});
+    scheduler.sleep = async () => {};
+    const rconService = makeRconService({
+      save: vi.fn().mockResolvedValue({ success: false, error: "timed out" }),
+    });
+    const serverManager = makeServerManager();
+
+    const result = await scheduler.performRestart(0, { rconService, serverManager });
+
+    expect(result).toMatchObject({ success: false, code: "SERVER_RESTART_SAVE_FAILED" });
+    expect(rconService.quit).not.toHaveBeenCalled();
+    expect(serverManager.stopIntent).toBeNull();
+  });
+
+  it("keeps it once the quit was sent, for the watchdog to see the stop", async () => {
+    setUp();
+    const scheduler = new Scheduler({}, {});
+    scheduler.sleep = async () => {};
+    const rconService = makeRconService();
+    const serverManager = makeServerManager();
+    // Still running after the quit and the forced stop does not confirm.
+    serverManager.getServerProcessDetails = vi
+      .fn()
+      .mockResolvedValue({ running: true, scanFailed: false });
+    serverManager.stopServer = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: "still running" });
+
+    const result = await scheduler.performRestart(0, { rconService, serverManager });
+
+    expect(result.success).toBe(false);
+    expect(rconService.quit).toHaveBeenCalled();
+    expect(serverManager.stopIntent).toBe("restart");
+  });
+});
+
 describe("sleep() keeps waiting while a restart is being cancelled", () => {
   it("other loops that wait out a restart are not turned into a busy loop", async () => {
     vi.useFakeTimers();

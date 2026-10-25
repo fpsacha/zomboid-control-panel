@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Servers that share an install are restarted for mod updates too:** once another server's restart downloaded an update into the shared Workshop folder, a server still running the old version looked up to date and was never restarted; a mod published after the server started now counts as behind.
 - **Scheduled backups of several servers no longer fail when a restart begins part-way:** a restart that started while one server was being backed up made the next servers' backups fail with "A server restart is in progress"; they now wait for it to finish.
 - **Restart if it goes down leaves a server stopped with `quit` from the panel alone:** a `quit` typed in the Console or run by a scheduled task was taken for a crash, so the server was started again 15 seconds later.
+- **Stop and Force stop during a Discord /restart:** they were refused for the whole countdown and restart ("A 'discord-restart' operation is already in progress"); they now cancel it, as for a restart started from the panel.
+- **Backup retention for every scheduled server:** the scheduled backup of a server other than the active one never deleted its old backups (it looked in the active server's folder), so they piled up past the backup count until the disk filled.
+- **Automatic game update when process detection fails mid-stop:** the update was abandoned with the server already shut down, and nothing started it again; like a restart, it now checks the RCON port and the console log, and goes on when they show the server stopped.
+- **Start refused for good after a reboot during a Steam update:** a SteamCMD run recorded before the machine restarted could match an unrelated process that reused its pid, and Start, Restart and Steam operations on that folder stayed refused; such a record is now cleared at panel start.
+- **Restart on crash after a cancelled restart:** a restart cancelled during its countdown, or called off by a failed save, left its "restart" mark behind, so the next crash was taken for that restart and the server was not brought back.
 
 ## [1.6.0] - 2026-10-23
 
