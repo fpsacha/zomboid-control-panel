@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, the update check's read-only version lookup no longer holds a start at all, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
 - **Stop and Force stop during a Discord /restart:** they were refused for the whole countdown and restart ("A 'discord-restart' operation is already in progress"); they now cancel it, as for a restart started from the panel.
 - **Backup retention for every scheduled server:** the scheduled backup of a server other than the active one never deleted its old backups (it looked in the active server's folder), so they piled up past the backup count until the disk filled.
+- **Automatic game update when process detection fails mid-stop:** the update was abandoned with the server already shut down, and nothing started it again; like a restart, it now checks the RCON port and the console log, and goes on when they show the server stopped.
 - **Restart on crash after a cancelled restart:** a restart cancelled during its countdown, or called off by a failed save, left its "restart" mark behind, so the next crash was taken for that restart and the server was not brought back.
 
 ## [1.6.0] - 2026-10-23
