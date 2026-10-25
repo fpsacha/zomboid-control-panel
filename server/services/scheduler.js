@@ -2593,6 +2593,7 @@ export class Scheduler {
           serverManager,
           serverId: pinnedServerId,
           readProcessDetails,
+          rconService,
         });
         if (relaunch.cancelled) {
           return stopCancelledRestart("waiting for a Steam operation to finish");
@@ -3031,7 +3032,21 @@ export class Scheduler {
   // starts it through the same guards. Any other refusal, the timeout, a
   // scan that can't answer and a server found running all fail as before.
   // Returns { result } (startServer()'s own) or { cancelled: true }.
-  async _relaunchWaitingOutSteamOperation({ serverManager, serverId, readProcessDetails }) {
+  async _relaunchWaitingOutSteamOperation({
+    serverManager,
+    serverId,
+    readProcessDetails,
+    rconService = null,
+  }) {
+    // serverStarting (set before the relaunch) clears itself after 5 minutes
+    // (rcon.js's failsafe): over a longer wait the new server then booted
+    // as "unresponsive", with auto-reconnect racing the RCON wait. Down while
+    // it waits, starting again once it relaunches.
+    const setStarting = (value) => {
+      if (!rconService) return;
+      if (rconService.setServerStarting) rconService.setServerStarting(value);
+      else rconService.serverStarting = value;
+    };
     const deadline = Date.now() + RESTART_STEAM_OPERATION_WAIT_MS;
     const waitMinutes = Math.round(RESTART_STEAM_OPERATION_WAIT_MS / 60000);
     for (;;) {
@@ -3047,6 +3062,7 @@ export class Scheduler {
       // A scheduled backup held back by this restart allows for this wait
       // before it calls the restart stuck (_deferredBackupDeadline()).
       if (this.activeRestart) this.activeRestart.waitedForSteamOperation = true;
+      setStarting(false);
       const waitStartedAt = Date.now();
       log.warn(
         `Auto-restart: the server is stopped and its relaunch waits for a Steam ${describeSteamOperation(blocking, waitStartedAt)} to finish (up to ${waitMinutes} min)`,
@@ -3068,17 +3084,27 @@ export class Scheduler {
       // below skips its own running check, so this is the one that counts.
       const details = await readProcessDetails();
       if (!details || details.scanFailed) {
-        throw new Error(
-          "The server was stopped for the restart and the Steam operation that held its relaunch has finished, but process detection failed, so the panel could not check that no server was started meanwhile and did not start one. Check the server and start it if it is stopped.",
+        // One scan that can't answer (GH #190) used to end the restart here
+        // with the server down. The same secondary proof as the stop step
+        // settles it: RCON port refused and the console log's shutdown lines.
+        const evidence = await this._readStoppedEvidence(serverManager, { serverId });
+        if (!evidence.stopped) {
+          log.warn(`Auto-restart: process detection failed after the Steam wait and ${evidence.reason}`);
+          throw new Error(
+            "The server was stopped for the restart and the Steam operation that held its relaunch has finished, but process detection failed, so the panel could not check that no server was started meanwhile and did not start one. Check the server and start it if it is stopped.",
+          );
+        }
+        log.info(
+          `Auto-restart: process detection failed after the Steam wait, but ${evidence.reason}, so the server is still stopped`,
         );
-      }
-      if (details.running) {
+      } else if (details.running) {
         throw new Error(
           "A server process was started while the restart waited for a Steam operation to finish, so the restart did not start a second one.",
         );
       }
       if (this.restartCancelled) return { cancelled: true };
       await this._ensureRestartTarget(serverManager, serverId);
+      setStarting(true);
     }
   }
 

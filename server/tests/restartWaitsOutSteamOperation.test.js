@@ -230,6 +230,69 @@ describe("performRestart() waits out a Steam operation that holds the relaunch",
     expect(serverManager.startServer).toHaveBeenCalledTimes(1);
   });
 
+  it("starts when the stopped evidence settles a scan that can't answer after the wait", async () => {
+    const scheduler = new Scheduler({}, {});
+    const { state, rconService, serverManager } = makeServer();
+    serverManager.checkStoppedEvidence = vi.fn(async () => ({
+      stopped: true,
+      reason: "the RCON port refuses connections and the game's console log ends with \"Shutdown handling finished\"",
+    }));
+    registerInstall();
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    state.scanFailed = true;
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 2);
+    state.scanFailed = false;
+    await advanceUntil(() => settled);
+
+    expect(await restart).toMatchObject({ success: true, wasRunning: true });
+    expect(serverManager.checkStoppedEvidence).toHaveBeenCalledWith({ serverId: 1 });
+  });
+
+  // rcon.js clears serverStarting by itself 5 minutes after it was set: a
+  // relaunch held longer than that booted as "unresponsive", with
+  // auto-reconnect racing the restart's own RCON wait.
+  it("relaunches as 'starting' after a wait longer than serverStarting's 5-minute failsafe", async () => {
+    const scheduler = new Scheduler({}, {});
+    const { rconService, serverManager } = makeServer();
+    let failsafe = null;
+    rconService.serverStarting = false;
+    rconService.setServerStarting = vi.fn((value) => {
+      rconService.serverStarting = value;
+      clearTimeout(failsafe);
+      if (value) failsafe = setTimeout(() => (rconService.serverStarting = false), 5 * 60 * 1000);
+    });
+    registerInstall();
+    let startingAtRelaunch = null;
+    const start = serverManager.startServer.getMockImplementation();
+    serverManager.startServer.mockImplementation(async (...args) => {
+      startingAtRelaunch = rconService.serverStarting;
+      return start(...args);
+    });
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    await vi.advanceTimersByTimeAsync(8 * 60 * 1000);
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 2);
+
+    expect(startingAtRelaunch).toBe(true);
+    await advanceUntil(() => settled);
+    await restart;
+  });
+
   it("relaunches at once over a hung update-check version lookup, which writes nothing", async () => {
     const scheduler = new Scheduler({}, {});
     const { rconService, serverManager } = makeServer();
