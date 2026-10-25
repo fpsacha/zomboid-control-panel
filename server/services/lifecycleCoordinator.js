@@ -167,6 +167,7 @@ export function setLaunchTargetRefresher(fn) {
 // notifyServerLaunched() once the launch has actually happened.
 export async function prepareForLaunch(server, { container = false } = {}) {
   const launchSeq = ++launchSequence;
+  lastLaunchByServer.set(normalizeServerId(server?.id), launchSeq);
   let scriptWarnings = [];
   if (launchTargetRefresher && server) {
     try {
@@ -205,6 +206,8 @@ export async function prepareForLaunch(server, { container = false } = {}) {
 // the refusals that leave the old process running ("already running", a
 // port in use), and those must not count as a fresh start.
 let launchSequence = 0;
+// The last launch begun for each server id ("" for a launch that named none).
+const lastLaunchByServer = new Map();
 let serverLaunchedHook = null;
 
 export function setServerLaunchedHook(fn) {
@@ -213,6 +216,17 @@ export function setServerLaunchedHook(fn) {
 
 export function currentLaunchSequence() {
   return launchSequence;
+}
+
+// The number of the last launch begun for this server -- or for no server in
+// particular, which may have been this one -- 0 for none: "has this server
+// been launched since" when several servers launch on their own (the boot
+// auto-start, the Dashboard's list, a restart after going down).
+export function lastLaunchSequenceFor(serverId) {
+  return Math.max(
+    lastLaunchByServer.get(normalizeServerId(serverId)) ?? 0,
+    lastLaunchByServer.get("") ?? 0,
+  );
 }
 
 // Never throws and never waits: the hook's work (and any rejection) stays

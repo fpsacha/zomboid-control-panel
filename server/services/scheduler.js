@@ -9,8 +9,8 @@ import { ServerManager } from "./serverManager.js";
 import { runManagedLifecycle } from "./managedContainer.js";
 import {
   acquireLifecycleLock,
-  currentLaunchSequence,
   holdServerUntilRcon,
+  lastLaunchSequenceFor,
   lifecycleInProgressResponse,
 } from "./lifecycleCoordinator.js";
 import {
@@ -333,6 +333,9 @@ export class Scheduler {
     // to -- lets a deferred backup tell a long countdown from a stuck
     // restart. Set and cleared alongside restartInProgress.
     this.activeRestart = null;
+    // serverId -> a restart that stopped it and could not start it again
+    // (see _noteInterruptedRestart()).
+    this.interruptedRestarts = new Map();
     // {since, running} while a scheduled backup that came due mid-restart
     // is waiting for (or running after) that restart -- see
     // _deferScheduledBackupUntilRestartEnds().
@@ -3081,30 +3084,30 @@ export class Scheduler {
 
   // A restart that stopped the server and could not start it again (GH
   // #269): the mod checker must not take that server for one the operator
-  // left offline. Valid until anything launches a server again (the launch
-  // number moves), the restart is cancelled, or one brings it back up.
+  // left offline. Valid until that server is launched again (its launch
+  // number moves), the restart is cancelled, or one brings it back up. One
+  // record per server: with several servers, another server's launch (or
+  // its own failed restart) used to drop this one's record, and the server
+  // was left down as "offline on purpose" after all.
   _noteInterruptedRestart(serverId, message) {
-    this.interruptedRestart = {
-      serverId: serverId == null ? null : String(serverId),
+    const key = serverId == null ? null : String(serverId);
+    this.interruptedRestarts.set(key, {
+      serverId: key,
       message: String(message || "the server did not start again"),
       at: Date.now(),
-      launchSeq: currentLaunchSequence(),
-    };
+      launchSeq: lastLaunchSequenceFor(key),
+    });
   }
 
   _clearInterruptedRestart(serverId) {
-    const key = serverId == null ? null : String(serverId);
-    if (this.interruptedRestart && this.interruptedRestart.serverId === key) {
-      this.interruptedRestart = null;
-    }
+    this.interruptedRestarts.delete(serverId == null ? null : String(serverId));
   }
 
   getInterruptedRestart(serverId) {
-    const record = this.interruptedRestart;
-    if (!record) return null;
     const key = serverId == null ? null : String(serverId);
-    if (record.serverId !== key) return null;
-    if (record.launchSeq !== currentLaunchSequence()) return null;
+    const record = this.interruptedRestarts.get(key);
+    if (!record) return null;
+    if (record.launchSeq !== lastLaunchSequenceFor(key)) return null;
     return record;
   }
 

@@ -312,6 +312,26 @@ describe("the mod checker and a server a failed restart left stopped", () => {
     expect(checker.processedUpdates.has("2503622437")).toBe(false);
   });
 
+  // Several servers: another one's launch (the boot auto-start, the
+  // Dashboard's list, a restart after going down) or its own failed restart
+  // is no start of this one.
+  it("still starts it after another server launched or failed its own restart", async () => {
+    const scheduler = new Scheduler({}, {});
+    scheduler._noteInterruptedRestart(1, REFUSAL);
+    await prepareForLaunch({ id: 2, name: "Two" });
+    scheduler._noteInterruptedRestart(2, "Server stopped but failed to start");
+    const checker = makeChecker(scheduler);
+
+    const result = await checker.triggerModRestart(MODS);
+
+    expect(scheduler.performRestart).toHaveBeenCalledWith(0);
+    expect(result).toMatchObject({ success: true, reason: "restart_complete" });
+    expect(scheduler.getInterruptedRestart(2)).toMatchObject({ serverId: "2" });
+
+    await prepareForLaunch({ id: 1, name: "One" });
+    expect(scheduler.getInterruptedRestart(1)).toBeNull();
+  });
+
   it("leaves a server alone once anything launched a server after the failure", async () => {
     const scheduler = new Scheduler({}, {});
     scheduler._noteInterruptedRestart(1, REFUSAL);
