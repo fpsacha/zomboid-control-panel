@@ -257,5 +257,34 @@ describe("modChecker.js does not treat every mod in a (possibly host-shared) Wor
 
       expect(status.updatesAvailable).toBe(1);
     });
+
+    // The nav badge and the Dashboard read updatesOnServer: the updates of
+    // what WorkshopItems= loads, as the Mods page's Installed counts show. A
+    // tracked item not in the ini (Deactivated) is still in updatesAvailable
+    // above, never here: it needs no server update or restart.
+    it("updatesOnServer counts only the ini's own items, and falls back to updatesAvailable without an ini", async () => {
+      const IN_INI = "3333333333";
+      getTrackedMods.mockResolvedValue([
+        { workshop_id: MOD_RELEVANT, name: "Deactivated Mod" },
+        { workshop_id: IN_INI, name: "Loaded Mod" },
+      ]);
+      const checker = makeChecker({
+        acfMods: [MOD_RELEVANT, IN_INI],
+        steamUpdates: [],
+      });
+      checker.lastSteamTimestamps = new Map([
+        [MOD_RELEVANT, { time_updated: 2000 }],
+        [IN_INI, { time_updated: 2000 }],
+      ]);
+
+      expect((await checker.getStatus()).updatesOnServer).toBe(2);
+
+      checker.serverManager = {
+        getServerConfig: async () => ({ WorkshopItems: IN_INI }),
+      };
+      const status = await checker.getStatus();
+      expect(status.updatesAvailable).toBe(2);
+      expect(status.updatesOnServer).toBe(1);
+    });
   });
 });

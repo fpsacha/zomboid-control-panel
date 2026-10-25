@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Mods: the Installed update count matches its list:** an update on a tracked Workshop item that is not in the server config (Deactivated) was counted in the status bar, the Installed badge and the "Updates only" chip, which then listed nothing.
+- **Mods: the Installed update count matches its list:** an update on a tracked Workshop item that is not in the server config (Deactivated) was counted in the status bar, the Installed badge, the "Updates only" chip (which then listed nothing), the Mod Manager nav badge and the Dashboard.
 - **A restart no longer leaves the server down when a Steam install or update holds its relaunch (#269):** it waits up to 15 minutes for the operation to finish, then starts the server, the update check's read-only version lookup no longer holds a start at all, and the mod checker retries a server a failed restart left stopped instead of taking it for offline on purpose.
 - **Restart if it goes down: two servers that go down together both come back:** the second one's restart was refused while the first one's ran and it was left down; it now waits for the panel to be free, and a server unticked during the wait stays down.
 - **Servers run by a Docker container show their real state on the Dashboard's list:** the process scan can't see a game in another container, so such a server always read as stopped, offered no Stop (Stop answered "already stopped") and was never noticed going down; Docker's answer is used now, as for the active server.
@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Automatic game update when process detection fails mid-stop:** the update was abandoned with the server already shut down, and nothing started it again; like a restart, it now checks the RCON port and the console log, and goes on when they show the server stopped.
 - **Start refused for good after a reboot during a Steam update:** a SteamCMD run recorded before the machine restarted could match an unrelated process that reused its pid, and Start, Restart and Steam operations on that folder stayed refused; such a record is now cleared at panel start.
 - **Restart on crash after a cancelled restart:** a restart cancelled during its countdown, or called off by a failed save, left its "restart" mark behind, so the next crash was taken for that restart and the server was not brought back.
+- **Mods: "on server" in the status bar counts the Installed list:** it counted Deactivated items too (tracked, but not in WorkshopItems=), e.g. 431 on server over 415 in the config.
+- **A mod-update restart waiting for players no longer restarts another server:** after a switch of the active server it counted that server's players and restarted it; it now waits for the server the update is for to be active again.
+- **Auto-restart on mod updates works per server:** a mod update already restarted for on one server was skipped as "already processed" on the next server made active, which never restarted for it.
+- **Mods: applying a preset keeps Map= in step:** the maps of Workshop items the preset drops leave Map= and those of items it adds go in; Map= used to stay as it was.
+- **Mods: Enable group adds the maps of a Workshop item it adds to Map=:** a map mod of the group loaded without its map.
+- **Mods: removing or deleting an old Workshop item keeps its re-upload loading:** a mod id or map that an item still in WorkshopItems= ships too stays in Mods= and Map= (Remove, Deactivated's Delete from tracking, Delete from disk).
 
 ## [1.6.0] - 2026-10-23
 

@@ -131,4 +131,19 @@ describe('Installed: the update counts and the list agree', () => {
     expect(screen.queryAllByText(/^Up to Date/)).toHaveLength(0)
     expect(screen.queryAllByText('PanelBridge')).toHaveLength(0)
   })
+
+  // The same day: "431 on server · 415 in config" while Installed listed the
+  // 415 and Deactivated the other 16. "On server" counted every tracked mod.
+  it('the status bar\'s "on server" count is the Installed list, not every tracked mod', async () => {
+    prime([
+      tracked(1, '100', 'Alpha Mod', 0),
+      tracked(2, '200', 'Bravo Vehicles', 0),
+      tracked(3, '3809901056', 'PanelBridge', 0),
+    ], ['100', '200'])
+    await renderInstalled()
+
+    expect(screen.getByText('2 on server')).toBeInTheDocument()
+    expect(screen.queryByText('3 on server')).not.toBeInTheDocument()
+    await act(async () => {})
+  })
 })

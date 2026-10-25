@@ -32,6 +32,7 @@ import { SystemHealthBanner } from './SystemHealthBanner'
 import { serversApi, ServerInstance, updateApi, UpdateStatus, serverApi, modsApi, panelUpdateApi } from '@/lib/api'
 import { isStatusEventForServer, resolveClientProvider } from '@/lib/serverStatus'
 import { getResultErrorMessage } from '@/lib/errorMessage'
+import { modUpdatesOnServer } from '@/lib/modsShared'
 import { readStored, writeStored } from '@/lib/safeStorage'
 import { SocketContext } from '@/contexts/SocketContext'
 
@@ -452,9 +453,11 @@ export default function Layout({ children }: LayoutProps) {
     let cancelled = false
     const refreshModStatus = async () => {
       try {
-        const data = await modsApi.getStatus() as { updatesAvailable?: number } | undefined
-        if (!cancelled && typeof data?.updatesAvailable === 'number') {
-          setModUpdatesAvailable(data.updatesAvailable)
+        // The updates of the items the server loads, as the Mods page's
+        // Installed counts show (a Deactivated item's update is not one).
+        const count = modUpdatesOnServer(await modsApi.getStatus() as { updatesAvailable?: number; updatesOnServer?: number } | undefined)
+        if (!cancelled && count !== null) {
+          setModUpdatesAvailable(count)
         }
       } catch {
         // ignore — likely 503 / not running

@@ -17,7 +17,10 @@ export interface TrackedMod {
 export interface ModStatus {
   totalModsTracked: number
   totalModsInWorkshop: number
+  /** Every relevant update, Deactivated items' too: the stale-flag check's count. */
   updatesAvailable: number
+  /** The updates of the items in WorkshopItems= (see modUpdatesOnServer()). */
+  updatesOnServer?: number
   lastCheck: string | null
   lastUpdateDetected: string | null
   autoRestartEnabled: boolean
@@ -52,6 +55,16 @@ export interface ModStatus {
   // "healthy". Show the raw resultCode, never invent prose for a code
   // that hasn't been individually verified against Steam's own docs.
   unknownWorkshopIds: Array<{ id: string; resultCode: number }>
+}
+
+/**
+ * The mod updates the server itself needs (the items in WorkshopItems=): what
+ * the Mods page's Installed counts show, so the nav badge and the Dashboard
+ * agree with it. A Deactivated item's update needs no server update or restart.
+ */
+export function modUpdatesOnServer(status: { updatesOnServer?: unknown; updatesAvailable?: unknown } | null | undefined): number | null {
+  if (typeof status?.updatesOnServer === 'number') return status.updatesOnServer
+  return typeof status?.updatesAvailable === 'number' ? status.updatesAvailable : null
 }
 
 export type ModEntry = { id: string; name: string; enabled: boolean; require?: string[]; loadAfter?: string[]; loadBefore?: string[] }
