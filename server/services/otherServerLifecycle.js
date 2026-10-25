@@ -6,7 +6,8 @@ import {
   acquireLifecycleLock,
   lifecycleInProgressResponse,
 } from "./lifecycleCoordinator.js";
-import { runManagedLifecycle } from "./managedContainer.js";
+import { resolveDockerHostSignal, runManagedLifecycle } from "./managedContainer.js";
+import { resolveProvider } from "../utils/serverStatusModel.js";
 import { RconService } from "./rcon.js";
 import { ServerManager } from "./serverManager.js";
 import { isFirstBootMissingAdminPassword } from "../routes/server.js";
@@ -55,9 +56,19 @@ async function loadRcon(serverId) {
   return rcon;
 }
 
-// "running", "stopped", or "unknown" when the scan can't say.
-async function processState(manager) {
-  const details = await manager.getServerProcessDetails();
+function runsInContainer(server) {
+  const provider = resolveProvider(server);
+  return provider === "docker-local" || provider === "docker-managed";
+}
+
+// "running", "stopped", or "unknown" when the scan can't say. A server run by
+// a Docker container is what Docker says: the process scan never sees a game
+// in another container, so Stop answered "already stopped" for a running one.
+async function processState(manager, server = null, dockerSignal = resolveDockerHostSignal) {
+  const details =
+    server && runsInContainer(server)
+      ? await dockerSignal(server)
+      : await manager.getServerProcessDetails();
   if (!details || details.scanFailed || typeof details.running !== "boolean") {
     return "unknown";
   }
@@ -139,6 +150,7 @@ export async function startOtherServer(
     createManager = loadManager,
     acquireLock = acquireLifecycleLock,
     runManaged = runManagedLifecycle,
+    dockerSignal = resolveDockerHostSignal,
     logEvent = logServerEvent,
     onSettled = () => {},
     sleep = defaultSleep,
@@ -151,7 +163,7 @@ export async function startOtherServer(
   let lockTransferred = false;
   try {
     const manager = await createManager(server.id);
-    const state = await processState(manager);
+    const state = await processState(manager, server, dockerSignal);
     if (state === "unknown") return stateUnknownRefusal(server);
     if (state === "running") {
       return { status: 200, body: { success: true, alreadyRunning: true } };
@@ -233,6 +245,7 @@ export async function stopOtherServer(
     createRcon = loadRcon,
     acquireLock = acquireLifecycleLock,
     runManaged = runManagedLifecycle,
+    dockerSignal = resolveDockerHostSignal,
     logEvent = logServerEvent,
     onSettled = () => {},
     sleep = defaultSleep,
@@ -246,7 +259,7 @@ export async function stopOtherServer(
   let rcon = null;
   try {
     const manager = await createManager(server.id);
-    const state = await processState(manager);
+    const state = await processState(manager, server, dockerSignal);
     if (state === "unknown") return stateUnknownRefusal(server);
     if (state === "stopped") {
       return { status: 200, body: { success: true, alreadyStopped: true } };
