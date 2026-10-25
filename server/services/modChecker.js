@@ -1417,6 +1417,32 @@ export class ModChecker extends EventEmitter {
     );
   }
 
+  // Whether the active server is no longer the one the update was found for.
+  // The scheduler's restart and RCON follow the active server, so a restart
+  // that waited for players on one server would otherwise restart (and count
+  // the players of) the server made active since. Unknown is "no".
+  async _activeServerChangedSince(context) {
+    const target = await context?.serverId;
+    if (target === null || target === undefined) return false;
+    const now = await this._resolveActiveServerId();
+    return now !== null && now !== target;
+  }
+
+  // Ends a pending restart whose server is no longer the active one. Its
+  // updates stay eligible: the next check with that server active finds
+  // them again and restarts it then.
+  _dropPendingRestartForSwitch(updatedMods) {
+    this._stopPlayerMonitoring();
+    this._clearPendingRestart();
+    for (const m of updatedMods || []) this.processedUpdates.delete(m.workshopId);
+    log.info(
+      "Pending mod-update restart dropped: another server was made active; it runs again when that server is active and checked",
+    );
+    if (this.io) {
+      this.io.emit("mods:restart_cancelled", { reason: "server_switched" });
+    }
+  }
+
   async _cancelPendingRestartAfterServerStart(context) {
     context.cancelledByServerStart = true;
     this._stopPlayerMonitoring();
@@ -1530,6 +1556,16 @@ export class ModChecker extends EventEmitter {
       }
       tickRunning = true;
       try {
+        // Another server was made active since: RCON and the restart now
+        // reach that one, which the update is not for.
+        if (await this._activeServerChangedSince(context)) {
+          if (this._isPendingRestartCurrent(token)) {
+            this._dropPendingRestartForSwitch(updatedMods);
+          }
+          return;
+        }
+        if (!this._isPendingRestartCurrent(token)) return;
+
         // Started again since the update was detected (GH #189): the
         // restart already happened, whoever made it.
         if (await this._serverStartedSince(context)) {
@@ -1606,6 +1642,14 @@ export class ModChecker extends EventEmitter {
         this._clearPendingRestart();
       }
     };
+    if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
+    // The waiting loop's restart (all players gone, or the maximum wait
+    // reached) after another server was made active: that server is not
+    // the one to restart.
+    if (context && (await this._activeServerChangedSince(context))) {
+      if (!cancelledMeanwhile()) this._dropPendingRestartForSwitch(updatedMods);
+      return { success: false, skipped: true, reason: "server_switched" };
+    }
     if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
     // RCON readiness gate — verify RCON is connected before attempting restart
