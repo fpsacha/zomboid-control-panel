@@ -310,6 +310,10 @@ describe("performRestart() refreshes the launch target before starting", () => {
       source.indexOf('const managed = await runManagedLifecycle("restart"'),
       source.indexOf("if (!serverStarted)"),
     );
-    expect(mainBranch).toContain("serverManager.startServer({");
+    // GH #269: the relaunch goes through a helper that waits out a Steam
+    // operation, and that helper is what calls startServer().
+    expect(mainBranch).toContain("this._relaunchWaitingOutSteamOperation(");
+    const helper = source.slice(source.indexOf("async _relaunchWaitingOutSteamOperation("));
+    expect(helper.slice(0, helper.indexOf("\n  }\n"))).toContain("serverManager.startServer({");
   });
 });
