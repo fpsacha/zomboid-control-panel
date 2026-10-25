@@ -1457,7 +1457,15 @@ export class Scheduler {
     const countdownMs = (minutes) => minutes * (60000 + COUNTDOWN_MINUTE_OVERRUN_MS);
     const restart = this.activeRestart;
     if (restart) {
-      return restart.startedAt + countdownMs(restart.warningMinutes) + RESTART_SEQUENCE_BUDGET_MS;
+      // A relaunch that waited out a Steam install/update (GH #269) is slow,
+      // not stuck: that wait has a bound of its own on top of the sequence.
+      const steamWaitMs = restart.waitedForSteamOperation ? RESTART_STEAM_OPERATION_WAIT_MS : 0;
+      return (
+        restart.startedAt +
+        countdownMs(restart.warningMinutes) +
+        RESTART_SEQUENCE_BUDGET_MS +
+        steamWaitMs
+      );
     }
     return deferredAt + countdownMs(MAX_RESTART_WARNING_MINUTES) + RESTART_SEQUENCE_BUDGET_MS;
   }
@@ -3036,6 +3044,9 @@ export class Scheduler {
         if (!error?.steamOperation) throw error;
         blocking = error.steamOperation;
       }
+      // A scheduled backup held back by this restart allows for this wait
+      // before it calls the restart stuck (_deferredBackupDeadline()).
+      if (this.activeRestart) this.activeRestart.waitedForSteamOperation = true;
       const waitStartedAt = Date.now();
       log.warn(
         `Auto-restart: the server is stopped and its relaunch waits for a Steam ${describeSteamOperation(blocking, waitStartedAt)} to finish (up to ${waitMinutes} min)`,

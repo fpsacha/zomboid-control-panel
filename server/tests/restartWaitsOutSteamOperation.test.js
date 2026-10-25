@@ -273,6 +273,54 @@ describe("performRestart() waits out a Steam operation that holds the relaunch",
   });
 });
 
+// A scheduled backup that came due during such a restart waits for it, but
+// gives up (and writes "the restart looked stuck ... restart the panel")
+// once the restart outlasts its countdown plus a 20-minute budget sized
+// before this wait existed. A restart that waited ~15 min for the install
+// and then ~5 min for RCON passed it, and the advice would have meant
+// restarting the panel under a restart that was about to finish.
+describe("a scheduled backup held back by a restart that waits out a Steam operation", () => {
+  it("is not written off as a stuck restart; it runs once the restart ends", async () => {
+    const { logScheduleExecution } = await import("../database/init.js");
+    logScheduleExecution.mockClear();
+    const scheduler = new Scheduler({}, {});
+    const createBackup = vi.fn().mockResolvedValue({ success: true, backup: { name: "One.zip" } });
+    scheduler.setBackupService({
+      getSettings: vi.fn(async () => ({ enabled: true, includeDb: false })),
+      createBackup,
+    });
+    const { rconService, serverManager } = makeServer();
+    // RCON never answers the new server: the restart's full RCON wait.
+    const quit = rconService.quit;
+    rconService.quit = vi.fn(async () => {
+      rconService.connected = false;
+      return quit();
+    });
+    rconService.connect = vi.fn(() => new Promise(() => {}));
+    registerInstall();
+    let settled = false;
+    const restart = scheduler
+      .performRestart(0, { rconService, serverManager })
+      .finally(() => {
+        settled = true;
+      });
+    const backup = scheduler._onScheduledBackupTick({ enabled: true, includeDb: false });
+
+    await advanceUntil(() => serverManager.startServer.mock.calls.length === 1);
+    await vi.advanceTimersByTimeAsync(RESTART_STEAM_OPERATION_WAIT_MS - 30 * 1000);
+    clearActiveSteamOperation(INSTALL);
+    await advanceUntil(() => settled, 1000, 40 * 60 * 1000);
+    await restart;
+    await advanceUntil(() => createBackup.mock.calls.length === 1, 1000, 60 * 1000);
+    await backup;
+
+    const backupRows = logScheduleExecution.mock.calls.filter((call) => call[2] === "backup");
+    expect(backupRows).toHaveLength(1);
+    expect(backupRows[0][3]).toBe(true);
+    expect(backupRows[0][4]).toMatch(/^Created: One\.zip -- held back until a server restart/);
+  });
+});
+
 describe("the mod checker and a server a failed restart left stopped", () => {
   function makeChecker(scheduler) {
     const checker = new ModChecker();
