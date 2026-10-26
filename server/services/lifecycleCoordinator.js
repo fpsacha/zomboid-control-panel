@@ -10,6 +10,9 @@ let resolveServerDisplayName = null;
 // When the last lock naming each server was released ("" for a lock that
 // named none) -- see lifecycleActivityCovers().
 const lastReleasedAt = new Map();
+// When the panel last sent `quit` to each server -- see
+// noteServerQuitRequested().
+const quitRequestedAt = new Map();
 // A server's own hold, by server id, once its process is up and the panel
 // only waits for its RCON to answer (holdServerUntilRcon below). It refuses
 // operations for that server and operations for no server in particular,
@@ -167,6 +170,7 @@ export function setLaunchTargetRefresher(fn) {
 // notifyServerLaunched() once the launch has actually happened.
 export async function prepareForLaunch(server, { container = false } = {}) {
   const launchSeq = ++launchSequence;
+  lastLaunchByServer.set(normalizeServerId(server?.id), launchSeq);
   let scriptWarnings = [];
   if (launchTargetRefresher && server) {
     try {
@@ -205,6 +209,8 @@ export async function prepareForLaunch(server, { container = false } = {}) {
 // the refusals that leave the old process running ("already running", a
 // port in use), and those must not count as a fresh start.
 let launchSequence = 0;
+// The last launch begun for each server id ("" for a launch that named none).
+const lastLaunchByServer = new Map();
 let serverLaunchedHook = null;
 
 export function setServerLaunchedHook(fn) {
@@ -213,6 +219,17 @@ export function setServerLaunchedHook(fn) {
 
 export function currentLaunchSequence() {
   return launchSequence;
+}
+
+// The number of the last launch begun for this server -- or for no server in
+// particular, which may have been this one -- 0 for none: "has this server
+// been launched since" when several servers launch on their own (the boot
+// auto-start, the Dashboard's list, a restart after going down).
+export function lastLaunchSequenceFor(serverId) {
+  return Math.max(
+    lastLaunchByServer.get(normalizeServerId(serverId)) ?? 0,
+    lastLaunchByServer.get("") ?? 0,
+  );
 }
 
 // Never throws and never waits: the hook's work (and any rejection) stays
@@ -405,10 +422,22 @@ export function lifecycleActivityCovers(serverId, withinMs, now = Date.now()) {
     return true;
   }
   if (id && serverHolds.has(id)) return true;
+  const quitAt = id ? quitRequestedAt.get(id) : undefined;
+  if (quitAt !== undefined && now - quitAt <= withinMs) return true;
   return [id, ""].some((key) => {
     const at = lastReleasedAt.get(key);
     return at !== undefined && now - at <= withinMs;
   });
+}
+
+// When the panel last sent `quit` over RCON to each server, by server id
+// (rcon.js's execute()). A quit takes no lifecycle lock when it is typed in
+// the Console or run by a scheduled task, so without this the server watch
+// took the stop that followed for a crash and, with "Restart if it goes
+// down" on, started the server again 15 seconds after the operator stopped it.
+export function noteServerQuitRequested(serverId, at = Date.now()) {
+  const id = normalizeServerId(serverId);
+  if (id) quitRequestedAt.set(id, at);
 }
 
 // Reads the CURRENT holder off `activeLock` directly rather than taking a

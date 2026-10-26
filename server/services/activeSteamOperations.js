@@ -1,3 +1,4 @@
+import os from "os";
 import { createLogger } from "../utils/logger.js";
 import { getSetting, setSetting } from "../database/init.js";
 import { isPidAlive } from "../utils/pidLiveness.js";
@@ -89,12 +90,51 @@ export function hasActiveSteamOperation(normalizedPath) {
 // the server stopped.
 export const WORKSHOP_DOWNLOAD_OPERATION_TYPE = "workshop-download";
 
+// The type updateChecker.js registers while SteamCMD looks up the branch's
+// build id (+app_info_update / +app_info_print, no +force_install_dir): it
+// reads Steam's app info and writes nothing in the install folder. GH #269:
+// it used to block a start like an install, so a restart's relaunch during
+// one (or during a hung one, up to its SteamCMD timeout) was refused.
+export const VERSION_CHECK_OPERATION_TYPE = "version-check";
+
+// Registered (still visible, still one SteamCMD at a time per folder) but
+// not a reason to refuse a start: nothing they do touches the game files.
+const NON_BLOCKING_START_TYPES = new Set([
+  WORKSHOP_DOWNLOAD_OPERATION_TYPE,
+  VERSION_CHECK_OPERATION_TYPE,
+]);
+
 // hasActiveSteamOperation() for the "may this server start" question: an
-// install/update/verify (or anything else that writes the game files) still
-// blocks, a Workshop item download does not.
+// install/update/verify/branch switch (anything that writes the game files)
+// still blocks; a Workshop item download or a version check does not.
 export function hasStartBlockingSteamOperation(normalizedPath) {
-  if (!hasActiveSteamOperation(normalizedPath)) return false;
-  return activeSteamOperations.get(normalizedPath)?.type !== WORKSHOP_DOWNLOAD_OPERATION_TYPE;
+  return getStartBlockingSteamOperation(normalizedPath) !== null;
+}
+
+// The operation behind hasStartBlockingSteamOperation(), for logs and for a
+// restart that waits it out (GH #269): its type, pid (when known), start
+// time and the path it is keyed by, or null when nothing blocks a start.
+export function getStartBlockingSteamOperation(normalizedPath) {
+  if (!hasActiveSteamOperation(normalizedPath)) return null;
+  const operation = activeSteamOperations.get(normalizedPath);
+  if (!operation || NON_BLOCKING_START_TYPES.has(operation.type)) return null;
+  return {
+    type: operation.type || "unknown",
+    pid: Number.isInteger(operation.pid) ? operation.pid : null,
+    startTime: Number.isFinite(operation.startTime) ? operation.startTime : null,
+    path: normalizedPath,
+  };
+}
+
+// "install (pid 1234) on c:\pz, running for 95 s": the blocking operation
+// as one log phrase.
+export function describeSteamOperation(operation, now = Date.now()) {
+  if (!operation) return "unknown operation";
+  const pid = operation.pid ? ` (pid ${operation.pid})` : "";
+  const age = operation.startTime
+    ? `, running for ${Math.max(0, Math.round((now - operation.startTime) / 1000))} s`
+    : "";
+  return `${operation.type}${pid} on ${operation.path}${age}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -164,7 +204,30 @@ export async function recordActiveSteamOperationPid(normalizedPath, pid) {
 // the Map and asks that same function to resolve each entry immediately,
 // rather than duplicating its liveness logic or waiting for whichever
 // caller happens to check first.
-export async function rehydrateActiveSteamOperationsFromDisk() {
+//
+// A live pid is not proof on its own: the system hands a dead SteamCMD's pid
+// to another process, and Windows does so freely after a reboot (pids are
+// small and reused at once). A host that rebooted during an install, update
+// or auto-update then found some unrelated process behind the recorded pid,
+// and every Start, Restart and Steam operation on that folder was refused
+// for as long as that process lived -- a service, until the next reboot --
+// with nothing in the panel to clear it. A pid recorded before the machine
+// last booted, or the pid of this panel itself, is that case.
+const BOOT_TIME_SLACK_MS = 60 * 1000;
+
+function pidReusedSinceRecorded(entry, { now, uptimeSeconds, ownPid }) {
+  if (entry.pid === ownPid) return true;
+  const startTime = Number(entry.startTime);
+  if (!Number.isFinite(startTime) || startTime <= 0) return false;
+  const bootedAt = now - uptimeSeconds * 1000;
+  return startTime < bootedAt - BOOT_TIME_SLACK_MS;
+}
+
+export async function rehydrateActiveSteamOperationsFromDisk({
+  now = Date.now(),
+  uptimeSeconds = os.uptime(),
+  ownPid = process.pid,
+} = {}) {
   let snapshot;
   try {
     snapshot = await getSetting(PERSISTED_SETTING_KEY);
@@ -174,8 +237,16 @@ export async function rehydrateActiveSteamOperationsFromDisk() {
   }
   if (!snapshot || typeof snapshot !== "object") return;
 
+  let droppedReusedPid = false;
   for (const [normalizedPath, entry] of Object.entries(snapshot)) {
     if (!Number.isInteger(entry?.pid)) continue;
+    if (pidReusedSinceRecorded(entry, { now, uptimeSeconds, ownPid })) {
+      droppedReusedPid = true;
+      log.info(
+        `A recorded Steam ${entry.type || "unknown"} operation for ${normalizedPath} is not running anymore: its pid ${entry.pid} belongs to another process now (recorded before this machine last started, or this panel's own) -- cleared.`,
+      );
+      continue;
+    }
     activeSteamOperations.set(normalizedPath, {
       type: entry.type || "unknown",
       startTime: entry.startTime || null,
@@ -191,4 +262,6 @@ export async function rehydrateActiveSteamOperationsFromDisk() {
       );
     }
   }
+  // The dropped entries leave the persisted snapshot too.
+  if (droppedReusedPid) await persistSnapshot();
 }

@@ -45,11 +45,17 @@ export class ServerPlayersWatch {
     getActiveServer,
     recordSession,
     readPlayers = readServerPlayers,
+    readStatuses = null,
   }) {
     this.getServers = getServers;
     this.getActiveServer = getActiveServer;
     this.recordSession = recordSession;
     this.readPlayers = readPlayers;
+    // GET /servers/status rows: a server the scan confirms stopped has
+    // nobody on it, whatever answers on its RCON port -- another server
+    // sharing that port (the Dashboard warns about it) answered with its own
+    // players, who were then counted on this server too.
+    this.readStatuses = readStatuses;
     // Who was on each watched server at the last answer, by server id.
     this.online = new Map();
     this.misses = new Map();
@@ -87,8 +93,19 @@ export class ServerPlayersWatch {
           this.misses.delete(id);
         }
       }
+      if (watched.length === 0) return;
+      let rows = new Map();
+      if (this.readStatuses) {
+        try {
+          rows = new Map(((await this.readStatuses()) || []).map((row) => [String(row?.id), row]));
+        } catch (error) {
+          log.debug(`Players watch could not read the servers' states: ${error.message}`);
+        }
+      }
       for (const server of watched) {
-        await this.lookAt(server);
+        const row = rows.get(String(server.id));
+        const stopped = Boolean(row && !row.stateUnknown && row.running === false);
+        await this.lookAt(server, { stopped });
       }
     } catch (error) {
       log.debug(`Players watch tick failed: ${error.message}`);
@@ -97,14 +114,18 @@ export class ServerPlayersWatch {
     }
   }
 
-  async lookAt(server) {
+  async lookAt(server, { stopped = false } = {}) {
     const id = String(server.id);
     const before = this.online.get(id);
     let answer;
-    try {
-      answer = await this.readPlayers(server);
-    } catch {
-      answer = { success: false };
+    if (stopped) {
+      answer = { success: true, names: [] };
+    } else {
+      try {
+        answer = await this.readPlayers(server);
+      } catch {
+        answer = { success: false };
+      }
     }
 
     if (!answer?.success) {

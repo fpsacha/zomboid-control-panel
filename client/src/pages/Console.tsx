@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback, useMemo, memo } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { Terminal as TerminalIcon, Send, Trash2, Loader2, Megaphone, FileText, RefreshCw, Pause, Play, Filter, History, ArrowDownToLine } from 'lucide-react'
+import { Terminal as TerminalIcon, Send, Trash2, Loader2, Megaphone, FileText, RefreshCw, Pause, Play, Filter, History, ArrowDownToLine, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -423,6 +423,7 @@ export default function Console() {
   const [_serverLogSize, setServerLogSize] = useState(0)
   const [serverLogPath, setServerLogPath] = useState('')
   const [serverLogExists, setServerLogExists] = useState(false)
+  const [serverLogDownloading, setServerLogDownloading] = useState(false)
   // PT3: why the panel won't read the log ({ error, code } from the server:
   // the data folder no longer meets the data-folder rule, or none is set),
   // instead of "not found" while the server writes it somewhere else.
@@ -790,6 +791,22 @@ export default function Console() {
         description: getUserErrorMessage(error, t('toasts.clearLogFailed')),
         variant: 'destructive',
       })
+    }
+  }
+
+  // The whole server-console.txt, without building the support bundle.
+  const downloadServerLog = async () => {
+    setServerLogDownloading(true)
+    try {
+      await serverApi.downloadConsoleLog()
+    } catch (error) {
+      toast({
+        title: t('toasts.errorTitle'),
+        description: getUserErrorMessage(error, t('toasts.downloadLogFailed')),
+        variant: 'destructive',
+      })
+    } finally {
+      setServerLogDownloading(false)
     }
   }
 
@@ -1405,6 +1422,16 @@ export default function Console() {
                         title={t('serverLog.refreshAria')}
                       >
                         <RefreshCw aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={downloadServerLog}
+                        disabled={!serverLogExists || serverLogDownloading || serverChangedSinceLoad}
+                        aria-label={t('serverLog.downloadAria')}
+                      >
+                        {serverLogDownloading ? <Loader2 className="animate-spin" aria-hidden="true" /> : <Download aria-hidden="true" />}
+                        {t('serverLog.download')}
                       </Button>
                       <DisabledReason reason={!canConfigureServer ? t('serverLog.clearNoPermission') : null}>
                         <Tooltip>

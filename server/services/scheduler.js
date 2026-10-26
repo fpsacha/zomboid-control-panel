@@ -10,8 +10,13 @@ import { runManagedLifecycle } from "./managedContainer.js";
 import {
   acquireLifecycleLock,
   holdServerUntilRcon,
+  lastLaunchSequenceFor,
   lifecycleInProgressResponse,
 } from "./lifecycleCoordinator.js";
+import {
+  describeSteamOperation,
+  getStartBlockingSteamOperation,
+} from "./activeSteamOperations.js";
 import { createBackupIfChanged } from "../utils/configBackup.js";
 import { resolveServerPhase } from "../utils/serverStatus.js";
 import { isUnmanagedRemoteServer } from "../utils/serverStatusModel.js";
@@ -304,6 +309,12 @@ function launchedProcessRunning(serverManager) {
   return Boolean(child && child.exitCode === null && child.signalCode === null);
 }
 
+// GH #269: a restart that has already stopped the server and finds its
+// relaunch refused only by a Steam install/update on the install folder
+// waits up to this long for it to finish, looking every few seconds.
+export const RESTART_STEAM_OPERATION_WAIT_MS = 15 * 60 * 1000;
+export const RESTART_STEAM_OPERATION_POLL_MS = 5000;
+
 export class Scheduler {
   constructor(rconService, serverManager) {
     this.rconService = rconService;
@@ -322,6 +333,9 @@ export class Scheduler {
     // to -- lets a deferred backup tell a long countdown from a stuck
     // restart. Set and cleared alongside restartInProgress.
     this.activeRestart = null;
+    // serverId -> a restart that stopped it and could not start it again
+    // (see _noteInterruptedRestart()).
+    this.interruptedRestarts = new Map();
     // {since, running} while a scheduled backup that came due mid-restart
     // is waiting for (or running after) that restart -- see
     // _deferScheduledBackupUntilRestartEnds().
@@ -1446,7 +1460,15 @@ export class Scheduler {
     const countdownMs = (minutes) => minutes * (60000 + COUNTDOWN_MINUTE_OVERRUN_MS);
     const restart = this.activeRestart;
     if (restart) {
-      return restart.startedAt + countdownMs(restart.warningMinutes) + RESTART_SEQUENCE_BUDGET_MS;
+      // A relaunch that waited out a Steam install/update (GH #269) is slow,
+      // not stuck: that wait has a bound of its own on top of the sequence.
+      const steamWaitMs = restart.waitedForSteamOperation ? RESTART_STEAM_OPERATION_WAIT_MS : 0;
+      return (
+        restart.startedAt +
+        countdownMs(restart.warningMinutes) +
+        RESTART_SEQUENCE_BUDGET_MS +
+        steamWaitMs
+      );
     }
     return deferredAt + countdownMs(MAX_RESTART_WARNING_MINUTES) + RESTART_SEQUENCE_BUDGET_MS;
   }
@@ -1558,6 +1580,24 @@ export class Scheduler {
       return;
     }
     for (const target of targets) {
+      // A restart that began while an earlier server was being zipped (a
+      // restart never waits for a backup -- see _onScheduledBackupTick()):
+      // the next server waits for it, as a tick that comes due during one
+      // does, instead of createBackup() refusing it ("A server restart is in
+      // progress") and Schedule History recording that server's backup as
+      // failed. Past the restart's own budget it is refused, as before.
+      if (this.restartInProgress) {
+        const heldAt = Date.now();
+        while (this.restartInProgress && Date.now() < this._deferredBackupDeadline(heldAt)) {
+          await this.sleep(DEFERRED_BACKUP_POLL_MS);
+        }
+        // Turned off while it waited: the rest are dropped.
+        const fresh = await this.backupService.getSettings?.();
+        if (fresh && !fresh.enabled) {
+          log.info("Scheduled backup: turned off while it waited for a server restart; the remaining servers are not backed up");
+          return;
+        }
+      }
       await this._runScheduledBackupOf(target, settings, lateNote);
     }
   }
@@ -1950,7 +1990,9 @@ export class Scheduler {
     // `this.restartInProgress = true`, see the resolution above.
     if (this.restartInProgress) {
       log.info("Restart already in progress, ignoring duplicate request");
-      return { success: false, message: "Restart already in progress" };
+      // `busy`: refused before anything began, so a caller may try again
+      // once that restart is over (services/serverWatch.js does).
+      return { success: false, busy: true, message: "Restart already in progress" };
     }
 
     const lifecycleLock =
@@ -1988,6 +2030,14 @@ export class Scheduler {
     // Set once the server is back up and only its RCON is awaited: from then
     // on the restart holds its own server, not the whole panel.
     let rconHold = null;
+    // True once this restart has stopped a running server (or is starting
+    // one a previous restart left stopped): a failure from then on leaves
+    // the server down because of the panel, see getInterruptedRestart().
+    let leavesServerStopped = false;
+    // True once this restart has asked the server to go down (RCON quit or
+    // Docker's restart). Until then the stopIntent set above names a stop
+    // that never came: the finally below withdraws it.
+    let stopRequested = false;
     try {
       // No fallback to checkServerRunning() when getServerProcessDetails
       // isn't available -- that call collapses a failed scan into a plain
@@ -2073,6 +2123,7 @@ export class Scheduler {
         log.info(
           "Auto-restart triggered but server was not running - starting server",
         );
+        if (this.getInterruptedRestart(pinnedServerId)) leavesServerStopped = true;
         await this._backupConfigBeforeRestart(pinnedServerId);
         const managedStart = await runManagedLifecycle("start", {
           serverId: pinnedServerId,
@@ -2122,7 +2173,11 @@ export class Scheduler {
             { serverId: pinnedServerId },
           );
           log.info("Server started successfully (was not running)");
+          this._clearInterruptedRestart(pinnedServerId);
         } else {
+          if (leavesServerStopped) {
+            this._noteInterruptedRestart(pinnedServerId, "Server was offline - failed to start");
+          }
           await logScheduleExecution(
             null,
             label,
@@ -2235,6 +2290,8 @@ export class Scheduler {
       // and the next step is not taken. Nothing is started again.
       const stopCancelledRestart = async (stage) => {
         log.info(`Auto-restart: cancelled (${stage})`);
+        // Stop / Force stop: the server is meant to stay down now.
+        this._clearInterruptedRestart(pinnedServerId);
         if (serverManager.stopIntent === "restart") serverManager.stopIntent = null;
         if (rconService.setServerStarting) {
           rconService.setServerStarting(false);
@@ -2380,6 +2437,7 @@ export class Scheduler {
       // kills PID 1: the container exits, its restart policy races the panel to
       // bring the world back, and the panel cannot spawn a process that lives
       // inside another container anyway.
+      stopRequested = true;
       const managed = await runManagedLifecycle("restart", {
         serverId: pinnedServerId,
       });
@@ -2512,6 +2570,7 @@ export class Scheduler {
         // reason the watchdog orders it before its own push.
         await this._expireBridgeHeartbeatAfterVerifiedStop(pinnedServerId);
         this._emitVerifiedTransition(false, "stopped", pinnedServerId);
+        leavesServerStopped = true;
 
         // Extra delay after stop — give OS time to fully reap the process
         // (zombie processes on Linux, WMI cache on Windows)
@@ -2553,10 +2612,16 @@ export class Scheduler {
         // Start server — skip the running check since we just confirmed the server stopped
         log.info("Auto-restart: Starting server...");
         await this._ensureRestartTarget(serverManager, pinnedServerId);
-        const restarted = await serverManager.startServer({
-          skipRunningCheck: true,
+        const relaunch = await this._relaunchWaitingOutSteamOperation({
+          serverManager,
           serverId: pinnedServerId,
+          readProcessDetails,
+          rconService,
         });
+        if (relaunch.cancelled) {
+          return stopCancelledRestart("waiting for a Steam operation to finish");
+        }
+        const restarted = relaunch.result;
         if (!restarted?.success) {
           log.warn(
             `Auto-restart: start command reported failure: ${restarted?.error || restarted?.message || "unknown error"}`,
@@ -2616,8 +2681,12 @@ export class Scheduler {
           { serverId: pinnedServerId },
         );
         log.error("Auto-restart: Server stopped but failed to start");
+        if (leavesServerStopped) {
+          this._noteInterruptedRestart(pinnedServerId, "Server stopped but failed to start");
+        }
         return { success: false, wasRunning: true, logged: true };
       }
+      this._clearInterruptedRestart(pinnedServerId);
 
       // The new instance is now confirmed up -- either Docker's own restart
       // action already blocked until the container was running again
@@ -2811,6 +2880,7 @@ export class Scheduler {
         { serverId: pinnedServerId },
       );
       logServerEvent("auto_restart_error", error.message, { serverId: pinnedServerId });
+      if (leavesServerStopped) this._noteInterruptedRestart(pinnedServerId, error.message);
       // Clear serverStarting flag on error so auto-reconnect can resume
       if (rconService.setServerStarting) {
         rconService.setServerStarting(false);
@@ -2828,6 +2898,13 @@ export class Scheduler {
       }
       throw error;
     } finally {
+      // A restart that ended before asking the server to stop (a countdown
+      // cancelled, a failed save, a server that was not running) leaves no
+      // restart pending: the watchdog would take the next stop -- a crash
+      // hours later -- for this restart, and restart-on-crash skips those.
+      if (!stopRequested && serverManager.stopIntent === "restart") {
+        serverManager.stopIntent = null;
+      }
       this.restartInProgress = false;
       this.activeRestart = null;
       lifecycleLock.release();
@@ -2967,6 +3044,120 @@ export class Scheduler {
     } finally {
       this._restartWaiters.delete(wake);
     }
+  }
+
+  // GH #269: the relaunch step of a restart that has already stopped the
+  // server. startServer()'s refusal while a Steam install/update writes the
+  // install folder stays (never a JVM over half-written game files), but
+  // that refusal alone no longer ends the restart with the server down: it
+  // waits for the operation to finish (bounded, cancellable like every other
+  // restart wait), checks that nothing started a server meanwhile, and
+  // starts it through the same guards. Any other refusal, the timeout, a
+  // scan that can't answer and a server found running all fail as before.
+  // Returns { result } (startServer()'s own) or { cancelled: true }.
+  async _relaunchWaitingOutSteamOperation({
+    serverManager,
+    serverId,
+    readProcessDetails,
+    rconService = null,
+  }) {
+    // serverStarting (set before the relaunch) clears itself after 5 minutes
+    // (rcon.js's failsafe): over a longer wait the new server then booted
+    // as "unresponsive", with auto-reconnect racing the RCON wait. Down while
+    // it waits, starting again once it relaunches.
+    const setStarting = (value) => {
+      if (!rconService) return;
+      if (rconService.setServerStarting) rconService.setServerStarting(value);
+      else rconService.serverStarting = value;
+    };
+    const deadline = Date.now() + RESTART_STEAM_OPERATION_WAIT_MS;
+    const waitMinutes = Math.round(RESTART_STEAM_OPERATION_WAIT_MS / 60000);
+    for (;;) {
+      let blocking;
+      try {
+        return {
+          result: await serverManager.startServer({ skipRunningCheck: true, serverId }),
+        };
+      } catch (error) {
+        if (!error?.steamOperation) throw error;
+        blocking = error.steamOperation;
+      }
+      // A scheduled backup held back by this restart allows for this wait
+      // before it calls the restart stuck (_deferredBackupDeadline()).
+      if (this.activeRestart) this.activeRestart.waitedForSteamOperation = true;
+      setStarting(false);
+      const waitStartedAt = Date.now();
+      log.warn(
+        `Auto-restart: the server is stopped and its relaunch waits for a Steam ${describeSteamOperation(blocking, waitStartedAt)} to finish (up to ${waitMinutes} min)`,
+      );
+      while (getStartBlockingSteamOperation(blocking.path)) {
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `The server was stopped for the restart, but a Steam ${blocking.type} operation on its install folder was still running after ${waitMinutes} minutes, so it was not started again. Start it once that operation has finished.`,
+          );
+        }
+        await this._restartSleep(RESTART_STEAM_OPERATION_POLL_MS);
+        if (this.restartCancelled) return { cancelled: true };
+      }
+      log.info(
+        `Auto-restart: the Steam ${blocking.type} operation on ${blocking.path} finished after ${Math.round((Date.now() - waitStartedAt) / 1000)} s; starting the server`,
+      );
+      // Nothing may have started this server while the restart waited (a
+      // start on the host, outside the panel's lifecycle lock): the start
+      // below skips its own running check, so this is the one that counts.
+      const details = await readProcessDetails();
+      if (!details || details.scanFailed) {
+        // One scan that can't answer (GH #190) used to end the restart here
+        // with the server down. The same secondary proof as the stop step
+        // settles it: RCON port refused and the console log's shutdown lines.
+        const evidence = await this._readStoppedEvidence(serverManager, { serverId });
+        if (!evidence.stopped) {
+          log.warn(`Auto-restart: process detection failed after the Steam wait and ${evidence.reason}`);
+          throw new Error(
+            "The server was stopped for the restart and the Steam operation that held its relaunch has finished, but process detection failed, so the panel could not check that no server was started meanwhile and did not start one. Check the server and start it if it is stopped.",
+          );
+        }
+        log.info(
+          `Auto-restart: process detection failed after the Steam wait, but ${evidence.reason}, so the server is still stopped`,
+        );
+      } else if (details.running) {
+        throw new Error(
+          "A server process was started while the restart waited for a Steam operation to finish, so the restart did not start a second one.",
+        );
+      }
+      if (this.restartCancelled) return { cancelled: true };
+      await this._ensureRestartTarget(serverManager, serverId);
+      setStarting(true);
+    }
+  }
+
+  // A restart that stopped the server and could not start it again (GH
+  // #269): the mod checker must not take that server for one the operator
+  // left offline. Valid until that server is launched again (its launch
+  // number moves), the restart is cancelled, or one brings it back up. One
+  // record per server: with several servers, another server's launch (or
+  // its own failed restart) used to drop this one's record, and the server
+  // was left down as "offline on purpose" after all.
+  _noteInterruptedRestart(serverId, message) {
+    const key = serverId == null ? null : String(serverId);
+    this.interruptedRestarts.set(key, {
+      serverId: key,
+      message: String(message || "the server did not start again"),
+      at: Date.now(),
+      launchSeq: lastLaunchSequenceFor(key),
+    });
+  }
+
+  _clearInterruptedRestart(serverId) {
+    this.interruptedRestarts.delete(serverId == null ? null : String(serverId));
+  }
+
+  getInterruptedRestart(serverId) {
+    const key = serverId == null ? null : String(serverId);
+    const record = this.interruptedRestarts.get(key);
+    if (!record) return null;
+    if (record.launchSeq !== lastLaunchSequenceFor(key)) return null;
+    return record;
   }
 
   _wakeRestartWaits() {

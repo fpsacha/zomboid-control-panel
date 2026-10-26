@@ -96,8 +96,9 @@ import {
   findModForFolder,
   isModIdVerifiedOnDisk,
   sanitizeModIdListWithDiskBypass,
+  shippedByListedItems,
 } from "../services/workshopModInfo.js";
-import { addWorkshopItemToIni } from "../services/modIniEdit.js";
+import { addMapFoldersToIni, addWorkshopItemToIni } from "../services/modIniEdit.js";
 import {
   extractClothingOutfits,
   extractLuaGlobals,
@@ -3388,6 +3389,15 @@ router.post("/remove-from-ini", async (req, res) => {
         }
       }
 
+      // A mod id an item still in WorkshopItems= ships too (a re-upload
+      // under a new Workshop ID) stays in Mods=.
+      const stillShipped = shippedByListedItems({ modIds: removedModIds, listedWorkshopIds: workshopIds, serverPath }).mods;
+      if (stillShipped.size > 0) {
+        removedModIds = removedModIds.filter((id) => !stillShipped.has(id));
+        modIds = modIdsBefore.filter((id) => !removedModIds.includes(id));
+        log.info(`Kept ${[...stillShipped].join(", ")} in Mods=: another listed Workshop item ships it too`);
+      }
+
       // Check if this mod has map folders and remove them from Map=
       let removedMapFolders = [];
       if (serverPath) {
@@ -3398,9 +3408,14 @@ router.post("/remove-from-ini", async (req, res) => {
         if (modMapFolders.length > 0) {
           const mapMatch = content.match(/^[ \t]*Map[ \t]*=[ \t]*(.*)$/m);
           let currentMaps = splitIniList(mapMatch?.[1]);
+          const mapsStillShipped = shippedByListedItems({
+            mapFolders: modMapFolders.filter((folder) => currentMaps.includes(folder)),
+            listedWorkshopIds: workshopIds,
+            serverPath,
+          }).maps;
 
           for (const folder of modMapFolders) {
-            if (currentMaps.includes(folder)) {
+            if (currentMaps.includes(folder) && !mapsStillShipped.has(folder)) {
               currentMaps = currentMaps.filter((m) => m !== folder);
               removedMapFolders.push(folder);
               log.info(
@@ -3586,6 +3601,17 @@ router.post("/batch-remove", async (req, res) => {
             const origWsCount = iniWorkshopIds.length;
             const origModCount = iniModIds.length;
             iniWorkshopIds = iniWorkshopIds.filter((id) => !removeSet.has(id));
+            // What an item still listed ships too stays (a re-upload under
+            // a new Workshop ID keeps the mod id; removing the old,
+            // deactivated item must not unload it).
+            const stillShipped = shippedByListedItems({
+              modIds: [...modIdsToRemove].filter((id) => iniModIds.includes(id)),
+              mapFolders: [...mapFoldersToRemove].filter((folder) => iniMaps.includes(folder)),
+              listedWorkshopIds: iniWorkshopIds,
+              serverPath,
+            });
+            for (const id of stillShipped.mods) modIdsToRemove.delete(id);
+            for (const folder of stillShipped.maps) mapFoldersToRemove.delete(folder);
             iniModIds = iniModIds.filter((id) => !modIdsToRemove.has(id));
             iniMaps = iniMaps.filter((m) => !mapFoldersToRemove.has(m));
 
@@ -5278,7 +5304,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       });
     }
 
-    const { serverConfigPath, serverName, configRefusal } = await getActiveServerPaths();
+    const { serverConfigPath, serverName, serverPath, configRefusal } = await getActiveServerPaths();
     const iniPath = getSanitizedIniPath(serverConfigPath, serverName);
 
     if (!iniPath) {
@@ -5300,6 +5326,38 @@ router.post("/presets/:id/apply", async (req, res) => {
     let backupWarning = null;
     await withIniLock(iniPath, async () => {
       let content = readTextFile(iniPath);
+
+      // Map= follows the items that come and go, as when they are added or
+      // removed one by one: a preset only keeps Mods= and WorkshopItems=, so
+      // a map mod's map stayed in Map= after a preset without it (and a
+      // preset with one loaded it without its map).
+      const itemsBefore = workshopItemsOf(content);
+      const itemsAfter = (preset.workshop_ids || []).map(String);
+      const isItemId = (id) => /^\d{1,15}$/.test(id);
+      const removedItems = itemsBefore.filter((id) => isItemId(id) && !itemsAfter.includes(id));
+      const addedItems = itemsAfter.filter((id) => isItemId(id) && !itemsBefore.includes(id));
+      const mapMatch = content.match(/^[ \t]*Map[ \t]*=[ \t]*(.*)$/m);
+      const mapsBefore = mapMatch ? splitIniList(mapMatch[1]) : null;
+      if (serverPath && mapsBefore) {
+        const leaving = removedItems
+          .flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath))
+          .filter((folder) => mapsBefore.includes(folder));
+        const kept = shippedByListedItems({ mapFolders: leaving, listedWorkshopIds: itemsAfter, serverPath }).maps;
+        const out = new Set(leaving.filter((folder) => !kept.has(folder)));
+        if (out.size > 0) {
+          const maps = mapsBefore.filter((folder) => !out.has(folder));
+          content = content.replace(
+            /^[ \t]*Map[ \t]*=.*/m,
+            () => `Map=${sanitizeIniList(maps.length ? maps : ["Muldraugh, KY"])}`,
+          );
+        }
+      }
+      if (serverPath && addedItems.length > 0) {
+        content = addMapFoldersToIni(
+          content,
+          addedItems.flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath)),
+        ).content;
+      }
 
       // Existence must be checked with the same anchored regex used to
       // replace it, not a plain .includes() -- see this file's first
@@ -5843,6 +5901,13 @@ router.post("/groups/:id/enable", async (req, res) => {
           "WorkshopItems",
           `WorkshopItems=${sanitizeIniList([...workshopItems, ...workshopItemsAdded])}`,
         );
+        // An item this adds puts its maps in front of Map=, like every
+        // add-mod flow (addWorkshopItemToIni): without them a map mod of the
+        // group loads with no map.
+        const folders = workshopItemsAdded.flatMap((wsId) => findMapFoldersFromWorkshop(wsId, serverPath));
+        const maps = addMapFoldersToIni(content, folders);
+        content = maps.content;
+        if (maps.addedMapFolders.length > 0) result.mapFoldersAdded = maps.addedMapFolders;
       }
       backupWarning = backupWarningFor(await writeIniWithBackup(iniPath, content));
     });
@@ -9525,10 +9590,10 @@ async function deleteModFromDiskAndIni(wsId) {
 
   // Capture mod IDs and map folders BEFORE we delete the folder — both are
   // read off the files we are about to remove.
-  const modIdsToStrip = serverPath
+  let modIdsToStrip = serverPath
     ? findAllModIdsFromWorkshop(wsId, serverPath)
     : [];
-  const mapFoldersToStrip = serverPath
+  let mapFoldersToStrip = serverPath
     ? findMapFoldersFromWorkshop(wsId, serverPath)
     : [];
 
@@ -9538,14 +9603,25 @@ async function deleteModFromDiskAndIni(wsId) {
     // Widened to tolerate whitespace around "=" (hunt-wave13, 783672aa) --
     // each match doubles as the exists-check for its replace below.
     const wsMatch = content.match(/^[ \t]*WorkshopItems[ \t]*=[ \t]*(.*)$/m);
+    const wsList = splitIniList(wsMatch?.[1]).filter((id) => id !== wsId);
     if (wsMatch) {
-      const wsList = splitIniList(wsMatch[1])
-        .filter((id) => id !== wsId);
       content = content.replace(
         /^[ \t]*WorkshopItems[ \t]*=.*/m,
         () => `WorkshopItems=${sanitizeIniList(wsList)}`,
       );
     }
+    // A mod id or map an item still listed ships too stays: deleting an old
+    // download must not unload its re-upload under a new Workshop ID.
+    const listedMods = splitModIdList(content.match(/^[ \t]*Mods[ \t]*=[ \t]*(.*)$/m)?.[1]);
+    const listedMaps = splitIniList(content.match(/^[ \t]*Map[ \t]*=[ \t]*(.*)$/m)?.[1]);
+    const stillShipped = shippedByListedItems({
+      modIds: modIdsToStrip.filter((id) => listedMods.includes(id)),
+      mapFolders: mapFoldersToStrip.filter((folder) => listedMaps.includes(folder)),
+      listedWorkshopIds: wsList,
+      serverPath,
+    });
+    modIdsToStrip = modIdsToStrip.filter((id) => !stillShipped.mods.has(id));
+    mapFoldersToStrip = mapFoldersToStrip.filter((folder) => !stillShipped.maps.has(folder));
     const modsMatch = content.match(/^[ \t]*Mods[ \t]*=[ \t]*(.*)$/m);
     if (modsMatch && modIdsToStrip.length > 0) {
       const modsList = splitModIdList(modsMatch[1])
@@ -9847,14 +9923,24 @@ router.post("/batch-delete-disk-mods", async (req, res) => {
       // Widened to tolerate whitespace around "=" (hunt-wave13, 783672aa) --
       // each match doubles as the exists-check for its replace below.
       const wsMatch = content.match(/^[ \t]*WorkshopItems[ \t]*=[ \t]*(.*)$/m);
+      const wsList = splitIniList(wsMatch?.[1]).filter((id) => !cleaned.includes(id));
       if (wsMatch) {
-        const wsList = splitIniList(wsMatch[1])
-          .filter((id) => !cleaned.includes(id));
         content = content.replace(
           /^[ \t]*WorkshopItems[ \t]*=.*/m,
           () => `WorkshopItems=${sanitizeIniList(wsList)}`,
         );
       }
+      // What an item still listed ships too stays (see deleteModFromDiskAndIni()).
+      const listedMods = splitModIdList(content.match(/^[ \t]*Mods[ \t]*=[ \t]*(.*)$/m)?.[1]);
+      const listedMaps = splitIniList(content.match(/^[ \t]*Map[ \t]*=[ \t]*(.*)$/m)?.[1]);
+      const stillShipped = shippedByListedItems({
+        modIds: [...allModIdsToStrip].filter((id) => listedMods.includes(id)),
+        mapFolders: [...allMapFoldersToStrip].filter((folder) => listedMaps.includes(folder)),
+        listedWorkshopIds: wsList,
+        serverPath,
+      });
+      for (const id of stillShipped.mods) allModIdsToStrip.delete(id);
+      for (const folder of stillShipped.maps) allMapFoldersToStrip.delete(folder);
       const modsMatch = content.match(/^[ \t]*Mods[ \t]*=[ \t]*(.*)$/m);
       if (modsMatch && allModIdsToStrip.size > 0) {
         const modsList = splitModIdList(modsMatch[1])

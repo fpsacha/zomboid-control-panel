@@ -172,20 +172,31 @@ export class OtherServerUpdates {
         }
       }
 
+      // Each server's state and its process's start, read once: a mod
+      // installed after that start is on disk but not what the server loaded.
+      let statuses = null;
+      try {
+        statuses = new Map(((await this.readStatuses()) || []).map((row) => [String(row.id), row]));
+      } catch (error) {
+        log.debug(`Could not read the servers' states: ${error.message}`);
+      }
+
       const checkedAt = new Date(this.now()).toISOString();
       for (const server of watched) {
         const id = String(server.id);
         const mods = modsByServer.get(id);
+        const row = statuses?.get(id);
+        const startedAtMs = row?.running && !row.stateUnknown && row.startedAt ? Date.parse(row.startedAt) : NaN;
         const modResult = mods.error
           ? { outdated: [], error: mods.error, checkedAt }
           : steamError
             ? { outdated: [], error: steamError, checkedAt }
-            : { outdated: this.outdatedMods(mods.relevant, steam), checkedAt };
+            : { outdated: this.outdatedMods(mods.relevant, steam, startedAtMs), checkedAt };
         const game = await this.checkGame(server, checkedAt);
         this.results.set(id, { mods: modResult, game });
       }
 
-      await this.restartForModUpdates(watched);
+      await this.restartForModUpdates(watched, statuses);
       this.emit({ servers: this.getResults() });
       return this.getResults();
     } catch (error) {
@@ -226,11 +237,18 @@ export class OtherServerUpdates {
     return { relevant };
   }
 
-  outdatedMods(relevant, steam) {
+  // Behind Steam, or -- for a running server, `startedAtMs` its process's
+  // start -- installed in a version Steam published after that start. Servers
+  // sharing an install share its Workshop folder: another server's restart
+  // downloads the update there, the ACF then matches Steam, and this server,
+  // still running the version it loaded, looked up to date and was never
+  // restarted for it.
+  outdatedMods(relevant, steam, startedAtMs = NaN) {
     const outdated = [];
     for (const [id, localTime] of relevant) {
       const latest = steam.get(id);
-      if (latest && Number(latest.time_updated) > localTime) {
+      const loadedOlder = Number.isFinite(startedAtMs) && localTime * 1000 > startedAtMs;
+      if (latest && (Number(latest.time_updated) > localTime || loadedOlder)) {
         outdated.push({
           workshopId: id,
           name: latest.title || `Workshop ${id}`,
@@ -279,10 +297,10 @@ export class OtherServerUpdates {
   }
 
   // One running server at a time: the scheduler runs one restart at once.
-  async restartForModUpdates(watched) {
+  // `running`: the servers' states by id, null when they couldn't be read.
+  async restartForModUpdates(watched, running) {
     const settings = this.modRestartSettings?.() || {};
     if (!settings.autoRestart) return;
-    let running = null;
     for (const server of watched) {
       const id = String(server.id);
       const outdated = this.results.get(id)?.mods?.outdated || [];
@@ -295,15 +313,7 @@ export class OtherServerUpdates {
         .sort()
         .join(",");
       if (this.restartedFor.get(id) === key) continue;
-      if (running === null) {
-        try {
-          running = new Map(
-            ((await this.readStatuses()) || []).map((row) => [String(row.id), row]),
-          );
-        } catch {
-          return;
-        }
-      }
+      if (!running) return;
       const row = running.get(id);
       if (!row || row.stateUnknown || !row.running) continue;
 

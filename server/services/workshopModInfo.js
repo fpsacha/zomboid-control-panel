@@ -234,6 +234,42 @@ export function findAllModIdsFromWorkshop(workshopId, serverPath) {
   return mods.map((m) => m.id);
 }
 
+/**
+ * The mod ids of `modIds` and folders of `mapFolders` that an item of
+ * `listedWorkshopIds` (what WorkshopItems= keeps) ships too. A remove or a
+ * disk delete of one Workshop item leaves those in Mods= and Map=: a
+ * re-upload under a new Workshop ID keeps the mod id, so taking the old item
+ * out (or deleting its download) must not unload the new one. Reads only as
+ * many items as it takes to find them all, and maps only when one is asked.
+ * Returns { mods: Set, maps: Set }.
+ */
+export function shippedByListedItems({ modIds = [], mapFolders = [], listedWorkshopIds = [], serverPath }) {
+  const wantMods = new Set(modIds);
+  const wantMaps = new Set(mapFolders);
+  const mods = new Set();
+  const maps = new Set();
+  if (!serverPath || (wantMods.size === 0 && wantMaps.size === 0)) return { mods, maps };
+  for (const wsId of new Set(listedWorkshopIds)) {
+    if (mods.size === wantMods.size && maps.size === wantMaps.size) break;
+    if (!/^\d{1,15}$/.test(String(wsId))) continue;
+    try {
+      if (mods.size < wantMods.size) {
+        for (const id of findAllModIdsFromWorkshop(String(wsId), serverPath)) {
+          if (wantMods.has(id)) mods.add(id);
+        }
+      }
+      if (maps.size < wantMaps.size) {
+        for (const folder of findMapFoldersFromWorkshop(String(wsId), serverPath)) {
+          if (wantMaps.has(folder)) maps.add(folder);
+        }
+      }
+    } catch {
+      // An unreadable item ships nothing we can tell.
+    }
+  }
+  return { mods, maps };
+}
+
 // Helper function to find mod ID from workshop folder
 export function findModIdFromWorkshop(workshopId, serverPath) {
   // Use shared helper to parse details

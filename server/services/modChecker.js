@@ -488,6 +488,9 @@ export class ModChecker extends EventEmitter {
     // Update dedup — track which mod+timestamp combos have already triggered a restart
     // Prevents the same stale update from re-triggering every poll cycle
     this.processedUpdates = new Map(); // workshopId -> steamTimestamp that was already handled
+    // The active server processedUpdates and _lastReportedUpdateKey are
+    // about (checkForUpdates()); undefined before the first check.
+    this._checkedServerId = undefined;
   }
 
   // Initialize with scheduler and restore saved settings
@@ -1417,6 +1420,32 @@ export class ModChecker extends EventEmitter {
     );
   }
 
+  // Whether the active server is no longer the one the update was found for.
+  // The scheduler's restart and RCON follow the active server, so a restart
+  // that waited for players on one server would otherwise restart (and count
+  // the players of) the server made active since. Unknown is "no".
+  async _activeServerChangedSince(context) {
+    const target = await context?.serverId;
+    if (target === null || target === undefined) return false;
+    const now = await this._resolveActiveServerId();
+    return now !== null && now !== target;
+  }
+
+  // Ends a pending restart whose server is no longer the active one. Its
+  // updates stay eligible: the next check with that server active finds
+  // them again and restarts it then.
+  _dropPendingRestartForSwitch(updatedMods) {
+    this._stopPlayerMonitoring();
+    this._clearPendingRestart();
+    for (const m of updatedMods || []) this.processedUpdates.delete(m.workshopId);
+    log.info(
+      "Pending mod-update restart dropped: another server was made active; it runs again when that server is active and checked",
+    );
+    if (this.io) {
+      this.io.emit("mods:restart_cancelled", { reason: "server_switched" });
+    }
+  }
+
   async _cancelPendingRestartAfterServerStart(context) {
     context.cancelledByServerStart = true;
     this._stopPlayerMonitoring();
@@ -1530,6 +1559,16 @@ export class ModChecker extends EventEmitter {
       }
       tickRunning = true;
       try {
+        // Another server was made active since: RCON and the restart now
+        // reach that one, which the update is not for.
+        if (await this._activeServerChangedSince(context)) {
+          if (this._isPendingRestartCurrent(token)) {
+            this._dropPendingRestartForSwitch(updatedMods);
+          }
+          return;
+        }
+        if (!this._isPendingRestartCurrent(token)) return;
+
         // Started again since the update was detected (GH #189): the
         // restart already happened, whoever made it.
         if (await this._serverStartedSince(context)) {
@@ -1607,9 +1646,20 @@ export class ModChecker extends EventEmitter {
       }
     };
     if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
+    // The waiting loop's restart (all players gone, or the maximum wait
+    // reached) after another server was made active: that server is not
+    // the one to restart.
+    if (context && (await this._activeServerChangedSince(context))) {
+      if (!cancelledMeanwhile()) this._dropPendingRestartForSwitch(updatedMods);
+      return { success: false, skipped: true, reason: "server_switched" };
+    }
+    if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
     // RCON readiness gate — verify RCON is connected before attempting restart
     const rconService = this.scheduler?.rconService;
+    // GH #269: the server is down because a panel restart stopped it and
+    // could not start it again -- only start it, no warning to give.
+    let relaunchOnly = false;
     if (!rconService || !rconService.connected) {
       // Default to "running" (the safe assumption: don't silently drop a
       // pending restart) unless detection positively confirms the server is
@@ -1631,9 +1681,21 @@ export class ModChecker extends EventEmitter {
           );
         }
       }
+      // GH #269: offline because a panel restart stopped it and could not
+      // start it again (a Steam operation held the relaunch past its wait,
+      // say) is not offline on purpose: start it, and keep retrying (the
+      // updates stay unprocessed) until that works or someone else starts it.
+      const interrupted = confirmedOffline
+        ? (this.scheduler?.getInterruptedRestart?.(await this._resolveActiveServerId()) ?? null)
+        : null;
       if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
-      if (confirmedOffline) {
+      if (confirmedOffline && interrupted) {
+        log.warn(
+          `Mod updates detected while the PZ server is offline because a panel restart stopped it and could not start it again (${interrupted.message}) — starting it.`,
+        );
+        relaunchOnly = true;
+      } else if (confirmedOffline) {
         log.info(
           "Mod updates detected while the PZ server is offline — no restart needed until the server is running.",
         );
@@ -1644,24 +1706,24 @@ export class ModChecker extends EventEmitter {
           markProcessed: true,
           reason: "server_offline",
         };
+      } else {
+        log.warn(
+          "RCON not connected while server appears to be running — cannot trigger mod restart safely. Will retry on next check cycle.",
+        );
+        // Clear processed updates so they'll be re-detected on next cycle when RCON may be ready
+        for (const m of updatedMods) {
+          this.processedUpdates.delete(m.workshopId);
+        }
+        releasePendingRestart();
+        return { success: false, retry: true, reason: "rcon_disconnected" };
       }
-
-      log.warn(
-        "RCON not connected while server appears to be running — cannot trigger mod restart safely. Will retry on next check cycle.",
-      );
-      // Clear processed updates so they'll be re-detected on next cycle when RCON may be ready
-      for (const m of updatedMods) {
-        this.processedUpdates.delete(m.workshopId);
-      }
-      releasePendingRestart();
-      return { success: false, retry: true, reason: "rcon_disconnected" };
     }
 
     const modNames = updatedMods
       .map((m) => String(m.name || "Unknown").replace(/[\r\n]/g, ""))
       .join(", ");
 
-    if (this.io) {
+    if (this.io && !relaunchOnly) {
       this.io.emit("mods:restart_starting", {
         mods: updatedMods,
         warningMinutes: this.restartWarningMinutes,
@@ -1669,66 +1731,68 @@ export class ModChecker extends EventEmitter {
     }
 
     try {
-      // Send warning message — use both PanelBridge (rich, UTF-8 safe) and RCON
-      // (always-on global broadcast). PZ's RCON does not handle non-ASCII so the
-      // RCON path strips emoji/unicode automatically inside serverMessage().
-      const trimmedNames =
-        modNames.length > 100 ? `${modNames.substring(0, 100)}...` : modNames;
-      const warningMessage = `🔧 Mod updates detected: ${trimmedNames}. Server will restart in ${this.restartWarningMinutes} minute(s).`;
-      log.info(
-        `Sending mod-restart warning: ${trimmedNames} — restart in ${this.restartWarningMinutes} min`,
-      );
-
-      // Players are being told a restart is coming, so a cancellation from
-      // here on tells them it isn't (_cancelPendingRestartAfterServerStart()).
-      if (context) context.announced = true;
-      let rconBroadcastOk = false;
-      try {
-        const rconResult =
-          await this.scheduler.rconService?.serverMessage(warningMessage);
-        if (rconResult?.success && !rconResult.rejected) {
-          rconBroadcastOk = true;
-        } else if (rconResult?.rejected) {
-          log.warn(
-            "RCON servermsg was rejected by PZ — will rely on PanelBridge fallback",
-          );
-        }
-      } catch (rconErr) {
-        log.warn(`RCON serverMessage failed: ${rconErr?.message || rconErr}`);
-      }
-      if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
-
-      // Always also try PanelBridge if available — it can render the full
-      // unicode message in chat and acts as a fallback if RCON was rejected.
-      try {
-        if (panelBridge?.isRunning && panelBridge?.isModConnected?.()) {
-          await panelBridge.sendCommand("sendToServerChat", {
-            message: warningMessage,
-            alert: true,
-          });
-        } else if (!rconBroadcastOk) {
-          log.warn(
-            "Mod restart warning: neither RCON broadcast nor PanelBridge succeeded — players may not see the warning",
-          );
-        }
-      } catch (bridgeErr) {
-        log.warn(
-          `PanelBridge sendToServerChat failed: ${bridgeErr?.message || bridgeErr}`,
+      // A relaunch of a server a failed restart left stopped (GH #269):
+      // nobody is online to warn.
+      if (!relaunchOnly) {
+        // Send warning message — use both PanelBridge (rich, UTF-8 safe) and RCON
+        // (always-on global broadcast). PZ's RCON does not handle non-ASCII so the
+        // RCON path strips emoji/unicode automatically inside serverMessage().
+        const trimmedNames =
+          modNames.length > 100 ? `${modNames.substring(0, 100)}...` : modNames;
+        const warningMessage = `🔧 Mod updates detected: ${trimmedNames}. Server will restart in ${this.restartWarningMinutes} minute(s).`;
+        log.info(
+          `Sending mod-restart warning: ${trimmedNames} — restart in ${this.restartWarningMinutes} min`,
         );
+
+        // Players are being told a restart is coming, so a cancellation from
+        // here on tells them it isn't (_cancelPendingRestartAfterServerStart()).
+        if (context) context.announced = true;
+        let rconBroadcastOk = false;
+        try {
+          const rconResult =
+            await this.scheduler.rconService?.serverMessage(warningMessage);
+          if (rconResult?.success && !rconResult.rejected) {
+            rconBroadcastOk = true;
+          } else if (rconResult?.rejected) {
+            log.warn(
+              "RCON servermsg was rejected by PZ — will rely on PanelBridge fallback",
+            );
+          }
+        } catch (rconErr) {
+          log.warn(`RCON serverMessage failed: ${rconErr?.message || rconErr}`);
+        }
+        if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
+
+        // Always also try PanelBridge if available — it can render the full
+        // unicode message in chat and acts as a fallback if RCON was rejected.
+        try {
+          if (panelBridge?.isRunning && panelBridge?.isModConnected?.()) {
+            await panelBridge.sendCommand("sendToServerChat", {
+              message: warningMessage,
+              alert: true,
+            });
+          } else if (!rconBroadcastOk) {
+            log.warn(
+              "Mod restart warning: neither RCON broadcast nor PanelBridge succeeded — players may not see the warning",
+            );
+          }
+        } catch (bridgeErr) {
+          log.warn(
+            `PanelBridge sendToServerChat failed: ${bridgeErr?.message || bridgeErr}`,
+          );
+        }
       }
 
       // Checked with nothing awaited before the flag below: from there on,
       // the restart's own relaunch must not cancel it.
       if (cancelledMeanwhile()) return this._cancelledMeanwhileResult(context);
 
-      // Perform restart with configured warning time
-      log.info(
-        `Calling scheduler.performRestart(${this.restartWarningMinutes})`,
-      );
+      // Perform restart with configured warning time (a stopped server's
+      // relaunch has nobody to warn)
+      const warningMinutes = relaunchOnly ? 0 : this.restartWarningMinutes;
+      log.info(`Calling scheduler.performRestart(${warningMinutes})`);
       this._modRestartInFlight = true;
-      const result = await this.scheduler.performRestart(
-        this.restartWarningMinutes,
-      );
+      const result = await this.scheduler.performRestart(warningMinutes);
 
       if (result && result.success === false) {
         log.warn(
@@ -1898,6 +1962,16 @@ export class ModChecker extends EventEmitter {
       // the current path. A server switch or edit replaces it outright
       // (refreshWorkshopChecker()); when one does while this lookup is in
       // flight, this lookup may have read the previous server and is dropped.
+      // What was handled is per server: a mod two servers share, updated
+      // and restarted for on one, still needs the other's restart once that
+      // one is active (processedUpdates would skip it as "already processed").
+      const checkedServerId = await this._resolveActiveServerId();
+      if (this._checkedServerId !== undefined && checkedServerId !== this._checkedServerId) {
+        this.processedUpdates.clear();
+        this._lastReportedUpdateKey = "";
+      }
+      this._checkedServerId = checkedServerId;
+
       const lookups = this.workshopAcfLookups;
       const resolvedAcfPath = await this.resolveWorkshopAcfPath();
       if (resolvedAcfPath && lookups === this.workshopAcfLookups) {
@@ -2455,14 +2529,23 @@ export class ModChecker extends EventEmitter {
     ]);
     const relevantWorkshopIds =
       relevantWorkshopIdsUnion.size > 0 ? relevantWorkshopIdsUnion : null;
-    const modsWithUpdates = Object.entries(workshopInfo).filter(
-      ([id, info]) => {
+    const idsWithUpdates = Object.entries(workshopInfo)
+      .filter(([id, info]) => {
         if (!info.needsUpdate) return false;
         if (relevantWorkshopIds && !relevantWorkshopIds.has(String(id)))
           return false;
         return true;
-      },
-    ).length;
+      })
+      .map(([id]) => String(id));
+    const modsWithUpdates = idsWithUpdates.length;
+    // The updates of the items the server loads (WorkshopItems=), what the
+    // Mods page's Installed counts show: a Deactivated item's update needs
+    // no server update or restart, so the nav badge and the Dashboard count
+    // these. updatesAvailable keeps the union for the stale-flag check.
+    const updatesOnServer =
+      iniWorkshopIds === null
+        ? modsWithUpdates
+        : idsWithUpdates.filter((id) => iniWorkshopIds.has(id)).length;
 
     return {
       running: !!this.intervalId,
@@ -2482,6 +2565,7 @@ export class ModChecker extends EventEmitter {
       totalModsInWorkshop: Object.keys(workshopInfo).length,
       totalModsTracked: Array.isArray(trackedMods) ? trackedMods.length : 0,
       updatesAvailable: modsWithUpdates,
+      updatesOnServer,
       // False only after a check that actually queried Steam and got
       // nothing back (outage/rate-limit/network block) -- true before the
       // first check ever runs, so this isn't itself a false alarm on a

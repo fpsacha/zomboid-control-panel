@@ -261,3 +261,60 @@ describe("backupService.js: cross-server ownership in a shared backups folder", 
     expect(backups.map((b) => b.name)).toEqual([path.basename(ownFile)]);
   });
 });
+
+// v1.6.0 backs up every chosen server on the schedule, each through
+// createBackup({ server }), whose retention runs cleanupOldBackups(server).
+// That listed the chosen server's backups but deleted each through
+// deleteBackup(name), which looks in the ACTIVE server's folder: "Backup not
+// found" for a server with its own data folder, a "belongs to another server
+// profile" refusal for one sharing the active server's -- either way the
+// chosen server's backups were never pruned and grew until the disk filled.
+describe("retention of a scheduled backup of a server other than the active one", () => {
+  function keepOne(service) {
+    vi.spyOn(service, "getSettings").mockResolvedValue({
+      enabled: true,
+      schedule: "0 */6 * * *",
+      maxBackups: 1,
+      includeDb: false,
+    });
+  }
+
+  it("prunes that server's own backups folder, not the active server's", async () => {
+    const dataA = path.join(root, "a");
+    const dataB = path.join(root, "b");
+    const ownA = { id: "a", serverName: "ServerA", zomboidDataPath: dataA };
+    const ownB = { id: "b", serverName: "ServerB", zomboidDataPath: dataB };
+    getServersMock.mockResolvedValue([ownA, ownB]);
+    getActiveServerMock.mockResolvedValue(ownA);
+    writeBackupFile("ServerA", 1, dataA);
+    writeBackupFile("ServerB", 2, dataB);
+    writeBackupFile("ServerB", 3, dataB);
+
+    const service = new BackupService();
+    keepOne(service);
+    await service.cleanupOldBackups(ownB);
+
+    expect(fs.readdirSync(path.join(dataB, "backups"))).toEqual([
+      "ServerB_2026-09-18T00-00-00-003.zip",
+    ]);
+    expect(fs.readdirSync(path.join(dataA, "backups"))).toEqual([
+      "ServerA_2026-09-18T00-00-00-001.zip",
+    ]);
+  });
+
+  it("prunes it in a backups folder shared with the active server, leaving the active server's alone", async () => {
+    getActiveServerMock.mockResolvedValue(serverA);
+    writeBackupFile("ServerA", 1);
+    writeBackupFile("ServerB", 2);
+    writeBackupFile("ServerB", 3);
+
+    const service = new BackupService();
+    keepOne(service);
+    await service.cleanupOldBackups(serverB);
+
+    expect(fs.readdirSync(path.join(sharedDataPath, "backups")).sort()).toEqual([
+      "ServerA_2026-09-18T00-00-00-001.zip",
+      "ServerB_2026-09-18T00-00-00-003.zip",
+    ]);
+  });
+});

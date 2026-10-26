@@ -1689,8 +1689,12 @@ export class DiscordBot {
     // one, if serverManager hadn't loaded any config yet), not the server DB
     // id normalize-lifecycle-lock-server-identifier standardized on.
     const activeServerForLock = await getActiveServer();
+    // "restart", like every other restart's lock: Stop and Force stop cancel
+    // a restart by that name (routes/server.js's acquireLockForStop(), the
+    // Dashboard's lifecycleBlocker()) and were refused for the whole
+    // countdown of one named "discord-restart".
     const lifecycleLock = acquireLifecycleLock(
-      "discord-restart",
+      "restart",
       activeServerForLock?.id ?? null,
     );
     if (!lifecycleLock) {

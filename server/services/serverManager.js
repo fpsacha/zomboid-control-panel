@@ -20,7 +20,10 @@ import {
   createLinuxServiceLifecycle,
   isManagedLifecycleProvider,
 } from "./linuxServiceLifecycle.js";
-import { hasStartBlockingSteamOperation } from "./activeSteamOperations.js";
+import {
+  describeSteamOperation,
+  getStartBlockingSteamOperation,
+} from "./activeSteamOperations.js";
 import { notifyServerLaunched, prepareForLaunch } from "./lifecycleCoordinator.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { listNonInternalIPv4Interfaces } from "../utils/networkInterfaces.js";
@@ -2457,10 +2460,19 @@ export class ServerManager {
         const normalizedInstallPath = path
           .normalize(installPathForSteamCheck)
           .toLowerCase();
-        if (hasStartBlockingSteamOperation(normalizedInstallPath)) {
-          throw new Error(
+        const blockingSteamOperation =
+          getStartBlockingSteamOperation(normalizedInstallPath);
+        if (blockingSteamOperation) {
+          log.warn(
+            `Start refused: Steam ${describeSteamOperation(blockingSteamOperation)}`,
+          );
+          const refusal = new Error(
             "A Steam install or update is currently in progress for this server's install directory. Wait for it to finish before starting the server.",
           );
+          // GH #269: a restart that already stopped the server waits this
+          // operation out instead of failing (Scheduler.performRestart()).
+          refusal.steamOperation = blockingSteamOperation;
+          throw refusal;
         }
       }
 

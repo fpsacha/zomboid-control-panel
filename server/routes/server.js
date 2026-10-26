@@ -4,6 +4,8 @@ import { promisify } from "util";
 import https from "https";
 import path from "path";
 import fs from "fs";
+import { Transform } from "stream";
+import { pipeline } from "stream/promises";
 import os from "os";
 import crypto from "crypto";
 import { createLogger } from "../utils/logger.js";
@@ -7056,6 +7058,106 @@ router.get("/console-log", requirePermission("server.world_events"), async (req,
   } catch (error) {
     log.error(`Failed to read server console log: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
+  }
+});
+
+// The Console page's "Download server-console.txt": the file the log tab
+// tails, alone, without building the whole support bundle. Same permission,
+// same folder rule (resolveConsoleLogFolder(): never a path from the
+// request) and the same per-role view as GET /console-log, plus the support
+// bundle's raw-log redaction (known panel secrets, RCON `adduser`
+// passwords, tokens). Streamed line by line up to the size it had when the
+// download began; past CONSOLE_LOG_DOWNLOAD_MAX_BYTES only the newest part.
+const CONSOLE_LOG_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024;
+
+// "server-console-My_Server-2026-10-25.txt": nothing from the name but
+// letters, digits, dot, dash and underscore.
+function consoleLogDownloadFileName(serverName, now = new Date()) {
+  const safeName = String(serverName || "server")
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^[._]+|[._]+$/g, "")
+    .slice(0, 60) || "server";
+  return `server-console-${safeName}-${now.toISOString().slice(0, 10)}.txt`;
+}
+
+function createLineMapStream(mapLine) {
+  let carry = "";
+  const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
+  const pushLines = (stream, text) => {
+    carry += text;
+    const lines = carry.split("\n");
+    carry = lines.pop() ?? "";
+    for (const line of lines) stream.push(`${mapLine(line)}\n`);
+  };
+  return new Transform({
+    transform(chunk, _enc, callback) {
+      pushLines(this, decoder.decode(chunk, { stream: true }));
+      callback();
+    },
+    flush(callback) {
+      pushLines(this, decoder.decode());
+      if (carry) this.push(mapLine(carry));
+      callback();
+    },
+  });
+}
+
+router.get("/console-log/download", requirePermission("server.world_events"), async (req, res) => {
+  try {
+    const activeServer = await getActiveServer();
+    const consoleLogFolder = await resolveConsoleLogFolder(activeServer);
+    if (consoleLogFolder.refusal) {
+      return res.status(409).json(consoleLogFolder.refusal);
+    }
+    const consoleLogPath = consoleLogFolder.folder
+      ? path.join(consoleLogFolder.folder, CONSOLE_LOG_FILE_NAME)
+      : null;
+    let stats = null;
+    try {
+      stats = consoleLogPath ? await fs.promises.stat(consoleLogPath) : null;
+    } catch {
+      stats = null;
+    }
+    if (!stats?.isFile()) {
+      return res.status(404).json({ error: "File not found", code: ErrorCode.FILE_NOT_FOUND });
+    }
+
+    // Loaded here, not at the top: routes/debug.js imports routes/mods.js,
+    // which imports this file, so a static import would be a cycle.
+    const { collectBundleKnownSecrets, redactRawLogText } = await import("./debug.js");
+    const knownSecrets = await collectBundleKnownSecrets().catch(() => []);
+    const view = await consoleLogView(req);
+    const redactLine = (line) => view.lines([redactRawLogText(line, knownSecrets)])[0];
+
+    const size = stats.size;
+    const start = Math.max(0, size - CONSOLE_LOG_DOWNLOAD_MAX_BYTES);
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${consoleLogDownloadFileName(activeServer?.name)}"`,
+    );
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (size === 0) return res.end();
+
+    let skipPartialLine = start > 0;
+    const lineMap = createLineMapStream((line) => {
+      // Started mid-file: the first line is a fragment.
+      if (skipPartialLine) {
+        skipPartialLine = false;
+        return `[Only the last ${Math.round(CONSOLE_LOG_DOWNLOAD_MAX_BYTES / 1024 / 1024)} MB of this ${Math.round(size / 1024 / 1024)} MB log are included]`;
+      }
+      return redactLine(line);
+    });
+    const source = fs.createReadStream(consoleLogPath, { start, end: size - 1 });
+    await pipeline(source, lineMap, res);
+  } catch (error) {
+    log.error(`Failed to download server console log: ${error.message}`);
+    if (!res.headersSent) {
+      res.status(500).json({ error: sanitizeError(error.message) });
+    } else {
+      res.destroy(error);
+    }
   }
 });
 

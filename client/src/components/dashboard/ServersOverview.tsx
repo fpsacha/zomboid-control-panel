@@ -372,7 +372,9 @@ export function ServersOverview({
           const rconRow = rcon[id]
           const state = rowState(server, status, rconRow)
           const isActive = isActiveServer(server)
-          const players = rconRow?.status === 'connected' ? rconRow.players ?? null : null
+          // A local server the scan confirms stopped has nobody on it: what
+          // answers on its RCON port is another server sharing that port.
+          const players = rconRow?.status === 'connected' && state !== 'stopped' ? rconRow.players ?? null : null
           const name = server.name || server.serverName
           const checkboxId = `servers-overview-autostart-${id}`
           const restartCheckboxId = `servers-overview-restart-${id}`

@@ -13,6 +13,7 @@ import {
   recordActiveSteamOperationPid,
   isSteamOperationIdle,
   STEAM_OPERATION_IDLE_TIMEOUT_MS,
+  VERSION_CHECK_OPERATION_TYPE,
 } from "./activeSteamOperations.js";
 import { acquireLifecycleLock } from "./lifecycleCoordinator.js";
 import { waitForProcessExit } from "../utils/processScanRetry.js";
@@ -296,7 +297,8 @@ export class UpdateChecker {
         );
       }
       getActiveSteamOperations().set(normalizedInstallPath, {
-        type: "version-check",
+        // Read-only: does not block a server start (GH #269).
+        type: VERSION_CHECK_OPERATION_TYPE,
         startTime: Date.now(),
         lastOutputAt: Date.now(),
       });
@@ -730,8 +732,24 @@ export class UpdateChecker {
             ownProcesses: initialDetails.owned,
           },
         );
-        if (details.scanFailed) fail("STOP_SCAN_FAILED", "Lost the ability to verify the server had stopped, so the automatic update was abandoned for safety");
-        if (details.running) fail("STOP_TIMEOUT", "Server did not stop within 5 minutes");
+        if (details.scanFailed) {
+          // Still unknown after the quit: the RCON port refusing connections
+          // plus the console log's shutdown lines settle it, as for a
+          // restart (serverManager.checkStoppedEvidence()). Without this the
+          // update was abandoned with the server already down (the quit
+          // worked) and nothing started it again.
+          const evidence =
+            typeof this.serverManager.checkStoppedEvidence === "function"
+              ? await this.serverManager.checkStoppedEvidence({ serverId: targetServerId })
+              : null;
+          if (!evidence?.stopped) {
+            if (evidence) log.warn(`Automatic update: process detection never answered and ${evidence.reason}`);
+            fail("STOP_SCAN_FAILED", "Lost the ability to verify the server had stopped, so the automatic update was abandoned for safety");
+          }
+          log.info(`Automatic update: process detection never answered, but ${evidence.reason}, so the server counts as stopped`);
+        } else if (details.running) {
+          fail("STOP_TIMEOUT", "Server did not stop within 5 minutes");
+        }
       }
 
       phase = "updating";

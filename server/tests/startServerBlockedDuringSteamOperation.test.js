@@ -66,6 +66,10 @@ describe("startServer(): refuses to spawn the PZ JVM while SteamCMD is active fo
     await expect(manager.startServer({ skipRunningCheck: true })).rejects.toThrow(
       /steam install or update is currently in progress/i,
     );
+    // GH #269: the refusal names the operation, for a restart to wait out.
+    await expect(manager.startServer({ skipRunningCheck: true })).rejects.toMatchObject({
+      steamOperation: { type: "update", pid: process.pid, path: normalizedInstallPath },
+    });
   });
 
   it("proceeds normally once the tracked operation is cleared -- this is not a permanent lockout", async () => {
@@ -98,6 +102,25 @@ describe("startServer(): refuses to spawn the PZ JVM while SteamCMD is active fo
     await expect(manager.startServer({ skipRunningCheck: true })).rejects.not.toThrow(
       /steam install or update is currently in progress/i,
     );
+  });
+
+  // GH #269: the update checker's build-id lookup (+app_info_print) writes
+  // nothing in the install folder; one still running, or hung until its
+  // SteamCMD timeout, refused a restart's relaunch and left the server down.
+  it("does not block on the update checker's read-only version check, however long it runs", async () => {
+    const manager = makeManager();
+    getActiveSteamOperations().set(normalizedInstallPath, {
+      type: "version-check",
+      pid: process.pid,
+      startTime: Date.now() - 60 * 60 * 1000,
+      lastOutputAt: Date.now() - 60 * 60 * 1000,
+    });
+
+    await expect(manager.startServer({ skipRunningCheck: true })).rejects.not.toThrow(
+      /steam install or update is currently in progress/i,
+    );
+    // Still registered: one SteamCMD at a time per folder, and visible.
+    expect(getActiveSteamOperations().get(normalizedInstallPath)?.type).toBe("version-check");
   });
 
   it.each(["install", "update", "verification", "auto-update", "unknown"])(
