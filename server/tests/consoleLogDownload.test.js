@@ -13,10 +13,10 @@ import path from "path";
 const init = await import("../database/init.js");
 const { default: serverRouter } = await import("../routes/server.js");
 
-const MARKER = `zcp-console-download-${process.pid}`;
-const DATA_DIR = path.join(os.tmpdir(), MARKER, "Zomboid");
+const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-console-download-"));
+const DATA_DIR = path.join(TEMP_ROOT, "Zomboid");
 const LOG = path.join(DATA_DIR, "server-console.txt");
-const HOST_PATH = path.join(os.tmpdir(), MARKER, "Steam", "steamapps", "workshop", "content", "108600", "2392709985");
+const HOST_PATH = path.join(TEMP_ROOT, "Steam", "steamapps", "workshop", "content", "108600", "2392709985");
 
 const CONTENT = [
   "LOG  : General      > SERVER STARTED",
@@ -58,7 +58,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise((resolve) => httpServer?.close(resolve));
-  fs.rmSync(path.join(os.tmpdir(), MARKER), { recursive: true, force: true });
+  fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -113,7 +113,7 @@ describe("GET /api/server/console-log/download", () => {
   });
 
   it("reads only the active server's known console path, never one from the request", async () => {
-    const elsewhere = path.join(os.tmpdir(), MARKER, "elsewhere.txt");
+    const elsewhere = path.join(TEMP_ROOT, "elsewhere.txt");
     fs.writeFileSync(elsewhere, "NOT THE CONSOLE LOG\n");
     const res = await fetch(
       `${baseUrl}/api/server/console-log/download?path=${encodeURIComponent(elsewhere)}&file=../elsewhere.txt`,
