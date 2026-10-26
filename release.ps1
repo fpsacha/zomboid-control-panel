@@ -8,7 +8,7 @@
     infrastructure is retired; live deployment now happens separately via
     Docker on the production host):
     0. Pre-flight checks (clean main branch, Docker daemon reachable)
-    1. Bumps version in package.json — auto-increments if no -Version given
+    1. Bumps version in package.json — a date version (YYYY.MM.N) if no -Version given
     2. Builds the client (Vite/React)
     3. Builds Windows + Linux binaries (esbuild + pkg) and packages archives
     4. Builds Docker image
@@ -22,10 +22,9 @@
     the same restore) if it moved while the release was building.
 
 .PARAMETER Version
-    Explicit version string (e.g., "0.9.0"). If omitted, auto-increments based on -Bump.
-
-.PARAMETER Bump
-    Auto-increment type when -Version is not provided. Valid: major, minor, patch (default: patch).
+    Release version as YYYY.MM.N (e.g., "2026.10.1"). If omitted, it is the next
+    number for the current month: N goes up by one from package.json's version
+    when that is in the same month, otherwise it starts at 1.
 
 .PARAMETER ReleaseTitle
     Custom release title. Defaults to "v<Version>".
@@ -54,18 +53,14 @@
     Show what would happen without making changes.
 
 .EXAMPLE
-    .\release.ps1                                          # Auto-increment patch
-    .\release.ps1 -Version "0.9.0"                         # Explicit version
-    .\release.ps1 -Bump minor                              # Auto-increment minor
-    .\release.ps1 -Version "0.9.0" -SkipDocker             # Skip Docker build
+    .\release.ps1                                          # Next dated version for this month
+    .\release.ps1 -Version "2026.10.1"                     # Explicit version
+    .\release.ps1 -Version "2026.10.1" -SkipDocker         # Skip Docker build
     .\release.ps1 -DryRun                                  # Preview all steps
 #>
 
 param(
     [string]$Version = "",
-
-    [ValidateSet("major", "minor", "patch")]
-    [string]$Bump = "patch",
 
     [string]$ReleaseTitle = "",
 
@@ -358,25 +353,16 @@ function Assert-OriginMainUnchanged($repoDir, $expectedCommit) {
 }
 
 # ============================================
-# AUTO-VERSION: Increment from current package.json if no -Version given
+# AUTO-VERSION: next YYYY.MM.N for this month if no -Version given
 # ============================================
 if (-not $Version) {
     $pkgContent = Get-Content (Join-Path $RepoDir "package.json") -Raw | ConvertFrom-Json
-    $currentVersion = $pkgContent.version
-    # Strip any pre-release suffix for numeric parsing
-    $numericPart = ($currentVersion -split '-')[0]
-    $parts = $numericPart -split '\.'
-    $major = [int]$parts[0]
-    $minor = [int]$parts[1]
-    $patch = [int]($parts[2] -replace '[^0-9]', '')
-
-    switch ($Bump) {
-        "major" { $major++; $minor = 0; $patch = 0 }
-        "minor" { $minor++; $patch = 0 }
-        "patch" { $patch++ }
-    }
-    $Version = "$major.$minor.$patch"
-    Write-Host "  Auto-incremented version: $currentVersion -> $Version (bump: $Bump)" -ForegroundColor Magenta
+    $currentVersion = [string]$pkgContent.version
+    $today = Get-Date
+    $monthPrefix = "$($today.Year).$($today.Month)."
+    $lastInMonth = if ($currentVersion -match ('^' + [regex]::Escape($monthPrefix) + '(\d+)$')) { [int]$Matches[1] } else { 0 }
+    $Version = "$monthPrefix$($lastInMonth + 1)"
+    Write-Host "  Auto-versioned release: $currentVersion -> $Version" -ForegroundColor Magenta
 }
 
 $bridgeLuaPath = Join-Path $RepoDir "pz-mod\PanelBridge\media\lua\server\PanelBridge.lua"
