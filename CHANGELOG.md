@@ -35,6 +35,10 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Mods: Enable group adds the maps of a Workshop item it adds to Map=:** a map mod of the group loaded without its map.
 - **Mods: removing or deleting an old Workshop item keeps its re-upload loading:** a mod id or map that an item still in WorkshopItems= ships too stays in Mods= and Map= (Remove, Deactivated's Delete from tracking, Delete from disk).
 
+### Changed
+
+- **Versions are dated, not numbered:** releases move from SemVer (`1.6.0`) to `YYYY.MM.N` (year, month, and the release number within that month), so this release is `2026.10.1`. `release.ps1` works out the next version itself and no longer takes `-Bump`. The PanelBridge mod keeps its own SemVer.
+
 ## [1.6.0] - 2026-10-23
 
 ### Fixed
