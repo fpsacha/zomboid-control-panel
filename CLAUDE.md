@@ -10,8 +10,8 @@ Panel for Project Zomboid (Build 42) dedicated servers. Node/Express 5 + Socket.
 - Design checks on UI changes: `node .claude/skills/impeccable/scripts/detect.mjs --json <files>`.
 
 ## Releasing
-1. Promote `## [Unreleased]` in `CHANGELOG.md` to `## [x.y.z] - date` (one-line TL;DR entries) via a PR; `release.ps1` refuses without it.
-2. From a clean `main` (never another branch, never switch branches while it runs): `npm ci` in root and `client/`, then `.\release.ps1 -Version x.y.z -SkipDocker`. It commits and pushes to main and tags; CI (`release-artifacts.yml`) rebuilds and replaces the per-platform downloads.
+1. Promote `## [Unreleased]` in `CHANGELOG.md` to `## [YYYY.MM.N] - date` (one-line TL;DR entries) via a PR; `release.ps1` refuses without it. Versions are dated: `YYYY.MM.N`, where N counts releases within the month (`2026.10.1`, then `2026.10.2`, then `2026.11.1`). `release.ps1` picks the next N itself when `-Version` is omitted.
+2. From a clean `main` (never another branch, never switch branches while it runs): `npm ci` in root and `client/`, then `.\release.ps1 -Version YYYY.MM.N -SkipDocker`. It commits and pushes to main and tags `vYYYY.MM.N`; CI (`release-artifacts.yml`) rebuilds and replaces the per-platform downloads.
 3. If `PanelBridge.lua` changed, the script bumps the mod version; publish to the Workshop afterwards: `node scripts/workshop/publish.mjs --steam-user fpsacha --steamcmd "D:\SteamCMD\steamcmd.exe"` (cached login only; never type a password or Steam Guard code), check https://steamcommunity.com/sharedfiles/filedetails/changelog/3809901056, then commit `pz-mod/workshop/published.json`.
 - A push to `main` publishes the Docker images. `main` has strict branch protection; admin merges (`gh pr merge --admin`) are used for CHANGELOG-only PRs.
 
