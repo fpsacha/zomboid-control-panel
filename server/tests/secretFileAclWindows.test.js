@@ -129,4 +129,17 @@ describe.skipIf(!isWindows)("Windows secret files keep only the panel's account,
     await restrictExistingSecretFiles(legacy);
     for (const file of files) expectOwnerOnly(file);
   });
+
+  // Adversary pass: moving the data folder copies every file, and a copy
+  // takes its new folder's ACL. (Last: it repoints this file's data folder.)
+  it("the copies a data-folder move makes", async () => {
+    const { setDataPaths } = await import("../utils/paths.js");
+    execFileSync(icacls, [scratch, "/grant", "*S-1-1-0:(OI)(CI)(R)", "/Q"], { stdio: "ignore" });
+    const target = path.join(scratch, "moved data");
+    const result = await setDataPaths({ dataDir: target }, true);
+    expect(result.success, result.error).toBe(true);
+    for (const name of ["db.json", "jwt.secret", "discordBotToken.secret"]) {
+      expectOwnerOnly(path.join(target, name));
+    }
+  });
 });

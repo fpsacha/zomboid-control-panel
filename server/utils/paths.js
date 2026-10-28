@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ErrorCode } from './errorCodes.js';
+import { restrictExistingSecretFiles } from './secretFileAcl.js';
 import { untrustedFolderReason } from './untrustedFolder.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -434,6 +435,9 @@ export async function setDataPaths(newPaths, moveFiles = false, options = {}) {
           // Copy all files and folders from old data dir to new
           copyDirSync(current.dataDir, newPaths.dataDir);
           filesMoved.data = true;
+          // A copy takes its new folder's ACL on Windows: restrict the copied
+          // secret files again (utils/secretFileAcl.js).
+          await restrictExistingSecretFiles(newPaths.dataDir);
 
           // The one file whose absence is a lockout, not an inconvenience:
           // if the source had a database and the copy didn't produce one
