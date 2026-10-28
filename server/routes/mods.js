@@ -5158,11 +5158,13 @@ function presetWorkshopId(value) {
 }
 
 // The ids of a stored preset that can be written, for a preset saved before
-// the checks above (or edited by hand in db.json).
+// the checks above (or edited by hand in db.json). Not cut to
+// PRESET_LIST_MAX: POST /presets saves the server's own lists, whatever
+// their length.
 function writablePresetIds(list, clean) {
   if (!Array.isArray(list)) return [];
   const out = new Set();
-  for (const raw of list.slice(0, PRESET_LIST_MAX)) {
+  for (const raw of list) {
     const id = clean(raw);
     if (id !== null) out.add(id);
   }

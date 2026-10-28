@@ -115,4 +115,14 @@ describe("POST /presets/:id/apply writes only valid ids from a preset saved befo
     expect(fx.iniValue("Mods")).toBe("Town;Farm");
     expect(res.getBody()).toMatchObject({ workshopCount: 2, modCount: 2 });
   });
+
+  it("writes every id of a preset POST /presets saved from a long server list", async () => {
+    fx.writeIni("Mods=Base\nWorkshopItems=1111111111\nMap=Muldraugh, KY\n");
+    const ids = Array.from({ length: 2500 }, (_, i) => String(1000000 + i));
+    getModPresets.mockResolvedValue([{ id: "p1", name: "Big", workshop_ids: ids, mods: ids.map((id) => `Mod${id}`) }]);
+    const res = await runRoute("/presets/:id/apply", "post", { params: { id: "p1" }, body: {} });
+    expect(res.getStatusCode()).toBe(200);
+    expect(fx.iniValue("WorkshopItems").split(";")).toHaveLength(2500);
+    expect(res.getBody()).toMatchObject({ workshopCount: 2500, modCount: 2500 });
+  });
 });
