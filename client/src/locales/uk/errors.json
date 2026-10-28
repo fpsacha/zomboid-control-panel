@@ -437,6 +437,8 @@
   "PANELBRIDGE_CHARACTER_DATA_NOT_OBJECT": "Дані персонажа мають бути об'єктом",
   "PANELBRIDGE_CHARACTER_DATA_NO_VALID_SECTION": "Дані персонажа мають містити щонайменше один із: {{sections}}",
   "PANELBRIDGE_CHARACTER_PERK_INVALID": "Кожна навичка в даних персонажа має мати ціле значення рівня від 0 до 10.",
+  "PANELBRIDGE_CHARACTER_INVENTORY_INVALID": "Інвентар у даних персонажа має бути списком щонайбільше з 2000 предметів, кожен із простим типом предмета.",
+  "PANELBRIDGE_ARGS_TOO_LARGE": "Дані команди завеликі або надто глибоко вкладені, щоб надіслати їх до PanelBridge.",
   "PANELBRIDGE_HORDE_COUNT_INVALID": "count має бути від 1 до 100",
   "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID": "radius має бути від 1 до 500",
   "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1": "Потрібне value (число 0.0-1.0)",

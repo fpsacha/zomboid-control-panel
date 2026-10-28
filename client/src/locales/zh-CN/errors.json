@@ -437,6 +437,8 @@
   "PANELBRIDGE_CHARACTER_DATA_NOT_OBJECT": "角色数据必须为对象",
   "PANELBRIDGE_CHARACTER_DATA_NO_VALID_SECTION": "角色数据必须至少包含以下之一：{{sections}}",
   "PANELBRIDGE_CHARACTER_PERK_INVALID": "角色数据中的每项技能都必须有 0 到 10 之间的整数等级。",
+  "PANELBRIDGE_CHARACTER_INVENTORY_INVALID": "角色数据中的物品栏必须是最多 2000 件物品的列表，且每件物品都要有简单的物品类型。",
+  "PANELBRIDGE_ARGS_TOO_LARGE": "该命令的数据过大或嵌套过深，无法发送到 PanelBridge。",
   "PANELBRIDGE_HORDE_COUNT_INVALID": "count 必须为 1-100",
   "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID": "radius 必须为 1-500",
   "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1": "value 为必填项（0.0-1.0 之间的数字）",

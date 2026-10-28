@@ -57,7 +57,8 @@ import {
   readSftpLogTail,
 } from "../services/panelBridgeSftp.js";
 import { SftpPasswordRequiredError, sftpPasswordForRequest } from "../utils/sftpSavedTarget.js";
-import { characterImportRefusal } from "../utils/characterImport.js";
+import { characterImportArgs } from "../utils/characterImport.js";
+import { bridgeArgsRefusal, bridgeArgsRefusalMessage } from "../utils/bridgeCommandArgs.js";
 import {
   SFTP_CONFIG_PATH_KEY,
   listRemoteConfigFiles,
@@ -450,6 +451,13 @@ function requireBridgeCommandUnlessGmToolsOnly(req, res, next) {
 // Allow normal in-game names (spaces/symbols) while blocking control chars and quote/backslash.
 // Exported for routes/playerCharacter.js, which validates the same names.
 export const BRIDGE_USERNAME_REGEX = /^(?=.*\S)[^\x00-\x1F\x7F"\\]{1,64}$/;
+
+// utils/characterImport.js says which part of an import it refused.
+function characterImportRefusalCode(kind) {
+  return kind === "inventory"
+    ? ErrorCode.PANELBRIDGE_CHARACTER_INVENTORY_INVALID
+    : ErrorCode.PANELBRIDGE_CHARACTER_PERK_INVALID;
+}
 
 // Shared path safety check for /configure, /configure-direct and
 // /auto-detect: bridge.configure()/autoDetect() (services/panelBridge.js)
@@ -1571,7 +1579,8 @@ router.post("/command", requireBridgeCommandUnlessGmToolsOnly, async (req, res) 
     });
   }
 
-  const { action, args } = req.body || {};
+  const { action } = req.body || {};
+  let { args } = req.body || {};
 
   if (!action) {
     return res.status(400).json({
@@ -1621,6 +1630,20 @@ router.post("/command", requireBridgeCommandUnlessGmToolsOnly, async (req, res) 
         code: ErrorCode.PANELBRIDGE_ACTION_CAPABILITY_REQUIRED,
       });
     }
+  }
+
+  // The GM four are the only commands a Moderator reaches here: send the
+  // two fields their handlers read, nothing else the caller added.
+  if (GM_TOOLS_ONLY_ACTIONS.has(action)) {
+    if (typeof args?.username !== "string" || !BRIDGE_USERNAME_REGEX.test(args.username)) {
+      return res.status(400).json({
+        error: "Invalid or missing username",
+        code: ErrorCode.BRIDGE_INVALID_OR_MISSING_USERNAME,
+      });
+    }
+    args = typeof args.enabled === "boolean"
+      ? { username: args.username, enabled: args.enabled }
+      : { username: args.username };
   }
 
   // Build 42 does not expose a Lua vehicle-spawn API. The RCON command is
@@ -1685,10 +1708,21 @@ router.post("/command", requireBridgeCommandUnlessGmToolsOnly, async (req, res) 
 
   // Action-specific validation
   if (action === "importPlayerData") {
-    const importRefusal = characterImportRefusal(args?.data);
-    if (importRefusal) {
-      return res.status(400).json({ error: importRefusal, code: ErrorCode.PANELBRIDGE_CHARACTER_PERK_INVALID });
+    const importArgs = characterImportArgs(args || {});
+    if (importArgs.refusal) {
+      return res.status(400).json({ error: importArgs.refusal, code: characterImportRefusalCode(importArgs.kind) });
     }
+    args = importArgs.args;
+  }
+  // Before args are logged or queued: the mod parses each command on the
+  // game thread (utils/bridgeCommandArgs.js). A character import is
+  // measured after the line above keeps only what the mod reads.
+  const argsRefusal = bridgeArgsRefusal(action, args);
+  if (argsRefusal) {
+    return res.status(argsRefusal.reason === "size" ? 413 : 400).json({
+      error: bridgeArgsRefusalMessage(argsRefusal),
+      code: ErrorCode.PANELBRIDGE_ARGS_TOO_LARGE,
+    });
   }
   if (action === "airdrop" && args) {
     const VALID_PRESETS = [
@@ -3897,9 +3931,16 @@ router.post("/character/import", requirePermission("players.gm_tools"), async (r
       params: sanitizeErrorParams({ sections: validSections.join(", ") }),
     });
   }
-  const importRefusal = characterImportRefusal(data);
-  if (importRefusal) {
-    return res.status(400).json({ error: importRefusal, code: ErrorCode.PANELBRIDGE_CHARACTER_PERK_INVALID });
+  const importArgs = characterImportArgs({ username, data, options });
+  if (importArgs.refusal) {
+    return res.status(400).json({ error: importArgs.refusal, code: characterImportRefusalCode(importArgs.kind) });
+  }
+  const importArgsRefusal = bridgeArgsRefusal("importPlayerData", importArgs.args);
+  if (importArgsRefusal) {
+    return res.status(importArgsRefusal.reason === "size" ? 413 : 400).json({
+      error: bridgeArgsRefusalMessage(importArgsRefusal),
+      code: ErrorCode.PANELBRIDGE_ARGS_TOO_LARGE,
+    });
   }
   // Snapshot the target's CURRENT data before overwriting it. Unlike a
   // config edit, another player's XP/perks/inventory can't be reconstructed
@@ -3964,11 +4005,7 @@ router.post("/character/import", requirePermission("players.gm_tools"), async (r
   }
 
   try {
-    const result = await bridge.sendCommand("importPlayerData", {
-      username,
-      data,
-      options,
-    });
+    const result = await bridge.sendCommand("importPlayerData", importArgs.args);
     // In the player's history, and what the Character tab's "Worth a look"
     // reads as the explanation for the restored skills and items. The
     // import already happened: a failed log line doesn't fail it.

@@ -437,6 +437,8 @@
   "PANELBRIDGE_CHARACTER_DATA_NOT_OBJECT": "Done pèsonaj dwe yon objè",
   "PANELBRIDGE_CHARACTER_DATA_NO_VALID_SECTION": "Done pèsonaj dwe genyen omwen youn nan: {{sections}}",
   "PANELBRIDGE_CHARACTER_PERK_INVALID": "Chak konpetans nan done pèsonaj la dwe gen yon nivo nonb antye ant 0 ak 10.",
+  "PANELBRIDGE_CHARACTER_INVENTORY_INVALID": "Envantè nan done pèsonaj la dwe yon lis ki gen 2000 atik pou pi plis, chak avèk yon tip atik senp.",
+  "PANELBRIDGE_ARGS_TOO_LARGE": "Done kòmand lan twò gwo oswa yo anbrike sou twòp nivo pou yo voye yo bay PanelBridge.",
   "PANELBRIDGE_HORDE_COUNT_INVALID": "count dwe 1-100",
   "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID": "radius dwe 1-500",
   "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1": "value obligatwa (nonm 0.0-1.0)",

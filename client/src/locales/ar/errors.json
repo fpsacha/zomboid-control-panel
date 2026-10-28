@@ -437,6 +437,8 @@
   "PANELBRIDGE_CHARACTER_DATA_NOT_OBJECT": "يجب أن تكون بيانات الشخصية كائنًا",
   "PANELBRIDGE_CHARACTER_DATA_NO_VALID_SECTION": "يجب أن تحتوي بيانات الشخصية على واحد على الأقل من: {{sections}}",
   "PANELBRIDGE_CHARACTER_PERK_INVALID": "يجب أن يكون لكل مهارة في بيانات الشخصية مستوى بعدد صحيح من 0 إلى 10.",
+  "PANELBRIDGE_CHARACTER_INVENTORY_INVALID": "يجب أن يكون المخزون في بيانات الشخصية قائمة من 2000 عنصر على الأكثر، لكل منها نوع عنصر بسيط.",
+  "PANELBRIDGE_ARGS_TOO_LARGE": "بيانات الأمر كبيرة جدًا أو متداخلة بعمق كبير بحيث لا يمكن إرسالها إلى PanelBridge.",
   "PANELBRIDGE_HORDE_COUNT_INVALID": "يجب أن تكون count بين 1 و 100",
   "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID": "يجب أن تكون radius بين 1 و 500",
   "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1": "value مطلوبة (رقم بين 0.0 و 1.0)",

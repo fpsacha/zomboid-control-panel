@@ -437,6 +437,8 @@
   "PANELBRIDGE_CHARACTER_DATA_NOT_OBJECT": "Charakterdaten müssen ein Objekt sein",
   "PANELBRIDGE_CHARACTER_DATA_NO_VALID_SECTION": "Charakterdaten müssen mindestens eines der folgenden enthalten: {{sections}}",
   "PANELBRIDGE_CHARACTER_PERK_INVALID": "Jede Fertigkeit in den Charakterdaten muss eine ganzzahlige Stufe von 0 bis 10 haben.",
+  "PANELBRIDGE_CHARACTER_INVENTORY_INVALID": "Das Inventar in den Charakterdaten muss eine Liste von höchstens 2000 Gegenständen sein, jeder mit einem einfachen Gegenstandstyp.",
+  "PANELBRIDGE_ARGS_TOO_LARGE": "Die Daten des Befehls sind zu groß oder zu tief verschachtelt, um sie an PanelBridge zu senden.",
   "PANELBRIDGE_HORDE_COUNT_INVALID": "count muss zwischen 1 und 100 liegen",
   "PANELBRIDGE_CLEAR_ZOMBIES_RADIUS_INVALID": "radius muss zwischen 1 und 500 liegen",
   "PANELBRIDGE_VALUE_REQUIRED_NUMBER_0_1": "value ist erforderlich (Zahl 0,0–1,0)",

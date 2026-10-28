@@ -19,6 +19,7 @@ import {
 } from '../database/init.js';
 import { createLogger } from '../utils/logger.js';
 import { bridgeFolderName } from '../utils/bridgeFolderName.js';
+import { bridgeArgsRefusal, bridgeArgsRefusalMessage } from '../utils/bridgeCommandArgs.js';
 import { PanelBridgeSftpTransport } from './panelBridgeSftp.js';
 const log = createLogger('Bridge');
 
@@ -919,6 +920,14 @@ class PanelBridge extends EventEmitter {
    * @returns {Promise<object>} - Command result
    */
   async sendCommand(action, args = {}) {
+    // Before anything stringifies args (the debug line below would throw on
+    // deeply nested args): see utils/bridgeCommandArgs.js.
+    const argsRefusal = bridgeArgsRefusal(action, args);
+    if (argsRefusal) {
+      throw Object.assign(new Error(`${action}: ${bridgeArgsRefusalMessage(argsRefusal)}`), {
+        code: 'PANELBRIDGE_ARGS_TOO_LARGE',
+      });
+    }
     log.debug(`sendCommand: action=${action} args=${JSON.stringify(args).substring(0, 200)}`);
     if (!this.bridgePath) {
       throw new Error('Bridge not configured');
@@ -1065,8 +1074,10 @@ class PanelBridge extends EventEmitter {
     };
 
     const tempFile = `${commandFile}.tmp`;
+    // Compact: the mod reads this file on the game thread, and indentation
+    // only adds bytes for it to skip.
     // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-    fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2), { mode: 0o600 });
+    fs.writeFileSync(tempFile, JSON.stringify(payload), { mode: 0o600 });
     // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
     fs.renameSync(tempFile, commandFile);
 
