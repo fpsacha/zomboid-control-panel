@@ -35,7 +35,11 @@ const ui = {
   sendStatus: $('send-status'),
 };
 
-const STORAGE_KEYS = ['panelUrl', 'username', 'password', 'rememberPassword', 'accessToken'];
+// accessTokenFor: the panel and username the cached accessToken came from
+// (deviceTokenKey()). A token is only ever sent back to that panel, as that
+// user: before, the popup kept one token for whatever URL was saved next,
+// so changing the URL sent the old panel's token to the new one.
+const STORAGE_KEYS = ['panelUrl', 'username', 'password', 'rememberPassword', 'accessToken', 'accessTokenFor'];
 // Origins (scheme://host:port) the user allowed over plain http:// although
 // they are not on their own network. One entry per origin, never a wildcard.
 const INSECURE_ORIGINS_KEY = 'insecureHttpOrigins';
@@ -170,6 +174,22 @@ function refreshSendButton(hasToken) {
   ui.sendBtn.disabled = !ready;
 }
 
+// The cached access token, only when it came from this panel for this
+// username. One saved by an older version names neither: not used.
+function cachedAccessToken(stored, panelUrl, username) {
+  if (!stored.accessToken || !panelUrl || !String(username || '').trim()) return null;
+  return stored.accessTokenFor === deviceTokenKey(panelUrl, username) ? stored.accessToken : null;
+}
+
+function rememberAccessToken(panelUrl, username, token) {
+  return storageSet({ accessToken: token, accessTokenFor: deviceTokenKey(panelUrl, username) });
+}
+
+async function refreshSendButtonFromStorage() {
+  const stored = await storageGet(STORAGE_KEYS);
+  refreshSendButton(!!cachedAccessToken(stored, normaliseUrl(ui.panelUrl.value), ui.username.value));
+}
+
 async function loadSettings() {
   const stored = await storageGet(STORAGE_KEYS);
   ui.panelUrl.value = stored.panelUrl || '';
@@ -177,7 +197,7 @@ async function loadSettings() {
   // Only restore the password field if the user previously asked us to.
   ui.rememberPassword.checked = !!stored.rememberPassword;
   ui.password.value = stored.rememberPassword ? (stored.password || '') : '';
-  refreshSendButton(!!stored.accessToken);
+  refreshSendButton(!!cachedAccessToken(stored, normaliseUrl(stored.panelUrl), stored.username));
 }
 
 async function saveSettings(silent = false) {
@@ -190,6 +210,11 @@ async function saveSettings(silent = false) {
   };
   if (remember) {
     items.password = ui.password.value;
+  }
+  // Another panel or account: the cached token is not for it.
+  const before = await storageGet(STORAGE_KEYS);
+  if (cachedAccessToken(before, panelUrl, items.username) === null) {
+    await storageRemove(['accessToken', 'accessTokenFor']);
   }
   await storageSet(items);
   if (!remember) {
@@ -341,7 +366,7 @@ async function doTest() {
     await ensurePanelPermission(panelUrl);
     const token = await loginToPanel(panelUrl, ui.username.value.trim(), ui.password.value);
     await saveSettings(true);
-    await storageSet({ accessToken: token });
+    await rememberAccessToken(panelUrl, ui.username.value.trim(), token);
     setStatus(ui.setupStatus, 'Login OK — settings saved.', 'success');
     refreshSendButton(true);
   } catch (err) {
@@ -367,7 +392,7 @@ async function doSend() {
       throw new Error('Steam cookies not found — sign in at steamcommunity.com first.');
     }
 
-    let { token } = await obtainToken(panelUrl, username, password, stored.accessToken);
+    let { token } = await obtainToken(panelUrl, username, password, cachedAccessToken(stored, panelUrl, username));
     setStatus(ui.sendStatus, 'Sending cookies to panel…', 'info');
     try {
       await pushCookies(panelUrl, token, sessionid, steamLoginSecure);
@@ -376,13 +401,13 @@ async function doSend() {
         // Cached token rejected — log in again with the password we have.
         setStatus(ui.sendStatus, 'Session expired, re-authenticating…', 'info');
         token = await loginToPanel(panelUrl, username, password);
-        await storageSet({ accessToken: token });
+        await rememberAccessToken(panelUrl, username, token);
         await pushCookies(panelUrl, token, sessionid, steamLoginSecure);
       } else {
         throw err;
       }
     }
-    await storageSet({ accessToken: token });
+    await rememberAccessToken(panelUrl, username, token);
 
     setStatus(ui.sendStatus, 'Cookies sent. Workshop sync is ready.', 'success');
   } catch (err) {
@@ -400,10 +425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ui.sendBtn.addEventListener('click', doSend);
   // Re-enable the send button live as the user types — beats showing a
   // confusing "Configure …" error after they click.
-  const refresh = async () => {
-    const stored = await storageGet(['accessToken']);
-    refreshSendButton(!!stored.accessToken);
-  };
+  const refresh = refreshSendButtonFromStorage;
   ui.panelUrl.addEventListener('input', refresh);
   ui.panelUrl.addEventListener('input', refreshHttpOverride);
   ui.allowHttp.addEventListener('change', async () => {

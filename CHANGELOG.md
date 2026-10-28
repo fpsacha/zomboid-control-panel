@@ -17,6 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Browser extensions with panel logins off:** only an extension you name under Settings > Remote Access (`chrome-extension://<id>` or `moz-extension://<uuid>`) can use the panel; any other installed extension could read it as admin.
 - **Steam Sync extension after an in-app update:** the panel now hands out, and keeps next to its executable, the extension of the version it runs; an install updated in place kept the one it was first installed with, without the 1.5.0 HTTPS fix. Reload the extension from that folder once.
+- **Steam Sync extension: a panel's sign-in stays with that panel:** after you change the panel address or username, the extension signs in again instead of sending the previous panel's session.
 
 ## [2026.10.1] - 2026-10-26
 
