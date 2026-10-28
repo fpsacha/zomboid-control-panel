@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "訪問被拒絕：路徑超出伺服器的存檔目錄範圍",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "路徑不存在",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "路徑不是目錄",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "區塊重設不會開啟在此輸入的網路共用或裝置路徑。請使用這台電腦上的資料夾，或已為某個伺服器設定的資料資料夾。",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds 或 includeAllModIds 二者之一為必填項",
   "MODS_ADD_ALL_DEPS_REQUIRED": "未提供依賴項",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "單次請求中的依賴項過多（最多 200 個）",

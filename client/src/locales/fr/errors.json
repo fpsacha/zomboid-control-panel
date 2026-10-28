@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Accès refusé : le chemin est en dehors du répertoire de sauvegarde du serveur",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "Le chemin n'existe pas",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Le chemin n'est pas un dossier",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Le Nettoyage de la carte n'ouvre pas un partage réseau ou un chemin de périphérique saisi ici. Utilisez un dossier de cet ordinateur, ou un dossier de données déjà défini pour un serveur.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds ou includeAllModIds est requis",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Aucune dépendance fournie",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Trop de dépendances en une seule requête (200 maximum)",

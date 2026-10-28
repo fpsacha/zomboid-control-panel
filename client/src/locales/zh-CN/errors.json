@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "访问被拒绝：路径超出服务器的存档目录范围",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "路径不存在",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "路径不是目录",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "地图清理不会打开在此输入的网络共享或设备路径。请使用这台电脑上的文件夹，或已为某个服务器设置的数据文件夹。",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds 或 includeAllModIds 二者之一为必填项",
   "MODS_ADD_ALL_DEPS_REQUIRED": "未提供依赖项",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "单次请求中的依赖项过多（最多 200 个）",

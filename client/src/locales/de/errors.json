@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Zugriff verweigert: Pfad liegt außerhalb des Spielstandordners des Servers",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "Pfad existiert nicht",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Pfad ist kein Ordner",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Die Kartenbereinigung öffnet keine hier eingegebene Netzwerkfreigabe und keinen Gerätepfad. Verwende einen Ordner auf diesem Computer oder einen Datenordner, der bereits für einen Server festgelegt ist.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds oder includeAllModIds ist erforderlich",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Keine Abhängigkeiten angegeben",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Zu viele Abhängigkeiten in einer Anfrage (max. 200)",

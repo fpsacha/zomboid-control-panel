@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "تم رفض الوصول: المسار خارج دليل حفظ الخادم",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "المسار غير موجود",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "المسار ليس دليلًا",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "لا يفتح تنظيف الخريطة مشاركة شبكة أو مسار جهاز مكتوبًا هنا. استخدم مجلدًا على هذا الكمبيوتر، أو مجلد بيانات معيّنًا مسبقًا لخادم.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "مطلوب إما selectedModIds أو includeAllModIds",
   "MODS_ADD_ALL_DEPS_REQUIRED": "لم تُقدَّم أي تبعيات",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "عدد كبير جدًا من التبعيات في طلب واحد (بحد أقصى 200)",

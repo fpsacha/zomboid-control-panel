@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Acesso negado: o caminho está fora do diretório de saves do servidor",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "O caminho não existe",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "O caminho não é um diretório",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "A Limpeza do mapa não abre um compartilhamento de rede nem um caminho de dispositivo digitado aqui. Use uma pasta deste computador ou uma pasta de dados já definida para um servidor.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Informe selectedModIds ou includeAllModIds",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Nenhuma dependência informada",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Dependências demais em uma única solicitação (máx. 200)",

@@ -269,6 +269,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Acceso denegado: la ruta está fuera del directorio de guardado del servidor",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "La ruta no existe",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "La ruta no es un directorio",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "La Limpieza del mapa no abre una carpeta compartida de red ni una ruta de dispositivo escrita aquí. Usa una carpeta de este equipo o una carpeta de datos ya configurada para un servidor.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Se requiere selectedModIds o includeAllModIds",
   "MODS_ADD_ALL_DEPS_REQUIRED": "No se proporcionó ninguna dependencia",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Demasiadas dependencias en una sola solicitud (máximo 200)",
