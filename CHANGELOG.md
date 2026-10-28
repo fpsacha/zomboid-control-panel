@@ -18,6 +18,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Steam branch list:** another website open in the operator's browser can no longer make the panel save and run a SteamCMD folder of its choosing while panel logins are off.
 - **Steam branch names:** Install and Update accept only a real branch name (letters, digits, dots, dashes, underscores), so nothing else reaches SteamCMD's command line.
 - **Server config folder:** a config folder on a Windows network share outside the server's data folder is refused before the panel touches it, so saving one no longer signs the panel's account in to that host.
+- **Server scan folder:** Scan for servers refuses a Windows network share before touching it, as server detection already did.
 
 ## [2026.10.1] - 2026-10-26
 

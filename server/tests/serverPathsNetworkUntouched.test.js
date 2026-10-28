@@ -122,4 +122,34 @@ describe.skipIf(!isWindows)("server folder checks never touch a Windows network 
     // Not refused unread: the data folder's own share is where its config is.
     expect(serverConfigPathIsConfined("\\\\nas\\Zomboid\\Server", "\\\\nas\\Zomboid")).toBe(true);
   });
+
+  it("POST /api/servers/auto-scan refuses a network scan folder without touching it", async () => {
+    const { default: router } = await import("../routes/servers.js");
+    for (const scanPath of ["\\\\attacker\\share\\servers", "//attacker/share/servers"]) {
+      const res = createResponse();
+      await lastHandler(router, "/auto-scan", "post")({ body: { scanPath }, app: { get: () => undefined } }, res);
+      expect(res.getStatusCode()).toBe(400);
+    }
+    expect(networkCalls).toEqual([]);
+  });
+
+  it("POST /api/servers refuses a network install folder without touching it (regression)", async () => {
+    const { default: router } = await import("../routes/servers.js");
+    const res = createResponse();
+    await lastHandler(router, "/", "post")(
+      {
+        body: {
+          name: "Share",
+          installPath: "\\\\attacker\\share\\pz",
+          rconHost: "127.0.0.1",
+          rconPort: 27015,
+          rconPassword: "secret",
+        },
+        app: { get: () => undefined },
+      },
+      res,
+    );
+    expect(res.getStatusCode()).toBe(400);
+    expect(networkCalls).toEqual([]);
+  });
 });
