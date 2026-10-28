@@ -163,10 +163,32 @@ describe("delete-chunks with deleteVehicles", () => {
     expect(await remainingVehicles(dbPath)).toEqual(["40,0"]);
   });
 
-  // Adversary pass: an already-missing chunkdata entry of the failed chunk's
-  // cell counts as gone, and stands for the whole cell -- it must not sweep
-  // the failed chunk's vehicles in with the cell.
-  it("an already-missing chunkdata entry of the failed chunk's cell doesn't take its vehicles", async () => {
+  // A chunkdata entry stands for a whole cell (32x32 chunks). When its file
+  // fails to delete, the cell's vehicles stay: here no map chunk is left in
+  // cell (1, 0), so nothing else would keep the cell's box from applying.
+  it("keeps the cell's vehicles when a chunkdata file fails to delete", async () => {
+    writeChunk(0, 0);
+    fs.mkdirSync(path.join(savePath, "chunkdata", "chunkdata_1_0.bin"), { recursive: true });
+    await createVehiclesDb(dbPath, [vehicleIn(0, 0), vehicleIn(40, 0)]);
+
+    const res = await postAs("/delete-chunks", {
+      chunks: [
+        { file: "0/0.bin", x: 0, y: 0 },
+        { source: "chunkdata", file: "chunkdata_1_0.bin", x: 32, y: 0 },
+      ],
+    });
+
+    expect(res.getStatusCode()).toBe(200);
+    expect(res.getBody()).toMatchObject({ deleted: 1 });
+    expect(fs.existsSync(path.join(savePath, "chunkdata", "chunkdata_1_0.bin"))).toBe(true);
+    expect(await remainingVehicles(dbPath)).toEqual(["40,0"]);
+  });
+
+  // Guards the cell survivor check (chunkFiles.js createCellSurvivorCheck):
+  // an already-missing chunkdata entry of the failed chunk's cell counts as
+  // gone and stands for the whole cell, but the failed map chunk still on
+  // disk in that cell keeps the cell's box from sweeping its vehicles.
+  it("survivor check: an already-missing chunkdata entry of the failed chunk's cell doesn't take its vehicles", async () => {
     writeChunk(0, 0);
     lockChunk(40, 0); // cell (1, 0) at 32 chunks per cell
     await createVehiclesDb(dbPath, [vehicleIn(0, 0), vehicleIn(40, 0)]);
