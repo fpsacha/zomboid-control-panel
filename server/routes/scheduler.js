@@ -87,6 +87,9 @@ const CODED_ACTION_RESULT_CODES = new Set([
   ErrorCode.SERVER_START_STATE_UNKNOWN,
   ErrorCode.SERVER_LAUNCH_TARGET_REFUSED,
   ErrorCode.SERVER_RESTART_LAUNCH_TARGET_REFUSED,
+  // ...and the launch folder itself refused (a Workshop download folder or
+  // a network share, untrustedLaunchFolderReason()).
+  ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED,
   ErrorCode.SERVER_RESTART_RCON_UNAVAILABLE,
   ErrorCode.SERVER_RESTART_SAVE_FAILED,
   ErrorCode.SERVER_RESTART_STOP_UNCONFIRMED,
