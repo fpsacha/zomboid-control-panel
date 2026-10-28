@@ -44,6 +44,10 @@ Or, for permanent install, use the signed `.xpi` from the panel's GitHub release
 
 You only need to repeat step 5 when Steam invalidates your session (usually weeks/months apart).
 
+### Panel logins turned off
+
+With panel logins off, the panel only answers browser extensions you named. **Test login** then says which address to add (`chrome-extension://<id>` in Chrome, Edge and Brave, `moz-extension://<uuid>` in Firefox): add it under **Settings > Remote Access**, in the allowed origins, then click **Test login** again.
+
 ## Re-pairing on a different machine
 
 Install on whichever browser/machine you're logged into Steam on — it doesn't have to be the same machine the panel runs on. As long as the extension can reach the panel URL over the network, it works.

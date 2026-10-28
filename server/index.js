@@ -111,7 +111,7 @@ import oidcRoutes from "./routes/oidc.js";
 import { loadOrCreateCerts } from "./utils/certs.js";
 import { sanitizeError, sanitizeErrorParams } from "./utils/sanitize.js";
 import { escapeLogText } from "./utils/logText.js";
-import { isExtensionOrigin } from "./utils/extensionOrigin.js";
+import { isExtensionOrigin, normalizeExtensionOrigin } from "./utils/extensionOrigin.js";
 import { ErrorCode } from "./utils/errorCodes.js";
 import { getSftpCachePath } from "./services/panelBridgeSftp.js";
 import { reconcileBridge } from "./services/bridgeDelivery.js";
@@ -501,6 +501,13 @@ const allowedOrigins = new Set(defaultAllowedOrigins);
 // every private-network origin let such a page read an access token from
 // /api/auth/refresh.
 const credentialedOrigins = new Set();
+// SECURITY (2026-10-28, R2-27): browser extensions the operator named
+// (chrome-extension://<id> or moz-extension://<uuid> under Settings >
+// Remote Access, or in CORS_ORIGINS). While panel logins are off, only
+// these may call the API or open a socket (resolveOriginAccess()): before,
+// every extension in the world got credentialed CORS, so one with no
+// permission for the panel at all could read the whole API as admin.
+const pinnedExtensionOrigins = new Set();
 const MAX_CORS_BLOCK_EVENTS = 50;
 const MAX_CORS_CUSTOM_ORIGINS = 100;
 const MAX_CORS_ORIGIN_LENGTH = 256;
@@ -529,9 +536,10 @@ function normalizeOrigin(origin) {
 
 function parseOriginList(rawOrigins) {
   if (typeof rawOrigins !== "string") return [];
+  // An extension origin keeps its own form (URL.origin is "null" for it).
   const parsed = rawOrigins
     .split(/[\n,;]+/)
-    .map((origin) => normalizeOrigin(origin))
+    .map((origin) => (isExtensionOrigin(origin.trim()) ? normalizeExtensionOrigin(origin) : normalizeOrigin(origin)))
     .filter(Boolean);
   return [...new Set(parsed)].slice(0, MAX_CORS_CUSTOM_ORIGINS);
 }
@@ -624,9 +632,22 @@ function addAllowedOrigin(origin) {
   allowedOrigins.add(normalized);
 }
 
+// An origin the operator named. An extension's is kept apart: its "host" is
+// the extension id, which must never count as one of the panel's own host
+// names (isAllowedHostHeader() reads allowedOrigins).
+function addOperatorOrigin(origin) {
+  if (isExtensionOrigin(origin)) {
+    pinnedExtensionOrigins.add(origin);
+    return;
+  }
+  addAllowedOrigin(origin);
+  credentialedOrigins.add(origin);
+}
+
 function rebuildAllowedOriginsFromSettings(settings = {}) {
   allowedOrigins.clear();
   credentialedOrigins.clear();
+  pinnedExtensionOrigins.clear();
   for (const origin of defaultAllowedOrigins) {
     addAllowedOrigin(origin);
   }
@@ -634,8 +655,7 @@ function rebuildAllowedOriginsFromSettings(settings = {}) {
   const customOrigins = parseOriginList(settings.corsAllowedOrigins || "");
   corsState.customOrigins = new Set(customOrigins);
   for (const origin of customOrigins) {
-    addAllowedOrigin(origin);
-    credentialedOrigins.add(origin);
+    addOperatorOrigin(origin);
   }
 
   const httpsEnabled = settings.httpsEnabled === true;
@@ -652,8 +672,7 @@ function rebuildAllowedOriginsFromSettings(settings = {}) {
   if (envOrigins) {
     const parsed = parseOriginList(envOrigins);
     for (const origin of parsed) {
-      addAllowedOrigin(origin);
-      credentialedOrigins.add(origin);
+      addOperatorOrigin(origin);
     }
   }
 }
@@ -691,15 +710,18 @@ async function refreshCorsConfig() {
 }
 
 // CORS origin checker, shared between Express and Socket.IO. "credentialed":
-// no Origin, allow-all, the extension or an origin the operator named.
+// no Origin, allow-all, an extension or another origin the operator named.
 // "uncredentialed": the built-in localhost origins, or a private/LAN address
 // (192.168.x, 10.x, 100.x Tailscale, 172.16-31.x, LAN-style names) found by
 // shape. Those are no longer remembered in allowedOrigins, which made them
-// look operator-named. null: refused.
+// look operator-named. "extension": any other browser extension, which
+// resolveOriginAccess() decides on. null: refused.
 function classifyOrigin(origin) {
   if (!origin) return "credentialed";
   if (corsState.allowAll) return "credentialed";
-  if (isExtensionOrigin(origin)) return "credentialed";
+  if (isExtensionOrigin(origin)) {
+    return pinnedExtensionOrigins.has(normalizeExtensionOrigin(origin)) ? "credentialed" : "extension";
+  }
 
   const normalized = normalizeOrigin(origin);
   if (!normalized) return null;
@@ -721,8 +743,39 @@ function classifyOrigin(origin) {
   return null;
 }
 
-function isAllowedOrigin(origin) {
-  return classifyOrigin(origin) !== null;
+// classifyOrigin() plus the one answer that depends on the auth state. An
+// extension the operator did not name keeps credentialed CORS while panel
+// logins are on: it still needs the panel password for anything, and the
+// Steam Sync popup signs in with it. While logins are off every caller is
+// admin, so it is refused (hostCheckApplies(): fails closed).
+async function resolveOriginAccess(origin) {
+  const access = classifyOrigin(origin);
+  if (access !== "extension") return access;
+  return (await hostCheckApplies()) ? null : "credentialed";
+}
+
+// What a refused caller is told. An extension gets the exact line to add.
+function corsDenyMessage(origin) {
+  if (!isExtensionOrigin(origin)) return CORS_DENY_MESSAGE;
+  const named = normalizeExtensionOrigin(origin);
+  return named
+    ? `Panel logins are off, so this panel only answers the browser extensions you allowed. To allow this one, add ${named} under Settings > Remote Access (allowed origins).`
+    : "Panel logins are off, so this panel only answers the browser extensions you allowed under Settings > Remote Access (allowed origins).";
+}
+
+// Socket.IO's cors.origin, for the HTTP listener and the HTTPS one alike.
+function checkSocketOrigin(origin, callback) {
+  resolveOriginAccess(origin).then(
+    (access) => {
+      if (access !== null) {
+        callback(null, true);
+        return;
+      }
+      recordCorsBlock(origin, "socket");
+      callback(new Error(corsDenyMessage(origin)));
+    },
+    () => callback(new Error(corsDenyMessage(origin))),
+  );
 }
 
 // The panel's own page: the browser says so (Sec-Fetch-Site, which no page
@@ -832,14 +885,7 @@ function socketHandshakeAddress(req) {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        recordCorsBlock(origin, "socket");
-        callback(new Error(CORS_DENY_MESSAGE));
-      }
-    },
+    origin: checkSocketOrigin,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -931,13 +977,7 @@ export function setupHttpsServer({
   // this additional http.Server.
   io.attach(httpsServer, {
     cors: {
-      origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(CORS_DENY_MESSAGE));
-        }
-      },
+      origin: checkSocketOrigin,
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -1097,17 +1137,22 @@ function corsRefusal(origin) {
     loggedCorsRefusals.add(shown);
     log.warn(`CORS blocked request from origin: ${shown}`);
   }
-  return Object.assign(new Error(CORS_DENY_MESSAGE), { status: 403, corsRefused: true });
+  return Object.assign(new Error(corsDenyMessage(origin)), { status: 403, corsRefused: true });
 }
 
 // Delegate form: whether credentials are allowed depends on the request
-// (classifyOrigin, isSameOriginRequest), not only on the Origin. Without
-// Access-Control-Allow-Credentials the browser keeps a credentialed
+// (resolveOriginAccess, isSameOriginRequest), not only on the Origin.
+// Without Access-Control-Allow-Credentials the browser keeps a credentialed
 // response from the calling page.
 app.use(
-  cors((req, callback) => {
+  cors(async (req, callback) => {
     const origin = req.headers.origin;
-    const access = classifyOrigin(origin);
+    let access = null;
+    try {
+      access = await resolveOriginAccess(origin);
+    } catch {
+      access = null;
+    }
     if (!access) {
       recordCorsBlock(origin, "http");
       callback(corsRefusal(origin));
