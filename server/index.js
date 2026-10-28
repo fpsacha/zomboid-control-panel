@@ -1226,6 +1226,11 @@ app.use("/api/server/start", strictLimiter);
 app.use("/api/server/stop", strictLimiter);
 app.use("/api/server/force-stop", strictLimiter);
 app.use("/api/server/restart", strictLimiter);
+// Start/Stop/Restart of a server other than the active one, from the
+// Dashboard's server list (routes/servers.js): the same budget as above.
+app.post("/api/servers/:id/start", strictLimiter);
+app.post("/api/servers/:id/stop", strictLimiter);
+app.post("/api/servers/:id/restart", strictLimiter);
 app.use("/api/docker/containers", strictLimiter);
 app.use("/api/backup/restore", strictLimiter);
 app.use("/api/backup/delete-older-than", strictLimiter);
