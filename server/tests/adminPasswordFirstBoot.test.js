@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { createServer } from "../database/init.js";
 import { generateStartupScripts, isFirstBootMissingAdminPassword } from "../routes/server.js";
+import { adminPasswordForLaunch } from "../services/adminPasswordLaunch.js";
 
 // 2026-08-26, two real Discord users (Stefa, Elch): a server created
 // through the setup wizard could not start at all. PZ's console showed
@@ -54,32 +55,29 @@ describe("createServer() persists adminPassword (database/init.js)", () => {
   });
 });
 
+// Security audit R1-30/R1-35 (2026-10-28): the scripts no longer carry the
+// password as text; both pass -adminpassword from PZ_PANEL_ADMIN_PASSWORD,
+// which the panel sets for a world's first start (services/
+// adminPasswordLaunch.js, covered in adminPasswordOutOfScripts.test.js).
 describe("generateStartupScripts() -- the launch args regression pin", () => {
-  it("includes -adminpassword in BOTH the .bat and .sh when a password is set", () => {
+  it("both the .bat and .sh pass -adminpassword from the launch environment", () => {
     const scripts = generateStartupScripts({
       installPath: "C:/servers/pz",
       serverName: "MyServer",
       minMemory: 2,
       maxMemory: 4,
-      adminPassword: "hunter2",
       serverPort: 16261,
     });
-    expect(scripts.bat).toContain('-adminpassword "hunter2"');
-    // A .sh single-quotes its values (utils/startScriptQuoting.js).
-    expect(scripts.sh).toContain("-adminpassword 'hunter2'");
+    expect(scripts.bat).toContain('SET PZ_ADMIN_ARGS=-adminpassword "%PZ_PANEL_ADMIN_PASSWORD%"');
+    expect(scripts.bat).toMatch(/GameServer .*%PZ_ADMIN_ARGS%/);
+    expect(scripts.sh).toContain('-cp "$PZ_CLASSPATH" zombie.network.GameServer -servername');
+    expect(scripts.sh).toContain(' ${PZ_ADMIN_PASSWORD:+-adminpassword "$PZ_ADMIN_PASSWORD"}');
   });
 
-  it("omits -adminpassword entirely when the password is empty -- this is the exact shape that used to crash silently, now caught by the guard below instead of shipped unnoticed", () => {
-    const scripts = generateStartupScripts({
-      installPath: "C:/servers/pz",
-      serverName: "MyServer",
-      minMemory: 2,
-      maxMemory: 4,
-      adminPassword: "",
-      serverPort: 16261,
-    });
-    expect(scripts.bat).not.toContain("-adminpassword");
-    expect(scripts.sh).not.toContain("-adminpassword");
+  it("a first boot with a password set is handed it; one with none set is not -- the exact shape that used to crash silently, now caught by the guard below", () => {
+    const base = { id: "fb-1", serverName: "MyServer", zomboidDataPath: path.join(os.tmpdir(), "zcp-firstboot-none") };
+    expect(adminPasswordForLaunch({ ...base, adminPassword: "hunter2" })).toBe("hunter2");
+    expect(adminPasswordForLaunch({ ...base, adminPassword: "" })).toBe("");
   });
 });
 

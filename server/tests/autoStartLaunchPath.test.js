@@ -135,8 +135,11 @@ describe("server/index.js wires the launch-target refresh into prepareForLaunch(
 
     expect(fs.readFileSync(iniPath, "utf8")).toContain("RCONPassword=new-rcon");
     const script = fs.readFileSync(path.join(installPath, managedStartupScriptName("Wired")), "utf8");
-    // A .bat double-quotes its values, a .sh single-quotes them (startScriptQuoting.js).
-    expect(script).toContain(process.platform === "win32" ? '-adminpassword "admin-pw"' : "-adminpassword 'admin-pw'");
+    // The named script is written from current settings; the admin password
+    // reaches the game through the launch environment, never the file
+    // (security audit R1-30/R1-35, services/adminPasswordLaunch.js).
+    expect(script).toContain(process.platform === "win32" ? '-servername "Wired"' : "-servername 'Wired'");
+    expect(script).not.toContain("admin-pw");
   });
 });
 

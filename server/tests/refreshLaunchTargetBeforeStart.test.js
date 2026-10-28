@@ -154,6 +154,7 @@ describe("refreshLaunchTargetBeforeStart()", () => {
 
     await expect(refreshLaunchTargetBeforeStart(server)).resolves.toEqual({
       scriptBackupWarnings: [],
+      launchAdminPassword: "",
     });
   });
 

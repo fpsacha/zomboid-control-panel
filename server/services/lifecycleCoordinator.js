@@ -167,11 +167,14 @@ export function setLaunchTargetRefresher(fn) {
 // the refresher's backup notices for scripts that had content the panel
 // didn't write, and this launch's number (launchSeq, see
 // currentLaunchSequence() below) for the caller to hand to
-// notifyServerLaunched() once the launch has actually happened.
+// notifyServerLaunched() once the launch has actually happened, and the
+// admin password a direct launch of the panel's script hands the game
+// through its environment ("" for none; services/adminPasswordLaunch.js).
 export async function prepareForLaunch(server, { container = false } = {}) {
   const launchSeq = ++launchSequence;
   lastLaunchByServer.set(normalizeServerId(server?.id), launchSeq);
   let scriptWarnings = [];
+  let launchAdminPassword = "";
   if (launchTargetRefresher && server) {
     try {
       const refreshed = await launchTargetRefresher(server, {
@@ -179,6 +182,9 @@ export async function prepareForLaunch(server, { container = false } = {}) {
       });
       if (Array.isArray(refreshed?.scriptBackupWarnings)) {
         scriptWarnings = refreshed.scriptBackupWarnings;
+      }
+      if (typeof refreshed?.launchAdminPassword === "string") {
+        launchAdminPassword = refreshed.launchAdminPassword;
       }
     } catch (error) {
       // Never blocks the launch -- see the comment above.
@@ -188,7 +194,7 @@ export async function prepareForLaunch(server, { container = false } = {}) {
     }
   }
   await runBeforeLaunchHook(server);
-  return { scriptWarnings, launchSeq };
+  return { scriptWarnings, launchSeq, launchAdminPassword };
 }
 
 // GH #189: a mod-update restart still waiting for players to leave went

@@ -26,6 +26,7 @@ import {
   getStartBlockingSteamOperation,
 } from "./activeSteamOperations.js";
 import { notifyServerLaunched, prepareForLaunch } from "./lifecycleCoordinator.js";
+import { launchEnvWithAdminPassword } from "./adminPasswordLaunch.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { listNonInternalIPv4Interfaces } from "../utils/networkInterfaces.js";
 import { buildLinuxLdLibraryCandidates } from "../utils/nativeLibraryPaths.js";
@@ -497,8 +498,9 @@ function stockStartupScript(useNoSteam) {
 // The launch script the panel generates for a MANAGED server (see
 // resolveLaunchMode() below): routes/server.js's
 // refreshLaunchTargetBeforeStart() writes both files into the install
-// folder before every start, with -servername/-cachedir/-adminpassword
-// baked in. `windows` is a parameter only so tests can ask for the other
+// folder before every start, with -servername/-cachedir baked in (the
+// admin password comes from the launch environment, see
+// services/adminPasswordLaunch.js). `windows` is a parameter only so tests can ask for the other
 // platform's name.
 export function managedStartupScriptName(serverName, windows = isWindows) {
   return windows
@@ -2553,7 +2555,7 @@ export class ServerManager {
         }
       }
 
-      const { scriptWarnings, launchSeq } = await prepareForLaunch(
+      const { scriptWarnings, launchSeq, launchAdminPassword } = await prepareForLaunch(
         this._serverRecord,
       );
 
@@ -2878,6 +2880,19 @@ export class ServerManager {
 
       const launchLogPath = this._openLaunchLog();
       const launchStdio = ["ignore", this._launchLogFd, this._launchLogFd];
+      // The script the panel generated reads the admin password from its
+      // environment, set only for the starts that need it, as
+      // prepareForLaunch() decided from the record as it is now (security
+      // audit R1-30/R1-35, services/adminPasswordLaunch.js). Any other
+      // script never got one.
+      const launchesNamedScript =
+        Boolean(this._serverRecord) &&
+        this.launchMode !== "custom" &&
+        Boolean(this.serverName) &&
+        this.serverBat === managedStartupScriptName(this.serverName);
+      const launchEnv = launchEnvWithAdminPassword(
+        launchesNamedScript ? launchAdminPassword : "",
+      );
 
       if (isWindows) {
         // Two fixes, 2026-09-03 Windows spawn bugs (Dwight's pz-verify
@@ -2923,6 +2938,7 @@ export class ServerManager {
           detached: true,
           stdio: "ignore",
           windowsVerbatimArguments: true,
+          env: launchEnv,
         });
       } else {
         // Ensure the script is executable
@@ -2945,7 +2961,7 @@ export class ServerManager {
           detached: true,
           stdio: launchStdio,
           env: {
-            ...process.env,
+            ...launchEnv,
             LD_LIBRARY_PATH: ldPath,
             HOME: buildLinuxServerHome(serverAbsPath),
           },
