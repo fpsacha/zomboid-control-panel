@@ -16,6 +16,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **RCON password file:** the `RCON_PASSWORD_FILE` password is only sent to this machine and `RCON_HOST`; a server on another host uses its own saved RCON password.
+- **Passwords in RCON command history and logs:** `setpassword`, `changeoption Password`/`RCONPassword` and unquoted `adduser` passwords (as Discord /rcon sends them) are redacted too, and history saved by older versions is cleaned when the panel starts.
 
 ## [2026.10.1] - 2026-10-26
 
