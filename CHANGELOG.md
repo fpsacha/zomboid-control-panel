@@ -19,6 +19,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Passwords in RCON command history and logs:** `setpassword`, `changeoption Password`/`RCONPassword` and unquoted `adduser` passwords (as Discord /rcon sends them) are redacted too, and history saved by older versions is cleaned when the panel starts.
 - **Support bundle:** players' passwords and changed join or RCON passwords in the game's admin log are redacted.
 - **Console page:** the live server log redacts the same secrets as its download, including the RCON password the game prints with Debug on.
+- **Player list:** a player whose name holds a line break no longer adds made-up players to Discord join and leave notices, auto-export or play-time sessions.
+- **Player list:** a co-op player's name can no longer make the player list, its polling and the restart's RCON check fail.
 
 ## [2026.10.1] - 2026-10-26
 
