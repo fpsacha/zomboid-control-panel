@@ -27,6 +27,7 @@ beforeEach(() => {
     vi.spyOn(fs, name).mockImplementation((p, ...rest) => {
       if (isNetworkPath(p)) {
         touched.push(`${name} ${p}`);
+        if (name === "existsSync") return false;
         const err = new Error("ENOENT (test: never really looked up)");
         err.code = "ENOENT";
         throw err;
@@ -96,6 +97,42 @@ describe.skipIf(process.platform !== "win32")("a network share is never a server
       refused: true,
       reason: "data-folder",
     });
+    expect(touched).toEqual([]);
+  });
+
+  // Adversary pass: chunks /save-path checked the folder with its own
+  // resolver (an existsSync) before the data-folder rule ever saw it, and
+  // GET /saves?customPath= (chunks.manage alone) did the same.
+  it("Map Cleanup's custom path and /save-path refuse it without touching it", async () => {
+    const { default: chunksRouter } = await import("../routes/chunks.js");
+    const handler = (routePath, method) => {
+      const layer = chunksRouter.stack.find(
+        (entry) => entry.route?.path === routePath && entry.route.methods[method],
+      );
+      return layer.route.stack[layer.route.stack.length - 1].handle;
+    };
+    const response = () => {
+      const res = { statusCode: 200, body: null };
+      res.status = (code) => {
+        res.statusCode = code;
+        return res;
+      };
+      res.json = (payload) => {
+        res.body = payload;
+        return res;
+      };
+      return res;
+    };
+    process.env.ZCP_SHARE_HOST = "secret-value";
+    for (const value of ["\\\\attacker\\share\\Zomboid", "\\\\%ZCP_SHARE_HOST%.attacker.example\\s"]) {
+      const saves = response();
+      await handler("/saves", "get")({ query: { customPath: value }, user: { role: "admin" }, app: { get: () => undefined } }, saves);
+      expect(saves.statusCode, value).toBe(400);
+      const save = response();
+      await handler("/save-path", "post")({ body: { path: value }, user: { role: "admin" }, app: { get: () => undefined } }, save);
+      expect(save.statusCode, value).toBe(400);
+      expect(JSON.stringify([saves.body, save.body])).not.toContain("secret-value");
+    }
     expect(touched).toEqual([]);
   });
 

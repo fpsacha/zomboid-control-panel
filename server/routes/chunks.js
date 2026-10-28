@@ -35,6 +35,7 @@ import {
   invalidateCandidatePathsCache,
   inspectZomboidPath,
 } from "../utils/zomboidPaths.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import {
   buildVehicleBoxes,
@@ -308,7 +309,16 @@ function resolveCustomOrDefaultDataPath(customPath) {
   // customPath=%SECRET_NAME% — the failure message hands the expansion
   // straight back. Every error below must echo the caller's raw literal
   // (`customPath`), never `normalized`.
-  if (!fs.existsSync(normalized)) {
+  //
+  // SECURITY (2026-10-28): a Windows network share or device path is never
+  // touched -- looking makes the panel's account sign in to that host, and
+  // \\host\s\%VAR% sends the variable's value along -- so it reads as a
+  // folder that isn't there (services/zomboidDataPath.js refuses it as a data
+  // folder; utils/untrustedFolder.js).
+  const networkShare =
+    untrustedFolderReason(customPath) === "networkShare" ||
+    untrustedFolderReason(cleaned) === "networkShare";
+  if (networkShare || !fs.existsSync(normalized)) {
     const error = new Error(
       `Custom path does not exist: ${customPath}. ` +
         `Check for typos and verify the panel has read access to this folder.`,
