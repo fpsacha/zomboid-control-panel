@@ -157,8 +157,14 @@ const LOCAL_ONLY_PATHS = new Set(["/browse-files", "/image-preview"]);
 // caseSensitive nor strict routing is on). Comparing req.path exactly let
 // /RESTORE/x or /restore/x/ reach the restore handler without the "server
 // must be stopped" gate (#193).
+// Trailing slashes come off with a loop, not /\/+$/: that regex takes
+// quadratic time on a long run of slashes that doesn't end the path, and
+// req.path is whatever the caller sent.
 export function guardPathOf(req) {
-  return String(req.path || "").toLowerCase().replace(/\/+$/, "") || "/";
+  const lowered = String(req.path || "").toLowerCase();
+  let end = lowered.length;
+  while (end > 0 && lowered[end - 1] === "/") end--;
+  return lowered.slice(0, end) || "/";
 }
 
 export function isLocalOnlyPath(req) {

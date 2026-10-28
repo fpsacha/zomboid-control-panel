@@ -7,6 +7,10 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+### Security
+
+- A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
+
 ## [2026.10.1] - 2026-10-26
 
 ### Added
