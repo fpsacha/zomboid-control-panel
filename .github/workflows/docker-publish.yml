@@ -123,7 +123,7 @@ jobs:
 
       - name: Verify tag Docker version
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/verify-package-version.mjs "${{ github.ref_name }}"
+        run: node scripts/verify-package-version.mjs "$GITHUB_REF_NAME"
 
       # `latest` and the <major>.<minor> alias follow the highest release
       # tag. A re-run of an older tag's run, or a manual run on one, still

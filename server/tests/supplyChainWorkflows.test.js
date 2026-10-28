@@ -290,3 +290,84 @@ describe("release builds install exactly what the lockfiles pin", () => {
     expect(commands.join("\n")).not.toMatch(/npm install\b/);
   });
 });
+
+// Every workflow, and the steps of one (text from "      - " to the next).
+const WORKFLOWS = fs.readdirSync(new URL("../../.github/workflows/", import.meta.url))
+  .filter((name) => name.endsWith(".yml"))
+  .map((name) => `.github/workflows/${name}`);
+const workflowSteps = (text) => text.split(/\n(?= {6}- )/).slice(1);
+
+// A step's `run:` script: the inline value, or the indented block after `run: |`.
+function runScript(step) {
+  const lines = step.split("\n");
+  const at = lines.findIndex((line) => /^\s+run:/.test(line));
+  if (at === -1) return null;
+  const inline = lines[at].replace(/^\s+run:\s*/, "");
+  if (!/^[|>][-+]?$/.test(inline)) return inline;
+  const indent = lines[at].match(/^ */)[0].length;
+  const body = [];
+  for (const line of lines.slice(at + 1)) {
+    if (line.trim() !== "" && line.match(/^ */)[0].length <= indent) break;
+    body.push(line);
+  }
+  return body.join("\n");
+}
+
+describe("workflow scripts", () => {
+  it("finds the workflows and their scripts", () => {
+    expect(WORKFLOWS.length).toBeGreaterThanOrEqual(8);
+    const scripts = WORKFLOWS.flatMap((file) => workflowSteps(readRepoFile(file)).map(runScript)).filter(Boolean);
+    expect(scripts.length).toBeGreaterThan(40);
+  });
+
+  // A tag or branch name can hold shell syntax; templated into a script it
+  // runs as code. Scripts read such values from the environment instead.
+  // matrix values are literals in the workflow itself.
+  it.each(WORKFLOWS)("%s templates nothing but matrix values into a script", (file) => {
+    for (const step of workflowSteps(readRepoFile(file))) {
+      const script = runScript(step);
+      if (!script) continue;
+      for (const expression of script.match(/\$\{\{[\s\S]*?\}\}/g) || []) {
+        expect(expression, step.split("\n")[0]).toMatch(/^\$\{\{\s*matrix\.[\w-]+\s*\}\}$/);
+      }
+    }
+  });
+
+  it("release builds read the tag name with bash on Windows too", () => {
+    const workflow = readRepoFile(".github/workflows/release-artifacts.yml");
+    const build = jobText(workflow, "build");
+    expect(build).toContain("- os: windows-2022");
+    expect(build).toContain("runs-on: ${{ matrix.os }}");
+    const tagSteps = workflowSteps(build).filter((step) => /\$\{?GITHUB_/.test(runScript(step) || ""));
+    expect(tagSteps.length).toBeGreaterThanOrEqual(4);
+    for (const step of tagSteps) {
+      // PowerShell would read "$GITHUB_REF_NAME" as an empty variable.
+      expect(step, step.split("\n")[0]).toMatch(/\n {8}shell: bash\n/);
+    }
+    expect(workflow).toContain('node scripts/verify-package-version.mjs "$GITHUB_REF_NAME"');
+    expect(workflow).toContain('node scripts/verify-release-version.mjs "$GITHUB_REF_NAME"');
+  });
+});
+
+describe("package version check", () => {
+  const verify = (...args) => spawnSync(process.execPath, [fileURLToPath(new URL("../../scripts/verify-package-version.mjs", import.meta.url)), ...args], {
+    cwd: fileURLToPath(new URL("../../", import.meta.url)),
+    encoding: "utf8",
+  });
+  const version = JSON.parse(readRepoFile("package.json")).version;
+
+  it("compares with the tag it is given", () => {
+    expect(verify().status).toBe(0);
+    expect(verify(`v${version}`).status).toBe(0);
+    expect(verify("v0.0.1").status).not.toBe(0);
+    expect(verify("--minimum", "0.0.1").status).toBe(0);
+  });
+
+  // PowerShell reads "$GITHUB_REF_NAME" as an empty variable: the check
+  // must fail, not pass without comparing anything.
+  it.each([[""], ["  "], ["--minimum", ""], ["--minimum"]].map((args) => [JSON.stringify(args), args]))("refuses an empty version (%s)", (_label, args) => {
+    const result = verify(...args);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("expected package version argument is empty");
+  });
+});

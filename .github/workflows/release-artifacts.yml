@@ -85,9 +85,13 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The tag name is read from the environment, never templated into the
+      # script. bash on Windows too: in PowerShell "$GITHUB_REF_NAME" is an
+      # empty variable, and the check would pass without comparing anything.
       - name: Verify package version matches release tag
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/verify-package-version.mjs "${{ github.ref_name }}"
+        shell: bash
+        run: node scripts/verify-package-version.mjs "$GITHUB_REF_NAME"
 
       # npm ci, not npm install: the release is built from exactly what the
       # lockfiles pin and verify (integrity hashes), never from a version npm
@@ -110,7 +114,8 @@ jobs:
 
       - name: Verify release version parity
         if: startsWith(github.ref, 'refs/tags/')
-        run: node scripts/verify-release-version.mjs "${{ github.ref_name }}"
+        shell: bash
+        run: node scripts/verify-release-version.mjs "$GITHUB_REF_NAME"
 
       # release.ps1 rewrites pz-mod/bridge-version.lock.json in the release
       # commit, so a tagged tree whose bridge code differs from the lock was

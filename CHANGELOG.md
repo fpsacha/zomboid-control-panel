@@ -17,6 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Docker `:latest`:** re-running an older release's image build no longer points `:latest` back at that older version.
 - **Docker image builds:** the QEMU and BuildKit helper images that build and push the panel images are pinned by digest (kept current by Dependabot) instead of moving tags.
+- **Release builds:** the release tag name is read from the environment instead of being written into build scripts, and the version check refuses an empty tag instead of skipping it.
 
 ## [2026.10.1] - 2026-10-26
 
