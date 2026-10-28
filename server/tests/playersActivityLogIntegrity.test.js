@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const logPlayerAction = vi.fn();
 
 vi.mock("../database/init.js", () => ({
+  // R2-5: these tests act as a role that may grant staff levels.
+  getRoleByName: vi.fn(async () => ({ capabilities: ["players.moderate", "rcon.execute"] })),
   logPlayerAction,
   getPlayerLogs: vi.fn(),
   getPlayerNotes: vi.fn(),
@@ -37,7 +39,7 @@ function getRouteHandler(method, routePath) {
 }
 
 function createRequest(body, rconService) {
-  return { body, app: { get: () => rconService } };
+  return { body, user: { username: "tech", role: "technician" }, app: { get: () => rconService } };
 }
 
 // Sibling bug to the one playersBanRecordIntegrity.test.js pins for

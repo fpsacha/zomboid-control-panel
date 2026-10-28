@@ -442,6 +442,7 @@
     "description": "Changer le niveau d'accès de {{player}}",
     "label": "Niveau d'accès",
     "placeholder": "Sélectionner un niveau...",
+    "staffLevelsHint": "Les niveaux d'équipe comme admin, moderator ou gm demandent aussi la permission « Exécuter des commandes RCON » ; ils ne sont donc pas proposés ici.",
     "submit": "Définir le niveau"
   },
   "confirmLastAdmin": {

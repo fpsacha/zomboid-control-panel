@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "Потрібні ім'я користувача та рівень",
   "PLAYERS_INVALID_ACCESS_LEVEL": "Некоректний рівень доступу. Доступні: {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} — єдиний обліковий запис із рівнем доступу admin. Якщо його прибрати, ніхто не матиме повних адміністраторських команд у грі, доки його не нададуть знову.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "Лише роль із можливістю «Виконувати команди RCON» (rcon.execute) може надати рівень доступу персоналу, як-от admin, moderator чи gm, або змінити рівень облікового запису, який його має: ці рівні виконують у грі консольні команди сервера.",
   "PLAYERS_INVALID_PASSWORD": "Некоректний формат пароля",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "Некоректні координати (x/y: від 0 до 24000, z: від 0 до 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "Некоректний формат імені користувача player1",

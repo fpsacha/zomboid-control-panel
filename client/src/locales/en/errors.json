@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "Username and level are required",
   "PLAYERS_INVALID_ACCESS_LEVEL": "Invalid access level. Valid: {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} is the only account with the admin access level. Removing it will leave nobody with full admin commands in-game until it is granted again.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "Only a role with Run RCON commands (rcon.execute) can grant a staff access level such as admin, moderator or gm, or change the level of an account that has one: those levels run server console commands in game.",
   "PLAYERS_INVALID_PASSWORD": "Invalid password format",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "Invalid coordinates (x/y: 0 to 24000, z: 0 to 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "Invalid player1 username format",

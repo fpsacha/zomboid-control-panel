@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "Benutzername und Stufe sind erforderlich",
   "PLAYERS_INVALID_ACCESS_LEVEL": "Ungültige Zugriffsstufe. Gültig: {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} ist das einzige Konto mit der Zugriffsebene \"admin\". Wird sie entfernt, hat niemand mehr vollständige Admin-Befehle im Spiel, bis sie erneut vergeben wird.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "Nur eine Rolle mit „RCON-Befehle ausführen“ (rcon.execute) kann eine Team-Zugriffsebene wie admin, moderator oder gm vergeben oder die Ebene eines Kontos ändern, das eine hat: Diese Ebenen führen im Spiel Server-Konsolenbefehle aus.",
   "PLAYERS_INVALID_PASSWORD": "Ungültiges Passwortformat",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "Ungültige Koordinaten (x/y: 0 bis 24000, z: 0 bis 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "Ungültiges Format für player1",

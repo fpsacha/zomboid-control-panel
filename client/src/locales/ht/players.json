@@ -442,6 +442,7 @@
     "description": "Chanje nivo aksè pou {{player}}",
     "label": "Nivo Aksè",
     "placeholder": "Chwazi yon nivo...",
+    "staffLevelsHint": "Nivo estaf tankou admin, moderator oswa gm bezwen tou pèmisyon « Egzekite kòmand RCON », se pou sa yo pa parèt isit la.",
     "submit": "Defini Nivo a"
   },
   "confirmLastAdmin": {

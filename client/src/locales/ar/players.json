@@ -468,6 +468,7 @@
     "description": "تغيير مستوى الصلاحية لـ {{player}}",
     "label": "مستوى الصلاحية",
     "placeholder": "اختر مستوى...",
+    "staffLevelsHint": "تتطلب المستويات الإدارية مثل admin أو moderator أو gm أيضًا صلاحية «تنفيذ أوامر RCON»، لذا لا تظهر هنا.",
     "submit": "تعيين المستوى"
   },
   "confirmLastAdmin": {

@@ -438,6 +438,7 @@
     "description": "更改 {{player}} 的權限等級",
     "label": "權限等級",
     "placeholder": "選擇等級…",
+    "staffLevelsHint": "admin、moderator 或 gm 等管理級別還需要「執行 RCON 命令」權限，因此未在此列出。",
     "submit": "設定等級"
   },
   "confirmLastAdmin": {

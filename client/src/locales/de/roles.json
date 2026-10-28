@@ -163,7 +163,7 @@
     "rcon": {
       "execute": {
         "label": "RCON-Befehle ausführen",
-        "description": "Mit RCON verbinden und beliebige Konsolenbefehle ausführen, einschließlich solcher, die den Server stoppen können. Gewährt außerdem Lesezugriff auf den vollständigen RCON-Befehlsverlauf — einschließlich echter Spielerpasswörter, die in Whitelist-Befehlen wie adduser eingegeben wurden."
+        "description": "Mit RCON verbinden und beliebige Konsolenbefehle ausführen, einschließlich solcher, die den Server stoppen können. Gewährt außerdem Lesezugriff auf den vollständigen RCON-Befehlsverlauf — einschließlich echter Spielerpasswörter, die in Whitelist-Befehlen wie adduser eingegeben wurden. Zusammen mit „Spieler maßregeln“ vergibt es auch Ingame-Team-Zugriffslevel wie admin."
       }
     },
     "servers": {
@@ -199,7 +199,7 @@
     "players": {
       "moderate": {
         "label": "Spieler maßregeln",
-        "description": "Einen Spieler bannen, entbannen, kicken oder auf die Whitelist setzen sowie den Ingame-Zugriffslevel eines Spielers ändern — einschließlich Admin-Rechte vergeben oder entziehen."
+        "description": "Einen Spieler bannen, entbannen, kicken oder auf die Whitelist setzen und seinen Ingame-Zugriffslevel auf eine einfache Stufe wie user oder priority setzen. Ein Team-Level vergeben (admin, moderator, gm, observer oder eine eigene Rolle mit mehr Rechten) oder den Level eines Kontos ändern, das einen hat, erfordert zusätzlich „RCON-Befehle ausführen“: Diese Level führen im Spiel Server-Konsolenbefehle aus."
       },
       "gm_tools": {
         "label": "Game-Master-Werkzeuge",

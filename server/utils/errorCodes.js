@@ -2072,6 +2072,11 @@ export const ErrorCode = Object.freeze({
    * then-confirm, not a hard refusal -- see the route's own comment for
    * why this differs from ROLE_LOCKOUT_LAST_MANAGER. */
   PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM: "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM",
+  /** server/routes/players.js -- POST /api/players/access-level, 403: the
+   * level (or the target account's current level) carries more than a plain
+   * player's login capabilities, and the caller's role lacks rcon.execute
+   * (security audit R2-5). */
+  PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON: "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON",
   /** server/routes/players.js (sites: /whitelist/add, /adduser) --
    * optional `password` fails its alphanumeric-plus-symbols/length format
    * check. Identical wording/meaning both sites, shared code. */

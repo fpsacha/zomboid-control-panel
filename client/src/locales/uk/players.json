@@ -454,6 +454,7 @@
     "description": "Змінити рівень доступу для {{player}}",
     "label": "Рівень доступу",
     "placeholder": "Виберіть рівень...",
+    "staffLevelsHint": "Рівні персоналу, як-от admin, moderator чи gm, потребують ще дозволу «Виконувати команди RCON», тому їх тут немає.",
     "submit": "Встановити рівень"
   },
   "confirmLastAdmin": {

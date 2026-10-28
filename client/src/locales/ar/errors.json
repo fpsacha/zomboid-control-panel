@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "اسم المستخدم والمستوى مطلوبان",
   "PLAYERS_INVALID_ACCESS_LEVEL": "مستوى وصول غير صالح. الصالح: {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} هو الحساب الوحيد الذي يملك صلاحية المسؤول (admin). إزالتها ستترك الجميع دون أي أوامر إدارية كاملة داخل اللعبة حتى تُمنح مرة أخرى.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "لا يمكن إلا لدور يملك «تنفيذ أوامر RCON» (rcon.execute) منح مستوى وصول إداري مثل admin أو moderator أو gm، أو تغيير مستوى حساب يملك أحدها: فهذه المستويات تشغّل أوامر وحدة تحكم الخادم داخل اللعبة.",
   "PLAYERS_INVALID_PASSWORD": "تنسيق كلمة مرور غير صالح",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "إحداثيات غير صالحة (x/y: من 0 إلى 24000، z: من 0 إلى 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "تنسيق اسم مستخدم player1 غير صالح",

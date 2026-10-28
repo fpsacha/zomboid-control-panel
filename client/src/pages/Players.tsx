@@ -539,6 +539,18 @@ export default function Players() {
   // server is remote, so an empty array here only ever means "not loaded
   // yet", not "the feature is unavailable".
   const [accessLevelOptions, setAccessLevelOptions] = useState<string[]>([])
+  // Staff levels (admin, moderator, gm, observer, a custom role with more
+  // than login rights) run server console commands in game, so the server
+  // also requires rcon.execute to grant one; a role without it is offered
+  // the plain levels only (GET /access-levels' staffLevels).
+  const [staffAccessLevels, setStaffAccessLevels] = useState<string[]>([])
+  const canGrantStaffLevels = can('rcon.execute')
+  const grantableAccessLevels = useMemo(
+    () => canGrantStaffLevels
+      ? accessLevelOptions
+      : accessLevelOptions.filter(level => !staffAccessLevels.includes(level)),
+    [accessLevelOptions, staffAccessLevels, canGrantStaffLevels],
+  )
   const offlineRoster = useMemo(() => {
     const onlineLower = new Set(players.map(p => p.name.toLowerCase()))
     const stats = Object.values(playerStats) as PlayerStat[]
@@ -917,6 +929,7 @@ export default function Players() {
       const result = await playersApi.getAccessLevels()
       if (accessLevelsGuard.isStale(requestId)) return
       setAccessLevelOptions(result.levels || [])
+      setStaffAccessLevels(Array.isArray(result.staffLevels) ? result.staffLevels : [])
     } catch (error) {
       if (accessLevelsGuard.isStale(requestId)) return
       reportClientError('Failed to fetch access levels.', error)
@@ -2424,13 +2437,16 @@ export default function Players() {
                             <SelectValue placeholder={t('accessLevelDialog.placeholder')} />
                           </SelectTrigger>
                           <SelectContent>
-                            {accessLevelOptions.map((level) => (
+                            {grantableAccessLevels.map((level) => (
                               <SelectItem key={level} value={level}>
                                 {accessLevelLabels[level] || level.charAt(0).toUpperCase() + level.slice(1)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {grantableAccessLevels.length < accessLevelOptions.length && (
+                          <p className="mt-2 text-xs text-muted-foreground">{t('accessLevelDialog.staffLevelsHint')}</p>
+                        )}
                       </div>
                       <DialogFooter>
                         <Button onClick={() => handleSetAccessLevel()} disabled={loading || !accessLevel}>

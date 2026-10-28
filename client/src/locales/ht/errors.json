@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "Non itilizatè ak nivo obligatwa",
   "PLAYERS_INVALID_ACCESS_LEVEL": "Nivo aksè envalid. Valid: {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} se sèl kont ki gen nivo aksè admin. Si w retire l, pèsonn pap gen kòmand admin konplè nan jwèt la jistan yon lòt moun resevwa l ankò.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "Se sèlman yon wòl ki gen « Egzekite kòmand RCON » (rcon.execute) ki ka bay yon nivo aksè estaf tankou admin, moderator oswa gm, oswa chanje nivo yon kont ki gen youn: nivo sa yo egzekite kòmand konsòl sèvè a nan jwèt la.",
   "PLAYERS_INVALID_PASSWORD": "Fòma modpas envalid",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "Kowòdone envalid (x/y: 0 rive 24000, z: 0 rive 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "Fòma player1 envalid",

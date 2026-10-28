@@ -15,6 +15,7 @@ import {
   addSteamIdBan,
   removeSteamIdBan,
   getActiveServer,
+  getRoleByName,
 } from '../database/init.js';
 import { VEHICLES, PERKS, PERK_CATALOG, ACCESS_LEVELS } from '../utils/commands.js';
 import { sanitizeError } from '../utils/sanitize.js';
@@ -134,6 +135,51 @@ function requireBooleanToggle(value) {
 
 export function normalizePlayerLogLimit(value) {
   return parseClampedInteger(value, 100, 1, 500);
+}
+
+// SECURITY (2026-10-28, R2-5): an in-game access level above a plain player
+// is a game-server console. PZ's admin role holds every capability (quit,
+// changeoption on any server option including Mods=/WorkshopItems=,
+// reloadlua, createhorde/lightning at a player, setaccesslevel), its
+// moderator role all of that but quit/save/options/reloadlua, and gm and
+// observer cheats and targeted events (Roles.addStatic, B42 jar). Over RCON
+// GameServer.changeRole skips PZ's own "can't grant above your rank" check,
+// so players.moderate alone made any account -- the caller's own included --
+// an in-game admin, past every panel gate on those commands. Granting such a
+// level, or changing the level of an account that holds one, now also needs
+// rcon.execute, the capability that already reaches the same console.
+//
+// A level is "login only" when its role carries nothing beyond these:
+const LOGIN_ONLY_PZ_CAPABILITIES = new Set(['LoginOnServer', 'PriorityLogin', 'CantBeKickedIfTooLaggy']);
+// PZ's built-in, read-only roles: their capabilities come from
+// Roles.addStatic(), not the [capabilities] table, so they are judged by name.
+// 'none' is SetAccessLevelCommand's own "no role" value.
+const BUILTIN_ACCESS_LEVELS = new Set(['banned', 'user', 'priority', 'observer', 'gm', 'overseer', 'moderator', 'admin']);
+const LOGIN_ONLY_BUILTIN_ACCESS_LEVELS = new Set(['none', 'banned', 'user', 'priority']);
+const STAFF_ACCESS_LEVEL_CAPABILITY = 'rcon.execute';
+
+// roleCapabilities: listServerRoleNames()'s Map (role name -> PZ
+// capabilities), or null when the server's role table can't be read. A
+// custom role is only ever login-only when that table says so.
+export function isStaffAccessLevel(level, roleCapabilities) {
+  if (level === 'none') return false;
+  const fromTable = roleCapabilities instanceof Map ? roleCapabilities.get(level) : undefined;
+  if (Array.isArray(fromTable) && fromTable.some((capability) => !LOGIN_ONLY_PZ_CAPABILITIES.has(capability))) {
+    return true;
+  }
+  if (BUILTIN_ACCESS_LEVELS.has(level)) return !LOGIN_ONLY_BUILTIN_ACCESS_LEVELS.has(level);
+  return !(roleCapabilities instanceof Map);
+}
+
+// Fails closed: a caller whose role can't be resolved holds nothing.
+async function callerHolds(req, capability) {
+  if (!req.user) return false;
+  try {
+    const role = await getRoleByName(req.user.role);
+    return Array.isArray(role?.capabilities) && role.capabilities.includes(capability);
+  } catch {
+    return false;
+  }
 }
 
 // STALE CLAIM CORRECTED 2026-08-27: this comment used to say B42's
@@ -333,10 +379,12 @@ router.post('/access-level', requirePermission("players.moderate"), async (req, 
     // to close, just for custom roles instead of overseer/priority.
     const activeServer = await getActiveServer();
     let validLevels = ACCESS_LEVELS;
+    let roleCapabilities = null;
     if (activeServer && !activeServer.isRemote) {
       const roleResult = await listServerRoleNames(activeServer.zomboidDataPath, activeServer.serverName);
       if (roleResult.available) {
         validLevels = [...roleResult.roleNames, 'none'];
+        roleCapabilities = roleResult.roleCapabilities ?? null;
       }
     }
 
@@ -384,31 +432,49 @@ router.post('/access-level', requirePermission("players.moderate"), async (req, 
     // if the file can't be read) this silently skips rather than guessing,
     // since a wrong "you're removing the last admin" claim would be worse
     // than no warning at all.
-    if (level !== 'admin' && !confirm && activeServer && !activeServer.isRemote) {
+    let whitelistAccounts = null;
+    if (activeServer && !activeServer.isRemote) {
       try {
         const whitelistResult = await listWhitelistAccounts(
           activeServer.zomboidDataPath,
           activeServer.serverName,
         );
-        if (whitelistResult.available) {
-          const targetAccount = whitelistResult.accounts.find(
-            (account) =>
-              typeof account.username === 'string' &&
-              account.username.toLowerCase() === username.toLowerCase(),
-          );
-          const adminCount = whitelistResult.accounts.filter((account) => account.role === 'admin').length;
-          if (targetAccount?.role === 'admin' && adminCount === 1) {
-            return res.status(409).json({
-              error: `${username} is the only account with the admin access level. Removing it will leave nobody with full admin commands in-game until it is granted again.`,
-              code: ErrorCode.PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM,
-              params: { username },
-            });
-          }
-        }
+        if (whitelistResult.available) whitelistAccounts = whitelistResult.accounts;
       } catch (error) {
-        log.warn(`Could not check for last-admin lockout before /access-level: ${error.message}`);
+        log.warn(`Could not read the whitelist before /access-level: ${error.message}`);
         // Fall through -- don't block the action just because the safety
         // check itself failed to read the whitelist database.
+      }
+    }
+    const targetAccount = whitelistAccounts?.find(
+      (account) =>
+        typeof account.username === 'string' &&
+        account.username.toLowerCase() === username.toLowerCase(),
+    );
+
+    // R2-5: see isStaffAccessLevel() above. The target's current level counts
+    // too (a role it can't grant, it can't take away either); a level the
+    // role table doesn't list is treated as staff.
+    const targetRole = targetAccount?.role;
+    const touchesStaffLevel =
+      isStaffAccessLevel(level, roleCapabilities) ||
+      (typeof targetRole === 'string' &&
+        (!validLevels.includes(targetRole) || isStaffAccessLevel(targetRole, roleCapabilities)));
+    if (touchesStaffLevel && !(await callerHolds(req, STAFF_ACCESS_LEVEL_CAPABILITY))) {
+      return res.status(403).json({
+        error: 'Only a role with Run RCON commands (rcon.execute) can grant a staff access level such as admin, moderator or gm, or change the level of an account that has one: those levels run server console commands in game.',
+        code: ErrorCode.PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON,
+      });
+    }
+
+    if (level !== 'admin' && !confirm && whitelistAccounts) {
+      const adminCount = whitelistAccounts.filter((account) => account.role === 'admin').length;
+      if (targetAccount?.role === 'admin' && adminCount === 1) {
+        return res.status(409).json({
+          error: `${username} is the only account with the admin access level. Removing it will leave nobody with full admin commands in-game until it is granted again.`,
+          code: ErrorCode.PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM,
+          params: { username },
+        });
       }
     }
 
@@ -805,15 +871,23 @@ router.get('/perks', requirePermission("players.view"), (req, res) => {
 // special case) so it's unconditionally appended here, not sourced from it.
 router.get('/access-levels', requirePermission("players.view"), async (req, res) => {
   try {
+    // staffLevels: the ones POST /access-level also requires rcon.execute for
+    // (R2-5), so the Players page offers a role without it only the others.
     const activeServer = await getActiveServer();
     if (!activeServer || activeServer.isRemote) {
-      return res.json({ levels: ACCESS_LEVELS, available: false });
+      return res.json({
+        levels: ACCESS_LEVELS,
+        staffLevels: ACCESS_LEVELS.filter((level) => isStaffAccessLevel(level, null)),
+        available: false,
+      });
     }
 
     const result = await listServerRoleNames(activeServer.zomboidDataPath, activeServer.serverName);
     const levels = result.available ? [...result.roleNames, 'none'] : ACCESS_LEVELS;
+    const roleCapabilities = result.available ? (result.roleCapabilities ?? null) : null;
     res.json({
       levels,
+      staffLevels: levels.filter((level) => isStaffAccessLevel(level, roleCapabilities)),
       available: result.available,
       ...(result.reason ? { reason: result.reason } : {}),
     });

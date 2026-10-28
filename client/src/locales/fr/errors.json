@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "Le nom d'utilisateur et le niveau sont requis",
   "PLAYERS_INVALID_ACCESS_LEVEL": "Niveau d'accès invalide. Valides : {{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} est le seul compte avec le niveau d'accès admin. Le retirer laissera personne avec des commandes d'administrateur complètes en jeu tant qu'il ne sera pas accordé de nouveau.",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "Seul un rôle disposant de « Exécuter des commandes RCON » (rcon.execute) peut accorder un niveau d'accès d'équipe comme admin, moderator ou gm, ou changer le niveau d'un compte qui en a un : ces niveaux lancent des commandes de console du serveur en jeu.",
   "PLAYERS_INVALID_PASSWORD": "Format de mot de passe invalide",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "Coordonnées invalides (x/y : 0 à 24000, z : 0 à 8)",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "Format de player1 invalide",

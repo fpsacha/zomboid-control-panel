@@ -471,6 +471,7 @@
   "PLAYERS_ACCESS_LEVEL_FIELDS_REQUIRED": "使用者名稱和權限等級均為必填項",
   "PLAYERS_INVALID_ACCESS_LEVEL": "權限等級無效。有效值：{{validLevels}}",
   "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM": "{{username}} 是唯一擁有 admin 權限等級的帳號。移除後，在重新授予之前將沒有人擁有完整的遊戲內管理員指令。",
+  "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON": "只有擁有「執行 RCON 命令」（rcon.execute）的角色才能授予 admin、moderator 或 gm 等管理訪問級別，或變更已擁有此類級別之帳號的級別：這些級別可在遊戲內執行伺服器主控台命令。",
   "PLAYERS_INVALID_PASSWORD": "密碼格式無效",
   "PLAYERS_TELEPORT_INVALID_COORDINATES": "座標無效（x/y：0 到 24000，z：0 到 8）",
   "PLAYERS_TELEPORT_INVALID_PLAYER1": "player1 格式無效",
