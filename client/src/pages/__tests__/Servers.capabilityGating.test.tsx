@@ -382,6 +382,22 @@ describe('Servers.tsx: capability gating', () => {
     expect(deleteFiles).not.toHaveBeenCalled()
   })
 
+  // SECURITY: a container action starts, stops or restarts the server mapped
+  // to it, so the route takes server.control as well as docker.manage.
+  it('disables the container actions for docker.manage without server.control', async () => {
+    mockCan = (capability) => capability !== 'server.control'
+    await setUpFixtures()
+    renderServers()
+    await screen.findByText('server-a')
+
+    const restartButton = await screen.findByRole('button', { name: /restart docker-b/i })
+    expect(restartButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^start docker-b/i })).toBeDisabled()
+    fireEvent.click(restartButton)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(dockerRunAction).not.toHaveBeenCalled()
+  })
+
   it('enables every gated trigger once the role holds the matching capability', async () => {
     mockCan = () => true
     await setUpFixtures()

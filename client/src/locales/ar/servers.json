@@ -106,6 +106,7 @@
     "switchToThisServer": "التبديل إلى هذا الخادم",
     "added": "أُضيف في {{date}}",
     "noPermissionDocker": "تتطلب إدارة هذه الحاوية صلاحية docker.manage، وهي غير متاحة لهذا الدور.",
+    "noPermissionDockerControl": "بدء هذه الحاوية أو إيقافها أو إعادة تشغيلها يبدأ الخادم أو يوقفه أو يعيد تشغيله، لذا يتطلب أيضًا صلاحية server.control، وهي غير متاحة لهذا الدور.",
     "noPermissionManage": "يتطلب هذا الإجراء صلاحية servers.manage، وهي غير متاحة لهذا الدور.",
     "noPermissionStartStop": "يتطلب هذا صلاحيتَي servers.manage و server.control معًا — فمجموعة صلاحيات جزئية ستترك الخادم مُفعَّلًا لكن دون تشغيله أو إيقافه."
   },

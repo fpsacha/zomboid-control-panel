@@ -95,6 +95,7 @@
     "switchToThisServer": "Zu diesem Server wechseln",
     "added": "Hinzugefügt am {{date}}",
     "noPermissionDocker": "Die Verwaltung dieses Containers erfordert die Berechtigung docker.manage, über die diese Rolle nicht verfügt.",
+    "noPermissionDockerControl": "Das Starten, Stoppen oder Neustarten dieses Containers startet, stoppt oder startet den Server neu und erfordert daher zusätzlich die Berechtigung server.control, über die diese Rolle nicht verfügt.",
     "noPermissionManage": "Diese Aktion erfordert die Berechtigung servers.manage, über die diese Rolle nicht verfügt.",
     "noPermissionStartStop": "Erfordert sowohl servers.manage als auch server.control — ein unvollständiger Berechtigungssatz würde den Server aktiviert, aber nicht gestartet/gestoppt lassen.",
     "restartContainerAria": "Neu starten: {{name}}"

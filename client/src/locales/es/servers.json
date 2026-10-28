@@ -95,6 +95,7 @@
     "switchToThisServer": "Cambiar a este servidor",
     "added": "Añadido el {{date}}",
     "noPermissionDocker": "Gestionar este contenedor requiere el permiso docker.manage, del cual este rol no dispone.",
+    "noPermissionDockerControl": "Iniciar, detener o reiniciar este contenedor inicia, detiene o reinicia el servidor, por lo que también requiere el permiso server.control, del cual este rol no dispone.",
     "noPermissionManage": "Esta acción requiere el permiso servers.manage, del cual este rol no dispone.",
     "noPermissionStartStop": "Requiere tanto servers.manage como server.control — un conjunto de permisos parcial dejaría el servidor activado pero no iniciado/detenido.",
     "restartContainerAria": "Reiniciar {{name}}"
