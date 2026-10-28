@@ -551,6 +551,12 @@ export const ErrorCode = Object.freeze({
    * inflated past the size the archive records, so the extraction stopped
    * and the live world was left alone. */
   BACKUP_ARCHIVE_SIZE_MISMATCH: "BACKUP_ARCHIVE_SIZE_MISMATCH",
+  /** server/services/backupRestoreExtract.js -- POST /api/backup/restore/:name
+   * (and the restore's result/status): the archive makes more files and
+   * folders than the saves volume has inodes free, or nests an entry deeper
+   * than any world save, so the extraction stopped and the live world was
+   * left alone. */
+  BACKUP_ARCHIVE_LAYOUT_REFUSED: "BACKUP_ARCHIVE_LAYOUT_REFUSED",
   /** server/services/backupService.js -- POST /api/backup/create (and the
    * scheduled backup), the server's own Saves/Multiplayer/<name> folder is
    * missing and no other folder can safely be taken for it. */

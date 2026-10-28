@@ -67,6 +67,7 @@ import {
 import {
   createRestoreStagingDir,
   extractArchiveToStaging,
+  freeInodesAt,
   normalizeZipEntryPath,
   sweepStaleRestoreStaging,
 } from "./backupRestoreExtract.js";
@@ -2564,8 +2565,10 @@ export class BackupService {
   async _restoreExtractionLimits(unzip, backupPath, savesParentPath) {
     let declaredSizes = null;
     let declaredTotal = null;
+    let declaredEntries = null;
     try {
       const archive = await unzip.Open.file(backupPath);
+      declaredEntries = archive.files.length;
       const sizes = new Map();
       let total = 0;
       let totalKnown = true;
@@ -2593,7 +2596,7 @@ export class BackupService {
     } catch (error) {
       log.debug(`Restore size limits: could not read free space: ${error.message}`);
     }
-    return { declaredSizes, declaredTotal, freeBytes };
+    return { declaredSizes, declaredTotal, declaredEntries, freeBytes, freeInodes: freeInodesAt(savesParentPath) };
   }
 
   // Recomputes each extracted file's CRC32 and compares it against the value

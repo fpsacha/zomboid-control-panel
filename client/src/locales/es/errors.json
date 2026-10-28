@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "La subida supera el límite de 4 GB.",
   "BACKUP_SNAPSHOT_TOO_LARGE": "La instantánea del servidor de esta copia de seguridad supera 1 MB, así que no se abrió.",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "El archivo de la copia de seguridad contiene más datos de los que declara, así que está dañado o fue manipulado. La restauración se detuvo y tu mundo actual no se modificó.",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "El archivo de la copia de seguridad contiene más archivos y carpetas de los que caben en este disco, o carpetas anidadas a más profundidad que en cualquier partida guardada. La restauración se detuvo y tu mundo actual no se modificó.",
   "BACKUPS_FOLDER_UNAVAILABLE": "La carpeta de copias de seguridad no está disponible. Configura primero el servidor.",
   "USER_SELF_DELETE_REFUSED": "No puedes eliminar tu propia cuenta. Pide a otro administrador que lo haga.",
   "USER_SELF_ROLE_CHANGE_REFUSED": "No puedes cambiar tu propio rol. Pide a otro administrador que lo haga.",

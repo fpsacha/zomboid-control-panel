@@ -17,6 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Config templates:** a template saved by v1.2.6 or older no longer shows its RCON and join passwords, and editing one removes them from the file; template files are no longer written through a link to another file.
 - **Shared backups folder (Windows):** another server profile's backup can no longer be downloaded, read, deleted or restored by spelling its name in another letter case or by its short name.
+- **Backup restore:** an archive can no longer create more files and folders than the disk has room for, nest folders without limit, or open thousands of files at once while it is extracted.
 
 ## [2026.10.1] - 2026-10-26
 

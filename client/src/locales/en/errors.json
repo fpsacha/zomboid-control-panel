@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "Upload exceeds the 4 GB limit.",
   "BACKUP_SNAPSHOT_TOO_LARGE": "This backup's server snapshot is larger than 1 MB, so it was not opened.",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "The backup archive holds more data than it records, so it is damaged or was tampered with. The restore stopped and your current world was not changed.",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "The backup archive holds more files and folders than this disk has room for, or folders nested deeper than any world save. The restore stopped and your current world was not changed.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Backups folder not available. Configure the server first.",
   "USER_SELF_DELETE_REFUSED": "You cannot delete your own account. Ask another administrator to do it instead.",
   "USER_SELF_ROLE_CHANGE_REFUSED": "You cannot change your own role. Ask another administrator to do it instead.",
