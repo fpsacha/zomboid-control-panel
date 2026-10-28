@@ -653,6 +653,8 @@
   "ZOMBOID_DATA_FOLDER_REFUSED": "此伺服器的 Zomboid 資料資料夾中有遊戲不會放在資料資料夾裡的檔案，因此面板不會列出或讀取它。請在「伺服器列表」頁面編輯該伺服器，將其 Zomboid 資料路徑設為遊戲自己的資料資料夾：Saves 資料夾中有世界存檔的那個。",
   "SERVER_CONSOLE_LOG_NO_DATA_FOLDER": "此伺服器未設定 Zomboid 資料資料夾，而遊戲會把主控台日誌寫在那裡。請在「伺服器列表」頁面編輯該伺服器，設定其 Zomboid 資料路徑。",
   "DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED": "聊天中繼會把人們在其 Discord 頻道中輸入的內容發布到遊戲中，這需要 {{detail}}。您並未擁有該權限項目，因此無法開啟中繼，也無法變更它監聽的頻道（未設定中繼頻道時即為通知頻道）。",
+  "DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED": "加入、離開和死亡通知會顯示玩家資訊，這需要 {{detail}}。您並未擁有該權限項目，因此無法開啟這些通知、變更其訊息，也無法變更它們發布到的頻道。",
+  "DISCORD_CHANGES_NEED_LOGINS": "面板登入關閉期間，無法變更 Discord 機器人的權杖、伺服器以及管理員或版主角色，也無法降低命令的等級：設定它們的人在登入重新開啟後仍能執行機器人命令。請先從面板的 db.json 中移除 authEnabled: false 設定，重新啟動面板並登入。",
   "DISCORD_CHANNEL_OUTSIDE_GUILD": "通知頻道不屬於此處設定的 Discord 伺服器，因此機器人不會在其中傳送訊息。請使用已填寫伺服器（Guild）ID 的那個伺服器中的頻道，或更正該 ID。",
   "ROLE_TARGET_EXCEEDS_CALLER_CAPABILITIES": "無法變更、登出或刪除擁有 {{detail}} 的帳戶或角色，因為你自己沒有該權限。",
   "CURRENT_PASSWORD_INCORRECT": "目前密碼不正確。輸錯 10 次後，密碼驗證會暫停 15 分鐘，即使輸入正確的密碼也一樣。",

@@ -113,6 +113,9 @@ interface WebhookEvent {
 type WebhookEvents = Record<string, WebhookEvent>;
 // Same cap as routes/discord.js applies to a saved template.
 const EVENT_TEMPLATE_MAX_LENGTH = 500;
+// The notifications that post player data (server/routes/discord.js
+// PLAYER_EVENT_KEYS): players.view only.
+const PLAYER_EVENT_KEYS = ["playerJoin", "playerLeave", "playerDeath"];
 type FlashMessage = { type: "success" | "warning" | "error"; text: string };
 
 // Small helper to copy text to clipboard
@@ -345,6 +348,11 @@ export default function Discord() {
   // capability check in the app.
   const { can } = useAuth();
   const canManageIntegrations = can("integrations.manage");
+  // Join, leave and death notifications post player data, which the server
+  // gates on players.view (PUT /discord/webhook-events and /config): without
+  // it they can be turned off but not on, their message stays as it is, and
+  // the notification channel stays put while one of them is on.
+  const canViewPlayers = can("players.view");
   const [status, setStatus] = useState<DiscordStatus | null>(null);
   // Stores the exact gatewayDegradedSince episode key that was dismissed,
   // not a boolean -- same reasoning as Dashboard.tsx's
@@ -561,6 +569,10 @@ export default function Discord() {
     ? t("shared.noPermission")
     : !canChangeBotConnection
       ? t("capabilityGate.connection")
+      : null;
+  const channelLockedReason =
+    !canViewPlayers && PLAYER_EVENT_KEYS.some((key) => savedWebhookEvents[key]?.enabled)
+      ? t("capabilityGate.playerEvents")
       : null;
   const modRoleLockedReason = !canManageIntegrations
     ? t("shared.noPermission")
@@ -2203,14 +2215,17 @@ export default function Discord() {
                 <Hash className="w-4 h-4" />
                 {t("management.configuration.channelIdLabel")}
               </Label>
-              <Input
-                id="channelId"
-                value={channelId}
-                onChange={(e) => setChannelId(e.target.value)}
-                placeholder={t("management.configuration.channelIdPlaceholder")}
-                className="font-mono"
-                maxLength={20}
-              />
+              <DisabledReason reason={channelLockedReason} className="w-full">
+                <Input
+                  id="channelId"
+                  value={channelId}
+                  onChange={(e) => setChannelId(e.target.value)}
+                  placeholder={t("management.configuration.channelIdPlaceholder")}
+                  className="font-mono"
+                  maxLength={20}
+                  disabled={!!channelLockedReason}
+                />
+              </DisabledReason>
               <p className="text-xs text-muted-foreground">
                 {t("management.configuration.channelIdHelp")}
               </p>
@@ -2400,6 +2415,7 @@ export default function Discord() {
                 enabled: false,
                 template: "",
               };
+              const playerEventLocked = PLAYER_EVENT_KEYS.includes(eventKey) && !canViewPlayers;
               return (
                 <div key={eventKey} className="space-y-3 rounded-lg border border-border/60 bg-muted/25 p-3">
                   <div className="flex items-center justify-between gap-4">
@@ -2410,10 +2426,16 @@ export default function Discord() {
                       <p className="text-xs text-muted-foreground">
                         {description}
                       </p>
+                      {playerEventLocked && (
+                        <p className="text-xs text-muted-foreground">
+                          {t("capabilityGate.playerEvents")}
+                        </p>
+                      )}
                     </div>
                     <Switch
                       id={`event-${eventKey}`}
                       checked={event.enabled}
+                      disabled={playerEventLocked && !event.enabled}
                       onCheckedChange={(checked) =>
                         handleToggleEvent(eventKey, checked)
                       }
@@ -2434,6 +2456,7 @@ export default function Discord() {
                           handleUpdateTemplate(eventKey, e.target.value)
                         }
                         placeholder={t("management.webhookEvents.templatePlaceholder")}
+                        readOnly={playerEventLocked}
                         rows={3}
                         // The server keeps the first 500 characters
                         // (PUT /discord/webhook-events), so the field stops

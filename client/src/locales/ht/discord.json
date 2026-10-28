@@ -341,6 +341,7 @@
   },
   "capabilityGate": {
     "connection": "Se sèlman yon moun ki gen tout otorizasyon kòmand bot la bezwen ki ka chanje sa a: pwopriyetè sèvè Discord bot la ak nenpòt moun ki gen wòl administratè li ka itilize tout kòmand yo.",
-    "modRole": "Se sèlman yon moun ki gen otorizasyon kòmand nivo Moderatè yo bezwen ki ka chanje sa a: nenpòt moun ki gen wòl sa a ka itilize kòmand sa yo."
+    "modRole": "Se sèlman yon moun ki gen otorizasyon kòmand nivo Moderatè yo bezwen ki ka chanje sa a: nenpòt moun ki gen wòl sa a ka itilize kòmand sa yo.",
+    "playerEvents": "Se sèlman yon moun ki ka wè enfòmasyon jwè yo ki ka aktive sa a, chanje mesaj li oswa deplase chanèl li: li poste non ak pozisyon jwè yo sou Discord."
   }
 }

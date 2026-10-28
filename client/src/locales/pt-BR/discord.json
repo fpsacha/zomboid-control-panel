@@ -341,6 +341,7 @@
   },
   "capabilityGate": {
     "connection": "Só pode alterar isto quem tem todas as permissões que os comandos do bot exigem: o proprietário do servidor do Discord do bot e qualquer pessoa com o cargo de admin dele podem executar todos os comandos.",
-    "modRole": "Só pode alterar isto quem tem as permissões que os comandos de nível Moderador exigem: qualquer pessoa com este cargo pode executar esses comandos."
+    "modRole": "Só pode alterar isto quem tem as permissões que os comandos de nível Moderador exigem: qualquer pessoa com este cargo pode executar esses comandos.",
+    "playerEvents": "Só quem pode ver informações dos jogadores pode ativar isto, mudar a mensagem ou mover o canal: isso publica nomes e posições de jogadores no Discord."
   }
 }

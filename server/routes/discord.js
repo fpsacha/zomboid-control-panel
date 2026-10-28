@@ -88,6 +88,51 @@ function chatRelayListenChannel({ enabled, relayChannelId, channelId }) {
   return relayChannelId || channelId || null;
 }
 
+// SECURITY (2026-10-28, audit R1-23): join, leave and death notifications
+// post player names, join and leave times and death coordinates -- what the
+// panel shows only to players.view (the "players" socket room). Turning one
+// on, changing an enabled one's message, or moving the notification channel
+// while one is on needs it too; turning them off needs nothing.
+const PLAYER_EVENT_KEYS = ["playerJoin", "playerLeave", "playerDeath"];
+const PLAYER_EVENTS_CAPABILITY = "players.view";
+
+function anyPlayerEventEnabled(webhookEvents) {
+  return PLAYER_EVENT_KEYS.some((key) => webhookEvents?.[key]?.enabled === true);
+}
+
+function playerEventsWidened(current, next) {
+  return PLAYER_EVENT_KEYS.some((key) => {
+    const after = next?.[key];
+    if (!after?.enabled) return false;
+    const before = current?.[key];
+    return before?.enabled !== true || before.template !== after.template;
+  });
+}
+
+function refusePlayerEvents(res) {
+  return res.status(403).json({
+    error: `Join, leave and death notifications show player information, which needs ${PLAYER_EVENTS_CAPABILITY}. You don't hold it, so you can't turn them on, change their message, or move the channel they post in.`,
+    code: ErrorCode.DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED,
+    params: sanitizeErrorParams({ detail: PLAYER_EVENTS_CAPABILITY }),
+    missing: [PLAYER_EVENTS_CAPABILITY],
+  });
+}
+
+// SECURITY (2026-10-28, audit R1-51): while panel logins are off every
+// request acts as admin, so the AUTHZ-3 checks above all pass. A bot token,
+// guild or role ID set then -- or a command tier lowered -- keeps handing out
+// bot commands after logins are back on (the guild's owner passes every
+// tier), the same "outlives the setting" class requireLoginsOn already
+// closes for accounts and roles. Unchanged resends still save.
+const COMMAND_TIER_RANK = { everyone: 0, moderator: 1, admin: 2 };
+
+function refuseWhileLoginsOff(res) {
+  return res.status(403).json({
+    error: "The Discord bot's token, server and admin or moderator roles can't be changed, nor a command's tier lowered, while panel logins are off: whoever set them would keep running bot commands once logins are back on. Remove the authEnabled: false setting from the panel's db.json, restart the panel and sign in first.",
+    code: ErrorCode.DISCORD_CHANGES_NEED_LOGINS,
+  });
+}
+
 // The caller's panel capabilities, for the checks above and below.
 async function capabilitiesOfCaller(req) {
   const role = req.user ? await getRoleByName(req.user.role) : null;
@@ -285,6 +330,9 @@ router.put("/config", async (req, res) => {
       if ((discordBot.modRoleId || null) !== (modRoleId || null)) {
         changed.push("modRoleId");
       }
+      if (changed.length > 0 && req.user?.authDisabled) {
+        return refuseWhileLoginsOff(res);
+      }
       const requiredCapabilities = capabilitiesUnlockedByConfigChange(
         changed,
         discordBot,
@@ -334,6 +382,18 @@ router.put("/config", async (req, res) => {
             params: sanitizeErrorParams({ detail: CHAT_RELAY_CAPABILITY }),
             missing: [CHAT_RELAY_CAPABILITY],
           });
+        }
+      }
+
+      // R1-23: see refusePlayerEvents() above. updateConfig() stores a
+      // missing channelId as "".
+      if (
+        (discordBot.channelId || null) !== (channelId || null) &&
+        anyPlayerEventEnabled(discordBot.webhookEvents)
+      ) {
+        const callerCapabilities = await capabilitiesOfCaller(req);
+        if (!callerCapabilities.includes(PLAYER_EVENTS_CAPABILITY)) {
+          return refusePlayerEvents(res);
         }
       }
 
@@ -785,13 +845,23 @@ router.put("/webhook-events", async (req, res) => {
     // withConfigMutex() (re-entrancy sweep finding #5), so a concurrent
     // save can't read this request's not-yet-committed merge and clobber
     // it with its own.
-    await discordBot.withConfigMutex(async () => {
+    const saved = await discordBot.withConfigMutex(async () => {
+      // R1-23: see refusePlayerEvents() above.
+      if (
+        playerEventsWidened(discordBot.webhookEvents, sanitizedEvents) &&
+        !(await capabilitiesOfCaller(req)).includes(PLAYER_EVENTS_CAPABILITY)
+      ) {
+        refusePlayerEvents(res);
+        return false;
+      }
       const merged = {
         ...(discordBot.webhookEvents || {}),
         ...sanitizedEvents,
       };
       await discordBot.saveWebhookEvents(merged);
+      return true;
     });
+    if (!saved) return;
 
     res.json({ success: true, message: "Webhook events updated" });
   } catch (error) {
@@ -862,6 +932,17 @@ router.put("/permissions", async (req, res) => {
     // can't interleave with each other.
     await discordBot.withConfigMutex(async () => {
       const current = discordBot.getCommandPermissions();
+      // R1-51: see refuseWhileLoginsOff() above. Raising a tier still saves;
+      // a value that isn't a known tier counts as lowering it.
+      if (req.user?.authDisabled) {
+        const lowered = Object.entries(permissions).some(
+          ([command, tier]) =>
+            command in current &&
+            current[command] !== tier &&
+            !(COMMAND_TIER_RANK[tier] >= COMMAND_TIER_RANK[current[command]]),
+        );
+        if (lowered) return refuseWhileLoginsOff(res);
+      }
       const missing = [];
       let callerCapabilities = null;
       for (const [command, tier] of Object.entries(permissions)) {

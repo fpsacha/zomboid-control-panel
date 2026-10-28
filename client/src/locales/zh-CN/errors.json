@@ -653,6 +653,8 @@
   "ZOMBOID_DATA_FOLDER_REFUSED": "此服务器的 Zomboid 数据文件夹中有游戏不会放在数据文件夹里的文件，因此面板不会列出或读取它。请在「服务器列表」页面编辑该服务器，将其 Zomboid 数据路径设为游戏自己的数据文件夹：Saves 文件夹中有世界存档的那个。",
   "SERVER_CONSOLE_LOG_NO_DATA_FOLDER": "此服务器未设置 Zomboid 数据文件夹，而游戏会把控制台日志写在那里。请在「服务器列表」页面编辑该服务器，设置其 Zomboid 数据路径。",
   "DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED": "聊天中继会把人们在其 Discord 频道中输入的内容发布到游戏中，这需要 {{detail}}。您没有该权限项，因此无法开启中继，也无法更改它监听的频道（未设置中继频道时即为通知频道）。",
+  "DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED": "加入、离开和死亡通知会显示玩家信息，这需要 {{detail}}。您没有该权限项，因此无法开启这些通知、更改其消息，也无法更改它们发布到的频道。",
+  "DISCORD_CHANGES_NEED_LOGINS": "面板登录关闭期间，无法更改 Discord 机器人的令牌、服务器以及管理员或版主角色，也无法降低命令的等级：设置它们的人在登录重新开启后仍能执行机器人命令。请先从面板的 db.json 中删除 authEnabled: false 设置，重启面板并登录。",
   "DISCORD_CHANNEL_OUTSIDE_GUILD": "通知频道不属于此处设置的 Discord 服务器，因此机器人不会在其中发送消息。请使用已填写服务器（Guild）ID 的那个服务器中的频道，或更正该 ID。",
   "ROLE_TARGET_EXCEEDS_CALLER_CAPABILITIES": "无法更改、退出登录或删除拥有 {{detail}} 的账户或角色，因为你自己没有该权限。",
   "CURRENT_PASSWORD_INCORRECT": "当前密码不正确。输错 10 次后，密码验证会暂停 15 分钟，即使输入正确的密码也不行。",

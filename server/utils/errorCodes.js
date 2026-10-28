@@ -2787,6 +2787,15 @@ export const ErrorCode = Object.freeze({
    * in-game message route needs. `params.detail` names the capability
    * (security sweep 2026-10-05, HT4b). */
   DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED: "DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /webhook-events and PUT /config, 403:
+   * turning on a join/leave/death notification, changing an enabled one's
+   * template, or moving the notification channel while one is on, without
+   * players.view (security audit R1-23). `params.detail` names it. */
+  DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED: "DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /config and PUT /permissions, 403:
+   * panel logins are off and the request would change the bot token, guild,
+   * admin or mod role ID, or lower a command's tier (security audit R1-51). */
+  DISCORD_CHANGES_NEED_LOGINS: "DISCORD_CHANGES_NEED_LOGINS",
   /* --- end security sweep W4: hardening --- */
   /* --- security sweep W5: hardening (sec/w5-hardening) --- */
   /** server/routes/discord.js -- POST /test-message (400): the bot didn't

@@ -18,6 +18,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **In-game staff access levels:** granting admin, moderator, gm, observer or a custom role with more than login rights on the Players page, or changing the level of an account that has one, now also needs Run RCON commands, since those levels run console commands in game.
 - **Player notes are bounded:** at most 20 tags per note, 5,000 notes and 5 million characters in all, so notes can no longer grow the panel's database without limit.
 - **Players › Activity names who acted:** kicks, bans, access-level changes, whitelist edits and game-master actions now record the panel account that made them, also in the panel log.
+- **Discord join, leave and death notifications** need View player info to turn on, edit or move to another channel, since they post player names and positions.
+- **Discord bot while logins are off:** its token, server and admin or moderator roles can't be changed, nor a command's tier lowered, until panel logins are on, so nothing set then keeps working afterwards.
 
 ## [2026.10.1] - 2026-10-26
 
