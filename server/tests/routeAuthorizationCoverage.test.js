@@ -150,6 +150,7 @@ const UNGATED_BY_DESIGN = new Map([
   ["auth.js GET /status", "pre-session: tells the client whether setup/login is needed before any session exists"],
   ["auth.js POST /setup", "pre-session: first-run account creation, only works when no users exist yet"],
   ["auth.js POST /login", "pre-session: this IS how a session begins"],
+  ["auth.js POST /extension-proof", "pre-session: the Steam Sync extension checks a plain-http:// address is the panel before it signs in; answers only an HMAC of the caller's own challenge, rate-limited"],
   ["auth.js POST /refresh", "pre-session: the refresh token itself is the credential being checked"],
   ["auth.js POST /logout", "pre-session: clears a cookie, no capability model applies to ending your own session"],
   ["auth.js GET /me", "self-scoped via getAuthenticatedUser(req) -- never a caller-supplied id"],

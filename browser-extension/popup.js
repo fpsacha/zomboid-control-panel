@@ -274,7 +274,102 @@ async function rememberDeviceToken(panelUrl, username, token) {
   await storageSet({ [DEVICE_TOKENS_KEY]: Object.fromEntries(kept) });
 }
 
-async function loginToPanel(panelUrl, username, password) {
+// SECURITY (2026-10-28, audit R2-31): over plain http:// nothing tells the
+// panel from whatever else answers at its address. On another network (a
+// hotel, a café, a friend's) a 192.168.x address or a .lan name can be
+// anybody, and one click on Send gave it the Steam cookies, then the
+// remembered password. Each sign-in now keeps the panel's key for that
+// account (server/services/auth.js, extensionPanelKey()); before anything
+// is sent to a plain-http:// address that is not this computer, the address
+// must answer a fresh challenge with that key (confirmPanelIdentity()).
+// Over https:// the certificate already does this. A panel too old to hand
+// out a key is used as before.
+const PANEL_KEYS_KEY = 'panelKeys';
+const MAX_PANEL_KEYS = 10;
+const MAX_PANEL_KEY_LENGTH = 256;
+
+async function readPanelKeys() {
+  const { panelKeys } = await storageGet([PANEL_KEYS_KEY]);
+  if (!panelKeys || typeof panelKeys !== 'object' || Array.isArray(panelKeys)) return {};
+  const entries = {};
+  for (const [key, value] of Object.entries(panelKeys)) {
+    if (!key.startsWith('[') || !value || typeof value.key !== 'string') continue;
+    entries[key] = { key: value.key, savedAt: Number(value.savedAt) || 0 };
+  }
+  return entries;
+}
+
+async function getPanelKey(panelUrl, username) {
+  return (await readPanelKeys())[deviceTokenKey(panelUrl, username)]?.key;
+}
+
+// key: a string to keep, or null to forget the one kept.
+async function rememberPanelKey(panelUrl, username, key) {
+  const id = deviceTokenKey(panelUrl, username);
+  const entries = await readPanelKeys();
+  delete entries[id];
+  const kept = Object.entries(entries);
+  if (typeof key === 'string' && key && key.length <= MAX_PANEL_KEY_LENGTH) {
+    kept.unshift([id, { key, savedAt: Date.now() }]);
+  }
+  kept.sort((a, b) => b[1].savedAt - a[1].savedAt);
+  await storageSet({ [PANEL_KEYS_KEY]: Object.fromEntries(kept.slice(0, MAX_PANEL_KEYS)) });
+}
+
+function base64url(bytes) {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function hmacBase64url(key, message) {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  return base64url(new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(message))));
+}
+
+function needsPanelProof(panelUrl) {
+  const url = new URL(panelUrl);
+  return url.protocol === 'http:' && !isLoopbackHost(url.hostname);
+}
+
+class PanelIdentityError extends Error {}
+
+// Sends only the username and a random challenge. Throws, before anything
+// else goes out, when the address can't prove it is the panel this
+// extension signed in to.
+async function confirmPanelIdentity(panelUrl, username) {
+  if (!needsPanelProof(panelUrl)) return;
+  const key = await getPanelKey(panelUrl, username);
+  if (!key) return;
+  await assertPanelUrlAllowed(panelUrl);
+  const challenge = base64url(crypto.getRandomValues(new Uint8Array(32)));
+  const res = await fetch(panelUrl + '/api/auth/extension-proof', {
+    method: 'POST',
+    redirect: 'error',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, challenge }),
+  });
+  let body = null;
+  try { body = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    const detail = body && typeof body.error === 'string' ? body.error : '';
+    throw new Error(`Panel check failed (${res.status})${detail ? ': ' + detail : ''}. Nothing was sent.`);
+  }
+  const expected = await hmacBase64url(key, 'zcp-steam-sync-proof-v1:' + challenge);
+  if (!body || body.proof !== expected) {
+    throw new PanelIdentityError(
+      new URL(panelUrl).host + ' did not prove it is the panel you signed in to, so nothing was sent. Over plain ' +
+      'http:// another network can answer at the same address: are you on the panel\'s own network?',
+    );
+  }
+}
+
+// replacePanelKey: a sign-in the user started (Test login) also forgets a
+// kept key the panel no longer hands out.
+async function loginToPanel(panelUrl, username, password, { replacePanelKey = false } = {}) {
   await assertPanelUrlAllowed(panelUrl);
   // Undefined (never signed in from here) is dropped by JSON.stringify.
   const deviceToken = await getDeviceToken(panelUrl, username);
@@ -290,7 +385,7 @@ async function loginToPanel(panelUrl, username, password) {
     // The panel sets no refresh cookie for an extension Origin, so this
     // sign-in can't replace the panel tab's own.
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, rememberMe: false, deviceToken }),
+    body: JSON.stringify({ username, password, rememberMe: false, deviceToken, wantsPanelKey: true }),
   });
   if (!res.ok) {
     let detail = '';
@@ -300,6 +395,9 @@ async function loginToPanel(panelUrl, username, password) {
   const data = await res.json();
   if (!data.accessToken) throw new Error('Login response missing accessToken');
   await rememberDeviceToken(panelUrl, username, data.deviceToken);
+  if (typeof data.panelKey === 'string' || replacePanelKey) {
+    await rememberPanelKey(panelUrl, username, typeof data.panelKey === 'string' ? data.panelKey : null);
+  }
   return data.accessToken;
 }
 
@@ -356,6 +454,11 @@ async function obtainToken(panelUrl, username, password, cachedToken) {
   return { token, fromCache: false };
 }
 
+// After a failed panel check, the panel and username a second Test login
+// click may sign in to anyway (a reinstalled panel, or one whose sign-in
+// secret was reset, has a new key). This popup only, never Send.
+let signInAgainAllowedFor = null;
+
 async function doTest() {
   setStatus(ui.setupStatus, 'Testing login…', 'info');
   try {
@@ -364,9 +467,23 @@ async function doTest() {
     if (!ui.username.value.trim()) throw new Error('Username is required');
     if (!ui.password.value) throw new Error('Password is required');
     await ensurePanelPermission(panelUrl);
-    const token = await loginToPanel(panelUrl, ui.username.value.trim(), ui.password.value);
+    const username = ui.username.value.trim();
+    const target = deviceTokenKey(panelUrl, username);
+    if (signInAgainAllowedFor !== target) {
+      try {
+        await confirmPanelIdentity(panelUrl, username);
+      } catch (err) {
+        if (err instanceof PanelIdentityError) {
+          signInAgainAllowedFor = target;
+          throw new Error(err.message + ' If it is your panel and it was reinstalled or its sign-in secret was reset, click Test login again to sign in to it anyway.');
+        }
+        throw err;
+      }
+    }
+    signInAgainAllowedFor = null;
+    const token = await loginToPanel(panelUrl, username, ui.password.value, { replacePanelKey: true });
     await saveSettings(true);
-    await rememberAccessToken(panelUrl, ui.username.value.trim(), token);
+    await rememberAccessToken(panelUrl, username, token);
     setStatus(ui.setupStatus, 'Login OK — settings saved.', 'success');
     refreshSendButton(true);
   } catch (err) {
@@ -386,6 +503,8 @@ async function doSend() {
       throw new Error('Configure Panel URL + username first.');
     }
     await ensurePanelPermission(panelUrl);
+    // Before the cookies, a cached token or a remembered password go out.
+    await confirmPanelIdentity(panelUrl, username);
 
     const { sessionid, steamLoginSecure } = await readSteamCookies();
     if (!sessionid || !steamLoginSecure) {

@@ -16,6 +16,8 @@ It does **not** phone home, ship telemetry, or talk to any other origin. Your pa
 
 The panel password and the Steam cookies are only sent over `https://`, or over plain `http://` to a panel on your own network: `localhost`, a private or link-local address (`10.x`, `172.16-31.x`, `192.168.x`, `169.254.x`, `fc00::/7`, `fe80::/10`) or a `.local`, `.lan`, `.home.arpa` or `.internal` name. Any other `http://` address is refused unless you tick **Allow plain HTTP** for that exact address (scheme, host and port) in the popup. Typed without a scheme, a local address gets `http://` and anything else `https://`.
 
+Over plain `http://` (other than `localhost`), the address alone doesn't prove it is your panel: on another network, something else can answer at `192.168.1.20` or `garage.lan`. After the first **Test login**, the extension keeps a key the panel gives it, and before it sends anything there again the address must prove it holds that key; if it can't, nothing is sent. If you reinstall the panel or reset its sign-in secret, click **Test login** twice to sign in to it anew.
+
 ## Install — Firefox
 
 1. Type `about:debugging#/runtime/this-firefox` in the address bar.

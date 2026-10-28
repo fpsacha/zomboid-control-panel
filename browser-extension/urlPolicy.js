@@ -80,6 +80,21 @@ function isLocalNetworkHost(hostname) {
   return LOCAL_NAME_SUFFIXES.some((suffix) => host.length > suffix.length && host.endsWith(suffix));
 }
 
+// This computer only: localhost, *.localhost, 127/8, ::1 (and its
+// IPv4-mapped form). No other network can answer there.
+function isLoopbackHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host.startsWith('[') && host.endsWith(']')) {
+    const groups = parseIPv6(host.slice(1, -1));
+    if (!groups) return false;
+    if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true;
+    return groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff && groups[6] >> 8 === 127;
+  }
+  const octets = parseIPv4(host);
+  return !!octets && octets[0] === 127;
+}
+
 // What the user typed, as a URL. Without a scheme: http:// for a host on
 // their own network, https:// for anything else. Trailing slashes go.
 function normalisePanelUrl(raw) {
