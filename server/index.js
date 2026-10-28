@@ -122,6 +122,7 @@ import {
   readClientDistMetadata,
   resolveClientDistPath,
 } from "./utils/embeddedClient.js";
+import { refreshShippedExtensionCopies } from "./utils/embeddedExtension.js";
 import { resolveObservedServerRunning, resolveServerPhase } from "./utils/serverStatus.js";
 import { discoverMounts } from "./services/mountDiscovery.js";
 import { shouldAutoOpenBrowser } from "./utils/browserLaunch.js";
@@ -5297,6 +5298,20 @@ async function start() {
         // leaves its .restore-staging-* folder (a whole world's worth of
         // files) in Saves/Multiplayer; nothing else removes it.
         void backupService.sweepRestoreStaging();
+
+        // The Steam Sync extension next to the executable (browser-extension/
+        // and its zip) is left at the version first installed by an in-place
+        // update; bring it up to the one this binary carries (audit R2-28).
+        if (isPackaged) {
+          refreshShippedExtensionCopies(path.dirname(process.execPath)).then(
+            (changed) => {
+              if (changed.folderFiles.length || changed.zip) {
+                log.info("Updated the Steam Sync browser extension next to the panel to this version. Reload it in the browser to use it.");
+              }
+            },
+            (error) => log.warn(`Could not update the Steam Sync browser extension next to the panel: ${error.message}`),
+          );
+        }
 
         // If PZ server files were bind-mounted in but no server profile has
         // been created yet, point the user at Settings instead of leaving

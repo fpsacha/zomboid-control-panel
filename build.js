@@ -6,6 +6,7 @@ import path from "path";
 import crypto from "crypto";
 import { gzipSync } from "zlib";
 import { pathToFileURL } from "url";
+import { encodeExtensionBundle } from "./server/utils/embeddedExtension.js";
 
 const distDir = "./dist-exe";
 const releaseDir = "./release";
@@ -1735,6 +1736,19 @@ async function main() {
     `Embedded client bundle prepared (${embeddedClientDistB64.length} base64 chars)`,
   );
 
+  // The Steam Sync extension rides inside the binary too: an in-place
+  // update replaces only the executable and client/dist, so the
+  // browser-extension/ folder and zip next to it stay at the version first
+  // installed (server/utils/embeddedExtension.js). A broken folder fails
+  // the build.
+  let browserExtensionB64;
+  try {
+    browserExtensionB64 = encodeExtensionBundle("./browser-extension");
+  } catch (error) {
+    console.error(`Cannot embed the browser extension: ${error.message}`);
+    process.exit(1);
+  }
+
   console.log("Building server bundle...");
 
   console.log(
@@ -1782,6 +1796,7 @@ async function main() {
       PANEL_BRIDGE_LUA_B64: JSON.stringify(panelBridgeLuaB64),
       PANEL_BRIDGE_WORKSHOP_JSON: JSON.stringify(publishedWorkshopJson),
       PANEL_CLIENT_DIST_B64: JSON.stringify(embeddedClientDistB64),
+      PANEL_BROWSER_EXTENSION_B64: JSON.stringify(browserExtensionB64),
       SQL_WASM_B64: JSON.stringify(sqlWasmB64),
     },
     banner: {
