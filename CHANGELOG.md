@@ -20,6 +20,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Character import:** PanelBridge stops trying an item type that doesn't exist, and the panel refuses more than 2000 items or an item type that isn't a plain name, so an import file can't stall the game server.
 - **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
 - **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
+- **PanelBridge over SFTP:** the 16 MB download limit now applies to the transfer itself, not only to the size the remote host reports, so a hostile host can no longer fill the panel's disk.
 
 ## [2026.10.1] - 2026-10-26
 
