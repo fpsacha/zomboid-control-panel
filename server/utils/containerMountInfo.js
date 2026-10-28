@@ -233,13 +233,22 @@ export async function inspectSelfContainerMounts({
 // user-share path and its underlying disk path are different strings even
 // on the host itself; this only ever matches what Docker itself recorded
 // for THIS container).
+// A loop, not /\/+$/: that regex backtracks quadratically on a long run of
+// slashes that isn't at the end, and hostPath is what the caller typed
+// (CodeQL js/polynomial-redos).
+function stripTrailingSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === "/") end--;
+  return value.slice(0, end);
+}
+
 export function translateHostPath(hostPath, mounts) {
-  if (!hostPath || !Array.isArray(mounts)) return null;
-  const normalizedHost = hostPath.replace(/\/+$/, "");
+  if (!hostPath || typeof hostPath !== "string" || !Array.isArray(mounts)) return null;
+  const normalizedHost = stripTrailingSlashes(hostPath);
   let bestMatch = null;
   for (const mount of mounts) {
     if (!mount.hostPath) continue;
-    const normalizedSource = mount.hostPath.replace(/\/+$/, "");
+    const normalizedSource = stripTrailingSlashes(String(mount.hostPath));
     const isMatch =
       normalizedHost === normalizedSource || normalizedHost.startsWith(`${normalizedSource}/`);
     if (!isMatch) continue;

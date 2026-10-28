@@ -215,6 +215,36 @@ describe("translateHostPath", () => {
       "/pz-server/Server",
     );
   });
+
+  it("still strips trailing slashes from both sides", () => {
+    expect(translateHostPath("/var/lib/docker/volumes/panelfakevol/_data///", mounts)).toBe("/pz-server");
+    expect(
+      translateHostPath("/data/pz/x", [{ hostPath: "/data/pz//", containerPath: "/pz-server" }]),
+    ).toBe("/pz-server/x");
+  });
+
+  // SECURITY: the typed install path used to go through /\/+$/, which takes
+  // quadratic time on a long run of slashes that doesn't end the string
+  // (about 6 s here for 100k slashes; a 1 MB request body blocks for minutes).
+  it("handles a long run of slashes that doesn't end the path in linear time", () => {
+    const hostile = `/${"/".repeat(100_000)}x`;
+    const started = Date.now();
+    expect(translateHostPath(hostile, mounts)).toBeNull();
+    expect(translateHostPath("/data", [{ hostPath: hostile, containerPath: "/pz-server" }])).toBeNull();
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  // Adversary pass: slashes at the end AND a long run in the middle.
+  it("handles slashes both inside and at the end of a long path", () => {
+    const hostile = `/var/lib/docker/volumes/panelfakevol/_data/${"/".repeat(100_000)}x${"/".repeat(100_000)}`;
+    const started = Date.now();
+    expect(translateHostPath(hostile, mounts)).toBe(`/pz-server/${"/".repeat(100_000)}x`);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it("refuses a non-string host path instead of throwing", () => {
+    expect(translateHostPath(["/var/lib/docker/volumes/panelfakevol/_data"], mounts)).toBeNull();
+  });
 });
 
 describe("isOnContainerRootLayer", () => {
