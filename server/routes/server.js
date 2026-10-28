@@ -1141,6 +1141,11 @@ export function isValidPath(inputPath) {
   if (normalized.includes("..")) return false;
   // Must be absolute path
   if (!path.isAbsolute(normalized)) return false;
+  // SECURITY (2026-10-28): no Windows network path (//host/share, //?/UNC/...).
+  // Merely touching one makes the panel's account sign in to that host,
+  // handing it the account's NTLM login, and a share serves whatever files
+  // it likes (utils/untrustedFolder.js). No SteamCMD or game folder is one.
+  if (untrustedFolderReason(inputPath, { windows: isWindows }) === "networkShare") return false;
   return true;
 }
 

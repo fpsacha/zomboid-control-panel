@@ -105,7 +105,8 @@ describe("GET /api/server/branches -- SteamCMD from a Workshop item", () => {
   it.skipIf(!isWindows)("refuses a network share named in the query (adversary pass)", async () => {
     const res = await getBranches({ steamcmdPath: "\\\\127.0.0.1\\zcp-no-such-share" });
     expect(res.getStatusCode()).toBe(400);
-    expect(res.getBody().code).toBe(ErrorCode.STEAMCMD_FOLDER_REFUSED);
+    // isValidPath() refuses a network path first (uncPathsNeverTouched.test.js).
+    expect([ErrorCode.STEAMCMD_PATH_INVALID, ErrorCode.STEAMCMD_FOLDER_REFUSED]).toContain(res.getBody().code);
     expect(spawnMock).not.toHaveBeenCalled();
   });
 });

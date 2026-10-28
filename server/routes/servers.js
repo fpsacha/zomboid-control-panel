@@ -661,6 +661,11 @@ router.post("/detect", requirePermission("servers.discover"), async (req, res) =
     if (!path.isAbsolute(dataPath)) {
       return res.status(400).json({ error: "Must be an absolute path" });
     }
+    // A Windows network path is never touched: the panel's account would
+    // sign in to that host (utils/untrustedFolder.js).
+    if (untrustedLaunchFolderReason(dataPath) === "networkShare") {
+      return res.status(400).json({ error: "Data path does not exist" });
+    }
     const resolvedData = path.resolve(dataPath);
 
     // Verify data path exists
@@ -688,6 +693,9 @@ router.post("/detect", requirePermission("servers.discover"), async (req, res) =
       }
       if (!path.isAbsolute(installPath)) {
         return res.status(400).json({ error: "Install path must be absolute" });
+      }
+      if (untrustedLaunchFolderReason(installPath) === "networkShare") {
+        return res.status(400).json({ error: "Invalid install path format" });
       }
       resolvedInstall = path.resolve(installPath);
       if (fs.existsSync(resolvedInstall)) {
