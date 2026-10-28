@@ -79,11 +79,14 @@ jobs:
           fi
           echo "No obsolete standalone release-note files are tracked."
 
+      # No npm cache: a release is built from the registry and the lockfiles
+      # alone, never from a cache another workflow run could have written.
+      # setup-node v4 caches only when given `cache:` (zizmor assumes the
+      # automatic cache of v5+: set `package-manager-cache: false` there).
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4 # zizmor: ignore[cache-poisoning]
         with:
           node-version: 22
-          cache: npm
 
       # The tag name is read from the environment, never templated into the
       # script. bash on Windows too: in PowerShell "$GITHUB_REF_NAME" is an

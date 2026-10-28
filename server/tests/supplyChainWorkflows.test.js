@@ -289,6 +289,22 @@ describe("release builds install exactly what the lockfiles pin", () => {
     expect(commands.join("\n")).toMatch(/npm ci\b/);
     expect(commands.join("\n")).not.toMatch(/npm install\b/);
   });
+
+  // A cache restored into a release build could hand it packages another
+  // run wrote there.
+  it("release-artifacts.yml restores no dependency cache", () => {
+    const workflow = readRepoFile(".github/workflows/release-artifacts.yml");
+    expect(workflow).not.toMatch(/uses: actions\/cache[@/]/);
+    const setupNode = workflowSteps(workflow).filter((step) => step.includes("uses: actions/setup-node@"));
+    expect(setupNode.length).toBeGreaterThan(0);
+    for (const step of setupNode) {
+      expect(step).not.toMatch(/\n\s+cache(-dependency-path)?:/);
+      // setup-node v5+ caches on its own unless told not to.
+      const major = Number(/setup-node@[0-9a-f]{40} # v(\d+)/.exec(step)?.[1]);
+      expect(major).toBeGreaterThan(0);
+      if (major >= 5) expect(step).toMatch(/\n\s+package-manager-cache: false\n/);
+    }
+  });
 });
 
 // Every workflow, and the steps of one (text from "      - " to the next).
