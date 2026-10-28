@@ -266,6 +266,8 @@ const SETTINGS_KEY_CAPABILITY = {
   steamLoginSecure: "mods.manage",
 };
 
+const STEAM_COOKIE_KEYS = new Set(["steamSessionId", "steamLoginSecure"]);
+
 const ORIGIN_DELIMITER_REGEX = /[\n,;]+/;
 const MAX_CORS_ALLOWED_ORIGINS_LENGTH = 5000;
 const MAX_CORS_ALLOWED_ORIGINS = 100;
@@ -975,6 +977,13 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         );
         return false;
       }
+      // SECURITY: the Steam cookies live in their own secret files and
+      // db.json keeps null for them (services/steamSessionCredentials.js),
+      // which GET returns as it is, so Settings sends that null back on
+      // every Save. A null is "unchanged", as the mask is: it used to clear
+      // both cookies, for any panel.settings holder (the mods.manage check
+      // below compared it with the stored null and let it through).
+      if (STEAM_COOKIE_KEYS.has(key) && value === null) return false;
       return true;
     });
 
@@ -1010,7 +1019,13 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         requiredCapability = "files.manage";
       }
       if (!requiredCapability) continue;
-      if (JSON.stringify(currentSettings[key]) === JSON.stringify(value)) {
+      // The stored copy of a Steam cookie says nothing about the cookie in
+      // its secret file (it is null once one is saved), so any value sent
+      // for one is a change.
+      if (
+        !STEAM_COOKIE_KEYS.has(key) &&
+        JSON.stringify(currentSettings[key]) === JSON.stringify(value)
+      ) {
         continue;
       }
       if (callerCapabilities === null) {

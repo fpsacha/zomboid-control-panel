@@ -16,6 +16,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Mod presets:** editing a preset now accepts only Workshop IDs and mod IDs, at most 2,000 of each, and applying one writes only those; a malformed preset could stop the panel from saving its settings.
+- **Steam Workshop session kept on Settings save:** saving the Settings page no longer clears the stored Workshop cookies, and clearing them takes the mods permission.
 
 ## [2026.10.1] - 2026-10-26
 
