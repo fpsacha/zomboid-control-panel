@@ -17,6 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Panel data folder:** it can no longer be moved into the panel's program folder or the web client it serves, or (on Windows) onto a network share, which could expose the panel's secrets.
 - **Zomboid data folders:** on Windows a server's data folder can no longer be a network share, which made the panel's account sign in to that host; map the share to a drive letter instead.
+- **Diagnostics Java check:** no longer runs Java from an install folder inside a Steam Workshop download folder or on a network share that was saved before those folders were refused.
 
 ## [2026.10.1] - 2026-10-26
 
