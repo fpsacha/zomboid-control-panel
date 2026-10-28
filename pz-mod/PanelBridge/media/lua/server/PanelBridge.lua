@@ -19,6 +19,11 @@
                     end. An entry stops at its first failed add, and an
                     import makes at most 1000 add attempts over at most
                     2000 entries.
+                - Fix: playWorldSound and playSoundNearPlayer keep the radius
+                    to 10..500 and the volume to 1..500, as createNoise
+                    always did. The server sends a sound to every client in
+                    its radius and each client walks every chunk inside it,
+                    so a radius of 1e7 froze every player's game.
 
                 v1.7.78 Changes:
                 - Fix: a character import can no longer freeze the server.
@@ -4435,7 +4440,18 @@ end
 -- so fall back to the WorldSoundManager API when it is missing. Returns
 -- (true, method) on success or (false, errorMessage) on failure so callers
 -- never crash with "attempt to call nil value (global 'addSound')".
+-- A sound's radius and volume within createNoise's range (10..500 and
+-- 1..500). The server sends a sound to every client within its radius, and
+-- each client walks every chunk inside it, so radius 1e7 froze them all.
+local function clampSoundNumber(value, default, low, high)
+    value = tonumber(value)
+    if not value or value ~= value then value = default end
+    return math.floor(math.min(math.max(value, low), high))
+end
+
 local function emitWorldSound(player, x, y, z, radius, volume)
+    radius = clampSoundNumber(radius, 50, 10, 500)
+    volume = clampSoundNumber(volume, 100, 1, 500)
     local method = "unknown"
     local ok, err = pcall(function()
         if addSound then
@@ -4467,8 +4483,8 @@ handlers.playWorldSound = function(args)
     local x = tonumber(args.x)
     local y = tonumber(args.y)
     local z = tonumber(args.z) or 0
-    local radius = tonumber(args.radius) or 50
-    local volume = tonumber(args.volume) or 100
+    local radius = clampSoundNumber(args.radius, 50, 10, 500)
+    local volume = clampSoundNumber(args.volume, 100, 1, 500)
 
     if not x or not y then
         return false, nil, "x and y coordinates are required"
@@ -4495,8 +4511,8 @@ end
 -- Play a sound near a specific player (zombies will hear it)
 handlers.playSoundNearPlayer = function(args)
     local username = args.username
-    local radius = tonumber(args.radius) or 50
-    local volume = tonumber(args.volume) or 100
+    local radius = clampSoundNumber(args.radius, 50, 10, 500)
+    local volume = clampSoundNumber(args.volume, 100, 1, 500)
 
     if not username then
         return false, nil, "username is required"

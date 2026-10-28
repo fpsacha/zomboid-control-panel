@@ -19,6 +19,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Bridge command history stays small:** db.json keeps at most 4 KB of each command's data, so a huge or deeply nested command can no longer bloat it or stop the panel from saving.
 - **Character import:** PanelBridge stops trying an item type that doesn't exist, and the panel refuses more than 2000 items or an item type that isn't a plain name, so an import file can't stall the game server.
 - **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
+- **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
 
 ## [2026.10.1] - 2026-10-26
 

@@ -19,7 +19,7 @@ import {
 } from '../database/init.js';
 import { createLogger } from '../utils/logger.js';
 import { bridgeFolderName } from '../utils/bridgeFolderName.js';
-import { bridgeArgsRefusal, bridgeArgsRefusalMessage } from '../utils/bridgeCommandArgs.js';
+import { bridgeArgsRefusal, bridgeArgsRefusalMessage, boundedSoundArgs } from '../utils/bridgeCommandArgs.js';
 import { PanelBridgeSftpTransport } from './panelBridgeSftp.js';
 const log = createLogger('Bridge');
 
@@ -928,6 +928,7 @@ class PanelBridge extends EventEmitter {
         code: 'PANELBRIDGE_ARGS_TOO_LARGE',
       });
     }
+    args = boundedSoundArgs(action, args);
     log.debug(`sendCommand: action=${action} args=${JSON.stringify(args).substring(0, 200)}`);
     if (!this.bridgePath) {
       throw new Error('Bridge not configured');

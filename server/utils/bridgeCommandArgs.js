@@ -71,3 +71,29 @@ export function bridgeArgsRefusalMessage(refusal) {
   }
   return "Command arguments can't be sent to PanelBridge.";
 }
+
+// SECURITY (2026-10-28): a world sound's radius and volume went to the mod
+// as given. The game server sends the sound to every client within its
+// radius and each client walks every chunk inside it, so a radius of 1e7
+// froze every player's game. createNoise always kept them to 10..500 and
+// 1..500; the panel now does the same for every sound command, which also
+// covers a server whose PanelBridge predates the mod's own clamp.
+const SOUND_ACTIONS = new Set(["playWorldSound", "playSoundNearPlayer", "createNoise"]);
+const SOUND_LIMITS = { radius: [10, 500], volume: [1, 500] };
+
+export function boundedSoundArgs(action, args) {
+  if (!SOUND_ACTIONS.has(action) || args === null || typeof args !== "object" || Array.isArray(args)) {
+    return args;
+  }
+  const bounded = { ...args };
+  for (const [field, [low, high]] of Object.entries(SOUND_LIMITS)) {
+    if (bounded[field] === undefined || bounded[field] === null) continue;
+    const value = typeof bounded[field] === "string" && bounded[field].trim() === "" ? NaN : Number(bounded[field]);
+    if (typeof bounded[field] === "boolean" || !Number.isFinite(value)) {
+      delete bounded[field];
+    } else {
+      bounded[field] = Math.floor(Math.min(Math.max(value, low), high));
+    }
+  }
+  return bounded;
+}
