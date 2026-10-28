@@ -7,6 +7,11 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+### Security
+
+- **Live updates no longer take a sign-in token from the address:** the Socket.IO connection reads it from its sign-in data only, as the panel already sends it, so a token copied into a URL or a proxy log can't open one.
+- **Problems found can't be fed a fake warning before sign-in:** a crash report sent from the login page no longer counts as the panel's own failed process scan.
+
 ## [2026.10.1] - 2026-10-26
 
 ### Added
