@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 // Supply-chain review 2026-10-20: what reaches users' machines must come
 // from a reviewed release, built from exactly what the lockfiles pin, by a
@@ -102,10 +104,16 @@ describe("Dependabot", () => {
 describe("Docker image tags", () => {
   const workflow = readRepoFile(".github/workflows/docker-publish.yml");
 
-  it("moves latest only on a release tag, and main/edge on main pushes", () => {
+  it("moves latest only on the newest release tag, and main/edge on main pushes", () => {
     expect(workflow).toContain("flavor: latest=false");
-    expect(workflow).toContain("type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}");
+    expect(workflow).toContain("type=raw,value=latest,enable=${{ steps.newest.outputs.latest == 'true' }}");
+    expect(workflow).toContain("type=semver,pattern={{major}}.{{minor}},enable=${{ steps.newest.outputs.minor == 'true' }}");
     expect(workflow.match(/value=latest/g) || []).toHaveLength(1);
+    expect(workflow.match(/pattern=\{\{major\}\}/g) || []).toHaveLength(1);
+    const step = workflow.slice(workflow.indexOf("- name: Check whether this is the newest release tag"));
+    expect(step.slice(0, step.indexOf("\n\n"))).toMatch(/id: newest\n\s+if: startsWith\(github\.ref, 'refs\/tags\/v'\)/);
+    expect(step.slice(0, step.indexOf("\n\n"))).toContain(`git tag --list 'v*' | node scripts/newest-release-tag.mjs "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"`);
+    expect(workflow.indexOf("id: newest")).toBeLessThan(workflow.indexOf("id: meta"));
     expect(workflow).toContain("type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}");
     expect(workflow).toContain("type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}");
   });
@@ -116,6 +124,44 @@ describe("Docker image tags", () => {
     expect(login.slice(0, login.indexOf("uses:"))).toContain("if: github.event_name != 'pull_request'");
     expect(workflow).toContain("push: ${{ github.event_name != 'pull_request' }}");
     expect(workflow).not.toMatch(/push: true/);
+  });
+
+  // The step's script, fed the repository's tags the way the step does.
+  const newest = (tag, tags) => {
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL("../../scripts/newest-release-tag.mjs", import.meta.url)), tag], {
+      input: tags.join("\n"),
+      encoding: "utf8",
+    });
+    return { status: result.status, out: result.stdout.trim().split(/\r?\n/), err: result.stderr };
+  };
+  const released = ["v0.1.0-alpha", "v0.8.5.2", "v1.4.9", "v1.4.10", "v1.6.0", "v2026.9.3", "v2026.10.1", "v2026.10.2"];
+
+  it("lets the highest release tag move latest and its minor alias", () => {
+    expect(newest("v2026.10.2", released)).toEqual({ status: 0, out: ["latest=true", "minor=true"], err: "" });
+  });
+
+  it("keeps latest when an older tag's run is re-run or dispatched", () => {
+    expect(newest("v2026.10.1", released).out).toEqual(["latest=false", "minor=false"]);
+    expect(newest("v1.6.0", released).out).toEqual(["latest=false", "minor=true"]);
+    // A patch to an older minor after a newer release: only its own alias.
+    expect(newest("v2026.9.4", [...released, "v2026.9.4"]).out).toEqual(["latest=false", "minor=true"]);
+  });
+
+  it("compares versions as numbers, and ignores tags that aren't vX.Y.Z", () => {
+    // 10 > 9, and 2026.10 > 2026.9 (a string sort gets both wrong).
+    expect(newest("v1.4.10", ["v1.4.9", "v1.4.10"]).out).toEqual(["latest=true", "minor=true"]);
+    expect(newest("v2026.9.3", released).out[0]).toBe("latest=false");
+    expect(newest("v2026.10.2", [...released, "v9999.0.0-rc1", "v9999.0.0.1", "nightly"]).out[0]).toBe("latest=true");
+    expect(newest("v2026.10.2", released.map((tag) => `${tag}\r`)).out[0]).toBe("latest=true");
+  });
+
+  it("refuses when the tags weren't fetched or the ref isn't a release tag", () => {
+    // Without the repository's tags every tag would look like the newest.
+    expect(newest("v2026.10.1", []).status).toBe(1);
+    expect(newest("v2026.10.1", ["v1.6.0"]).status).toBe(1);
+    expect(newest("v2026.10.1-rc1", [...released, "v2026.10.1-rc1"]).status).toBe(1);
+    expect(newest("main", [...released, "main"]).status).toBe(1);
+    expect(newest("", released).status).toBe(1);
   });
 
   it("tells users that latest is the newest release", () => {
