@@ -37,6 +37,7 @@ import {
 } from "../utils/zomboidPaths.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { resolveObservedServerRunning } from "../utils/serverStatus.js";
 import {
   buildVehicleBoxes,
   cellDivisorFor,
@@ -66,6 +67,49 @@ async function refusedWithoutSqlite(res, route) {
     });
     return true;
   }
+}
+
+// R2-23 (2026-10-28): the delete routes' process scan only sees the panel's
+// own PID namespace. With the game in another container, or on the host
+// while the panel runs in Docker (/zomboid bind-mounted), it finds nothing
+// while the world is open, and the delete went ahead under a live server:
+// the game writes the chunks back and vehicles.db is replaced under it. So,
+// once the scan has said "stopped", also ask what the panel already knows:
+// resolveObservedServerRunning() -- the container's own state for the Docker
+// providers, RCON and PanelBridge alongside the scan otherwise, the verdict
+// restore and wipe use -- and a live RCON connection on its own, which means
+// the game is up wherever it runs. Running refuses as the scan does (force
+// still overrides); "cannot tell" refuses as "can't verify". `details` is
+// the scan already taken, not a second one. True when it has answered.
+async function refusedForServerTheScanCannotSee(req, res, details) {
+  const rconService = req.app.get("rconService");
+  let observed;
+  try {
+    observed = await resolveObservedServerRunning(
+      { getServerProcessDetails: async () => details },
+      rconService,
+    );
+  } catch (error) {
+    log.warn(`Could not tell whether the server is running before a chunk delete: ${error.message}`);
+    observed = null;
+  }
+  if (observed === true || Boolean(rconService?.connected)) {
+    res.status(400).json({
+      error:
+        "Stop the server before deleting chunks. Running servers hold save files open and will overwrite your changes on shutdown.",
+      code: "server_running",
+      matched: Array.isArray(details?.matched) ? details.matched : [],
+    });
+    return true;
+  }
+  if (observed !== false) {
+    res.status(503).json({
+      error: "Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server. Check the panel's log for the error. If this keeps happening, something on this host (antivirus, a full disk, or a missing system tool) may be blocking detection.",
+      code: ErrorCode.SERVER_STATE_UNKNOWN,
+    });
+    return true;
+  }
+  return false;
 }
 
 // Run `worker` over `items` with at most `limit` in flight at once. Used for
@@ -1462,6 +1506,7 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
           matched: details.matched,
         });
       }
+      if (await refusedForServerTheScanCannotSee(req, res, details)) return;
     } else {
       log.warn("delete-chunks: server-running check bypassed via force=true");
     }
@@ -1948,6 +1993,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
           matched: details.matched,
         });
       }
+      if (await refusedForServerTheScanCannotSee(req, res, details)) return;
     } else {
       log.warn("delete-region: server-running check bypassed via force=true");
     }

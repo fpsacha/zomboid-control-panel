@@ -16,6 +16,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Map Cleanup paths on Windows:** a typed custom path can no longer name a network share or device path (unless it is a server's data folder), which made the panel's Windows account sign in to that host.
+- **Map Cleanup with the game outside the panel's container:** deleting chunks now also refuses while the server's container runs or RCON still answers, as restore and wipe do.
 
 ## [2026.10.1] - 2026-10-26
 
