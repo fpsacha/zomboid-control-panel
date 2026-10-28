@@ -18,6 +18,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **PanelBridge commands can't stall the game server:** the panel refuses command data over 64 KB (512 KB for a character import) or nested more than 32 levels, and PanelBridge reads each command in linear time; one request used to freeze the server for minutes.
 - **Bridge command history stays small:** db.json keeps at most 4 KB of each command's data, so a huge or deeply nested command can no longer bloat it or stop the panel from saving.
 - **Character import:** PanelBridge stops trying an item type that doesn't exist, and the panel refuses more than 2000 items or an item type that isn't a plain name, so an import file can't stall the game server.
+- **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
 
 ## [2026.10.1] - 2026-10-26
 

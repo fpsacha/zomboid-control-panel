@@ -452,6 +452,18 @@ function requireBridgeCommandUnlessGmToolsOnly(req, res, next) {
 // Exported for routes/playerCharacter.js, which validates the same names.
 export const BRIDGE_USERNAME_REGEX = /^(?=.*\S)[^\x00-\x1F\x7F"\\]{1,64}$/;
 
+// The steps PanelBridge's runEventSequence hands to sendToGeneralChat,
+// sendToAdminChat or createNoise. Mirrors the Lua: it walks the steps array
+// (ipairs) and compares `kind` and `channel` as strings.
+function runEventSequenceNeedsEndanger(args) {
+  const steps = args?.steps;
+  if (!Array.isArray(steps)) return false;
+  return steps.some((step) => step !== null && typeof step === "object" && !Array.isArray(step) && (
+    step.kind === "noise" ||
+    (step.kind === "chat" && (step.channel === "general" || step.channel === "admin"))
+  ));
+}
+
 // utils/characterImport.js says which part of an import it refused.
 function characterImportRefusalCode(kind) {
   return kind === "inventory"
@@ -1627,6 +1639,23 @@ router.post("/command", requireBridgeCommandUnlessGmToolsOnly, async (req, res) 
         error: isReplacementSemantics
           ? `"${action}" requires ${requiredCapability}.`
           : `"${action}" also requires ${requiredCapability}.`,
+        code: ErrorCode.PANELBRIDGE_ACTION_CAPABILITY_REQUIRED,
+      });
+    }
+  }
+
+  // SECURITY (2026-10-28): runEventSequence's steps call the mod's chat and
+  // noise handlers directly (PanelBridge.lua handlers.runEventSequence), so
+  // a role with bridge.command alone could post as any name in General or
+  // Admin chat, or make noise at a player, which sendToGeneralChat,
+  // sendToAdminChat and createNoise each refuse it above. Such steps need
+  // the same capability.
+  if (action === "runEventSequence" && runEventSequenceNeedsEndanger(args)) {
+    const role = req.user ? await getRoleByName(req.user.role) : null;
+    const capabilities = Array.isArray(role?.capabilities) ? role.capabilities : [];
+    if (!capabilities.includes("players.endanger_or_impersonate")) {
+      return res.status(403).json({
+        error: '"runEventSequence" chat steps in General or Admin chat and noise steps also require players.endanger_or_impersonate.',
         code: ErrorCode.PANELBRIDGE_ACTION_CAPABILITY_REQUIRED,
       });
     }
