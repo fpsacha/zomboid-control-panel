@@ -16,6 +16,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Docker `:latest`:** re-running an older release's image build no longer points `:latest` back at that older version.
+- **Docker image builds:** the QEMU and BuildKit helper images that build and push the panel images are pinned by digest (kept current by Dependabot) instead of moving tags.
 
 ## [2026.10.1] - 2026-10-26
 

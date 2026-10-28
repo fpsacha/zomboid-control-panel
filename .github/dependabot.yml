@@ -81,13 +81,16 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
-  # The panel image (/), the all-in-one image and its updater. Their base
-  # images are pinned by digest, which this entry keeps current.
+  # The panel image (/), the all-in-one image and its updater, plus the
+  # QEMU/BuildKit helper images the publish workflows run
+  # (/.github/helper-images). All are pinned by digest, which this entry
+  # keeps current.
   - package-ecosystem: docker
     directories:
       - /
       - /docker/all-in-one
       - /docker/all-in-one/updater
+      - /.github/helper-images
     schedule:
       interval: weekly
     cooldown:
