@@ -16,6 +16,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Config templates:** a template saved by v1.2.6 or older no longer shows its RCON and join passwords, and editing one removes them from the file; template files are no longer written through a link to another file.
+- **Shared backups folder (Windows):** another server profile's backup can no longer be downloaded, read, deleted or restored by spelling its name in another letter case or by its short name.
 
 ## [2026.10.1] - 2026-10-26
 
