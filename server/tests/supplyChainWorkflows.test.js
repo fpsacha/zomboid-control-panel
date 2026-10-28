@@ -422,3 +422,29 @@ describe("package version check", () => {
     expect(result.stderr).toContain("expected package version argument is empty");
   });
 });
+
+// .gitleaksignore silences gitleaks findings checked by hand. Each entry is
+// one finding's fingerprint (commit:path:rule:line), so a new secret on
+// another line, file or commit is still reported.
+describe("gitleaks allowlist", () => {
+  const entries = () => readRepoFile(".gitleaksignore").split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const git = (...args) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+
+  it("lists single findings only, never a whole file or rule", () => {
+    expect(entries().length).toBeGreaterThan(0);
+    for (const entry of entries()) {
+      expect(entry).toMatch(/^[0-9a-f]{40}:[\w./@-]+:[a-z0-9-]+:\d+$/);
+    }
+    expect(new Set(entries()).size).toBe(entries().length);
+  });
+
+  it("names files that exist at those commits", () => {
+    const shallow = git("rev-parse", "--is-shallow-repository").stdout.trim() === "true";
+    if (shallow) return;
+    for (const entry of entries()) {
+      const [commit, file] = entry.split(":");
+      expect(git("cat-file", "-e", `${commit}:${file}`).status, entry).toBe(0);
+    }
+  });
+});
