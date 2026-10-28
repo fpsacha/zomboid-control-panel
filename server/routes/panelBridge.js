@@ -10,6 +10,7 @@ import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import bridge from "../services/panelBridge.js";
+import { readModFileCapped } from "../utils/bridgeModFile.js";
 import {
   getActiveServer,
   getServer,
@@ -1418,9 +1419,8 @@ router.get("/scan-paths", requirePermission("bridge.setup"), async (req, res) =>
                   try {
                     const stats = fs.statSync(statusFile);
                     statusAge = Date.now() - stats.mtimeMs;
-                    const content = JSON.parse(
-                      fs.readFileSync(statusFile, "utf-8"),
-                    );
+                    // Capped: the game server's account can write this folder.
+                    const content = JSON.parse(readModFileCapped(statusFile));
                     modVersion = content.version;
                   } catch (e) {
                     log.debug(

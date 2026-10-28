@@ -20,36 +20,24 @@ import {
 import { createLogger } from '../utils/logger.js';
 import { bridgeFolderName } from '../utils/bridgeFolderName.js';
 import { bridgeArgsRefusal, bridgeArgsRefusalMessage, boundedSoundArgs } from '../utils/bridgeCommandArgs.js';
+import {
+  BRIDGE_FILE_TOO_LARGE,
+  readModFileCapped,
+  clearModFile,
+  writeFreshModFile,
+  writeModFileNoFollow,
+  isUnreadableBridgeFile,
+} from '../utils/bridgeModFile.js';
 import { PanelBridgeSftpTransport } from './panelBridgeSftp.js';
+
+// Kept exported from here for existing importers.
+export { BRIDGE_FILE_TOO_LARGE, readModFileCapped };
 const log = createLogger('Bridge');
 
 // Build 42 (buildid 24449161) only lets Lua write files whose name ends in
 // .txt, so every file the mod owns carries this extra suffix from v1.7.7.
 const MOD_WRITE_SUFFIX = '.txt';
 const RESULT_FILE_PATTERN = /^res-(\d+)\.json(?:\.txt)?$/;
-
-// The files the mod writes (status.json, outbox res-N.json,
-// queue-state-lua.json, results.json) sit in a folder the game server's
-// account can write: one that size must not be read whole into memory on
-// every poll. Same ceiling as the SFTP transport's downloads
-// (panelBridgeSftp.js MAX_BRIDGE_FILE_BYTES); logged once per file until it
-// is back under it.
-const MAX_LOCAL_BRIDGE_FILE_BYTES = 16 * 1024 * 1024;
-export const BRIDGE_FILE_TOO_LARGE = 'BRIDGE_FILE_TOO_LARGE';
-const oversizedBridgeFilesLogged = new Set();
-
-export function readModFileCapped(filePath) {
-  const { size } = fs.statSync(filePath);
-  if (size > MAX_LOCAL_BRIDGE_FILE_BYTES) {
-    if (!oversizedBridgeFilesLogged.has(filePath)) {
-      oversizedBridgeFilesLogged.add(filePath);
-      log.warn(`Bridge file ${path.basename(filePath)} is ${size} bytes, over the ${MAX_LOCAL_BRIDGE_FILE_BYTES / (1024 * 1024)} MB limit -- not read`);
-    }
-    throw Object.assign(new Error(`Bridge file ${path.basename(filePath)} exceeds the size limit`), { code: BRIDGE_FILE_TOO_LARGE });
-  }
-  oversizedBridgeFilesLogged.delete(filePath);
-  return fs.readFileSync(filePath, 'utf-8');
-}
 
 // 2026-09-02, destructive-guards-sweep: cleanupInboxFiles/cleanupOutboxFiles
 // used to unlink every *.tmp file they found with NO guard at all -- no age
@@ -437,7 +425,7 @@ class PanelBridge extends EventEmitter {
     if (fs.existsSync(stateFile)) {
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8') || '{}');
+        const state = JSON.parse(readModFileCapped(stateFile) || '{}');
         const nextSeq = Number(state.nextCommandSeq);
         const consumed = Number(state.lastConsumedResultSeq);
         const nextResult = Number(state.nextResultSeq);
@@ -521,13 +509,13 @@ class PanelBridge extends EventEmitter {
     const tempFile = `${stateFile}.tmp`;
     try {
       // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2), { mode: 0o600 });
+      writeFreshModFile(tempFile, JSON.stringify(payload, null, 2));
       // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
       fs.renameSync(tempFile, stateFile);
     } catch (error) {
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        fs.writeFileSync(stateFile, JSON.stringify(payload, null, 2), { mode: 0o600 });
+        writeModFileNoFollow(stateFile, JSON.stringify(payload, null, 2));
       } catch (writeError) {
         log.warn(`Could not persist queue state: ${writeError.message}`);
       }
@@ -1015,7 +1003,7 @@ class PanelBridge extends EventEmitter {
       // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
       if (fs.existsSync(commandsFile)) {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        const content = fs.readFileSync(commandsFile, 'utf-8');
+        const content = readModFileCapped(commandsFile);
         if (content.trim()) {
           commands = JSON.parse(content);
           if (!commands.commands) commands.commands = [];
@@ -1035,7 +1023,7 @@ class PanelBridge extends EventEmitter {
 
     const tempFile = commandsFile + '.tmp';
     // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-    fs.writeFileSync(tempFile, JSON.stringify(commands, null, 2), { mode: 0o600 });
+    writeFreshModFile(tempFile, JSON.stringify(commands, null, 2));
     try {
       // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
       fs.renameSync(tempFile, commandsFile);
@@ -1044,7 +1032,7 @@ class PanelBridge extends EventEmitter {
       log.warn(`renameSync failed, using direct write: ${err.message}`);
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        fs.writeFileSync(commandsFile, JSON.stringify(commands, null, 2), { mode: 0o600 });
+        writeModFileNoFollow(commandsFile, JSON.stringify(commands, null, 2));
       } catch (writeErr) {
         log.error(`Direct write also failed: ${writeErr.message}`);
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
@@ -1078,7 +1066,7 @@ class PanelBridge extends EventEmitter {
     // Compact: the mod reads this file on the game thread, and indentation
     // only adds bytes for it to skip.
     // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-    fs.writeFileSync(tempFile, JSON.stringify(payload), { mode: 0o600 });
+    writeFreshModFile(tempFile, JSON.stringify(payload));
     // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
     fs.renameSync(tempFile, commandFile);
 
@@ -1246,7 +1234,7 @@ class PanelBridge extends EventEmitter {
 
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        fs.writeFileSync(resultFile, '', { mode: 0o600 });
+        clearModFile(resultFile);
       } catch (cleanupErr) {
         log.debug(`Resync recovery: failed to clear result file seq ${seq}: ${cleanupErr.message}`);
       }
@@ -1374,7 +1362,7 @@ class PanelBridge extends EventEmitter {
         if (this._emptyReadCounter) this._emptyReadCounter.count = 0;
         parsed = JSON.parse(raw);
       } catch (error) {
-        if (error.code === BRIDGE_FILE_TOO_LARGE) {
+        if (isUnreadableBridgeFile(error)) {
           // Never read: skipped like an orphaned empty result, so one
           // oversized file can't stall the queue (its command times out).
           this.queueState.lastConsumedResultSeq = seq;
@@ -1397,7 +1385,7 @@ class PanelBridge extends EventEmitter {
 
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        fs.writeFileSync(resultFile, '', { mode: 0o600 });
+        clearModFile(resultFile);
       } catch (cleanupErr) {
         log.debug(`Failed to clear result file seq ${seq}: ${cleanupErr.message}`);
       }
@@ -1515,7 +1503,7 @@ class PanelBridge extends EventEmitter {
     if (cursorFile && fs.existsSync(cursorFile)) {
       try {
         // codeql[js/path-injection] this.bridgePath is set only by configure()/autoDetect(), both of which validate their input before assignment (route-layer isAbsolute+blocklist guard, or autoDetect's regex on serverName) -- this line only re-reads the already-validated field.
-        const cursor = JSON.parse(fs.readFileSync(cursorFile, 'utf-8') || '{}');
+        const cursor = JSON.parse(readModFileCapped(cursorFile) || '{}');
         const parsed = Number(cursor.lastProcessedSeq);
         if (Number.isFinite(parsed) && parsed > 0) {
           lastProcessedSeq = Math.floor(parsed);

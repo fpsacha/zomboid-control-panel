@@ -21,6 +21,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
 - **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
 - **PanelBridge over SFTP:** the 16 MB download limit now applies to the transfer itself, not only to the size the remote host reports, so a hostile host can no longer fill the panel's disk.
+- **PanelBridge folder files:** the panel no longer follows a link or reads past 16 MB in the bridge folder (inbox cursor and Find Bridge scan included), so a game server account that differs from the panel's can't make it empty or overwrite another file, or run it out of memory.
 
 ## [2026.10.1] - 2026-10-26
 
