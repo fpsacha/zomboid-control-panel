@@ -22,6 +22,7 @@
 import fs from "fs";
 import path from "path";
 import { getDataPaths } from "./paths.js";
+import { restrictSecretFileSync } from "./secretFileAcl.js";
 
 function secretFilePath(name) {
   return path.join(getDataPaths().dataDir, `${name}.secret`);
@@ -68,6 +69,7 @@ export function writeUiSecretFile(name, value) {
   } catch {
     /* best-effort: Windows / network shares */
   }
+  restrictSecretFileSync(filePath); // the Windows equivalent (utils/secretFileAcl.js)
 }
 
 /**
@@ -103,6 +105,8 @@ export function replaceUiSecretFiles(entries) {
       if (fs.readFileSync(file.staged, "utf8").trim() !== file.value) {
         throw new Error(`staged verification failed for ${file.name}`);
       }
+      // Before the rename below, which keeps the staged file's own ACL.
+      restrictSecretFileSync(file.staged);
     }
 
     for (const file of files) {

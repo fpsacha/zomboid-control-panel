@@ -44,6 +44,7 @@ import fs from "fs";
 import path from "path";
 import { getDataPaths } from "./paths.js";
 import { readUiSecretFile, writeUiSecretFile } from "./uiSecretFile.js";
+import { restrictSecretFileSync } from "./secretFileAcl.js";
 
 function secretsDir() {
   return path.join(getDataPaths().dataDir, "server-secrets");
@@ -108,6 +109,7 @@ function writeServerSecret(serverId, value) {
   } catch {
     /* best-effort: Windows / network shares */
   }
+  restrictSecretFileSync(filePath); // the Windows equivalent (utils/secretFileAcl.js)
 }
 
 /** Called when a server profile is deleted, so its password file isn't orphaned. */
