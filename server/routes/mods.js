@@ -1147,7 +1147,11 @@ router.post("/sync-from-server", async (req, res) => {
     const workshopMatch = content.match(/^[ \t]*WorkshopItems[ \t]*=[ \t]*(.*)$/m);
 
     const modIds = splitModIdList(modsMatch?.[1]);
-    const workshopIds = splitIniList(workshopMatch?.[1]);
+    // Only digits-only ids are Workshop items (same filter as GET /tracked);
+    // anything else in a hand-edited line is neither tracked nor looked up.
+    const workshopIds = splitIniList(workshopMatch?.[1]).filter((id) =>
+      /^\d{1,15}$/.test(id),
+    );
 
     log.info(
       `sync-from-server: Found ${modIds.length} mod IDs and ${workshopIds.length} workshop IDs`,

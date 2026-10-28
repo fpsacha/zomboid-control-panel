@@ -12,18 +12,25 @@ import { createRouteRunner, makeServerFixture } from "./helpers/modsRouteHarness
 // GET /current-config then listed any folder and returned the mod.info fields
 // found there. getWorkshopPaths() now has no folder for anything but digits,
 // and PUT /presets/:id takes digits-only workshopIds.
+// Review round 1: ModChecker.resolveModNameFromDisk() joined the id on its
+// own, and POST /sync-from-server stored the mod.info name it read there as
+// a tracked mod's name. It has the same guard now, and the route tracks
+// digits-only ids only.
 
 vi.mock("../database/init.js", () => ({
   getActiveServer: vi.fn(),
   getSetting: vi.fn(async () => null),
   updateModPreset: vi.fn(),
+  isModIgnored: vi.fn(async () => false),
+  addTrackedMod: vi.fn(),
 }));
 
-const { getActiveServer, updateModPreset } = await import("../database/init.js");
+const { getActiveServer, updateModPreset, addTrackedMod } = await import("../database/init.js");
 const { ErrorCode } = await import("../utils/errorCodes.js");
 const { getWorkshopPaths, getModDetailsFromWorkshop, findMapFoldersFromWorkshop } = await import(
   "../services/workshopModInfo.js"
 );
+const { ModChecker } = await import("../services/modChecker.js");
 const { default: router } = await import("../routes/mods.js");
 const runRoute = createRouteRunner(router);
 
@@ -46,6 +53,7 @@ describe("Workshop item ids are folder names only when digits", () => {
     fx.writeMod("1234567890", "Real", "name=Real\nid=RealMod\n");
     getActiveServer.mockReset().mockResolvedValue(fx.activeServer);
     updateModPreset.mockReset().mockImplementation(async (id, updates) => ({ id, ...updates }));
+    addTrackedMod.mockReset();
   });
 
   afterEach(() => fx.cleanup());
@@ -55,6 +63,33 @@ describe("Workshop item ids are folder names only when digits", () => {
     expect(findMapFoldersFromWorkshop(ESCAPE, fx.installPath)).toEqual([]);
     // A real item is still read.
     expect(getModDetailsFromWorkshop("1234567890", fx.installPath).map((m) => m.id)).toEqual(["RealMod"]);
+  });
+
+  function modCheckerFor(installPath) {
+    const checker = new ModChecker();
+    checker.workshopAcfPath = path.join(installPath, "steamapps", "workshop", "appworkshop_108600.acf");
+    checker.fetchSteamTimestamps = async () => new Map();
+    return checker;
+  }
+
+  it("ModChecker reads no mod name outside the Workshop folder", () => {
+    const checker = modCheckerFor(fx.installPath);
+    expect(checker.resolveModNameFromDisk(ESCAPE)).toBeNull();
+    expect(checker.resolveModNameFromDisk(`1234567890/${ESCAPE}`)).toBeNull();
+    expect(checker.resolveModNameFromDisk(["1234567890"])).toBeNull();
+    expect(checker.resolveModNameFromDisk("1234567890")).toBe("Real");
+  });
+
+  it("POST /sync-from-server tracks digits-only ids and no name read outside the Workshop folder", async () => {
+    fx.writeIni(`Mods=RealMod
+WorkshopItems=1234567890;${ESCAPE}
+`);
+    const checker = modCheckerFor(fx.installPath);
+    const res = await runRoute("/sync-from-server", "post", { app: { get: () => checker } });
+    expect(res.getStatusCode()).toBe(200);
+    expect(res.getBody()).toMatchObject({ success: true, synced: 1 });
+    expect(addTrackedMod.mock.calls).toEqual([["1234567890", "Real"]]);
+    expect(JSON.stringify(addTrackedMod.mock.calls)).not.toMatch(/LeakedName|elsewhere/);
   });
 
   it("GET /current-config does not return mod.info fields from a folder WorkshopItems= escapes to", async () => {
