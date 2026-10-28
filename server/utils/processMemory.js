@@ -40,11 +40,29 @@ function run(file, args, timeout = 8000) {
   });
 }
 
-async function windowsRss(pids) {
+// SECURITY (2026-10-28): single-flight, like serverManager.js's
+// runWindowsPowerShell(). Requests to GET /servers/status that arrive
+// together all wait on one shared process scan, so they reach this at the
+// same moment: each started its own PowerShell while the cache was empty or
+// stale, and a burst of them starved the host running the game. A caller
+// asking while the same PIDs are being read shares that run's answer.
+const windowsInFlight = new Map();
+
+function windowsRss(pids) {
   const key = [...pids].sort((a, b) => a - b).join(",");
   if (key === windowsCache.key && Date.now() - windowsCache.at < WINDOWS_CACHE_MS) {
-    return windowsCache.values;
+    return Promise.resolve(windowsCache.values);
   }
+  const running = windowsInFlight.get(key);
+  if (running) return running;
+  const read = readWindowsRss(key).finally(() => {
+    if (windowsInFlight.get(key) === read) windowsInFlight.delete(key);
+  });
+  windowsInFlight.set(key, read);
+  return read;
+}
+
+async function readWindowsRss(key) {
   const values = new Map();
   const out = await run("powershell", [
     "-NoProfile",
