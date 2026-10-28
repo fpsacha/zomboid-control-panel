@@ -2169,8 +2169,14 @@ export const ErrorCode = Object.freeze({
    * but not an array. */
   PLAYERS_NOTE_TAGS_MUST_BE_ARRAY: "PLAYERS_NOTE_TAGS_MUST_BE_ARRAY",
   /** server/routes/players.js -- POST /api/players/notes, a `tags` entry
-   * isn't a string or exceeds 50 characters. */
+   * isn't a string or exceeds 50 characters, or there are more than 20
+   * distinct non-blank tags. */
   PLAYERS_NOTE_INVALID_TAGS: "PLAYERS_NOTE_INVALID_TAGS",
+  /** server/routes/players.js -- POST /api/players/notes, 409: a new
+   * player's note past MAX_PLAYER_NOTES (5,000), or a note that would grow
+   * all notes past 5 million characters (database/init.js upsertPlayerNote,
+   * security audit R1-9). Carries `{{max}}`. */
+  PLAYERS_NOTES_FULL: "PLAYERS_NOTES_FULL",
   /** server/routes/players.js -- DELETE /api/players/notes/:playerName, no
    * note existed for that player. */
   PLAYERS_NOTE_NOT_FOUND: "PLAYERS_NOTE_NOT_FOUND",

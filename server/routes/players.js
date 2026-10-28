@@ -8,6 +8,10 @@ import {
   getPlayerNotes,
   getPlayerNote,
   upsertPlayerNote,
+  normalizePlayerNoteTags,
+  PlayerNotesFullError,
+  MAX_PLAYER_NOTES,
+  MAX_PLAYER_NOTE_TAGS,
   deletePlayerNote,
   getPlayerStats,
   getPlayerStat,
@@ -1167,13 +1171,27 @@ router.post('/notes', requirePermission("players.moderate"), async (req, res) =>
     if (!Array.isArray(tags)) {
       return res.status(400).json({ error: 'Tags must be an array', code: ErrorCode.PLAYERS_NOTE_TAGS_MUST_BE_ARRAY });
     }
+    // R1-9: and at most MAX_PLAYER_NOTE_TAGS of them, once blanks and repeats
+    // are dropped (the Players page sends ten at most).
+    const invalidTags = { error: `Tags must be text, at most 50 characters each and ${MAX_PLAYER_NOTE_TAGS} per note`, code: ErrorCode.PLAYERS_NOTE_INVALID_TAGS };
     if (tags.some(t => typeof t !== 'string' || t.length > 50)) {
-      return res.status(400).json({ error: 'Tags must be strings (max 50 chars each)', code: ErrorCode.PLAYERS_NOTE_INVALID_TAGS });
+      return res.status(400).json(invalidTags);
+    }
+    const uniqueTags = normalizePlayerNoteTags(tags);
+    if (new Set(tags.filter(t => t.trim() !== '')).size > MAX_PLAYER_NOTE_TAGS) {
+      return res.status(400).json(invalidTags);
     }
 
-    const result = await upsertPlayerNote(playerName, note, tags);
+    const result = await upsertPlayerNote(playerName, note, uniqueTags);
     res.json({ success: true, note: result });
   } catch (error) {
+    if (error instanceof PlayerNotesFullError) {
+      return res.status(409).json({
+        error: `Player notes are full (${MAX_PLAYER_NOTES} notes or 5 million characters in all). Delete notes you no longer need, then try again.`,
+        code: ErrorCode.PLAYERS_NOTES_FULL,
+        params: { max: MAX_PLAYER_NOTES },
+      });
+    }
     log.error(`Failed to save player note: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
   }
