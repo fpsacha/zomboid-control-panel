@@ -337,6 +337,19 @@ describe('Players.tsx Activity list', () => {
     expect(screen.queryByText(/No activity yet/)).toBeNull()
   })
 
+  // Security audit R2-6: each deliberate action names the panel account
+  // that made it; automatic and older rows have none.
+  it('names the panel account behind an action, and nothing on a row without one', async () => {
+    setUpFixtures()
+    vi.mocked(playersApi.getActivityLogs).mockResolvedValue({
+      logs: [{ ...LOG, actor: 'alice' }, { ...LOG, id: 2, action: 'AUTOMATIC_ROW' }],
+    } as never)
+    renderPlayers(['/players?list=activity'])
+    expect(await screen.findByText('by alice')).toBeInTheDocument()
+    expect(await screen.findByText('AUTOMATIC_ROW')).toBeInTheDocument()
+    expect(screen.getAllByText(/^by /)).toHaveLength(1)
+  })
+
   it('switching to the list reads it too, however the list is chosen', async () => {
     setUpFixtures()
     vi.mocked(playersApi.getActivityLogs).mockResolvedValue({ logs: [LOG] } as never)

@@ -578,6 +578,7 @@
     "saveButton": "Save Note",
     "activityLogTitle": "Activity Log",
     "activityLogTruncatedHint": "Showing the most recent {{count}} entries -- older activity may not be shown.",
+    "activityByActor": "by {{actor}}",
     "logsErrorTitle": "Activity log unavailable",
     "filterPlaceholder": "Filter by player name...",
     "filterAria": "Filter activity logs by player name",

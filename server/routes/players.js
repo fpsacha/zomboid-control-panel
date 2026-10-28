@@ -23,6 +23,7 @@ import {
 } from '../database/init.js';
 import { VEHICLES, PERKS, PERK_CATALOG, ACCESS_LEVELS } from '../utils/commands.js';
 import { sanitizeError } from '../utils/sanitize.js';
+import { escapeLogText } from '../utils/logText.js';
 import bridge from '../services/panelBridge.js';
 import { listWhitelistAccounts, listServerRoleNames } from '../utils/whitelistDb.js';
 import { requirePermission } from '../services/permissions.js';
@@ -175,6 +176,24 @@ export function isStaffAccessLevel(level, roleCapabilities) {
   return !(roleCapabilities instanceof Map);
 }
 
+// SECURITY (2026-10-28, audit R2-6): the activity log (GET /activity) and the
+// info lines name the panel account behind each action, so with several
+// moderators an admin can tell who granted an access level or banned
+// someone. None while panel logins are off (no account is signed in).
+function actorOf(req) {
+  const username = req.user?.username;
+  return typeof username === 'string' && username ? username : null;
+}
+
+function byActor(req) {
+  const actor = actorOf(req);
+  return actor ? ` by ${escapeLogText(actor)}` : '';
+}
+
+function logModeration(req, playerName, action, details = null) {
+  return logPlayerAction(playerName, action, details, undefined, actorOf(req));
+}
+
 // Fails closed: a caller whose role can't be resolved holds nothing.
 async function callerHolds(req, capability) {
   if (!req.user) return false;
@@ -267,12 +286,12 @@ router.post('/kick', requirePermission("players.moderate"), async (req, res) => 
     }
 
     const result = await rconService.kickPlayer(username, reason);
-    log.info(`POST /kick: ${username} (reason=${reason || 'none'})`);
+    log.info(`POST /kick: ${username} (reason=${reason || 'none'})${byActor(req)}`);
     // Same unconditional-write shape as /ban et al.: only log the action if
     // RCON actually performed it, so the activity log doesn't claim a kick
     // happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'kick', reason);
+      await logModeration(req, username, 'kick', reason);
     }
 
     res.json(result);
@@ -316,13 +335,13 @@ router.post('/ban', requirePermission("players.moderate"), async (req, res) => {
     // sentReason, so this never logs "undefined".
     const sentReason = result?.sentReason ?? reason;
     log.info(
-      `POST /ban: ${username} (banIp=${banIp}, reason=${sentReason || 'none'}${sentReason !== reason ? ` [requested: ${reason}]` : ''})`,
+      `POST /ban: ${username} (banIp=${banIp}, reason=${sentReason || 'none'}${sentReason !== reason ? ` [requested: ${reason}]` : ''})${byActor(req)}`,
     );
     // Same unconditional-write shape as /unban: only log the action if RCON
     // actually performed it, so the activity log doesn't claim a ban
     // happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'ban', `IP: ${banIp}, Reason: ${sentReason}`);
+      await logModeration(req, username, 'ban', `IP: ${banIp}, Reason: ${sentReason}`);
     }
 
     res.json(result);
@@ -347,12 +366,12 @@ router.post('/unban', requirePermission("players.moderate"), async (req, res) =>
     }
 
     const result = await rconService.unbanPlayer(username);
-    log.info(`POST /unban: ${username}`);
+    log.info(`POST /unban: ${username}${byActor(req)}`);
     // Same unconditional-write shape as /banid: only log the action if RCON
     // actually performed it, so the activity log (GET /activity) doesn't
     // claim an unban happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'unban', null);
+      await logModeration(req, username, 'unban', null);
     }
 
     res.json(result);
@@ -483,12 +502,12 @@ router.post('/access-level', requirePermission("players.moderate"), async (req, 
     }
 
     const result = await rconService.setAccessLevel(username, level);
-    log.info(`POST /access-level: ${username} → ${level}`);
+    log.info(`POST /access-level: ${username} → ${level}${byActor(req)}`);
     // Same unconditional-write shape as /ban et al.: only log the action if
     // RCON actually performed it, so the activity log doesn't claim an
     // access-level change happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'access_level', level);
+      await logModeration(req, username, 'access_level', level);
     }
 
     res.json(result);
@@ -517,8 +536,8 @@ router.post('/whitelist/add', requirePermission("players.moderate"), async (req,
 
     const result = await rconService.addToWhitelist(username, password);
     if (!result?.success) return res.status(400).json(result);
-    log.info(`POST /whitelist/add: ${username}`);
-    await logPlayerAction(username, 'whitelist_add', null);
+    log.info(`POST /whitelist/add: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'whitelist_add', null);
 
     res.json(result);
   } catch (error) {
@@ -543,8 +562,8 @@ router.post('/whitelist/remove', requirePermission("players.moderate"), async (r
 
     const result = await rconService.removeFromWhitelist(username);
     if (!result?.success) return res.status(400).json(result);
-    log.info(`POST /whitelist/remove: ${username}`);
-    await logPlayerAction(username, 'whitelist_remove', null);
+    log.info(`POST /whitelist/remove: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'whitelist_remove', null);
 
     res.json(result);
   } catch (error) {
@@ -647,7 +666,7 @@ router.post('/add-item', requirePermission("players.gm_tools"), async (req, res)
     // RCON actually performed it, so the activity log doesn't claim an item
     // was given when the server never received it.
     if (username && result?.success) {
-      await logPlayerAction(username, 'add_item', `${item} x${itemCount}`);
+      await logModeration(req, username, 'add_item', `${item} x${itemCount}`);
     }
 
     res.json(result);
@@ -689,7 +708,7 @@ router.post('/add-xp', requirePermission("players.gm_tools"), async (req, res) =
     // RCON actually performed it, so the activity log doesn't claim XP was
     // granted when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'add_xp', `${perk}=${amount}`);
+      await logModeration(req, username, 'add_xp', `${perk}=${amount}`);
     }
 
     res.json(result);
@@ -725,7 +744,7 @@ router.post('/add-vehicle', requirePermission("players.gm_tools"), async (req, r
     // RCON actually performed it, so the activity log doesn't claim a
     // vehicle was spawned when the server never received it.
     if (username && result?.success) {
-      await logPlayerAction(username, 'add_vehicle', vehicle);
+      await logModeration(req, username, 'add_vehicle', vehicle);
     }
 
     res.json(result);
@@ -784,7 +803,7 @@ router.post('/godmode', requirePermission("players.gm_tools"), async (req, res) 
     // the underlying command actually performed it, so the activity log
     // doesn't claim godmode changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'godmode', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'godmode', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -815,7 +834,7 @@ router.post('/invisible', requirePermission("players.gm_tools"), async (req, res
     // the underlying command actually performed it, so the activity log
     // doesn't claim invisibility changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'invisible', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'invisible', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -846,7 +865,7 @@ router.post('/noclip', requirePermission("players.gm_tools"), async (req, res) =
     // the underlying command actually performed it, so the activity log
     // doesn't claim noclip changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'noclip', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'noclip', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -933,7 +952,7 @@ router.post('/banid', requirePermission("players.moderate"), async (req, res) =>
     }
 
     const result = await rconService.banSteamId(steamId);
-    log.info(`POST /banid: SteamID ${steamId}`);
+    log.info(`POST /banid: SteamID ${steamId}${byActor(req)}`);
     // Only record the ban if RCON actually applied it. execute() resolves
     // {success:false} rather than throwing when the server is offline or
     // mid-restart, so an unconditional write here used to leave the panel's
@@ -942,7 +961,7 @@ router.post('/banid', requirePermission("players.moderate"), async (req, res) =>
     // someone.
     if (result?.success) {
       await addSteamIdBan(steamId, normalizedReason || null);
-      await logPlayerAction(steamId, 'banid', normalizedReason || null);
+      await logModeration(req, steamId, 'banid', normalizedReason || null);
     }
 
     res.json(result);
@@ -967,13 +986,13 @@ router.post('/unbanid', requirePermission("players.moderate"), async (req, res) 
     }
 
     const result = await rconService.unbanSteamId(steamId);
-    log.info(`POST /unbanid: SteamID ${steamId}`);
+    log.info(`POST /unbanid: SteamID ${steamId}${byActor(req)}`);
     // Same shape as /banid above: only clear the local ban record if RCON
     // actually removed it. Otherwise the panel would report someone as
     // no-longer-banned while the server still enforces the ban.
     if (result?.success) {
       await removeSteamIdBan(steamId);
-      await logPlayerAction(steamId, 'unbanid', null);
+      await logModeration(req, steamId, 'unbanid', null);
     }
 
     res.json(result);
@@ -1001,9 +1020,9 @@ router.post('/voiceban', requirePermission("players.moderate"), async (req, res)
     }
 
     const result = await rconService.voiceBan(username, enabled);
-    log.info(`POST /voiceban: ${username} → ${enabled ? 'ON' : 'OFF'}`);
+    log.info(`POST /voiceban: ${username} → ${enabled ? 'ON' : 'OFF'}${byActor(req)}`);
     if (result?.success) {
-      await logPlayerAction(username, 'voiceban', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'voiceban', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -1034,7 +1053,8 @@ router.post('/adduser', requirePermission("players.moderate"), async (req, res) 
 
     const result = await rconService.addUser(username, password);
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(username, 'adduser', null);
+    log.info(`POST /adduser: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'adduser', null);
 
     res.json(result);
   } catch (error) {
@@ -1064,7 +1084,8 @@ router.post('/whitelist/steamid/add', requirePermission("players.moderate"), asy
     }
     const result = await req.app.get('rconService').addAllowedSteamId(String(steamId));
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(String(steamId), 'whitelist_steamid_add', null);
+    log.info(`POST /whitelist/steamid/add: ${steamId}${byActor(req)}`);
+    await logModeration(req, String(steamId), 'whitelist_steamid_add', null);
     res.json(result);
   } catch (error) {
     log.error(`Failed to add allowed SteamID: ${error.message}`);
@@ -1080,7 +1101,8 @@ router.post('/whitelist/steamid/remove', requirePermission("players.moderate"), 
     }
     const result = await req.app.get('rconService').removeAllowedSteamId(String(steamId));
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(String(steamId), 'whitelist_steamid_remove', null);
+    log.info(`POST /whitelist/steamid/remove: ${steamId}${byActor(req)}`);
+    await logModeration(req, String(steamId), 'whitelist_steamid_remove', null);
     res.json(result);
   } catch (error) {
     log.error(`Failed to remove allowed SteamID: ${error.message}`);

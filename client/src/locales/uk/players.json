@@ -594,6 +594,7 @@
     "saveButton": "Зберегти нотатку",
     "activityLogTitle": "Журнал активності",
     "activityLogTruncatedHint": "Показано {{count}} останніх записів -- старіша активність може не відображатися.",
+    "activityByActor": "виконавець: {{actor}}",
     "logsErrorTitle": "Журнал активності недоступний",
     "filterPlaceholder": "Фільтрувати за іменем гравця...",
     "filterAria": "Фільтрувати журнал активності за іменем гравця",

@@ -582,6 +582,7 @@
     "saveButton": "Salvar nota",
     "activityLogTitle": "Log de atividades",
     "activityLogTruncatedHint": "Mostrando as {{count}} entradas mais recentes -- atividades mais antigas podem não aparecer.",
+    "activityByActor": "por {{actor}}",
     "logsErrorTitle": "Log de atividades indisponível",
     "filterPlaceholder": "Filtrar por nome do jogador...",
     "filterAria": "Filtrar logs de atividades por nome do jogador",

@@ -608,6 +608,7 @@
     "saveButton": "حفظ الملاحظة",
     "activityLogTitle": "سجل النشاط",
     "activityLogTruncatedHint": "عرض أحدث {{count}} إدخال -- قد لا تُعرض الأنشطة الأقدم.",
+    "activityByActor": "بواسطة {{actor}}",
     "logsErrorTitle": "سجل النشاط غير متاح",
     "filterPlaceholder": "تصفية حسب اسم اللاعب...",
     "filterAria": "تصفية سجلات النشاط حسب اسم اللاعب",

@@ -582,6 +582,7 @@
     "saveButton": "Sove Nòt",
     "activityLogTitle": "Jounal Aktivite",
     "activityLogTruncatedHint": "N ap montre {{count}} antre ki pi resan yo -- aktivite ki pi ansyen ka pa parèt.",
+    "activityByActor": "pa {{actor}}",
     "logsErrorTitle": "Jounal aktivite pa disponib",
     "filterPlaceholder": "Filtre pa non jwè...",
     "filterAria": "Filtre jounal aktivite pa non jwè",

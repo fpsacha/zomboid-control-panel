@@ -165,7 +165,7 @@ describe("POST /banid reason (stored in the panel only, never sent to the game)"
 
       expect(response.status).not.toHaveBeenCalled();
       expect(addSteamIdBan).toHaveBeenCalledWith(steamId, reason);
-      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "banid", reason);
+      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "banid", reason, undefined, null);
     });
   }
 

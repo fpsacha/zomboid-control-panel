@@ -68,7 +68,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "kick", "griefing");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "kick", "griefing", undefined, "tech");
     });
 
     it("does NOT log the action when RCON reports failure (server offline)", async () => {
@@ -105,7 +105,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "access_level", "admin");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "access_level", "admin", undefined, "tech");
     });
 
     it("does NOT log the action when RCON reports failure", async () => {
@@ -138,7 +138,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_item", "Base.Axe x1");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_item", "Base.Axe x1", undefined, "tech");
     });
 
     it("does NOT log the action when RCON reports failure", async () => {
@@ -171,7 +171,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_xp", "Strength=50");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_xp", "Strength=50", undefined, "tech");
     });
 
     it("does NOT log the action when RCON reports failure", async () => {
@@ -204,7 +204,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_vehicle", "Base.CarNormal");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "add_vehicle", "Base.CarNormal", undefined, "tech");
     });
 
     it("does NOT log the action when RCON reports failure", async () => {
@@ -237,7 +237,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "godmode", "enabled");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "godmode", "enabled", undefined, "tech");
     });
 
     it("does NOT log the action when the underlying command fails", async () => {
@@ -270,7 +270,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "invisible", "enabled");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "invisible", "enabled", undefined, "tech");
     });
 
     it("does NOT log the action when the underlying command fails", async () => {
@@ -303,7 +303,7 @@ describe("players routes: activity log only written on RCON/bridge success", () 
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "noclip", "enabled");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "noclip", "enabled", undefined, "tech");
     });
 
     it("does NOT log the action when the underlying command fails", async () => {

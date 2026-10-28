@@ -1786,7 +1786,11 @@ export async function getLatestScheduleExecutionByCommand(command, serverId = un
 // of pre-fix untagged rows. `serverId` overrides the active server for a
 // caller that knows which server the action happened on (PanelBridge's
 // player connect/disconnect, see recordPlayerSession()).
-export async function logPlayerAction(playerName, action, details = null, serverId = undefined) {
+// SECURITY (2026-10-28, audit R2-6): `actor` names the panel account behind a
+// deliberate action (routes/players.js), so the trail shows which moderator
+// granted an access level or banned someone. Absent on automatic rows, on
+// rows from before this change, and while panel logins are off.
+export async function logPlayerAction(playerName, action, details = null, serverId = undefined, actor = null) {
   const db = await getDb();
   const entry = {
     id: generateId(),
@@ -1794,6 +1798,7 @@ export async function logPlayerAction(playerName, action, details = null, server
     player_name: playerName,
     action,
     details,
+    ...(typeof actor === "string" && actor ? { actor } : {}),
     logged_at: new Date().toISOString(),
   };
 

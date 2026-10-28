@@ -460,6 +460,9 @@ export default function Players() {
     player_name: string
     action: string
     details: string | null
+    // The panel account that acted (absent on automatic rows, older rows,
+    // and while panel logins are off).
+    actor?: string | null
     logged_at: string
   }
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
@@ -1595,7 +1598,7 @@ export default function Players() {
     const search = playerSearchFilter.trim().toLowerCase()
     if (!search) return activityLogs
     return activityLogs.filter(log =>
-      [log.player_name, log.action, log.details]
+      [log.player_name, log.action, log.details, log.actor]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(search)),
     )
@@ -2194,6 +2197,9 @@ export default function Players() {
                         </span>
                         {log.details && (
                           <span className="mt-0.5 block break-words text-xs text-muted-foreground">{log.details}</span>
+                        )}
+                        {log.actor && (
+                          <span className="mt-0.5 block break-words text-xs text-muted-foreground">{t('notes.activityByActor', { actor: log.actor })}</span>
                         )}
                       </button>
                     </li>

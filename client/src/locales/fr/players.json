@@ -578,6 +578,7 @@
     "saveButton": "Enregistrer la note",
     "activityLogTitle": "Journal d'activité",
     "activityLogTruncatedHint": "Affichage des {{count}} entrées les plus récentes -- une activité plus ancienne peut ne pas être affichée.",
+    "activityByActor": "par {{actor}}",
     "logsErrorTitle": "Journal d'activité indisponible",
     "filterPlaceholder": "Filtrer par nom de joueur...",
     "filterAria": "Filtrer le journal d'activité par nom de joueur",
