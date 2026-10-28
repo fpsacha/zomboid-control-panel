@@ -2951,9 +2951,14 @@ io.use(async (socket, next) => {
       return next();
     }
 
-    // Check for token in handshake auth or query params
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (!token) {
+    // SECURITY (2026-10-28): the token comes from the handshake's auth
+    // payload only, which is where the panel's client sends it
+    // (client/src/lib/socketAuth.ts). The URL query (?token=) used to be
+    // read too: a URL lands in proxy access logs and browser history, the
+    // reason HTTP stopped taking ?token= on every route but the SSE stream
+    // (QUERY_TOKEN_PATHS, security audit M2).
+    const token = socket.handshake.auth?.token;
+    if (typeof token !== "string" || !token) {
       return next(new Error("Authentication required"));
     }
 
