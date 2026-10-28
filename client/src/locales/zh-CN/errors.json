@@ -174,6 +174,7 @@
   "SERVER_MESSAGE_TOO_LONG": "消息必须为少于 1000 个字符的字符串",
   "EVENTS_INVALID_USERNAME": "用户名无效",
   "STEAMCMD_PATH_INVALID": "SteamCMD 路径无效",
+  "STEAMCMD_FOLDER_REFUSED": "无法从此文件夹使用 SteamCMD：它位于 Steam 创意工坊的下载文件夹内或网络共享上，其中的文件任何人都可以提供。请选择这台电脑上安装 SteamCMD 的文件夹。",
   "INSTALL_PATH_INVALID": "安装路径无效",
   "INSTALL_MISSING_FIELDS": "缺少必填字段：steamcmdPath、installPath、serverName",
   "SERVER_NAME_FORMAT_INVALID": "服务器名称无效。仅可使用字母、数字、下划线、连字符和空格（最多 64 个字符）",

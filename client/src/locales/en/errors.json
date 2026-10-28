@@ -174,6 +174,7 @@
   "SERVER_MESSAGE_TOO_LONG": "Message must be a string under 1000 characters",
   "EVENTS_INVALID_USERNAME": "Invalid username",
   "STEAMCMD_PATH_INVALID": "Invalid SteamCMD path",
+  "STEAMCMD_FOLDER_REFUSED": "SteamCMD can't be used from this folder: it is inside a Steam Workshop download folder or on a network share, whose files anyone could supply. Choose the folder SteamCMD is installed in on this computer.",
   "INSTALL_PATH_INVALID": "Invalid install path",
   "INSTALL_MISSING_FIELDS": "Missing required fields: steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "Invalid server name. Use only letters, numbers, underscores, hyphens, and spaces (max 64 chars)",

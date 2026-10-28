@@ -174,6 +174,7 @@
   "SERVER_MESSAGE_TOO_LONG": "訊息必須為少於 1000 個字元的字串",
   "EVENTS_INVALID_USERNAME": "使用者名稱無效",
   "STEAMCMD_PATH_INVALID": "SteamCMD 路徑無效",
+  "STEAMCMD_FOLDER_REFUSED": "無法從此資料夾使用 SteamCMD：它位於 Steam 工作坊的下載資料夾內或網路共用上，其中的檔案任何人都可以提供。請選擇這台電腦上安裝 SteamCMD 的資料夾。",
   "INSTALL_PATH_INVALID": "安裝路徑無效",
   "INSTALL_MISSING_FIELDS": "缺少必填欄位：steamcmdPath、installPath、serverName",
   "SERVER_NAME_FORMAT_INVALID": "伺服器名稱無效。僅可使用字母、數字、下劃線、連字元和空格（最多 64 個字元）",

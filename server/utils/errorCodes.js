@@ -782,6 +782,12 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js (sites: /branches, /install, /steam-update) --
    * steamcmdPath fails isValidPath(). */
   STEAMCMD_PATH_INVALID: "STEAMCMD_PATH_INVALID",
+  /** server/routes/server.js (/branches, /install, /steam-update,
+   * /steamcmd/download) and server/routes/config.js (PUT /app-settings) --
+   * the SteamCMD folder is inside a Steam Workshop download folder or is a
+   * Windows network share (steamCmdFolderRefusal(), utils/untrustedFolder.js):
+   * its files are anyone's, so SteamCMD is never run from it. */
+  STEAMCMD_FOLDER_REFUSED: "STEAMCMD_FOLDER_REFUSED",
   /** server/routes/server.js (sites: /install, /quick-setup, /steam-update) --
    * installPath fails isValidPath(). */
   INSTALL_PATH_INVALID: "INSTALL_PATH_INVALID",

@@ -74,6 +74,7 @@ import {
   quoteForShell,
   textForScriptComment,
 } from "../utils/startScriptQuoting.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import {
   checkZomboidDataPath,
   describeRefusal,
@@ -212,8 +213,29 @@ function getSteamCmdExe(steamcmdPath) {
 // as a side effect of being previewed/used, not read back from the request
 // object a second time for the actual spawn. Omitting candidatePath is the
 // steady-state case: resolve whatever is already saved.
+// SECURITY (2026-10-28): SteamCMD is a program the panel runs, so it is never
+// run from a Steam Workshop download folder or a Windows network share,
+// whose files anyone can supply (utils/untrustedFolder.js): server.install
+// could otherwise point it at a downloaded Workshop item. Refused where a
+// request names the folder, and again in saveAndResolveSteamCmdExe(), so a
+// folder saved before this check doesn't run either.
+export function steamCmdFolderRefusal(dir) {
+  if (!untrustedFolderReason(dir)) return null;
+  return {
+    error:
+      "SteamCMD can't be used from this folder: it is inside a Steam Workshop download folder or on a network share, whose files anyone could supply. Choose the folder SteamCMD is installed in on this computer.",
+    code: ErrorCode.STEAMCMD_FOLDER_REFUSED,
+  };
+}
+
+function throwIfSteamCmdFolderRefused(dir) {
+  const refusal = steamCmdFolderRefusal(dir);
+  if (refusal) throw Object.assign(new Error(refusal.error), { code: refusal.code });
+}
+
 async function saveAndResolveSteamCmdExe(candidatePath) {
   if (candidatePath) {
+    throwIfSteamCmdFolderRefused(candidatePath);
     const current = await getSetting("steamcmdPath");
     if (current !== candidatePath) {
       await setSetting("steamcmdPath", candidatePath);
@@ -227,6 +249,7 @@ async function saveAndResolveSteamCmdExe(candidatePath) {
     return getSteamCmdExe(candidatePath);
   }
   const configuredPath = await getSetting("steamcmdPath");
+  throwIfSteamCmdFolderRefused(configuredPath);
   return configuredPath ? getSteamCmdExe(configuredPath) : null;
 }
 
@@ -3408,6 +3431,8 @@ router.get("/branches", requirePermission("server.install"), async (req, res) =>
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     // A candidate from the query string is saved below, so only one that is
     // really a SteamCMD folder gets that far. The Update dialog asks for the
@@ -3715,6 +3740,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid install path", code: ErrorCode.INSTALL_PATH_INVALID });
@@ -5286,6 +5313,8 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid install path", code: ErrorCode.INSTALL_PATH_INVALID });
@@ -5721,6 +5750,8 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid installation path", code: ErrorCode.STEAMCMD_DOWNLOAD_INVALID_PATH });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(installPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     // Claim the guard NOW, before the first `await` below -- mirrors
     // panelUpdateChecker.js's isDownloading (see its own comment at

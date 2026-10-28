@@ -2,6 +2,7 @@ import { spawn as nodeSpawn } from "child_process";
 import fs from "fs";
 import path from "path";
 import { createLogger } from "../utils/logger.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { getSetting } from "../database/init.js";
 import {
   getActiveSteamOperations,
@@ -31,6 +32,9 @@ export const WorkshopDownloadReason = Object.freeze({
 });
 
 function steamCmdExecutable(steamcmdPath) {
+  // Never from a Workshop download folder or a network share (routes/server.js's
+  // steamCmdFolderRefusal()): a folder saved before that check counts as missing.
+  if (untrustedFolderReason(steamcmdPath)) return null;
   const isWindows = process.platform === "win32";
   const primary = path.join(steamcmdPath, isWindows ? "steamcmd.exe" : "steamcmd.sh");
   if (fs.existsSync(primary)) return primary;

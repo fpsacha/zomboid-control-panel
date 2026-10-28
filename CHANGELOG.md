@@ -10,6 +10,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 ### Security
 
 - **Server install folders:** a server can no longer be started from a Steam Workshop download folder or a Windows network share, whose files anyone could supply; a server-management role could otherwise have chosen what ran on the host.
+- **SteamCMD folder:** SteamCMD is no longer run from a Steam Workshop download folder or a Windows network share; an install role could otherwise have run a program of its choosing.
 
 ## [2026.10.1] - 2026-10-26
 

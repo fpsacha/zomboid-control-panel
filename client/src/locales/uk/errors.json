@@ -174,6 +174,7 @@
   "SERVER_MESSAGE_TOO_LONG": "Повідомлення має бути рядком коротшим за 1000 символів",
   "EVENTS_INVALID_USERNAME": "Некоректне ім'я користувача",
   "STEAMCMD_PATH_INVALID": "Некоректний шлях до SteamCMD",
+  "STEAMCMD_FOLDER_REFUSED": "SteamCMD не можна використовувати з цієї теки: вона лежить у теці завантажень Steam Workshop або на мережевому ресурсі, файли якого може підкласти будь-хто. Виберіть теку, у якій SteamCMD встановлено на цьому комп'ютері.",
   "INSTALL_PATH_INVALID": "Некоректний шлях встановлення",
   "INSTALL_MISSING_FIELDS": "Відсутні обов'язкові поля: steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "Некоректна назва сервера. Використовуйте лише літери, цифри, підкреслення, дефіси та пробіли (максимум 64 символи)",

@@ -14,6 +14,7 @@ import {
 } from "../database/init.js";
 import { withFileLock, writeFileAtomic } from "../utils/fileWriteQueue.js";
 import { escapeRegExp } from "../utils/regex.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { getDataPaths } from "../utils/paths.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
 import {
@@ -394,30 +395,12 @@ function isSystemOrInterpreter(real) {
 // when the panel can't rewrite it, the start script already there. So
 // whoever supplies the folder's files decides what runs on this computer.
 // servers.manage may point a server at any folder, which is right for the
-// game's own install, but two kinds of folder hold files anyone can supply,
-// and neither is ever a real game install:
-//  - a Steam Workshop download folder (steamapps/workshop/...): anyone who
-//    owns the game can publish an item with any files in it, and mods.manage
-//    (or the game itself, from WorkshopItems=) downloads it there;
-//  - on Windows, a network share (\\host\share): the share's server hands
-//    out whatever file contents it likes.
-// Judged on the folder as written and, for the Workshop rule, on its real
-// path too (8.3 names, links). A mapped network drive is NOT refused: only
-// the typed form decides the network-share rule.
-const WORKSHOP_TREE_RE = /(^|[\\/])steamapps[\\/]+workshop([\\/]|$)/i;
-const NETWORK_SHARE_RE = /^[\\/]{2}/;
-
+// game's own install, but a Steam Workshop download folder or a Windows
+// network share holds files anyone can supply, and is never a real game
+// install (utils/untrustedFolder.js).
 /** "workshop", "networkShare" or null for a launch folder (see above). */
 export function untrustedLaunchFolderReason(dir, { windows = isWindows } = {}) {
-  if (typeof dir !== "string" || !dir.trim()) return null;
-  const written = dir.trim();
-  const resolve = windows ? path.win32.resolve : path.resolve;
-  if (windows && (NETWORK_SHARE_RE.test(written) || NETWORK_SHARE_RE.test(resolve(written)))) {
-    return "networkShare";
-  }
-  if (WORKSHOP_TREE_RE.test(resolve(written))) return "workshop";
-  if (WORKSHOP_TREE_RE.test(realpathOrNearest(written))) return "workshop";
-  return null;
+  return untrustedFolderReason(dir, { windows });
 }
 
 // null when the launch may go ahead, `{ folder }` (a reason from
