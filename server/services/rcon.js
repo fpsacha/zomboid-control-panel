@@ -163,6 +163,25 @@ export function resolveEnvRconHost() {
   return envHost && envHost !== "CHANGE_ME" ? envHost : "127.0.0.1";
 }
 
+// SECURITY: the RCON_PASSWORD_FILE password belongs to the game server the
+// operator set up next to the panel: this machine, or the RCON_HOST
+// container. A server record that names any other host gets its own stored
+// password instead, so the secret is never sent to a host someone typed into
+// a server record (the same rule as "a new host needs the password typed
+// again", routes/servers.js rconConnectionChanges()). The port is not part of
+// the rule: several servers on one machine answer on different ports.
+export function rconHostMayUseSecretFilePassword(host) {
+  const value = String(host ?? "").trim().toLowerCase();
+  return (
+    value === "" ||
+    value === "localhost" ||
+    value === "::1" ||
+    value === "[::1]" ||
+    /^127(\.\d{1,3}){3}$/.test(value) ||
+    value === resolveEnvRconHost().trim().toLowerCase()
+  );
+}
+
 function parseConfiguredRconPort(value) {
   if (
     value === undefined ||
@@ -668,6 +687,11 @@ export class RconService extends EventEmitter {
       port: parseInt(process.env.RCON_PORT, 10) || 27015,
       password: readSecret("RCON_PASSWORD") || "",
     };
+    // Kept apart from config.password, which loadConfig() swaps for a
+    // record's own password when the record names another host.
+    this.secretFilePassword = this.passwordFromSecretFile
+      ? this.config.password
+      : "";
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.baseReconnectDelay = 2000; // Start at 2s
@@ -1018,11 +1042,19 @@ export class RconService extends EventEmitter {
         this.config.host = normalizeRconHost(targetServer.rconHost);
         this.config.port = parseConfiguredRconPort(targetServer.rconPort);
 
-        if (targetServer.rconPassword) {
-          if (!this.passwordFromSecretFile) {
-            this.config.password = targetServer.rconPassword;
+        if (
+          this.passwordFromSecretFile &&
+          rconHostMayUseSecretFilePassword(this.config.host)
+        ) {
+          this.config.password = this.secretFilePassword || "";
+        } else if (targetServer.rconPassword) {
+          if (this.passwordFromSecretFile) {
+            log.info(
+              "RCON_PASSWORD_FILE is only used for this machine and RCON_HOST; this server's own RCON password is used for its host",
+            );
           }
-        } else if (!this.passwordFromSecretFile) {
+          this.config.password = targetServer.rconPassword;
+        } else {
           // Don't carry over a stale password from a previously loaded
           // server (e.g. after reloadConfig() on server switch) — a missing
           // password is a real, visible state to report, not a value to
@@ -1053,15 +1085,20 @@ export class RconService extends EventEmitter {
         const dbPort = await getSetting("rconPort");
         const dbPassword = await getSetting("rconPassword");
 
-        if (dbPassword && !this.passwordFromSecretFile) {
-          this.config.password = dbPassword;
-          log.info("password loaded from legacy settings");
-        }
         if (dbPort !== undefined && dbPort !== null && dbPort !== "") {
           this.config.port = parseConfiguredRconPort(dbPort);
         }
         if (dbHost) {
           this.config.host = normalizeRconHost(dbHost);
+        }
+        if (this.passwordFromSecretFile) {
+          // Same rule as a server record above.
+          this.config.password = rconHostMayUseSecretFilePassword(this.config.host)
+            ? this.secretFilePassword || ""
+            : dbPassword || "";
+        } else if (dbPassword) {
+          this.config.password = dbPassword;
+          log.info("password loaded from legacy settings");
         }
       } else {
         log.warn(`No RCON config found for server ${serverId}`);
