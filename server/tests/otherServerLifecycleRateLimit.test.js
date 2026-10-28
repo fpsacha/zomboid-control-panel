@@ -10,6 +10,8 @@ import rateLimit from "express-rate-limit";
 // server list) had no strict rate limit, while the active server's
 // /api/server/start|stop|restart did; a server.control holder could start
 // and kill game servers in a tight loop. Both now share the strict budget.
+// Review round 1: the Scheduler page's "Restart now" (POST
+// /api/scheduler/restart-now, the same live restart) is in that budget too.
 // The limiter block is lifted out of index.js, so an edit there changes this
 // test.
 
@@ -32,6 +34,7 @@ beforeEach(async () => {
   app.post("/api/servers/:id/stop", ok);
   app.post("/api/servers/:id/restart", ok);
   app.post("/api/servers/:id/activate", ok);
+  app.post("/api/scheduler/restart-now", ok);
   app.get("/api/servers/:id", ok);
   server = await new Promise((resolve) => {
     const s = app.listen(0, "127.0.0.1", () => resolve(s));
@@ -58,6 +61,14 @@ describe("Start/Stop/Restart of another server is rate limited like the active s
     for (let i = 0; i < 5; i++) expect(await call("POST", `/api/servers/${i}/stop`)).toBe(200);
     expect(await call("POST", "/api/server/start")).toBe(429);
     expect(await call("POST", "/api/servers/99/restart")).toBe(429);
+    expect(await call("POST", "/api/scheduler/restart-now")).toBe(429);
+  });
+
+  it("shares it with the Scheduler page's Restart now", async () => {
+    for (let i = 0; i < 5; i++) expect(await call("POST", "/api/scheduler/restart-now")).toBe(200);
+    for (let i = 0; i < 5; i++) expect(await call("POST", `/api/servers/${i}/restart`)).toBe(200);
+    expect(await call("POST", "/api/scheduler/restart-now")).toBe(429);
+    expect(await call("POST", "/api/server/start")).toBe(429);
   });
 
   it("leaves reads and other server routes alone", async () => {

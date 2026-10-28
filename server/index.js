@@ -1231,6 +1231,8 @@ app.use("/api/server/restart", strictLimiter);
 app.post("/api/servers/:id/start", strictLimiter);
 app.post("/api/servers/:id/stop", strictLimiter);
 app.post("/api/servers/:id/restart", strictLimiter);
+// The Scheduler page's "Restart now": the same live restart.
+app.post("/api/scheduler/restart-now", strictLimiter);
 app.use("/api/docker/containers", strictLimiter);
 app.use("/api/backup/restore", strictLimiter);
 app.use("/api/backup/delete-older-than", strictLimiter);

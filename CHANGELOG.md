@@ -17,7 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Crash logs:** the crash-log viewer and the support bundle no longer follow a link placed in the server folder, and log scans no longer hang on a special file there.
 - **Workshop items:** an item id that isn't a number (in `WorkshopItems=` or a mod preset) no longer makes the Mods page read folders outside the Workshop folder; presets now take numeric ids only.
-- Starting, stopping or restarting another server from the Dashboard's server list now has the same rate limit as the active server's buttons.
+- Starting, stopping or restarting another server from the Dashboard's server list, and the Scheduler's Restart now, have the same rate limit as the active server's buttons.
 
 ## [2026.10.1] - 2026-10-26
 
