@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { startScriptValueProblem } from "../utils/startScriptQuoting.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { holdsSaveFiles, inspectZomboidPath, normalizeUserPath } from "../utils/zomboidPaths.js";
 import { RENAME_TEMP_SUFFIX, TRASH_DIR_NAME, UPLOAD_TEMP_SUFFIX } from "./fileManagerContract.js";
 
@@ -212,6 +213,17 @@ function hasPathShape(value) {
     value.length <= ZOMBOID_DATA_PATH_MAX_LENGTH &&
     !CONTROL_CHARACTERS.test(value)
   );
+}
+
+// SECURITY (2026-10-28): on Windows, a network share or device path
+// (\\host\share, \\?\..., \\.\...) is never a data folder, judged on the text
+// alone (utils/untrustedFolder.js) so nothing touches it: merely looking makes
+// the panel's account sign in to that host, and a path such as
+// \\host\s\%VAR% sent an environment variable's value along before the
+// expansion refusal below could run. A mapped drive letter still works, and
+// so does the operator's own PZ_SAVE_PATH.
+function isNetworkSharePath(value) {
+  return untrustedFolderReason(value) === "networkShare" && !isOperatorDataPath(path.resolve(value));
 }
 
 function isOperatorDataPath(resolved) {
@@ -521,7 +533,7 @@ function multiplayerFolderHoldsOnlyWorlds(folder, names) {
 // then nothing outside the data folder is used. So it is always a folder
 // that could have been named as the data folder itself.
 export function zomboidFolderAround(dataPath) {
-  if (!hasPathShape(dataPath) || !path.isAbsolute(dataPath)) return null;
+  if (!hasPathShape(dataPath) || !path.isAbsolute(dataPath) || isNetworkSharePath(dataPath)) return null;
   const root = mapCleanupShapeRoot(path.resolve(dataPath));
   if (!root || path.dirname(root) === root) return null;
   const verdict = judgeFolder(root);
@@ -602,6 +614,15 @@ export function checkZomboidDataPath(value, { expand = true } = {}) {
       },
     };
   }
+  if (isNetworkSharePath(raw) || isNetworkSharePath(target)) {
+    return {
+      ok: false,
+      body: {
+        error: `Invalid Zomboid data path: ${raw}. A network share or device path can't be a server's data folder; choose a folder on this computer, or map the share to a drive letter first.`,
+        code: ErrorCode.FOLDER_NETWORK_SHARE_REFUSED,
+      },
+    };
+  }
   const resolved = path.resolve(target);
   const verdict = judgeFolder(resolved);
   if (verdict.ok && verdict.missing && expand && target !== normalizeUserPath(raw, { expandEnv: false })) {
@@ -640,7 +661,7 @@ export function checkZomboidDataPath(value, { expand = true } = {}) {
  * normalization.
  */
 export function zomboidDataFolderHolds(dataPath) {
-  if (!hasPathShape(dataPath) || !path.isAbsolute(dataPath)) return false;
+  if (!hasPathShape(dataPath) || !path.isAbsolute(dataPath) || isNetworkSharePath(dataPath)) return false;
   return judgeFolder(path.resolve(dataPath)).ok;
 }
 
