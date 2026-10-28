@@ -264,6 +264,11 @@ const SETTINGS_KEY_CAPABILITY = {
   workshopCollectionAutoSync: "mods.manage",
   steamSessionId: "mods.manage",
   steamLoginSecure: "mods.manage",
+  // Restarting the server when a mod updates, and its warning: the same
+  // capability as the Mods page's own door (routes/mods.js POST
+  // /auto-restart, PUT /restart-options).
+  modAutoRestart: "server.control",
+  modRestartDelay: "server.control",
 };
 
 const STEAM_COOKIE_KEYS = new Set(["steamSessionId", "steamLoginSecure"]);

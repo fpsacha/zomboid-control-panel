@@ -161,6 +161,17 @@ router.use((req, res, next) => {
   return requireModsManage(req, res, next);
 });
 
+// A capability on top of mods.manage, checked inside a handler (the same
+// helper as routes/scheduler.js): requirePermission() answers the 401/403
+// itself, and this says whether the handler may go on.
+async function requireCapabilityInline(capability, req, res) {
+  let passed = false;
+  await requirePermission(capability)(req, res, () => {
+    passed = true;
+  });
+  return passed;
+}
+
 // ─── INI write mutex ────────────────────────────────────────────────────────
 // Serialises write operations to the same INI file so concurrent requests
 // cannot interleave their writes (prevents lost-update race conditions).
@@ -943,6 +954,13 @@ router.post("/auto-restart", async (req, res) => {
       });
     }
 
+    // SECURITY: with auto-restart on, a tracked item's update restarts the
+    // running servers, so turning it on is a restart decision and takes
+    // server.control, as scheduling a restart does (routes/scheduler.js).
+    // mods.manage alone (which picks the tracked items, and can force an
+    // update check) turned it on. Turning it off stays with mods.manage.
+    if (enabled && !(await requireCapabilityInline("server.control", req, res))) return;
+
     if (enabled) {
       await modChecker.setUpdateCallback(async (updatedMods) => {
         const handled = await modChecker.handleModUpdate(updatedMods);
@@ -1023,6 +1041,20 @@ router.put("/restart-options", async (req, res) => {
           error: "delayIfPlayersOnline must be a boolean",
           code: ErrorCode.MODS_RESTART_DELAY_IF_PLAYERS_ONLINE_INVALID,
         });
+    }
+
+    // How a mod-update restart warns and waits for players is part of the
+    // restart (see POST /auto-restart): changing it takes server.control.
+    // The check interval stays with mods.manage.
+    const changes = (value, current) =>
+      value !== undefined && value !== current && Number(value) !== current;
+    if (
+      (changes(warningMinutes, modChecker.restartWarningMinutes) ||
+        changes(delayIfPlayersOnline, modChecker.delayIfPlayersOnline) ||
+        changes(maxDelayMinutes, modChecker.maxDelayMinutes)) &&
+      !(await requireCapabilityInline("server.control", req, res))
+    ) {
+      return;
     }
 
     await modChecker.setRestartOptions({
