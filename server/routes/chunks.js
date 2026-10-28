@@ -1843,9 +1843,12 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
         ? path.join(backupPath, "vehicles.db.bak")
         : null;
       // Tile bboxes per deleted chunk; a chunkdata entry's whole-cell box only
-      // once the cell has no chunks left (see buildVehicleBoxes).
+      // once the cell has no chunks left (see buildVehicleBoxes). R2-26: only
+      // chunks whose file is gone (deleted now, or already missing) -- one
+      // that failed to delete stays, and so do its vehicles.
+      const goneChunks = chunks.filter((_, i) => deleteResults[i]?.success);
       try {
-        const boxes = await buildVehicleBoxes(savePath, chunks, isB42);
+        const boxes = await buildVehicleBoxes(savePath, goneChunks, isB42);
         vehiclesResult = await deleteVehiclesInBoxes(savePath, boxes, {
           backupPath: dbBackup,
         });
@@ -2328,6 +2331,9 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
     const errors = [];
     const touchedCells = new Set();
     const regionCellDiv = cellDivisorFor(regionIsB42);
+    // R2-26: the chunks whose file is gone (deleted now, or already
+    // missing), the only ones whose vehicles go below.
+    const goneChunks = [];
 
     await Promise.all(
       chunksToDelete.map(async (chunk) => {
@@ -2340,6 +2346,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
                 : path.join(mapPath, chunk.file);
           await fs.promises.unlink(chunkFile);
           deleted++;
+          goneChunks.push(chunk);
           touchedCells.add(
             `${Math.floor(chunk.x / regionCellDiv)},${Math.floor(chunk.y / regionCellDiv)}`,
           );
@@ -2347,6 +2354,8 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
           if (err.code !== "ENOENT") {
             log.warn(`Failed to delete chunk ${chunk.file}: ${err.message}`);
             errors.push(`${chunk.file}: ${sanitizeError(err.message)}`);
+          } else {
+            goneChunks.push(chunk);
           }
         }
       }),
@@ -2392,7 +2401,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
       try {
         const boxes = await buildVehicleBoxes(
           savePath,
-          chunksToDelete,
+          goneChunks,
           regionIsB42,
         );
         vehiclesResult = await deleteVehiclesInBoxes(savePath, boxes, {
