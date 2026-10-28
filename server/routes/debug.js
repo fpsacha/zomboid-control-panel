@@ -518,13 +518,14 @@ async function collectBundleKnownSecrets() {
 function redactRawLogText(text, knownSecrets) {
   if (typeof text !== "string" || !text) return text;
   let out = redactKnownSecrets(text, knownSecrets);
+  // The game's own lines that carry a secret (utils/gameLogSecrets.js): the
+  // "Command line admin password:" line, the admin log's passwords and the
+  // -debug RCON packet trace. First, so a packet body is redacted inside
+  // its quotes and the rest of the line stays as written.
+  out = redactGameLogSecrets(out);
   out = redactRconCommandSecrets(out);
   out = out.replace(RAW_LOG_DISCORD_TOKEN_RE, "[REDACTED-DISCORD-TOKEN]");
   out = out.replace(RAW_LOG_STEAM_KEY_QUERY_RE, "$1[REDACTED]");
-  // The game's own "Command line admin password: <value>" line
-  // (utils/gameLogSecrets.js), a value it may have been started with that
-  // the panel no longer holds.
-  out = redactGameLogSecrets(out);
   return out;
 }
 

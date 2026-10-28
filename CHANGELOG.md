@@ -17,6 +17,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **RCON password file:** the `RCON_PASSWORD_FILE` password is only sent to this machine and `RCON_HOST`; a server on another host uses its own saved RCON password.
 - **Passwords in RCON command history and logs:** `setpassword`, `changeoption Password`/`RCONPassword` and unquoted `adduser` passwords (as Discord /rcon sends them) are redacted too, and history saved by older versions is cleaned when the panel starts.
+- **Support bundle:** players' passwords and changed join or RCON passwords in the game's admin log are redacted.
+- **Console page:** the live server log redacts the same secrets as its download, including the RCON password the game prints with Debug on.
 
 ## [2026.10.1] - 2026-10-26
 
