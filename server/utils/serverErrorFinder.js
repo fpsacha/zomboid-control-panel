@@ -400,7 +400,11 @@ const KIND_META = {
 
 // ServerManager's warning when a Windows process scan fails; this many in the
 // panel's recent log make one finding (a 1.5.0 support bundle had 2,057).
-const PROCESS_SCAN_FAILED_RE = /Windows process scan failed \((.*)\)/;
+// SECURITY (2026-10-28): anchored to the start of ServerManager's own line.
+// The log also holds text a stranger chose (POST /api/debug/client-errors
+// takes reports before sign-in, logged as "[ClientError] <message>"), and an
+// unanchored match let such a report raise this warning in Problems found.
+const PROCESS_SCAN_FAILED_RE = /^getServerProcessDetails: Windows process scan failed \((.*)\)/;
 export const PROCESS_SCAN_FAILURES_FOR_FINDING = 3;
 
 export const FINDING_KINDS = Object.freeze(Object.keys(KIND_META));
