@@ -101,6 +101,28 @@ describe("Dependabot", () => {
     // The merge command runs only behind that condition.
     expect(automerge.match(/gh pr merge/g) || []).toHaveLength(1);
   });
+
+  // pull_request_target runs main's copy of the workflow with a write
+  // token. That keeps an action bumped by the PR itself from running before
+  // review, as long as nothing from the PR is checked out or run.
+  it("runs main's copy of the workflow and nothing from the pull request", () => {
+    const commands = automerge.split("\n").filter((line) => !line.trim().startsWith("#")).join("\n");
+    expect(commands).toMatch(/\non:\n {2}pull_request_target: # zizmor: ignore\[dangerous-triggers\]\n {4}types: \[opened, synchronize, reopened\]\n/);
+    expect(commands).not.toMatch(/\n {2}pull_request:/);
+    expect(commands).not.toMatch(/actions\/checkout|\bref:|\bnpm (ci|install|run|exec|test)\b|\bnpx\s|\bnode\s|\bgit\s/);
+    expect(commands).not.toMatch(/github\.event\.pull_request\.(head|title|body)|github\.head_ref/);
+    expect(commands).toContain("if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main'");
+    // Write access only for the one job, and only what the merge needs.
+    expect(commands).toMatch(/\npermissions: \{\}\n/);
+    expect(commands.match(/: write\b/g) || []).toHaveLength(2);
+    expect(jobText(automerge, "queue")).toMatch(/\n {4}permissions:\n {6}contents: write # [^\n]+\n {6}pull-requests: write # [^\n]+\n/);
+  });
+
+  it("says what gates the queued merge: required checks and the cooldown, not a review", () => {
+    expect(automerge).not.toMatch(/checks and reviews/);
+    expect(automerge).toContain("branch\n      # protection requires no review");
+    expect(automerge).toContain("7-day Dependabot cooldown");
+  });
 });
 
 describe("Docker image tags", () => {
