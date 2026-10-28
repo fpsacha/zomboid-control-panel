@@ -5235,7 +5235,17 @@ router.put("/presets/:id", async (req, res) => {
           error: "workshopIds must be an array",
           code: ErrorCode.MODS_PRESET_UPDATE_WORKSHOP_IDS_ARRAY,
         });
-      updates.workshop_ids = req.body.workshopIds;
+      // Applying the preset writes these into WorkshopItems=: digits only,
+      // as everywhere else an item id is taken.
+      const workshopIds = req.body.workshopIds.map((wsId) =>
+        typeof wsId === "string" || typeof wsId === "number" ? String(wsId).trim() : "",
+      );
+      if (workshopIds.some((wsId) => !/^\d{1,15}$/.test(wsId)))
+        return res.status(400).json({
+          error: "Invalid Workshop ID format",
+          code: ErrorCode.MODS_INVALID_WORKSHOP_ID_FORMAT,
+        });
+      updates.workshop_ids = workshopIds;
     }
     if (req.body.modIds !== undefined) {
       if (!Array.isArray(req.body.modIds))
