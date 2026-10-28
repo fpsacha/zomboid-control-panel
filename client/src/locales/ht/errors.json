@@ -175,6 +175,7 @@
   "EVENTS_INVALID_USERNAME": "Non itilizatè envalid",
   "STEAMCMD_PATH_INVALID": "Chemen SteamCMD envalid",
   "STEAMCMD_FOLDER_REFUSED": "Yo pa ka itilize SteamCMD nan dosye sa a: li anndan yon dosye telechajman Steam Workshop oswa sou yon pataj rezo, kote nenpòt moun ta ka mete fichye yo. Chwazi dosye kote SteamCMD enstale sou òdinatè sa a.",
+  "STEAM_BRANCH_INVALID": "Non branch Steam la pa valab. Sèvi sèlman ak lèt, chif, pwen, tirè ak tirè anba.",
   "INSTALL_PATH_INVALID": "Chemen enstalasyon envalid",
   "INSTALL_MISSING_FIELDS": "Chan obligatwa manke: steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "Non sèvè envalid. Itilize sèlman lèt, chif, tirè anba, tirè, ak espas (maksimòm 64 karaktè)",

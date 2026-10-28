@@ -706,6 +706,29 @@ function normalizeSteamBranch(branch) {
     : branch;
 }
 
+// SECURITY (2026-10-28): the branch a request names is passed to SteamCMD as
+// the value after -beta, and SteamCMD reads its own command line (quotes,
+// +commands) by its own rules, so any text there could become another
+// SteamCMD command. Steam branch names are letters, digits, dots, dashes and
+// underscores ("public", "unstable", "42.19", "legacy41"); anything else is
+// refused before SteamCMD runs. `true` is the legacy "unstable".
+const STEAM_BRANCH_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export function isValidSteamBranch(branch) {
+  if (branch === true) return true;
+  const name = normalizeSteamBranch(branch);
+  return typeof name === "string" && STEAM_BRANCH_NAME_RE.test(name);
+}
+
+function steamBranchRefusal(branch) {
+  if (isValidSteamBranch(branch)) return null;
+  return {
+    error:
+      "Invalid Steam branch name. Use only letters, numbers, dots, dashes and underscores.",
+    code: ErrorCode.STEAM_BRANCH_INVALID,
+  };
+}
+
 function recoverMismatchedSteamBranchManifest(installPath, selectedBranch) {
   const manifestPath = path.join(
     installPath,
@@ -3681,7 +3704,12 @@ function parseSteamBranches(output) {
 export function getBetaArgs(branch) {
   // Backwards compatibility: treat boolean true as 'unstable'
   if (branch === true) return ["-beta", "unstable"];
-  // Allow any branch name - Steam will validate it
+  // Only a real branch name reaches SteamCMD (isValidSteamBranch(); the
+  // routes refuse anything else before they answer).
+  if (!isValidSteamBranch(branch)) {
+    const refusal = steamBranchRefusal(branch);
+    throw Object.assign(new Error(refusal.error), { code: refusal.code });
+  }
   return ["-beta", normalizeSteamBranch(branch)];
 }
 
@@ -3740,6 +3768,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
 
     // Determine branch - support both new 'branch' param and legacy 'useUnstable'
     const selectedBranch = branch || (useUnstable ? "unstable" : "stable");
+    const branchRefused = steamBranchRefusal(selectedBranch);
+    if (branchRefused) return res.status(400).json(branchRefused);
     log.info(
       `POST /install (steamcmd=${steamcmdPath}, install=${installPath}, server=${serverName}, branch=${selectedBranch}, noSteam=${useNoSteam}, debug=${useDebug})`,
     );
@@ -5322,6 +5352,8 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
 
     // Determine branch - support both new 'branch' param and legacy 'useUnstable'
     const selectedBranch = branch || (useUnstable ? "unstable" : "stable");
+    const branchRefused = steamBranchRefusal(selectedBranch);
+    if (branchRefused) return res.status(400).json(branchRefused);
 
     // Auto-load steamcmdPath from settings if not provided
     if (!steamcmdPath) {
