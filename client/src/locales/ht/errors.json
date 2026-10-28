@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "ID tach envalid",
   "SCHEDULER_INVALID_ENABLED_VALUE": "Chan \"enabled\" la dwe yon boolean oswa 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Tach la pa jwenn",
+  "SCHEDULER_TOO_MANY_TASKS": "Panèl la kenbe maksimòm {{max}} tach pwograme. Efase youn anvan.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Pa t kapab repwograme tach la: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Pa ka fè yon sèvè adistans redemare. Panel sa a pa jere pwosesis la",
   "SCHEDULER_TIMEZONE_REQUIRED": "Yo mande yon fizo orè",

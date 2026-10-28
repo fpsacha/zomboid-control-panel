@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "任務 ID 無效",
   "SCHEDULER_INVALID_ENABLED_VALUE": "enabled 欄位必須是布林值或 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "未找到任務",
+  "SCHEDULER_TOO_MANY_TASKS": "面板最多保留 {{max}} 個排程任務，請先刪除一個。",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "無法重新安排任務：{{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "無法重新啟動遠端伺服器。該程序不由此面板管理",
   "SCHEDULER_TIMEZONE_REQUIRED": "需要提供時區",

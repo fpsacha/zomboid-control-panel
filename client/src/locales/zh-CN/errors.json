@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "任务 ID 无效",
   "SCHEDULER_INVALID_ENABLED_VALUE": "enabled 字段必须是布尔值或 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "未找到任务",
+  "SCHEDULER_TOO_MANY_TASKS": "面板最多保留 {{max}} 个计划任务，请先删除一个。",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "无法重新安排任务：{{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "无法重启远程服务器。该进程不由此面板管理",
   "SCHEDULER_TIMEZONE_REQUIRED": "需要提供时区",

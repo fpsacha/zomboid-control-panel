@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "Invalid task ID",
   "SCHEDULER_INVALID_ENABLED_VALUE": "The enabled field must be a boolean or 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Task not found",
+  "SCHEDULER_TOO_MANY_TASKS": "The panel keeps at most {{max}} scheduled tasks. Delete one first.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Could not reschedule the task: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Cannot restart a remote server. The process is not managed by this panel",
   "SCHEDULER_TIMEZONE_REQUIRED": "A timezone is required",

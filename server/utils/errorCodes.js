@@ -2253,6 +2253,9 @@ export const ErrorCode = Object.freeze({
    * /tasks/:id, POST /tasks/:id/run) -- no scheduled task exists for the
    * given ID. Identical wording/meaning at every site, shared code. */
   SCHEDULER_TASK_NOT_FOUND: "SCHEDULER_TASK_NOT_FOUND",
+  /** server/routes/scheduler.js -- POST /tasks, the panel already keeps the most scheduled tasks
+   * it keeps (database/init.js MAX_SCHEDULED_TASKS). Sends `{ max }`. */
+  SCHEDULER_TOO_MANY_TASKS: "SCHEDULER_TOO_MANY_TASKS",
   /** server/routes/scheduler.js -- PUT /tasks/:id, scheduler.scheduleTask()
    * rejected the updated task; the previous DB record is restored before
    * this responds. Carries the underlying reason as the `reason` param,

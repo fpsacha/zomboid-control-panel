@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "Ungültige Aufgaben-ID",
   "SCHEDULER_INVALID_ENABLED_VALUE": "Das Feld \"enabled\" muss ein Boolean oder 0/1 sein",
   "SCHEDULER_TASK_NOT_FOUND": "Aufgabe nicht gefunden",
+  "SCHEDULER_TOO_MANY_TASKS": "Das Panel speichert höchstens {{max}} geplante Aufgaben. Lösche zuerst eine.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Aufgabe konnte nicht neu geplant werden: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Ein Remote-Server kann nicht neu gestartet werden. Der Prozess wird nicht von diesem Panel verwaltet",
   "SCHEDULER_TIMEZONE_REQUIRED": "Eine Zeitzone ist erforderlich",

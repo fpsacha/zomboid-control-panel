@@ -20,6 +20,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Auto-restart on mod update needs Start/stop:** turning it on, or changing its warning and wait for players, now takes the server control permission as well as Mods (and in Settings too), like every other restart; turning it off doesn't.
 - **Restart warning text:** writing your own countdown message for players now takes the world-events permission, like any other server broadcast; picking a language's preset doesn't.
 - **Docker container actions need Start/stop:** starting, stopping or restarting a server's container from the Servers page now takes the server control permission as well as Docker, as its description says.
+- **Scheduled tasks are capped at 500:** creating more is refused with a clear message; a panel that already has more keeps them.
 
 ## [2026.10.1] - 2026-10-26
 

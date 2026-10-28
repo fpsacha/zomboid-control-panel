@@ -514,6 +514,7 @@
   "SCHEDULER_INVALID_TASK_ID": "معرّف مهمة غير صالح",
   "SCHEDULER_INVALID_ENABLED_VALUE": "يجب أن يكون الحقل enabled قيمة منطقية أو 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "لم يُعثر على المهمة",
+  "SCHEDULER_TOO_MANY_TASKS": "تحتفظ اللوحة بحد أقصى {{max}} مهمة مجدولة. احذف واحدة أولاً.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "تعذّرت إعادة جدولة المهمة: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "لا يمكن إعادة تشغيل خادم بعيد. فالعملية ليست مُدارة من هذه اللوحة",
   "SCHEDULER_TIMEZONE_REQUIRED": "المنطقة الزمنية مطلوبة",

@@ -421,7 +421,17 @@ router.post('/tasks', async (req, res) => {
       return refuseRemoteRestartTask(res);
     }
 
-    const result = await createScheduledTask(name, cronExpression, command, resolvedServerId);
+    let result;
+    try {
+      result = await createScheduledTask(name, cronExpression, command, resolvedServerId);
+    } catch (createErr) {
+      if (createErr?.code !== 'SCHEDULER_TOO_MANY_TASKS') throw createErr;
+      return res.status(400).json({
+        error: createErr.message,
+        code: ErrorCode.SCHEDULER_TOO_MANY_TASKS,
+        params: sanitizeErrorParams({ max: createErr.max }),
+      });
+    }
     const task = {
       id: result.id,
       name,
