@@ -17,6 +17,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Server memory on Windows:** status requests that arrive together share one memory read instead of each starting its own PowerShell.
 - **Problems found:** a console line written to make text matching slow no longer freezes the panel while Diagnostics reads the game log.
+- **Console page:** such a line no longer freezes the Server Log tab in the browser either.
 
 ## [2026.10.1] - 2026-10-26
 
