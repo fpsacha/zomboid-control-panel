@@ -20,7 +20,41 @@ import {
 // separates a yell from ordinary talking.
 const SHOUT_CHAT_ROOM_ID = 2;
 
-const DELIVERY_LINE = /Message ChatMessage\{chat=([^,]+),\s*author='(.*?)',\s*text='(.*)'\} sent to chat \(id = (\d+)\)/;
+// Lines of the B42 chat log, each matched whole. ZLogger writes
+// "[dd-MM-yy HH:mm:ss.SSS]" (see USER_LOG_DEATH_LINE), the level in brackets
+// when the game gave one, a space, the text, then a "." of its own.
+//
+// SECURITY (2026-10-28): chat comes from the delivery line only, and both
+// patterns are anchored at both ends.
+// - ChatServer writes "Got message:" + the message the moment the packet
+//   arrives: before it drops a message for a chat stream the server turned
+//   off, and before the bad-word filter masks it. The delivery line
+//   ("Message ... sent to chat (id = N) members") is written once the
+//   message went out, with the text players saw and the room id.
+// - A player's text is copied into both lines verbatim, so the unanchored
+//   alert pattern found "Server alert message: '...' sent.." inside an
+//   ordinary message (even a faction or whisper one) and relayed it to
+//   Discord and the Chat page as the server.
+// - The author is whatever the game client sent; the game doesn't check it,
+//   so it is only ever shown as a name. A modified client can also put a
+//   line break in its text and write whole timestamped lines that no
+//   parsing here can tell from real ones; a line still carrying a control
+//   character (a lone CR survives the line split) is dropped.
+const CHAT_LOG_LINE_START = String.raw`^\[\p{Nd}{2}-\p{Nd}{2}-\p{Nd}{2} \p{Nd}{2}:\p{Nd}{2}:\p{Nd}{2}\.\p{Nd}{3}\](?:\[\w+\])? `;
+const DELIVERY_LINE = new RegExp(
+  CHAT_LOG_LINE_START + String.raw`Message ChatMessage\{chat=([^,]+),\s*author='(.*?)',\s*text='(.*)'\} sent to chat \(id = (\d+)\) members\.?$`,
+  'u',
+);
+// Tested first: on a line that doesn't end like a delivery (a modified
+// client's text can cut one short), DELIVERY_LINE would retry its lazy
+// author at every "', text='" in it, quadratic in the line's length.
+const DELIVERY_LINE_END = /'\} sent to chat \(id = \d+\) members\.?$/u;
+// From RCON servermsg; the in-game command adds " by '<admin>'" before
+// " sent", which stays part of the message as it always has.
+const SERVER_ALERT_LINE = new RegExp(
+  CHAT_LOG_LINE_START + String.raw`Server alert message: '(.+)' sent\.\.$`,
+  'u',
+);
 
 // One whole B42 user.txt death line, exactly as IsoGameCharacter + ZLogger
 // write it: "[" + dd-MM-yy HH:mm:ss.SSS + "] user " + name + " died at (x,y,z)
@@ -40,24 +74,14 @@ const USER_LOG_CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 // every-non-first-rotation, 2026-09-09.
 const BIRTHTIME_CLOCK_SKEW_GRACE_MS = 100;
 
-export function chatMessageKey(chatType, author, text) {
-  return `${chatType}\u0000${author}\u0000${text}`;
+// A tab is the one control character a pasted chat message may honestly hold.
+function hasLineControlChar(text) {
+  return USER_LOG_CONTROL_CHAR.test(text.replaceAll('\t', ' '));
 }
 
-// PZ logs a message twice: once on receipt (no room id) and once on delivery
-// (with the room id). Pair them up so the receipt line can be labelled.
-export function collectChatRoomIds(lines) {
-  const ids = new Map();
-  for (const line of lines) {
-    const m = line.match(DELIVERY_LINE);
-    if (!m) continue;
-    const key = chatMessageKey(m[1].trim(), m[2], m[3]);
-    const bucket = ids.get(key);
-    if (bucket) bucket.push(Number(m[4]));
-    else ids.set(key, [Number(m[4])]);
-  }
-  return ids;
-}
+// The legacy (B41-style) console chat line once its leading timestamp is
+// stripped: "[chat] <name> text", nothing before the marker.
+const LEGACY_CONSOLE_CHAT_LINE = /^\[chat\]\s*<([^<>]+)>\s+(.*)$/u;
 
 export class LogTailer extends EventEmitter {
   constructor() {
@@ -584,50 +608,61 @@ export class LogTailer extends EventEmitter {
     return lines;
   }
 
-  // Parse server-console.txt lines (B41-style [chat] markers)
+  // Parse server-console.txt lines (B41-style [chat] markers).
+  //
+  // SECURITY (2026-10-28): a B42 server started with -debug copies every
+  // chat log line into this file, player text included, so "[chat] <Admin>
+  // ..." typed into any chat (a whisper too) came out here as public chat
+  // from Admin. Chat is read from Logs/*_chat.txt whenever there is one, so
+  // this only runs without it, and only on a line that is the marker itself
+  // once the timestamp is stripped.
   processConsoleData(data) {
     const lines = this._splitLines(data, 'consoleRemainder');
+    if (this.chatLogPath) return;
     for (const line of lines) {
-        if (!line.trim()) continue;
-        if (line.includes('[chat]')) {
-            const cleanLine = line.replace(/^\[.*?\]\s*/, '');
-            if (!cleanLine.includes('[chat]')) continue;
-            const match = cleanLine.match(/<([^>]+)>\s+(.*)/);
-            if (match) {
-                this.emit('chatMessage', {
-                    author: match[1],
-                    message: match[2],
-                    type: 'general',
-                    timestamp: new Date()
-                });
-            }
-        }
+        if (!line.includes('[chat]') || hasLineControlChar(line)) continue;
+        const cleanLine = line.replace(/^\[.*?\]\s*/, '');
+        const match = cleanLine.match(LEGACY_CONSOLE_CHAT_LINE);
+        if (!match) continue;
+        this.emit('chatMessage', {
+            author: match[1],
+            message: match[2],
+            type: 'general',
+            timestamp: new Date()
+        });
     }
   }
 
-  // Parse B42 dedicated chat log lines
+  // Parse B42 dedicated chat log lines (see DELIVERY_LINE for why only the
+  // delivery line is read)
   // Formats:
-  //   Player msg:  [DD-MM-YY HH:MM:SS.mmm][info] Got message:ChatMessage{chat=General, author='user', text='hello'}.
+  //   Receipt:     [DD-MM-YY HH:MM:SS.mmm][info] Got message:ChatMessage{chat=General, author='user', text='hello'}.
   //   Delivery:    [DD-MM-YY HH:MM:SS.mmm][info] Message ChatMessage{chat=Local, author='user', text='HEY!'} sent to chat (id = 2) members.
   //   Server msg:  [DD-MM-YY HH:MM:SS.mmm] Server alert message: 'text' sent..
   processChatLogData(data) {
     const lines = this._splitLines(data, 'chatRemainder');
-    const chatIds = collectChatRoomIds(lines);
     for (const line of lines) {
         if (!line.trim()) continue;
+
+        // Nothing the game writes holds a control character, so one is a
+        // player's (a lone CR survives the split). Checked before matching:
+        // `.` stops at a CR or U+2028, which made DELIVERY_LINE retry too.
+        if (hasLineControlChar(line)) {
+            log.debug('LogTailer: ignoring a chat log line that carries a control character');
+            continue;
+        }
 
         // Player/admin chat messages
         // Author is matched lazily rather than as "anything but a quote" so a
         // name like O'Brien doesn't fail the whole line.
-        const msgMatch = line.match(/Got message:ChatMessage\{chat=([^,]+),\s*author='(.*?)',\s*text='(.*)'\}/);
+        const msgMatch = DELIVERY_LINE_END.test(line) && line.match(DELIVERY_LINE);
         if (msgMatch) {
             const chatType = msgMatch[1].trim();
             const author = msgMatch[2];
             const text = msgMatch[3];
             // PZ names both the say and the shout room "Local"; only the room
-            // id on the delivery line tells them apart.
-            const roomIds = chatIds.get(chatMessageKey(chatType, author, text));
-            const roomId = roomIds && roomIds.length ? roomIds.shift() : null;
+            // id tells them apart.
+            const roomId = Number(msgMatch[4]);
             const sourceChatType =
                 chatType === 'Local' && roomId === SHOUT_CHAT_ROOM_ID
                     ? 'Shout'
@@ -650,7 +685,7 @@ export class LogTailer extends EventEmitter {
         }
 
         // Server alert messages (from RCON servermsg)
-        const alertMatch = line.match(/Server alert message: '(.+)' sent\.\./);
+        const alertMatch = line.match(SERVER_ALERT_LINE);
         if (alertMatch) {
             this.emit('chatMessage', {
                 author: 'Server',

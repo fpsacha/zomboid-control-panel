@@ -16,6 +16,9 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
 - **Panel log:** a line break in a name or ID sent with a request can no longer add a fake entry to the panel's log or a support bundle.
+- **Chat relay:** a player can no longer get their chat text posted to Discord and the Chat page as a server announcement.
+- **Chat relay:** only messages the game delivered are relayed, with the text players saw: a message for a chat the server turned off, or the unfiltered text of a bad-word-filtered one, no longer reaches Discord or the Chat page.
+- **Chat relay:** on a server started with `-debug`, chat text copied into the server console can no longer be relayed as another player's message.
 
 ## [2026.10.1] - 2026-10-26
 

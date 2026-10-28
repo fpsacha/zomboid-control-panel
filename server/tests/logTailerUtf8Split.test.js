@@ -10,7 +10,7 @@ import { LogTailer } from "../services/logTailer.js";
 // It now keeps a StringDecoder per file across reads.
 
 const chatLine = (author, text) =>
-  `[01-01-26 10:00:00.000][info] Got message:ChatMessage{chat=General, author='${author}', text='${text}'}.\n`;
+  `[01-01-26 10:00:00.000][info] Message ChatMessage{chat=General, author='${author}', text='${text}'} sent to chat (id = 0) members.\n`;
 
 describe("LogTailer: a multi-byte character split across reads", () => {
   let dir;
@@ -51,7 +51,7 @@ describe("LogTailer: a multi-byte character split across reads", () => {
     let text = "";
     while (Buffer.byteLength(text) + Buffer.byteLength(filler) < 65536 - 300) text += filler;
     // Pad so the next line's first CJK character starts 1 byte before 65536.
-    const prefix = "[01-01-26 10:00:00.000][info] Got message:ChatMessage{chat=General, author='";
+    const prefix = "[01-01-26 10:00:00.000][info] Message ChatMessage{chat=General, author='";
     const pad = 65536 - 1 - Buffer.byteLength(text) - Buffer.byteLength(prefix) - 1;
     text += `${chatLine("Pad", "y".repeat(pad - Buffer.byteLength(chatLine("Pad", "")) + 1))}`;
     text += chatLine("名前", "你好世界");

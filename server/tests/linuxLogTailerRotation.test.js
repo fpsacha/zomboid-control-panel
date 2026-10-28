@@ -91,7 +91,7 @@ const isLinux = process.platform !== "win32";
       const oldChat = path.join(logsDir, "01-01-26_chat.txt");
       fs.writeFileSync(
         oldChat,
-        "[01-01-26 10:00:00.000][info] Got message:ChatMessage{chat=Say, author='Alice', text='old session'}.\n",
+        "[01-01-26 10:00:00.000][info] Message ChatMessage{chat=Say, author='Alice', text='old session'} sent to chat (id = 1) members.\n",
       );
 
       // beforeEach() constructs `tailer` (capturing watchStartedAt = Date.now())
@@ -151,7 +151,7 @@ const isLinux = process.platform !== "win32";
       const newChat = path.join(logsDir, "02-01-26_chat.txt");
       fs.writeFileSync(
         newChat,
-        "[01-01-26 11:00:00.000][info] Got message:ChatMessage{chat=Say, author='Carol', text='new session'}.\n",
+        "[01-01-26 11:00:00.000][info] Message ChatMessage{chat=Say, author='Carol', text='new session'} sent to chat (id = 1) members.\n",
       );
       const future = new Date(Date.now() + 10_000);
       fs.utimesSync(newChat, future, future);
@@ -188,7 +188,7 @@ const isLinux = process.platform !== "win32";
       const oldChat = path.join(logsDir, "01-01-26_chat.txt");
       fs.writeFileSync(
         oldChat,
-        "[01-01-26 10:00:00.000][info] Got message:ChatMessage{chat=Say, author='Alice', text='old session'}.\n",
+        "[01-01-26 10:00:00.000][info] Message ChatMessage{chat=Say, author='Alice', text='old session'} sent to chat (id = 1) members.\n",
       );
       // Same fix as the rotation test above and for the same reason: a
       // plain Date.now(), not a birthtimeMs-derived synthetic offset that
@@ -220,7 +220,7 @@ const isLinux = process.platform !== "win32";
       const newChat = path.join(logsDir, "02-01-26_chat.txt");
       fs.writeFileSync(
         newChat,
-        "[01-01-26 11:00:00.000][info] Got message:ChatMessage{chat=Say, author='Carol', text='new session'}.\n",
+        "[01-01-26 11:00:00.000][info] Message ChatMessage{chat=Say, author='Carol', text='new session'} sent to chat (id = 1) members.\n",
       );
 
       // The tie: both files stamped to the exact same instant.
@@ -263,7 +263,7 @@ const isLinux = process.platform !== "win32";
       const revived = path.join(logsDir, "02-01-26_chat.txt");
       fs.writeFileSync(
         revived,
-        "[01-01-26 12:00:00.000][info] Got message:ChatMessage{chat=Say, author='Dave', text='back up'}.\n",
+        "[01-01-26 12:00:00.000][info] Message ChatMessage{chat=Say, author='Dave', text='back up'} sent to chat (id = 1) members.\n",
       );
       await tailer.checkChatLog();
       expect(tailer.chatLogPath).toBe(revived);
@@ -277,7 +277,7 @@ const isLinux = process.platform !== "win32";
       const seen = [];
       t.on("chatMessage", (m) => seen.push(m));
       const lfOnly =
-        "[01-01-26 10:00:00.000][info] Got message:ChatMessage{chat=Say, author='Eve', text='linux native'}.\n";
+        "[01-01-26 10:00:00.000][info] Message ChatMessage{chat=Say, author='Eve', text='linux native'} sent to chat (id = 1) members.\n";
       t.processChatLogData(lfOnly);
       expect(seen).toHaveLength(1);
       expect(seen[0].author).toBe("Eve");

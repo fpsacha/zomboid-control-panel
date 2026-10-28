@@ -26,7 +26,7 @@ describe("LogTailer.reloadConfig: a repoint must not replay the log files that a
   let consoleLog;
 
   const CHAT_LINE =
-    "[12-10-26 09:00:00.000][info] Got message:ChatMessage{chat=General, author='Alice', text='old message'}.\n";
+    "[12-10-26 09:00:00.000][info] Message ChatMessage{chat=General, author='Alice', text='old message'} sent to chat (id = 0) members.\n";
   const DEATH_LINE = "[12-10-26 09:00:01.000] user Bob died at (1,2,0) (non pvp).\n";
 
   beforeEach(async () => {
@@ -83,7 +83,7 @@ describe("LogTailer.reloadConfig: a repoint must not replay the log files that a
 
     fs.appendFileSync(
       chatLog,
-      "[12-10-26 09:05:00.000][info] Got message:ChatMessage{chat=General, author='Carol', text='fresh'}.\n",
+      "[12-10-26 09:05:00.000][info] Message ChatMessage{chat=General, author='Carol', text='fresh'} sent to chat (id = 0) members.\n",
     );
     fs.appendFileSync(userLog, "[12-10-26 09:05:01.000] user Dave died at (5,6,0) (non pvp).\n");
     await tailer.checkChatLog();
@@ -100,7 +100,7 @@ describe("LogTailer.reloadConfig: a repoint must not replay the log files that a
     const newer = path.join(dir, "Logs", "12-10-26-b_chat.txt");
     fs.writeFileSync(
       newer,
-      "[12-10-26 10:00:00.000][info] Got message:ChatMessage{chat=General, author='Eve', text='first of new session'}.\n",
+      "[12-10-26 10:00:00.000][info] Message ChatMessage{chat=General, author='Eve', text='first of new session'} sent to chat (id = 0) members.\n",
     );
     const future = new Date(Date.now() + 5000);
     fs.utimesSync(newer, future, future);
