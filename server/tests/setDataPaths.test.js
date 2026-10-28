@@ -26,7 +26,7 @@ import path from "path";
 // imported -- setDataPaths() below runs for real, against real temp
 // directories, not the developer's or panel's actual data.
 
-const { getDataPaths, setDataPaths, logsDirRefusal, getPanelProgramDir } = await import("../utils/paths.js");
+const { getDataPaths, setDataPaths, logsDirRefusal, dataDirRefusal, getPanelProgramDir } = await import("../utils/paths.js");
 
 function freshDir(label) {
   return fs.mkdtempSync(path.join(os.tmpdir(), `zcp-setpaths-${label}-`));
@@ -237,5 +237,129 @@ describe("setDataPaths: the logs folder stays clear of the panel's secrets", () 
     const result = await setDataPaths({ logsDir: dir }, false);
     expect(result.success).toBe(true);
     expect(getDataPaths().logsDir).toBe(dir);
+  });
+});
+
+// SECURITY (2026-10-28, R1-3): the data folder (db.json, jwt.secret,
+// *.secret) could be moved into <program>/client/dist, which the panel serves
+// to anyone without a sign-in, so its secrets became downloadable.
+describe("setDataPaths: the data folder stays out of the program and served folders", () => {
+  it("refuses a data folder inside the served web client, the program folder, or one holding it", async () => {
+    const programDir = getPanelProgramDir();
+    const distDir = path.join(programDir, "client", "dist");
+    const distExisted = fs.existsSync(distDir);
+    const servedTarget = path.join(distDir, "zcp-r1-3");
+    try {
+      for (const dataDir of [servedTarget, programDir, path.join(programDir, "server"), path.dirname(programDir)]) {
+        const before = getDataPaths().dataDir;
+        const result = await setDataPaths({ dataDir }, false);
+        expect(result.success, dataDir).toBe(false);
+        expect(result.code).toBe("PANEL_DATA_FOLDER_REFUSED");
+        expect(getDataPaths().dataDir).toBe(before);
+      }
+      expect(fs.existsSync(servedTarget)).toBe(false);
+    } finally {
+      fs.rmSync(distExisted ? servedTarget : distDir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses the packaged build's served client folder inside the data folder", async () => {
+    const result = await setDataPaths(
+      { dataDir: path.join(getDataPaths().dataDir, ".embedded-client", "bundle", "x") },
+      false,
+    );
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("PANEL_DATA_FOLDER_REFUSED");
+  });
+
+  it("allows the default data folder, a folder inside it, and a folder elsewhere", () => {
+    const programDir = getPanelProgramDir();
+    expect(dataDirRefusal(path.join(programDir, "data"))).toBeNull();
+    expect(dataDirRefusal(path.join(programDir, "data", "moved"))).toBeNull();
+    expect(dataDirRefusal(path.join(programDir, "data", ".embedded-client", "b"))).toMatch(/serves/i);
+    expect(dataDirRefusal(freshDir("other-disk"))).toBeNull();
+  });
+
+  // Adversary pass: the typed path is outside the program folder, but a
+  // junction leads into it (and a case variant on Windows).
+  it("refuses a junction into the program folder and, on Windows, a case variant", async () => {
+    const programDir = getPanelProgramDir();
+    const holder = freshDir("program-junction");
+    const link = path.join(holder, "alias");
+    fs.symlinkSync(path.join(programDir, "client"), link, "junction");
+    const result = await setDataPaths({ dataDir: path.join(link, "dist", "x") }, false);
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("PANEL_DATA_FOLDER_REFUSED");
+    expect(fs.existsSync(path.join(programDir, "client", "dist", "x"))).toBe(false);
+    if (process.platform === "win32") {
+      expect(dataDirRefusal(path.join(programDir.toUpperCase(), "CLIENT", "DIST", "x"))).not.toBeNull();
+    }
+  });
+
+  // Adversary pass: the system-folder blocklist was matched on the typed
+  // path only, so a junction into a blocked folder passed.
+  it("refuses a junction into a protected system folder", async (ctx) => {
+    if (process.platform !== "win32") return ctx.skip(); // BLOCKED_PREFIXES is platform-specific
+    const holder = freshDir("system-junction");
+    const link = path.join(holder, "alias");
+    fs.symlinkSync("C:\\ProgramData", link, "junction");
+    const name = `zcp-r1-3-${process.pid}-${Date.now()}`;
+    try {
+      const result = await setDataPaths({ dataDir: path.join(link, name) }, false);
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/protected system directory/i);
+    } finally {
+      fs.rmSync(path.join("C:\\ProgramData", name), { recursive: true, force: true });
+    }
+  });
+});
+
+// SECURITY (2026-10-28, CodeQL #27 / extra): on Windows a network share or
+// device path was accepted as the data or logs folder, and the write probe
+// signed the panel's account in to that host (its NTLM login) before
+// anything refused it.
+describe.skipIf(process.platform !== "win32")("setDataPaths: no network share or device path", () => {
+  it("refuses one before any file call touches it", async () => {
+    const isNetworkPath = (p) => /^[\\/]{2}/.test(String(p));
+    const touched = [];
+    const record = (name, real) => (p, ...rest) => {
+      if (isNetworkPath(p)) {
+        touched.push(`${name} ${p}`);
+        const err = new Error("ENOENT (test: never really looked up)");
+        err.code = "ENOENT";
+        throw err;
+      }
+      return real(p, ...rest);
+    };
+    const spies = [
+      vi.spyOn(fs, "mkdirSync").mockImplementation(record("mkdirSync", fs.mkdirSync.bind(fs))),
+      vi.spyOn(fs, "writeFileSync").mockImplementation(record("writeFileSync", fs.writeFileSync.bind(fs))),
+      vi.spyOn(fs, "existsSync").mockImplementation(record("existsSync", fs.existsSync.bind(fs))),
+      vi.spyOn(fs, "statSync").mockImplementation(record("statSync", fs.statSync.bind(fs))),
+      vi.spyOn(fs.realpathSync, "native").mockImplementation(record("realpathSync.native", fs.realpathSync.native.bind(fs))),
+    ];
+    try {
+      for (const request of [
+        { dataDir: "\\\\attacker\\share\\panel" },
+        { logsDir: "//attacker/share/logs" },
+        { dataDir: "\\\\?\\UNC\\attacker\\share\\panel" },
+        { dataDir: "\\\\?\\C:\\zcp-device-path" },
+      ]) {
+        const before = getDataPaths();
+        const result = await setDataPaths(request, true);
+        expect(result.success, JSON.stringify(request)).toBe(false);
+        expect(result.code).toBe("FOLDER_NETWORK_SHARE_REFUSED");
+        expect(getDataPaths()).toEqual(before);
+      }
+      expect(touched).toEqual([]);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  it("still accepts a local folder", async () => {
+    const dir = freshDir("local-after-unc");
+    const result = await setDataPaths({ dataDir: dir }, false);
+    expect(result.success).toBe(true);
   });
 });

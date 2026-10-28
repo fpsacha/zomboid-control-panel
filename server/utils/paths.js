@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ErrorCode } from './errorCodes.js';
+import { untrustedFolderReason } from './untrustedFolder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -252,6 +254,39 @@ export function logsDirRefusal(logsDir, { dataDirs = [], secretPaths = [], check
 }
 
 /**
+ * Why `dataDir` can't be the panel's new data folder, or null when it can.
+ *
+ * SECURITY (2026-10-28): the data folder holds db.json, jwt.secret and the
+ * *.secret files, and the panel serves its web client to anyone, signed in
+ * or not: <program>/client/dist, or <data>/.embedded-client in a packaged
+ * build. A data folder inside either was downloadable by anyone. So, like
+ * the logs folder, it can't be, hold, or sit inside the program folder --
+ * its own default <program>/data excepted -- nor sit inside a served
+ * client folder. Compared both as typed and through links.
+ *
+ * @param {string} dataDir
+ * @param {{ currentDataDir?: string }} [opts]
+ */
+export function dataDirRefusal(dataDir, { currentDataDir } = {}) {
+  const both = (p) => [path.resolve(p), realishPath(p)];
+  const forms = both(dataDir);
+  const programForms = both(baseDir);
+  const defaultDataForms = both(defaultDataDir);
+  const servedForms = [defaultDataDir, currentDataDir]
+    .filter((d) => typeof d === 'string' && d.trim())
+    .flatMap((d) => both(path.join(d, '.embedded-client')));
+  for (const form of forms) {
+    const inProgramDir =
+      programForms.some((programDir) => pathsOverlap(form, programDir)) &&
+      !defaultDataForms.some((defaultData) => isWithinDir(defaultData, form));
+    if (inProgramDir || servedForms.some((served) => isWithinDir(served, form))) {
+      return "The data folder can't be the panel's program folder, a folder inside it (other than its own data folder), a folder that holds it, or a folder the panel serves to browsers";
+    }
+  }
+  return null;
+}
+
+/**
  * Update paths and optionally move files.
  *
  * moveFiles defaults to false -- 2026-08-27: this used to default to true
@@ -301,10 +336,22 @@ export async function setDataPaths(newPaths, moveFiles = false, options = {}) {
     if (!path.isAbsolute(dir)) {
       return { success: false, error: 'Path must be absolute' };
     }
-    const resolved = process.platform === 'win32'
-      ? path.resolve(dir).toLowerCase()
-      : path.resolve(dir);
-    if (BLOCKED_PREFIXES.some(p => resolved.startsWith(p))) {
+    // SECURITY (2026-10-28): no Windows network share or device path
+    // (\\host\share, \\?\..., \\.\...), refused before any file call below:
+    // merely touching one signs the panel's account in to that host, and a
+    // share's owner reads, or supplies, the database and signing secret.
+    if (untrustedFolderReason(dir) === 'networkShare') {
+      return {
+        success: false,
+        error: "The panel's data and logs folders must be on this computer, not a network share or device path",
+        code: ErrorCode.FOLDER_NETWORK_SHARE_REFUSED,
+      };
+    }
+    // The blocklist is matched as typed and through links (a junction into
+    // C:\Windows is still C:\Windows).
+    const lower = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
+    const resolvedForms = [lower(path.resolve(dir)), lower(realishPath(dir))];
+    if (resolvedForms.some((resolved) => BLOCKED_PREFIXES.some((p) => resolved.startsWith(p)))) {
       return { success: false, error: 'Path targets a protected system directory' };
     }
     const overlappingBlocked = extraBlockedPaths.find((blocked) => pathsOverlap(dir, blocked));
@@ -313,6 +360,13 @@ export async function setDataPaths(newPaths, moveFiles = false, options = {}) {
         success: false,
         error: `Path overlaps a configured PZ server's install or data directory (${overlappingBlocked})`,
       };
+    }
+  }
+
+  if (newPaths.dataDir) {
+    const refusal = dataDirRefusal(newPaths.dataDir, { currentDataDir: current.dataDir });
+    if (refusal) {
+      return { success: false, error: refusal, code: ErrorCode.PANEL_DATA_FOLDER_REFUSED };
     }
   }
 

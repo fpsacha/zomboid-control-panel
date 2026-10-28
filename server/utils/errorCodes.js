@@ -2821,6 +2821,20 @@ export const ErrorCode = Object.freeze({
    * display name as the `name` param. */
   SERVER_ALREADY_EXISTS: "SERVER_ALREADY_EXISTS",
   /* --- end servers/settings flows pass 2026-10-10 --- */
+  /* --- security audit 2026-10-28: data folders --- */
+  /** server/utils/paths.js setDataPaths() (POST /api/debug/paths) and
+   * server/services/zomboidDataPath.js checkZomboidDataPath() (every place a
+   * server's Zomboid data folder is saved) -- on Windows, the folder is a
+   * network share or device path (\\host\share, \\?\..., \\.\...), refused
+   * before any file call: touching one signs the panel's account in to that
+   * host. */
+  FOLDER_NETWORK_SHARE_REFUSED: "FOLDER_NETWORK_SHARE_REFUSED",
+  /** server/utils/paths.js setDataPaths() (POST /api/debug/paths) -- the new
+   * panel data folder is, holds or sits inside the program folder (other than
+   * its own data folder), or sits inside the web client the panel serves to
+   * anyone (dataDirRefusal()). */
+  PANEL_DATA_FOLDER_REFUSED: "PANEL_DATA_FOLDER_REFUSED",
+  /* --- end security audit 2026-10-28: data folders --- */
 });
 
 /**

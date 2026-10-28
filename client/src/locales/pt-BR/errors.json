@@ -678,5 +678,7 @@
   "RETRY_AFTER_MINUTES_many": "Tente novamente em {{count}} minutos.",
   "LOGIN_FAILED": "Não foi possível entrar. Verifique seu nome de usuário e senha e tente novamente.",
   "LOGIN_CORS_BLOCKED": "A conexão foi bloqueada pela política de origem do navegador. Na primeira configuração atrás de um proxy reverso, defina CORS_ORIGINS com esta URL no ambiente do painel e reinicie-o. Caso contrário, abra o painel a partir de um endereço local ou da rede local; depois da configuração, gerencie as origens em Configurações > Acesso remoto.",
-  "SETUP_FAILED": "Não foi possível criar a conta de administrador. Tente novamente."
+  "SETUP_FAILED": "Não foi possível criar a conta de administrador. Tente novamente.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "Esta pasta está em um compartilhamento de rede ou é um caminho de dispositivo do Windows. Escolha uma pasta neste computador ou mapeie antes o compartilhamento para uma letra de unidade.",
+  "PANEL_DATA_FOLDER_REFUSED": "A pasta de dados do painel não pode ser a pasta do programa, uma pasta dentro dela (exceto a própria pasta de dados), uma pasta que a contenha nem uma pasta que o painel entrega aos navegadores web. Escolha outra pasta."
 }

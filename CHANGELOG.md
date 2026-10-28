@@ -15,6 +15,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **SteamCMD folder:** SteamCMD is no longer run from a Steam Workshop download folder or a Windows network share; an install role could otherwise have run a program of its choosing.
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
+- **Panel data folder:** it can no longer be moved into the panel's program folder or the web client it serves, or (on Windows) onto a network share, which could expose the panel's secrets.
 
 ## [2026.10.1] - 2026-10-26
 

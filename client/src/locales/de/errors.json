@@ -676,5 +676,7 @@
   "RETRY_AFTER_MINUTES_other": "Versuche es in {{count}} Minuten erneut.",
   "LOGIN_FAILED": "Die Anmeldung hat nicht geklappt. Prüfe Benutzername und Passwort und versuche es erneut.",
   "LOGIN_CORS_BLOCKED": "Die Verbindung wurde von der Origin-Richtlinie des Browsers blockiert. Setze bei der Ersteinrichtung hinter einem Reverse-Proxy CORS_ORIGINS in der Panel-Umgebung auf diese URL und starte das Panel neu. Öffne das Panel sonst über eine lokale Adresse oder eine Adresse im LAN; nach der Einrichtung verwaltest du die Origins unter Einstellungen > Fernzugriff.",
-  "SETUP_FAILED": "Das Administratorkonto konnte nicht erstellt werden. Versuche es erneut."
+  "SETUP_FAILED": "Das Administratorkonto konnte nicht erstellt werden. Versuche es erneut.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "Dieser Ordner liegt auf einer Netzwerkfreigabe oder ist ein Windows-Gerätepfad. Wähle einen Ordner auf diesem Computer oder verbinde die Freigabe zuerst mit einem Laufwerksbuchstaben.",
+  "PANEL_DATA_FOLDER_REFUSED": "Der Datenordner des Panels kann weder sein Programmordner sein noch ein Ordner darin (außer seinem eigenen Datenordner), ein Ordner, der ihn enthält, oder ein Ordner, den das Panel an Webbrowser ausliefert. Wähle einen anderen Ordner."
 }

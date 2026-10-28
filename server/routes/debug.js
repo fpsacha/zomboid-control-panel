@@ -2302,7 +2302,15 @@ router.post("/paths", requirePermission("diagnostics.manage"), async (req, res) 
         requiresRestart: true,
       });
     } else {
-      res.status(400).json({ error: result.error });
+      // setDataPaths()'s coded refusals (utils/paths.js); the rest are
+      // self-contained English validation text.
+      const code = [
+        ErrorCode.FOLDER_NETWORK_SHARE_REFUSED,
+        ErrorCode.PANEL_DATA_FOLDER_REFUSED,
+      ].includes(result.code)
+        ? result.code
+        : undefined;
+      res.status(400).json({ error: result.error, ...(code ? { code } : {}) });
     }
   } catch (error) {
     log.error(`Failed to update paths: ${error.message}`);
