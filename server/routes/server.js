@@ -3410,9 +3410,28 @@ function steamCmdFolderHasBinary(dir) {
   return names.some((name) => fs.existsSync(path.join(dir, name)));
 }
 
+// SECURITY (2026-10-28): GET /branches runs SteamCMD, and saves the folder
+// its query names as the SteamCMD folder. A GET is the request any web page
+// can make the operator's browser send unasked (an <img>, with no Origin
+// header for the CORS check to judge), and while panel logins are off every
+// request is an admin's: a page the operator visited could make the panel
+// save and run a steamcmd.exe from a folder of its choosing, a file it had
+// the browser download for instance. Browsers mark such a request
+// Sec-Fetch-Site: cross-site or same-site, which no page can change; the
+// panel's own page sends same-origin, a typed address none. Same rule as
+// routes/auth.js's refuseCrossSiteCookieUse(); a client that sends no such
+// header is not a browser page.
+function isCrossSiteBrowserRequest(req) {
+  const site = req.headers?.["sec-fetch-site"];
+  return Boolean(site) && site !== "same-origin" && site !== "none";
+}
+
 // Get available Steam branches for PZ Dedicated Server (App ID 380870)
 router.get("/branches", requirePermission("server.install"), async (req, res) => {
   try {
+    if (isCrossSiteBrowserRequest(req)) {
+      return res.status(403).json({ error: "Cross-origin request refused" });
+    }
     const steamcmdPath =
       req.query.steamcmdPath || (await getSetting("steamcmdPath"));
     log.info(
