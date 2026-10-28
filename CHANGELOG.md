@@ -21,6 +21,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Release builds:** the exe and Linux downloads are built without restoring an npm cache, only from the registry and the lockfiles.
 - **CI:** no workflow leaves its GitHub token in the checked-out repository, where build steps and dependencies could read it.
 - **Dependabot auto-merge:** write access is limited to the one merge job, which runs main's copy of the workflow and nothing from the update itself.
+- **README:** the dashboard screenshot no longer shows real network addresses.
 
 ## [2026.10.1] - 2026-10-26
 
