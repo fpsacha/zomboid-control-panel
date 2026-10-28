@@ -475,6 +475,7 @@ export async function setDataPaths(newPaths, moveFiles = false, options = {}) {
 
   // Save config
   try {
+    // codeql[js/http-to-file-access] the target is the panel's own fixed paths.config.json; the request only supplies the two folder paths, JSON-encoded, after the checks above refused a relative, network-share or device path, a system folder (as typed and through links), the program folder and the web client the panel serves, a configured server's folders, and a logs/data overlap.
     fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2));
   } catch (e) {
     return { success: false, error: `Failed to save config: ${e.message}` };
