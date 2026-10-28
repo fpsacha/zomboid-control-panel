@@ -11,6 +11,9 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 - **Live updates no longer take a sign-in token from the address:** the Socket.IO connection reads it from its sign-in data only, as the panel already sends it, so a token copied into a URL or a proxy log can't open one.
 - **Problems found can't be fed a fake warning before sign-in:** a crash report sent from the login page no longer counts as the panel's own failed process scan.
+- **Server install folders:** a server can no longer be started from a Steam Workshop download folder or a Windows network share, whose files anyone could supply; a server-management role could otherwise have chosen what ran on the host.
+- **SteamCMD folder:** SteamCMD is no longer run from a Steam Workshop download folder or a Windows network share; an install role could otherwise have run a program of its choosing.
+- **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 
 ## [2026.10.1] - 2026-10-26
 

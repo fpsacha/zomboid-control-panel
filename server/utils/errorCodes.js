@@ -671,6 +671,14 @@ export const ErrorCode = Object.freeze({
    * Restart stops anything, so the restart is called off and the server is
    * left running. Same {{program}} param. */
   SERVER_RESTART_LAUNCH_TARGET_REFUSED: "SERVER_RESTART_LAUNCH_TARGET_REFUSED",
+  /** server/services/serverManager.js -- launchFolderRefusedError(): the
+   * server's launch folder (serverPath || installPath, or a launcher's
+   * folder) is inside a Steam Workshop download folder or is a Windows
+   * network share (untrustedLaunchFolderReason()), so its files are anyone's.
+   * Thrown at start and before a Restart stops anything; servers.js answers
+   * it (400) when such a folder is saved. Carries {{reason}} ("workshop" or
+   * "networkShare"), not shown. */
+  SERVER_LAUNCH_FOLDER_REFUSED: "SERVER_LAUNCH_FOLDER_REFUSED",
   /** server/routes/servers.js -- POST / and PUT /:id (403): the request sets
    * or changes a server's launch target (its custom start command, or an
    * install path naming a launcher script, or the install path of a server
@@ -774,6 +782,12 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js (sites: /branches, /install, /steam-update) --
    * steamcmdPath fails isValidPath(). */
   STEAMCMD_PATH_INVALID: "STEAMCMD_PATH_INVALID",
+  /** server/routes/server.js (/branches, /install, /steam-update,
+   * /steamcmd/download) and server/routes/config.js (PUT /app-settings) --
+   * the SteamCMD folder is inside a Steam Workshop download folder or is a
+   * Windows network share (steamCmdFolderRefusal(), utils/untrustedFolder.js):
+   * its files are anyone's, so SteamCMD is never run from it. */
+  STEAMCMD_FOLDER_REFUSED: "STEAMCMD_FOLDER_REFUSED",
   /** server/routes/server.js (sites: /install, /quick-setup, /steam-update) --
    * installPath fails isValidPath(). */
   INSTALL_PATH_INVALID: "INSTALL_PATH_INVALID",

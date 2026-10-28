@@ -50,6 +50,7 @@ import { memoryMinExceedsMax, memoryMinExceedsMaxFields } from "../utils/memory.
 import { setSteamSessionCredentials } from "../services/steamSessionCredentials.js";
 import { KNOWN_HOSTS_SETTING } from "../services/sftpHostKeys.js";
 import { SFTP_PASSWORD_REQUIRED_MESSAGE, sftpTargetOf } from "../utils/sftpSavedTarget.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 
 const SFTP_TARGET_SETTING_KEYS = [
   "panelBridgeSftpHost",
@@ -606,6 +607,16 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         if (!delayCheck.ok) {
           return res.status(400).json({ error: delayCheck.message, code: ErrorCode.CONFIG_INVALID_NUMERIC_FIELD, params: sanitizeErrorParams({ message: delayCheck.message }) });
         }
+      }
+
+      // SteamCMD is never run from a Workshop download folder or a network
+      // share (routes/server.js's steamCmdFolderRefusal()); same rule here.
+      if (key === "steamcmdPath" && typeof value === "string" && untrustedFolderReason(value)) {
+        return res.status(400).json({
+          error:
+            "SteamCMD can't be used from this folder: it is inside a Steam Workshop download folder or on a network share, whose files anyone could supply. Choose the folder SteamCMD is installed in on this computer.",
+          code: ErrorCode.STEAMCMD_FOLDER_REFUSED,
+        });
       }
 
       if (key === "lanIpAddress" && value !== "" && net.isIP(value) !== 4) {

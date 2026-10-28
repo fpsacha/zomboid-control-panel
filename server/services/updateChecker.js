@@ -2,6 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import { createLogger } from "../utils/logger.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 const log = createLogger("Updates");
 import { getSetting, setSetting, getActiveServer } from "../database/init.js";
 import { resolveManagedContainer } from "./managedContainer.js";
@@ -224,6 +225,11 @@ export class UpdateChecker {
    * bails out earlier when serverPath is unset.
    */
   async getLatestBuildInfo(steamcmdPath, branch = "public", installPath = null) {
+    // Never from a Workshop download folder or a network share (routes/
+    // server.js's steamCmdFolderRefusal()), even one saved before that check.
+    if (untrustedFolderReason(steamcmdPath)) {
+      throw new Error("SteamCMD is not run from a Steam Workshop download folder or a network share");
+    }
     let steamcmdExe;
     if (process.platform === "win32") {
       steamcmdExe = path.join(steamcmdPath, "steamcmd.exe");
@@ -673,6 +679,12 @@ export class UpdateChecker {
         fail("MANAGED_CONTAINER", "This server runs in a panel-managed Docker container. Update the container image instead — the panel does not run SteamCMD against a managed container.");
       }
       if (!activeServer?.installPath || !steamcmdPath) fail("NOT_CONFIGURED", "SteamCMD path or server install path is not configured");
+      // Before anything is stopped: SteamCMD never runs from a Workshop
+      // download folder or a network share (routes/server.js's
+      // steamCmdFolderRefusal()), even one saved before that check.
+      if (untrustedFolderReason(steamcmdPath)) {
+        fail("STEAMCMD_NOT_FOUND", "SteamCMD is not run from a Steam Workshop download folder or a network share", { path: sanitizeError(steamcmdPath) });
+      }
 
       // checkServerRunning() collapses a failed detection scan into `false`
       // -- indistinguishable from a confirmed-stopped server. This path is
