@@ -1415,7 +1415,8 @@ export const ErrorCode = Object.freeze({
    * per-dependency validation) -- a submitted workshopId fails /^\d{1,15}$/.
    * Identical template (same "Invalid Workshop ID: " prefix and 20-char
    * truncation) both sites, shared code. Sends `{ workshopId }` (the same
-   * 20-char-truncated value embedded in the English message). */
+   * 20-char-truncated value embedded in the English message). Also PUT /presets/:id, an element
+   * of workshopIds. */
   MODS_INVALID_WORKSHOP_ID_TEMPLATE: "MODS_INVALID_WORKSHOP_ID_TEMPLATE",
   /** server/routes/mods.js -- (sites: PUT /presets/:id modIds field, POST /save-order) -- `modIds`
    * present but not an array. Identical wording, shared code. */
@@ -1491,9 +1492,11 @@ export const ErrorCode = Object.freeze({
   MODS_RESTART_MAX_DELAY_MINUTES_INVALID: "MODS_RESTART_MAX_DELAY_MINUTES_INVALID",
   /** server/routes/mods.js -- PUT /restart-options, warningMinutes outside 0-1440. */
   MODS_RESTART_WARNING_MINUTES_INVALID: "MODS_RESTART_WARNING_MINUTES_INVALID",
-  /** server/routes/mods.js -- POST /save-order, an entry isn't a string or exceeds 200 chars. */
+  /** server/routes/mods.js -- POST /save-order, an entry isn't a string or exceeds 200 chars; PUT
+   * /presets/:id, a modIds entry Mods= can't hold. */
   MODS_SAVE_ORDER_MODID_STRING_REQUIRED: "MODS_SAVE_ORDER_MODID_STRING_REQUIRED",
-  /** server/routes/mods.js -- POST /save-order, modIds.length exceeds 2000. */
+  /** server/routes/mods.js -- POST /save-order, modIds.length exceeds 2000; PUT /presets/:id, the
+   * same cap on workshopIds or modIds. */
   MODS_SAVE_ORDER_TOO_MANY: "MODS_SAVE_ORDER_TOO_MANY",
   /** server/routes/mods.js -- POST /search-workshop-mods, query under 2 characters. */
   MODS_SEARCH_QUERY_TOO_SHORT: "MODS_SEARCH_QUERY_TOO_SHORT",

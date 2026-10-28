@@ -86,6 +86,7 @@ import {
   validateGroupDocument,
 } from "../utils/modGroups.js";
 import { computeGroupSuggestions, isSuggestionKey } from "../utils/modGroupSuggestions.js";
+import { cleanRuleModId } from "../utils/modOrderRules.js";
 import { MOD_NOTE_LIMITS, cleanModNoteText, isNoteWorkshopId } from "../utils/modNotes.js";
 import {
   getWorkshopPaths,
@@ -5111,6 +5112,31 @@ router.get("/validate-config", async (req, res) => {
 
 // ===== MOD PRESETS =====
 
+// A preset's lists end up in WorkshopItems= and Mods= when it is applied, so
+// they follow the rules of every other writer of those lines: Workshop IDs
+// are 1-15 digits, mod IDs are what Mods= holds (cleanRuleModId), and a list
+// keeps at most PRESET_LIST_MAX entries (the load-order save's cap). PUT
+// /presets/:id stored whatever JSON it was sent: any value, nested to any
+// depth (which stops every later save of the panel database) or of any size.
+const PRESET_LIST_MAX = 2000;
+
+function presetWorkshopId(value) {
+  const id = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;
+  return typeof id === "string" && /^\d{1,15}$/.test(id) ? id : null;
+}
+
+// The ids of a stored preset that can be written, for a preset saved before
+// the checks above (or edited by hand in db.json).
+function writablePresetIds(list, clean) {
+  if (!Array.isArray(list)) return [];
+  const out = new Set();
+  for (const raw of list.slice(0, PRESET_LIST_MAX)) {
+    const id = clean(raw);
+    if (id !== null) out.add(id);
+  }
+  return [...out];
+}
+
 // Get all mod presets
 router.get("/presets", async (req, res) => {
   try {
@@ -5235,7 +5261,25 @@ router.put("/presets/:id", async (req, res) => {
           error: "workshopIds must be an array",
           code: ErrorCode.MODS_PRESET_UPDATE_WORKSHOP_IDS_ARRAY,
         });
-      updates.workshop_ids = req.body.workshopIds;
+      if (req.body.workshopIds.length > PRESET_LIST_MAX)
+        return res.status(400).json({
+          error: `Too many mod IDs (max ${PRESET_LIST_MAX})`,
+          code: ErrorCode.MODS_SAVE_ORDER_TOO_MANY,
+        });
+      const workshopIds = new Set();
+      for (const raw of req.body.workshopIds) {
+        const workshopId = presetWorkshopId(raw);
+        if (workshopId === null) {
+          const shown = (typeof raw === "string" ? raw : typeof raw).substring(0, 20);
+          return res.status(400).json({
+            error: `Invalid Workshop ID: ${shown}`,
+            code: ErrorCode.MODS_INVALID_WORKSHOP_ID_TEMPLATE,
+            params: sanitizeErrorParams({ workshopId: shown }),
+          });
+        }
+        workshopIds.add(workshopId);
+      }
+      updates.workshop_ids = [...workshopIds];
     }
     if (req.body.modIds !== undefined) {
       if (!Array.isArray(req.body.modIds))
@@ -5243,7 +5287,23 @@ router.put("/presets/:id", async (req, res) => {
           error: "modIds must be an array",
           code: ErrorCode.MODS_MOD_IDS_ARRAY_REQUIRED,
         });
-      updates.mods = req.body.modIds;
+      if (req.body.modIds.length > PRESET_LIST_MAX)
+        return res.status(400).json({
+          error: `Too many mod IDs (max ${PRESET_LIST_MAX})`,
+          code: ErrorCode.MODS_SAVE_ORDER_TOO_MANY,
+        });
+      const modIds = new Set();
+      for (const raw of req.body.modIds) {
+        const modId = cleanRuleModId(raw);
+        if (modId === null) {
+          return res.status(400).json({
+            error: "Each mod ID must be a string (max 200 chars)",
+            code: ErrorCode.MODS_SAVE_ORDER_MODID_STRING_REQUIRED,
+          });
+        }
+        modIds.add(modId);
+      }
+      updates.mods = [...modIds];
     }
 
     const preset = await updateModPreset(id, updates);
@@ -5323,6 +5383,11 @@ router.post("/presets/:id/apply", async (req, res) => {
       });
     }
 
+    // Only what PUT /presets/:id would accept now reaches the ini (a preset
+    // saved before that check could hold anything).
+    const presetWorkshopIds = writablePresetIds(preset.workshop_ids, presetWorkshopId);
+    const presetModIds = writablePresetIds(preset.mods, cleanRuleModId);
+
     let backupWarning = null;
     await withIniLock(iniPath, async () => {
       let content = readTextFile(iniPath);
@@ -5332,7 +5397,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // a map mod's map stayed in Map= after a preset without it (and a
       // preset with one loaded it without its map).
       const itemsBefore = workshopItemsOf(content);
-      const itemsAfter = (preset.workshop_ids || []).map(String);
+      const itemsAfter = presetWorkshopIds;
       const isItemId = (id) => /^\d{1,15}$/.test(id);
       const removedItems = itemsBefore.filter((id) => isItemId(id) && !itemsAfter.includes(id));
       const addedItems = itemsAfter.filter((id) => isItemId(id) && !itemsBefore.includes(id));
@@ -5362,7 +5427,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // Existence must be checked with the same anchored regex used to
       // replace it, not a plain .includes() -- see this file's first
       // ini-write site for why.
-      const workshopLine = `WorkshopItems=${sanitizeIniList(preset.workshop_ids || [])}`;
+      const workshopLine = `WorkshopItems=${sanitizeIniList(presetWorkshopIds)}`;
       if (content.match(/^[ \t]*WorkshopItems[ \t]*=.*/m)) {
         content = content.replace(/^[ \t]*WorkshopItems[ \t]*=.*/m, () => workshopLine);
       } else {
@@ -5376,7 +5441,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // `id=` legitimately IS a 5-15 digit number (e.g. "Tear All Clothes"
       // 3519629457, see this file's enable-disk-mod handler). Character-only
       // sanitization here, same bypass already used for disk-verified IDs.
-      const modsLine = `Mods=${sanitizeIniList(preset.mods || [])}`;
+      const modsLine = `Mods=${sanitizeIniList(presetModIds)}`;
       if (content.match(/^[ \t]*Mods[ \t]*=.*/m)) {
         content = content.replace(/^[ \t]*Mods[ \t]*=.*/m, () => modsLine);
       } else {
@@ -5389,12 +5454,12 @@ router.post("/presets/:id/apply", async (req, res) => {
     });
 
     log.info(
-      `Applied mod preset "${preset.name}": ${(preset.workshop_ids || []).length} workshop items, ${(preset.mods || []).length} mod IDs`,
+      `Applied mod preset "${preset.name}": ${presetWorkshopIds.length} workshop items, ${presetModIds.length} mod IDs`,
     );
     res.json({
       message: `Preset "${preset.name}" applied successfully`,
-      workshopCount: (preset.workshop_ids || []).length,
-      modCount: (preset.mods || []).length,
+      workshopCount: presetWorkshopIds.length,
+      modCount: presetModIds.length,
       ...(backupWarning ? { backupWarning } : {}),
     });
   } catch (error) {
