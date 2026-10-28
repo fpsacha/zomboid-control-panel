@@ -349,6 +349,19 @@ describe("workflow scripts", () => {
     }
   });
 
+  // actions/checkout otherwise leaves the job's token in .git/config, where
+  // every later step (npm scripts, dependencies, uploaded artifacts) can
+  // read it. No job pushes with git.
+  it.each(WORKFLOWS)("%s keeps no checkout token on disk", (file) => {
+    const workflow = readRepoFile(file);
+    const checkouts = workflowSteps(workflow).filter((step) => /uses: actions\/checkout@/.test(step));
+    for (const step of checkouts) {
+      expect(step, step.split("\n")[0]).toMatch(/\n {8}with:\n(?: {10}[\w-]+: .*\n)* {10}persist-credentials: false\n/);
+    }
+    const commands = workflow.split("\n").filter((line) => !line.trim().startsWith("#")).join("\n");
+    expect(commands).not.toMatch(/\bgit\s+push\b/);
+  });
+
   it("release builds read the tag name with bash on Windows too", () => {
     const workflow = readRepoFile(".github/workflows/release-artifacts.yml");
     const build = jobText(workflow, "build");
