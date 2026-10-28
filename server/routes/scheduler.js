@@ -27,6 +27,10 @@ import {
   isValidIanaTimezone,
 } from '../utils/cronValidation.js';
 import { parseBoundedInteger, parseClampedInteger } from '../utils/queryNumbers.js';
+import {
+  getRestartWarningPresetTemplates,
+  normalizeRestartWarningSettings,
+} from '../utils/restartWarning.js';
 
 export { hasUnsupportedCronFieldCount };
 
@@ -256,9 +260,26 @@ router.put('/timezone', async (req, res) => {
   }
 });
 
+// SECURITY: the countdown text is broadcast to every player, as the server,
+// on every restart with a countdown, whoever starts it. Writing it is a
+// server broadcast, so text of one's own takes server.world_events (as POST
+// /server/message and servermsg tasks do); automation.manage alone set it.
+// Keeping the stored text, or picking a language's preset, does not.
+function writesOwnRestartWarning(body, stored) {
+  const template = typeof body?.template === 'string' ? body.template.trim() : body?.template;
+  if (template === normalizeRestartWarningSettings(stored).template) return false;
+  return !Object.values(getRestartWarningPresetTemplates()).includes(template);
+}
+
 router.put('/restart-warning', async (req, res) => {
   try {
     const scheduler = req.app.get('scheduler');
+    if (
+      writesOwnRestartWarning(req.body, scheduler.restartWarning) &&
+      !(await requireCapabilityInline('server.world_events', req, res))
+    ) {
+      return;
+    }
     const restartWarning = await scheduler.setRestartWarning(req.body);
     res.json({ success: true, restartWarning });
   } catch (error) {

@@ -18,6 +18,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Mod presets:** editing a preset now accepts only Workshop IDs and mod IDs, at most 2,000 of each, and applying one writes only those; a malformed preset could stop the panel from saving its settings.
 - **Steam Workshop session kept on Settings save:** saving the Settings page no longer clears the stored Workshop cookies, and clearing them takes the mods permission.
 - **Auto-restart on mod update needs Start/stop:** turning it on, or changing its warning and wait for players, now takes the server control permission as well as Mods (and in Settings too), like every other restart; turning it off doesn't.
+- **Restart warning text:** writing your own countdown message for players now takes the world-events permission, like any other server broadcast; picking a language's preset doesn't.
 
 ## [2026.10.1] - 2026-10-26
 

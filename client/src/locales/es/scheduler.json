@@ -310,6 +310,7 @@
     "languageLabel": "Idioma del mensaje",
     "templateLabel": "Plantilla de cuenta regresiva",
     "templateHint": "Usa {count} para el número y {unit} para minutos o segundos.",
+    "templateNoPermission": "Escribir tu propio mensaje requiere el permiso server.world_events, del cual este rol no dispone. Aún puedes elegir un idioma y usar su preajuste.",
     "presetButton": "Usar preajuste de idioma",
     "saveButton": "Guardar avisos",
     "saved": "Avisos de reinicio guardados",
