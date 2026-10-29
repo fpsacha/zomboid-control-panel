@@ -51,6 +51,7 @@ import { setSteamSessionCredentials } from "../services/steamSessionCredentials.
 import { KNOWN_HOSTS_SETTING } from "../services/sftpHostKeys.js";
 import { SFTP_PASSWORD_REQUIRED_MESSAGE, sftpTargetOf } from "../utils/sftpSavedTarget.js";
 import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { isExtensionOrigin, normalizeExtensionOrigin } from "../utils/extensionOrigin.js";
 
 const SFTP_TARGET_SETTING_KEYS = [
   "panelBridgeSftpHost",
@@ -299,6 +300,15 @@ function validateCorsAllowedOrigins(value) {
   for (const origin of rawOrigins) {
     if (origin.length > MAX_CORS_ORIGIN_LENGTH) {
       return `Origin is too long (max ${MAX_CORS_ORIGIN_LENGTH} chars): ${origin.slice(0, 40)}...`;
+    }
+    // A browser extension the operator lets in while panel logins are off
+    // (server/index.js, resolveOriginAccess()): chrome-extension://<id> or
+    // moz-extension://<uuid>, nothing after it.
+    if (isExtensionOrigin(origin)) {
+      if (!normalizeExtensionOrigin(origin)) {
+        return `Invalid origin format: ${origin}`;
+      }
+      continue;
     }
     try {
       const url = new URL(origin);

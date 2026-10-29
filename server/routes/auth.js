@@ -507,7 +507,7 @@ router.post("/setup", setupLimiter, async (req, res) => {
  */
 router.post("/login", loginLimiter, async (req, res) => {
   try {
-    const { username, password, rememberMe = false, deviceToken } = req.body || {};
+    const { username, password, rememberMe = false, deviceToken, wantsPanelKey } = req.body || {};
     if (!isNonEmptyString(username) || !isNonEmptyString(password)) {
       return res.status(400).json({
         error: "Username and password are required",
@@ -541,12 +541,60 @@ router.post("/login", loginLimiter, async (req, res) => {
       user: result.user,
       accessToken: result.accessToken,
       deviceToken: result.deviceToken,
+      // The Steam Sync extension's proof key for this account (see
+      // POST /extension-proof below).
+      ...(wantsPanelKey === true ? { panelKey: authService.extensionPanelKey(result.user?.id) } : {}),
     });
   } catch (error) {
     // Escaped like every log line that can quote what an anonymous caller
     // sent (utils/logText.js, SECURITY 2026-10-05, H2).
     log.warn(`Login failed: ${escapeLogText(error.message)}`);
     res.status(401).json({ error: sanitizeError(error.message) });
+  }
+});
+
+/**
+ * POST /api/auth/extension-proof
+ * SECURITY (2026-10-28, audit R2-31): before the Steam Sync extension sends
+ * the Steam cookies or a password to a plain-http:// panel address again,
+ * the address proves it is the panel that signed the extension in:
+ * HMAC(the account's panel key, challenge), which nothing else answering
+ * at that address can compute. No sign-in: it gives out nothing but that
+ * answer, for a challenge the caller picked.
+ */
+const extensionProofLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many login attempts. Please try again later.",
+    code: ErrorCode.RATE_LIMIT_LOGIN,
+  },
+  keyGenerator: (req) => loginClientKey(req),
+});
+
+const EXTENSION_PROOF_CHALLENGE_RE = /^[A-Za-z0-9_-]{22,128}$/;
+
+router.post("/extension-proof", extensionProofLimiter, async (req, res) => {
+  try {
+    const { username, challenge } = req.body || {};
+    if (
+      !isNonEmptyString(username) ||
+      username.length > 128 ||
+      typeof challenge !== "string" ||
+      !EXTENSION_PROOF_CHALLENGE_RE.test(challenge)
+    ) {
+      return res.status(400).json({ error: "A username and a challenge are required" });
+    }
+    const proof = await authService.extensionPanelProof(username, challenge);
+    if (!proof) {
+      return res.status(503).json({ error: "The panel is still starting" });
+    }
+    res.json({ proof });
+  } catch (error) {
+    log.error(`Extension proof failed: ${escapeLogText(error.message)}`);
+    res.status(500).json({ error: sanitizeError(error.message) });
   }
 });
 

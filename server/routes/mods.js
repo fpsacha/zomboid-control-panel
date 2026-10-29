@@ -128,6 +128,7 @@ import {
 import { downloadWorkshopItem } from "../services/workshopDownload.js";
 import { addConflictSuggestions, refreshConflictSuggestions } from "../services/modSmartScan.js";
 import { hardOrderEdges } from "../services/modSmartContext.js";
+import { loadCurrentExtensionFiles, zipExtensionFiles } from "../utils/embeddedExtension.js";
 
 // The workshop readers live in services/workshopModInfo.js; the route file
 // keeps exporting getModDetailsFromWorkshop for its existing importers.
@@ -1794,98 +1795,27 @@ router.post("/collection/extension-push", async (req, res) => {
   }
 });
 
-// Serves the panel's browser extension as a zip. Prefers a prebuilt zip next
-// to the install, but falls back to zipping `browser-extension/` on the fly —
-// Docker images and pkg builds ship the source folder, not the zip, so
-// relying on a prebuilt artifact made this endpoint 404 for most installs.
-// Every file popup.html loads must be listed: a missing urlPolicy.js would
-// leave the popup unable to send anything.
-const EXTENSION_SOURCE_FILES = [
-  "manifest.json",
-  "popup.html",
-  "popup.css",
-  "urlPolicy.js",
-  "popup.js",
-  "README.md",
-];
-
-function resolveExtensionPaths() {
-  const isPkg = typeof process.pkg !== "undefined";
-  const baseDir = isPkg
-    ? path.dirname(process.execPath)
-    : path.resolve(process.cwd());
-  const zipCandidates = [
-    path.join(baseDir, "zomboid-panel-extension.zip"),
-    path.join(baseDir, "release", "zomboid-panel-extension.zip"),
-    path.join(baseDir, "..", "release", "zomboid-panel-extension.zip"),
-  ];
-  const dirCandidates = [
-    path.join(baseDir, "browser-extension"),
-    path.join(baseDir, "..", "browser-extension"),
-  ];
-  return { zipCandidates, dirCandidates };
-}
-
-function firstExisting(candidates) {
-  for (const c of candidates) {
-    try {
-      if (fs.existsSync(c)) return c;
-    } catch {
-      /* ignore */
-    }
-  }
-  return null;
-}
-
+// Serves the panel's browser extension as a zip: the copy this panel version
+// carries (utils/embeddedExtension.js), never a prebuilt zip next to the
+// install, which an in-place update leaves at the version first installed.
 router.get("/collection/extension-bundle", async (req, res) => {
   try {
-    const { zipCandidates, dirCandidates } = resolveExtensionPaths();
-
-    const zipPath = firstExisting(zipCandidates);
-    if (zipPath) {
-      const stat = fs.statSync(zipPath);
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="zomboid-panel-extension.zip"',
-      );
-      res.setHeader("Content-Length", String(stat.size));
-      const zipStream = fs.createReadStream(zipPath);
-      zipStream.on("error", (err) => {
-        log.error(`Extension bundle stream error: ${err.message}`);
-        if (!res.headersSent) res.status(500).end();
-        else res.destroy();
-      });
-      zipStream.pipe(res);
-      return;
-    }
-
-    const srcDir = firstExisting(dirCandidates);
-    if (!srcDir) {
+    const files = loadCurrentExtensionFiles();
+    if (!files) {
       return res.status(404).json({
         error:
           "Browser extension files are missing from this panel install. Download zomboid-panel-extension.zip from the GitHub release instead.",
         code: ErrorCode.MODS_EXTENSION_FILES_MISSING,
       });
     }
-
-    const { default: archiver } = await import("archiver");
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const zip = await zipExtensionFiles(files);
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
       'attachment; filename="zomboid-panel-extension.zip"',
     );
-    archive.on("error", (err) => {
-      log.error(`Extension bundle zip failed: ${err.message}`);
-      res.destroy();
-    });
-    archive.pipe(res);
-    for (const name of EXTENSION_SOURCE_FILES) {
-      const filePath = path.join(srcDir, name);
-      if (fs.existsSync(filePath)) archive.file(filePath, { name });
-    }
-    await archive.finalize();
+    res.setHeader("Content-Length", String(zip.length));
+    res.end(zip);
   } catch (error) {
     log.error(`Extension bundle serve failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });

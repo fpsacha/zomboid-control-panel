@@ -1029,6 +1029,15 @@ export default function Settings() {
           return t("access.originsError.tooLong", { length: origin.length, max: MAX_CORS_ORIGIN_LENGTH });
         }
 
+        // A browser extension let in while panel logins are off, named the
+        // way the panel's refusal names it (server/utils/extensionOrigin.js).
+        if (/^(chrome-extension|moz-extension|safari-web-extension):/i.test(origin)) {
+          if (!/^(chrome-extension|moz-extension|safari-web-extension):\/\/[a-z0-9-]{1,128}\/?$/i.test(origin)) {
+            return t("access.originsError.invalidFormat", { origin });
+          }
+          continue;
+        }
+
         try {
           const parsed = new URL(origin);
           if (!["http:", "https:"].includes(parsed.protocol)) {

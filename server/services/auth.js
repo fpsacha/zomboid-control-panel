@@ -108,6 +108,7 @@ const PUBLIC_AUTH_PATHS = new Set([
   "/api/auth/status",
   "/api/auth/setup",
   "/api/auth/login",
+  "/api/auth/extension-proof",
   "/api/auth/refresh",
   "/api/auth/logout",
   "/api/auth/reset-status",
@@ -1383,6 +1384,44 @@ class AuthService {
     const db = await getDb();
     const user = (db.data.users || []).find((u) => u.id === userId);
     return user ? this.issueDeviceToken(user) : null;
+  }
+
+  // SECURITY (2026-10-28, audit R2-31): over plain http:// nothing tells
+  // this panel from whatever else answers at its address -- on another
+  // network a 192.168.x address or a .lan name can be anybody, and the
+  // Steam Sync extension sent the Steam cookies and the remembered password
+  // to it on one click. A sign-in that asks for it gets this per-account
+  // key (POST /login, wantsPanelKey); before the extension sends anything
+  // to a plain-http:// panel again, the address has to prove it holds the
+  // key (extensionPanelProof(), POST /extension-proof). Derived, never
+  // stored: it changes only with the JWT secret.
+  extensionPanelKey(userId) {
+    if (!this.jwtSecret || !userId) return null;
+    return crypto
+      .createHmac("sha256", this._deviceTokenKey())
+      .update(`zcp-steam-sync-panel-key-v1:${userId}`)
+      .digest("base64url");
+  }
+
+  // HMAC(key, challenge) for the account named. An unknown name gets an
+  // answer from a key no account has, at the same cost, so it can't be used
+  // to find out who has an account.
+  async extensionPanelProof(username, challenge) {
+    if (!this.jwtSecret) return null;
+    const db = await getDb();
+    const user = (db.data.users || []).find(
+      (u) => u.username.toLowerCase() === username.toLowerCase(),
+    );
+    const key = user
+      ? this.extensionPanelKey(user.id)
+      : crypto
+          .createHmac("sha256", this._deviceTokenKey())
+          .update(`zcp-steam-sync-no-account-v1:${username.toLowerCase()}`)
+          .digest("base64url");
+    return crypto
+      .createHmac("sha256", key)
+      .update(`zcp-steam-sync-proof-v1:${challenge}`)
+      .digest("base64url");
   }
 
   /**

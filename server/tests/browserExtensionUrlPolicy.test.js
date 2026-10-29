@@ -215,14 +215,12 @@ describe("Steam Sync popup: nothing secret leaves over a refused URL", () => {
     expect(html).toContain('id="allow-http-row" hidden');
   });
 
-  // Docker and exe installs zip browser-extension/ on the fly from a fixed
-  // file list (server/routes/mods.js): a file left out of it ships an
-  // extension whose popup can't load its policy.
-  it("ships every extension file in the panel's on-the-fly bundle", () => {
-    const routes = fs.readFileSync(path.resolve(here, "../../server/routes/mods.js"), "utf8");
-    const list = /const EXTENSION_SOURCE_FILES = \[([\s\S]*?)\];/.exec(routes)?.[1] ?? "";
-    const bundled = [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]).sort();
+  // The executable embeds, and every install zips, browser-extension/ from
+  // a fixed file list (server/utils/embeddedExtension.js): a file left out
+  // of it ships an extension whose popup can't load its policy.
+  it("ships every extension file in the panel's bundle", async () => {
+    const { EXTENSION_FILES } = await import("../utils/embeddedExtension.js");
     const onDisk = fs.readdirSync(path.resolve(here, "../../browser-extension")).sort();
-    expect(bundled).toEqual(onDisk);
+    expect([...EXTENSION_FILES].sort()).toEqual(onDisk);
   });
 });
