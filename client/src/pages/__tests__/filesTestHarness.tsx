@@ -255,19 +255,22 @@ export class FakeXhr {
 
 /**
  * jsdom lays nothing out, so every element is 0x0 and the virtualized file
- * table (which measures its scroll box through offsetWidth/offsetHeight)
+ * table (which measures its scroll box through clientWidth/clientHeight, and
+ * through offsetWidth/offsetHeight before @tanstack/virtual-core 3.19.6)
  * would render no rows. Gives every element a 800x600 box; returns the
  * undo.
  */
 export function stubLayout(width = 800, height = 600): () => void {
   const proto = HTMLElement.prototype
-  const originalWidth = Object.getOwnPropertyDescriptor(proto, 'offsetWidth')
-  const originalHeight = Object.getOwnPropertyDescriptor(proto, 'offsetHeight')
-  Object.defineProperty(proto, 'offsetWidth', { configurable: true, get: () => width })
-  Object.defineProperty(proto, 'offsetHeight', { configurable: true, get: () => height })
+  const sizes = { offsetWidth: width, offsetHeight: height, clientWidth: width, clientHeight: height }
+  const originals = Object.keys(sizes).map((key) => [key, Object.getOwnPropertyDescriptor(proto, key)] as const)
+  for (const [key, value] of Object.entries(sizes)) {
+    Object.defineProperty(proto, key, { configurable: true, get: () => value })
+  }
   return () => {
-    if (originalWidth) Object.defineProperty(proto, 'offsetWidth', originalWidth)
-    if (originalHeight) Object.defineProperty(proto, 'offsetHeight', originalHeight)
+    for (const [key, original] of originals) {
+      if (original) Object.defineProperty(proto, key, original)
+    }
   }
 }
 
