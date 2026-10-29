@@ -7,6 +7,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.10.2] - 2026-10-29
+
 ### Security
 
 - **Live updates no longer take a sign-in token from the address:** the Socket.IO connection reads it from its sign-in data only, as the panel already sends it, so a token copied into a URL or a proxy log can't open one.
