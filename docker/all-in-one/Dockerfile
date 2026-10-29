@@ -31,7 +31,8 @@ ENV PANEL_BUILD_SHA=${PANEL_BUILD_SHA}
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     curl ca-certificates lib32gcc-s1 lib32stdc++6 procps \
     && rm -rf /var/lib/apt/lists/*
 
@@ -50,7 +51,8 @@ RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --prefer-offline --omit=dev
+RUN npm ci --no-audit --prefer-offline --omit=dev \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm
 
 COPY server/ ./server/
 COPY --from=client-build /src/client/dist ./client/dist
