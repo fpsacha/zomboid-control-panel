@@ -11,6 +11,10 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 - **Docker images take Debian's security updates:** the images now install the base system's pending security patches (OpenSSL, Perl and others) when built, and no longer ship npm, which the panel never runs.
 
+### Fixed
+
+- **Dashboard Live activity shows which day each event happened:** a "Today", "Yesterday" or date heading separates the days, so yesterday's afternoon events no longer look out of order under this morning's.
+
 ## [2026.10.2] - 2026-10-29
 
 ### Security

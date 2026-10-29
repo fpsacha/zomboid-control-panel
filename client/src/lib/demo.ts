@@ -660,8 +660,8 @@ function demoServer() {
     rconPort: 27015,
     rconPassword: '',
     serverPort: 16261,
-    minMemory: 2,
-    maxMemory: 4,
+    minMemory: 4,
+    maxMemory: 8,
     useNoSteam: false,
     useDebug: false,
     isRemote: false,
@@ -897,16 +897,32 @@ function demoStorageHealth() {
   }
 }
 
+// ---- A live demo server: up for a few hours with four survivors online
+// around Knox County, so the Dashboard, Players and Debug pages show what a
+// running server looks like rather than an empty, stopped one.
+const DEMO_SERVER_UPTIME_MS = (5 * 60 + 12) * 60_000
+const demoServerStartedAt = Date.now() - DEMO_SERVER_UPTIME_MS
+
+const DEMO_ONLINE_PLAYERS = [
+  { username: 'marlow_k', displayName: 'Marlow K', x: 10_627, y: 9_640, z: 0, health: 92, accessLevel: 'admin', joinedMinutesAgo: 184 },
+  { username: 'jess.rae', displayName: 'Jess Rae', x: 11_932, y: 6_885, z: 1, health: 78, accessLevel: 'none', joinedMinutesAgo: 96 },
+  { username: 'tomasz', displayName: 'Tomasz W', x: 8_143, y: 11_612, z: 0, health: 100, accessLevel: 'moderator', joinedMinutesAgo: 41 },
+  { username: 'wren', displayName: 'Wren', x: 6_398, y: 5_297, z: 0, health: 64, accessLevel: 'none', joinedMinutesAgo: 12 },
+]
+
 function demoServerStatus() {
+  const now = Date.now()
   return {
-    running: false,
-    startTime: null,
-    uptime: null,
+    running: true,
+    scanFailed: false,
+    startTime: new Date(demoServerStartedAt).toISOString(),
+    serverTime: new Date(now).toISOString(),
+    uptime: Math.floor((now - demoServerStartedAt) / 1000),
     serverPath: '/opt/pz',
     serverPathConfigured: true,
     localIp: '127.0.0.1',
     port: 16261,
-    rcon: { host: '127.0.0.1', port: 27015, connected: false },
+    rcon: { host: '127.0.0.1', port: 27015, connected: true },
   }
 }
 
@@ -914,10 +930,117 @@ function demoComposedStatus() {
   return {
     provider: 'native',
     selected: true,
-    host: { status: 'stopped', label: 'Process', detail: null },
-    server: { status: 'disconnected', label: 'RCON', detail: null },
-    bridge: { status: 'offline', label: 'PanelBridge', detail: null },
-    summary: 'Demo server is offline',
+    host: { status: 'running', label: 'Process', detail: null },
+    server: { status: 'connected', label: 'RCON', detail: null },
+    bridge: { status: 'active', label: 'PanelBridge', detail: null },
+    summary: 'Demo server is running',
+  }
+}
+
+function demoPlayerActivity() {
+  const now = Date.now()
+  return DEMO_ONLINE_PLAYERS.map((player, index) => ({
+    id: index + 1,
+    player_name: player.username,
+    action: 'connect',
+    details: null,
+    logged_at: new Date(now - player.joinedMinutesAgo * 60_000).toISOString(),
+  })).sort((a, b) => b.logged_at.localeCompare(a.logged_at))
+}
+
+// One snapshot a minute (server/index.js's perf sampler), six hours of it:
+// player count follows the joins above, CPU and memory move with it.
+export function getDemoPerformanceHistory(limit: number, now: number = Date.now()) {
+  const GB = 1024 * 1024 * 1024
+  const count = Math.max(1, Math.min(limit, 360))
+  const history = []
+  for (let i = count - 1; i >= 0; i--) {
+    const minutesAgo = i
+    const t = now - minutesAgo * 60_000
+    const sinceStart = (t - demoServerStartedAt) / 60_000
+    const running = sinceStart >= 0
+    const players = running ? DEMO_ONLINE_PLAYERS.filter((p) => p.joinedMinutesAgo >= minutesAgo).length + (minutesAgo > 200 && minutesAgo < 290 ? 2 : 0) : 0
+    const wave = Math.sin(minutesAgo / 9) * 4 + Math.sin(minutesAgo / 2.3) * 2
+    history.push({
+      timestamp: new Date(t).toISOString(),
+      playerCount: players,
+      maxPlayers: 16,
+      serverRunning: running,
+      memoryUsed: running ? Math.round((2.6 + players * 0.35 + wave * 0.04) * GB) : 0,
+      pzMemUsed: running ? Math.round((3.1 + players * 0.4 + wave * 0.05) * GB) : undefined,
+      cpuUsage: running ? Math.max(3, Math.round(14 + players * 6 + wave)) : 2,
+      hostMemUsed: Math.round((running ? 9.4 + players * 0.4 : 5.2) * GB),
+      hostMemTotal: 32 * GB,
+      hostDiskUsed: Math.round(312 * GB),
+      hostDiskTotal: Math.round(931 * GB),
+      hostSwapUsed: 0,
+      hostSwapTotal: 4 * GB,
+    })
+  }
+  return { history }
+}
+
+const DEMO_CRASH_LOGS = [
+  {
+    name: 'hs_err_pid48211.log',
+    minutesAgo: 60 * 26 + 14,
+    content: [
+      '#',
+      '# A fatal error has been detected by the Java Runtime Environment:',
+      '#',
+      '#  SIGSEGV (0xb) at pc=0x00007f3a8c41e2d0, pid=48211, tid=48290',
+      '#',
+      '# JRE version: OpenJDK Runtime Environment (25.0.1+8) (build 25.0.1+8-LTS)',
+      '# Java VM: OpenJDK 64-Bit Server VM (25.0.1+8-LTS, mixed mode, sharing, tiered, compressed oops, g1 gc, linux-amd64)',
+      '# Problematic frame:',
+      '# C  [libPZBullet64.so+0x8e2d0]  btCollisionWorld::updateSingleAabb(btCollisionObject*)+0x40',
+      '#',
+      '---------------  S U M M A R Y ------------',
+      '',
+      'Command Line: -Xms8g -Xmx8g -Dzomboid.steam=1 -Dzomboid.znetlog=1 zombie.network.GameServer -servername DoomerZDemo',
+      'Host: AMD Ryzen 7 5800X 8-Core Processor, 16 cores, 31G, Ubuntu 24.04.1 LTS',
+      'Time: elapsed time: 41873.204 seconds (0d 11h 37m 53s)',
+      '',
+      '---------------  T H R E A D  ---------------',
+      '',
+      'Current thread (0x00007f3a14d8a000):  JavaThread "MainThread" [_thread_in_native, id=48290]',
+      '',
+      'Java frames: (J=compiled Java code, j=interpreted, Vv=VM code)',
+      'j  zombie.core.physics.Bullet.stepSimulation(FII)V+0',
+      'J 14203 c2 zombie.core.physics.WorldSimulation.update()V (412 bytes)',
+      'J 13877 c2 zombie.network.GameServer.main([Ljava/lang/String;)V (2204 bytes)',
+    ].join('\n'),
+  },
+  {
+    name: 'hs_err_pid31907.log',
+    minutesAgo: 60 * 24 * 4 + 95,
+    content: [
+      '#',
+      '# There is insufficient memory for the Java Runtime Environment to continue.',
+      '# Native memory allocation (mmap) failed to map 268435456 bytes for G1 virtual space',
+      '# Possible reasons:',
+      '#   The system is out of physical RAM or swap space',
+      '#',
+      '# JRE version: OpenJDK Runtime Environment (25.0.1+8) (build 25.0.1+8-LTS)',
+      '#',
+      '---------------  S U M M A R Y ------------',
+      '',
+      'Command Line: -Xms12g -Xmx12g -Dzomboid.steam=1 zombie.network.GameServer -servername DoomerZDemo',
+      'Host: AMD Ryzen 7 5800X 8-Core Processor, 16 cores, 31G, Ubuntu 24.04.1 LTS',
+      'Time: elapsed time: 3.118 seconds (0d 0h 0m 3s)',
+    ].join('\n'),
+  },
+]
+
+function demoCrashLogList(now: number = Date.now()) {
+  return {
+    crashLogs: DEMO_CRASH_LOGS.map((log) => ({
+      name: log.name,
+      path: `/opt/pz/${log.name}`,
+      size: log.content.length,
+      modified: new Date(now - log.minutesAgo * 60_000).toISOString(),
+    })),
+    totalCount: DEMO_CRASH_LOGS.length,
   }
 }
 
@@ -1587,10 +1710,48 @@ export function installDemoFetchShim(): void {
       return jsonResponse(demoComposedStatus())
     }
     if (path === '/api/players') {
-      return jsonResponse({ players: [] })
+      return jsonResponse({ success: true, players: DEMO_ONLINE_PLAYERS.map((p) => ({ name: p.username, online: true })) })
+    }
+    if (path === '/api/players/activity') {
+      return jsonResponse({ success: true, logs: demoPlayerActivity() })
     }
     if (path === '/api/panel-bridge/status') {
-      return jsonResponse({ configured: true, isRunning: false, modConnected: false, modStatus: null })
+      return jsonResponse({
+        configured: true,
+        bridgePath: '/home/pz/Zomboid/Lua/panelbridge/DoomerZDemo',
+        isRunning: true,
+        pendingCommands: 0,
+        modConnected: true,
+        modStatus: { version: '1.7.79', alive: DEMO_ONLINE_PLAYERS.length, lastUpdate: Date.now() },
+      })
+    }
+    if (path === '/api/panel-bridge/players') {
+      return jsonResponse({
+        success: true,
+        data: {
+          players: DEMO_ONLINE_PLAYERS.map(({ joinedMinutesAgo: _joined, ...p }) => ({
+            ...p, isAlive: true, isInfected: false, hunger: 0.2, thirst: 0.15, fatigue: 0.3,
+          })),
+        },
+      })
+    }
+    if (path === '/api/panel-bridge/zombies/count') {
+      return jsonResponse({ success: true, data: { zombieCount: 1_284, note: 'Loaded cells only' } })
+    }
+    if (path === '/api/panel-bridge/world/stats') {
+      return jsonResponse({ success: true, data: { serverName: 'DoomerZDemo', map: 'Muldraugh, KY', zombiesInCell: 1_284 } })
+    }
+    if (path === '/api/debug/performance-history') {
+      const limit = Number(new URL(String(input instanceof Request ? input.url : input), 'http://demo.local').searchParams.get('limit')) || 60
+      return jsonResponse(getDemoPerformanceHistory(limit))
+    }
+    if (path === '/api/debug/crash-logs') {
+      return jsonResponse(demoCrashLogList())
+    }
+    if (path.startsWith('/api/debug/crash-logs/')) {
+      const name = decodeURIComponent(path.slice('/api/debug/crash-logs/'.length))
+      const log = DEMO_CRASH_LOGS.find((entry) => entry.name === name)
+      return log ? jsonResponse({ content: log.content }) : jsonResponse({ error: 'Not found' }, 404)
     }
     if (path === '/api/panel-bridge/leaderboard') {
       return jsonResponse(getDemoLeaderboard())
