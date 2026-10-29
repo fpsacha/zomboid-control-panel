@@ -37,7 +37,6 @@ import {
 } from "../utils/zomboidPaths.js";
 import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { ErrorCode } from "../utils/errorCodes.js";
-import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { resolveObservedServerRunning } from "../utils/serverStatus.js";
 import {
   buildVehicleBoxes,
