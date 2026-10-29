@@ -54,12 +54,14 @@ export function lifecycleBlocker(
   // Switching the active server waits for every server, as the server's
   // activate route does (panelWide).
   const id = action === 'switch' || serverId === null || serverId === undefined ? '' : String(serverId)
+  // An older panel (or a reply without the list) sends no `servers`.
+  const servers = Array.isArray(state.servers) ? state.servers : []
   const holder =
     state.lock ??
-    (id ? state.servers.find((hold) => hold.serverId === id) : state.servers[0]) ??
+    (id ? servers.find((hold) => hold.serverId === id) : servers[0]) ??
     // Restarts run one at a time (the scheduler's restartInProgress): one
     // still waiting for its server's RCON refuses a restart of any other.
-    (action === 'restart' ? state.servers.find((hold) => hold.operation === 'restart') : undefined) ??
+    (action === 'restart' ? servers.find((hold) => hold.operation === 'restart') : undefined) ??
     null
   if (!holder) return null
   const stopping = action === 'stop' || action === 'forceStop'
