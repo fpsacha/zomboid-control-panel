@@ -253,6 +253,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "Se requieren el nombre de la partida guardada y un array de chunks",
   "DELETE_CHUNKS_TOO_MANY": "Demasiados chunks ({{count}}). El máximo es 100 000 por solicitud — divide la solicitud en lotes más pequeños.",
   "SQLITE_ENGINE_UNAVAILABLE": "El motor SQLite del panel no pudo iniciarse, así que no se puede limpiar vehicles.db. No se eliminó ningún archivo. Actualiza o reinstala el panel y luego reinícialo.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db tiene una transacción sin terminar por una parada incorrecta del servidor. No se eliminó ningún archivo. Inicia el servidor y detenlo una vez para que el juego pueda recuperarla, y luego inténtalo de nuevo.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "Nombre de archivo de chunk no válido",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "Ruta de archivo de chunk no válida",
   "DELETE_CHUNKS_INVALID_SOURCE": "Origen de chunk no válido",

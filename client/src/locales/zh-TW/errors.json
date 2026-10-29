@@ -253,6 +253,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "存檔名稱和區塊陣列均為必填項",
   "DELETE_CHUNKS_TOO_MANY": "區塊數量過多（{{count}}）。每次請求最多 100,000 個——請拆分為更小的批次。",
   "SQLITE_ENGINE_UNAVAILABLE": "面板的 SQLite 引擎無法啟動，因此無法清理 vehicles.db。未刪除任何檔案。請更新或重新安裝面板，然後重新啟動。",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db 中有一筆因伺服器非正常停止而未完成的交易。未刪除任何檔案。請啟動伺服器並正常停止一次，讓遊戲復原它，然後再試一次。",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "區塊檔名無效",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "區塊檔案路徑無效",
   "DELETE_CHUNKS_INVALID_SOURCE": "區塊來源無效",

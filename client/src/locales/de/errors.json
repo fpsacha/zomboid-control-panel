@@ -253,6 +253,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "Spielstandname und Chunk-Array erforderlich",
   "DELETE_CHUNKS_TOO_MANY": "Zu viele Chunks ({{count}}). Maximal 100.000 pro Anfrage — in kleinere Stapel aufteilen.",
   "SQLITE_ENGINE_UNAVAILABLE": "Die SQLite-Engine des Panels konnte nicht starten, daher kann vehicles.db nicht bereinigt werden. Es wurden keine Dateien gelöscht. Panel aktualisieren oder neu installieren und danach neu starten.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db enthält eine unvollständige Transaktion von einem unsauberen Server-Stopp. Es wurden keine Dateien gelöscht. Server einmal starten und wieder stoppen, damit das Spiel sie wiederherstellen kann, dann erneut versuchen.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "Ungültiger Chunk-Dateiname",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "Ungültiger Chunk-Dateipfad",
   "DELETE_CHUNKS_INVALID_SOURCE": "Ungültige Chunk-Quelle",

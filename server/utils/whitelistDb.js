@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { createLogger } from "./logger.js";
 import { getSqlJs, SqlJsUnavailableError } from "./sqlJs.js";
+import { assertPlainTables, readGameDbFile, withGameDbLoadSlot } from "./gameSqliteFile.js";
 
 const log = createLogger("WhitelistDB");
 const ROLE_NAMES = new Map([
@@ -13,6 +14,28 @@ const ROLE_NAMES = new Map([
   [6, "moderator"],
   [7, "admin"],
 ]);
+// The tables read here. SECURITY (2026-10-28, vehicles audit R2-21/R2-22):
+// the file is the game server's, so it is read through gameSqliteFile.js
+// (never a link or FIFO, one of the process-wide load slots) and these must
+// be plain tables: a view over an endless recursive CTE would hang sql.js,
+// and with it the whole panel.
+const QUERIED_TABLES = ["role", "whitelist", "allowedsteamid"];
+
+// Open the server database and run fn on it, inside a load slot.
+async function withServerDatabase(dbPath, fn) {
+  const SQL = await getSqlJs();
+  return withGameDbLoadSlot(async () => {
+    const { buffer } = await readGameDbFile(dbPath);
+    const db = new SQL.Database(buffer);
+    try {
+      assertPlainTables(db, path.basename(dbPath), QUERIED_TABLES);
+      return fn(db);
+    } finally {
+      db.close();
+    }
+  });
+}
+
 // The panel's own SQLite engine could not start (see sqlJs.js), as opposed to
 // this server's database being unreadable.
 const SQLITE_UNAVAILABLE_REASON =
@@ -60,9 +83,7 @@ export async function listWhitelistAccounts(zomboidDataPath, serverName) {
   }
 
   try {
-    const SQL = await getSqlJs();
-    const db = new SQL.Database(await fs.promises.readFile(dbPath));
-    try {
+    return await withServerDatabase(dbPath, (db) => {
       const accounts = [];
       const allowedSteamIds = [];
       const roles = loadRoleMap(db);
@@ -100,9 +121,7 @@ export async function listWhitelistAccounts(zomboidDataPath, serverName) {
         log.debug(`Allowed SteamID table is unavailable in ${dbPath}: ${error.message}`);
       }
       return { available: true, accounts, allowedSteamIds };
-    } finally {
-      db.close();
-    }
+    });
   } catch (error) {
     if (error instanceof SqlJsUnavailableError) {
       log.error(error.message);
@@ -133,14 +152,10 @@ export async function listServerRoleNames(zomboidDataPath, serverName) {
   }
 
   try {
-    const SQL = await getSqlJs();
-    const db = new SQL.Database(await fs.promises.readFile(dbPath));
-    try {
+    return await withServerDatabase(dbPath, (db) => {
       const roles = loadRoleMap(db);
       return { available: true, roleNames: [...roles.values()] };
-    } finally {
-      db.close();
-    }
+    });
   } catch (error) {
     if (error instanceof SqlJsUnavailableError) {
       log.error(error.message);

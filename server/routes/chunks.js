@@ -13,7 +13,7 @@ import {
 } from "../database/init.js";
 import { sanitizeError, sanitizeErrorParams } from "../utils/sanitize.js";
 import { requirePermission, getRoleByName } from "../services/permissions.js";
-import { deleteVehiclesInBoxes } from "../utils/vehiclesDb.js";
+import { deleteVehiclesInBoxes, vehiclesDbHasUnfinishedTransaction } from "../utils/vehiclesDb.js";
 import { getSqlJs } from "../utils/sqlJs.js";
 import { confineToRoots } from "../utils/browseRoots.js";
 import {
@@ -67,6 +67,22 @@ async function refusedWithoutSqlite(res, route) {
   }
 }
 
+// R2-24 (2026-10-28): with deleteVehicles, both delete routes also check that
+// vehicles.db has no unfinished transaction (a hot journal left by an unclean
+// stop) before anything is deleted. The game would play that journal over
+// the edited file the next time it starts. True when it has already
+// answered the request.
+async function refusedWithUnfinishedVehiclesDb(res, route, savePath) {
+  if (!(await vehiclesDbHasUnfinishedTransaction(savePath))) return false;
+  log.warn(`${route} refused: vehicles.db has an unfinished transaction`);
+  res.status(409).json({
+    error:
+      "vehicles.db has an unfinished transaction from an unclean server stop. No files were deleted. Start the server and stop it once so the game can recover it, then try again.",
+    code: ErrorCode.VEHICLES_DB_UNFINISHED_TRANSACTION,
+  });
+  return true;
+}
+
 // Run `worker` over `items` with at most `limit` in flight at once. Used for
 // directory-tree walks where the item count can run into the hundreds or
 // thousands (e.g. one X-directory per iteration on a large B42 map) —
@@ -111,18 +127,61 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-export async function copyChunkBackup(sourcePath, destinationPath, exclusive = false) {
+// SECURITY (2026-10-28, vehicles audit R2-20): chunk and cell files are the
+// game server's to write, and backups/ is in the folder it shares. A copy
+// never follows a link planted at the source (it would copy whatever the
+// link names, the panel's own jwt.secret included, where the game can read
+// it) or at the destination, and never blocks on a FIFO: the source is
+// opened O_NOFOLLOW|O_NONBLOCK and must be a regular file (anything else is
+// skipped, like a missing file), the copy is created O_NOFOLLOW. Copies run
+// at most CHUNK_COPY_CONCURRENCY at a time, so a 100k-chunk cleanup holds a
+// bounded number of descriptors and buffers.
+const CHUNK_READ_FLAGS =
+  fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+const CHUNK_COPY_CONCURRENCY = 8;
+let chunkCopiesActive = 0;
+const chunkCopiesWaiting = [];
+
+async function withChunkCopySlot(fn) {
+  if (chunkCopiesActive < CHUNK_COPY_CONCURRENCY) chunkCopiesActive++;
+  else await new Promise((resolve) => chunkCopiesWaiting.push(resolve));
   try {
-    await fs.promises.copyFile(
-      sourcePath,
-      destinationPath,
-      exclusive ? fs.constants.COPYFILE_EXCL : 0,
-    );
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
+    return await fn();
+  } finally {
+    const next = chunkCopiesWaiting.shift();
+    if (next) next();
+    else chunkCopiesActive--;
   }
+}
+
+export async function copyChunkBackup(sourcePath, destinationPath, exclusive = false) {
+  return withChunkCopySlot(async () => {
+    let source;
+    try {
+      if (!(await fs.promises.lstat(sourcePath)).isFile()) return false;
+      source = await fs.promises.open(sourcePath, CHUNK_READ_FLAGS);
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ELOOP" || error.code === "EMLINK") return false;
+      throw error;
+    }
+    try {
+      const stat = await source.stat();
+      if (!stat.isFile()) return false;
+      const bytes = await source.readFile();
+      const destinationFlags =
+        fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        (exclusive ? fs.constants.O_EXCL : fs.constants.O_TRUNC) |
+        (fs.constants.O_NOFOLLOW ?? 0);
+      await fs.promises.writeFile(destinationPath, bytes, {
+        flag: destinationFlags,
+        mode: stat.mode & 0o777,
+      });
+      return true;
+    } finally {
+      await source.close();
+    }
+  });
 }
 
 // Filesystem-based B42 detection. Much more reliable than inferring from a
@@ -1505,6 +1564,7 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
         code: ErrorCode.CHUNKS_SAVE_NOT_FOUND,
       });
     }
+    if (deleteVehicles && (await refusedWithUnfinishedVehiclesDb(res, "delete-chunks", savePath))) return;
 
     // B42 vs B41 detection — filesystem-based, not filename-based.
     // Filename inference (chunks.some(c => c.file.includes('/'))) silently
@@ -1957,6 +2017,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
         code: ErrorCode.CHUNKS_SAVE_NOT_FOUND,
       });
     }
+    if (deleteVehicles && (await refusedWithUnfinishedVehiclesDb(res, "delete-region", savePath))) return;
 
     const mapExists = fs.existsSync(mapPath);
 

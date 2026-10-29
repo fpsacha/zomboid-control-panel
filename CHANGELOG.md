@@ -15,6 +15,13 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **SteamCMD folder:** SteamCMD is no longer run from a Steam Workshop download folder or a Windows network share; an install role could otherwise have run a program of its choosing.
 - **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
 - A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
+- **World Map vehicles:** concurrent requests share one read of vehicles.db and an unchanged file is not read again, so map refreshes can't run the panel out of memory.
+- **Map Cleanup** removes vehicles in one pass over vehicles.db instead of one per chunk, so a large cleanup no longer freezes the panel.
+- **vehicles.db and chunk backups** never follow a link planted in the save folder and only write to new files.
+- A vehicles.db or server database with a crafted schema is refused instead of hanging the panel.
+- A special file in place of vehicles.db or the server database can no longer tie up the panel's file threads.
+- **Map Cleanup** won't remove vehicles while vehicles.db has an unfinished transaction from an unclean stop, which the game would otherwise play back over the cleaned file.
+- A failed vehicles.db rewrite no longer leaves a full-size temp file in the save folder, and a successful one is flushed to disk first.
 
 ## [2026.10.1] - 2026-10-26
 

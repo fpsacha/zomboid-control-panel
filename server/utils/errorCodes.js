@@ -1127,6 +1127,11 @@ export const ErrorCode = Object.freeze({
    * start. Refused before anything is deleted: the chunks would go but their
    * vehicles would stay in vehicles.db and come back. */
   SQLITE_ENGINE_UNAVAILABLE: "SQLITE_ENGINE_UNAVAILABLE",
+  /** server/routes/chunks.js -- POST /delete-chunks and POST /delete-region
+   * with deleteVehicles, when vehicles.db has a hot journal (or a WAL) from
+   * an unclean stop. Refused before anything is deleted: the game would play
+   * it over the edited file on its next start. */
+  VEHICLES_DB_UNFINISHED_TRANSACTION: "VEHICLES_DB_UNFINISHED_TRANSACTION",
   /** server/routes/chunks.js -- POST /delete-chunks, a chunk entry has no
    * `file`. */
   DELETE_CHUNKS_INVALID_FILE_NAME: "DELETE_CHUNKS_INVALID_FILE_NAME",
