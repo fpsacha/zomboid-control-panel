@@ -297,6 +297,34 @@ export function formatDateTime(value: DateInput, options: DateTimeOptions = {}):
   return formatDateTimeIn(getFormattingLocale(options.language), options.pref ?? getDateFormatPref(), value, options)
 }
 
+/**
+ * The local calendar day of a value as YYYY-MM-DD, to group events by day;
+ * '' for a missing or invalid value.
+ */
+export function localDayKey(value: DateInput): string {
+  const date = toDate(value)
+  if (!date) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/**
+ * A day heading: "Today" / "Yesterday" in the UI language, otherwise the
+ * date in the saved order. '' for a missing or invalid value.
+ */
+export function formatDayLabel(value: DateInput, options: DateOptions & { now?: Date } = {}): string {
+  const date = toDate(value)
+  if (!date) return ''
+  const now = options.now ?? new Date()
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(date) - startOf(now)) / 86_400_000)
+  if (days === 0 || days === -1) {
+    const word = new Intl.RelativeTimeFormat(getFormattingLocale(options.language), { numeric: 'auto' }).format(days, 'day')
+    return word.charAt(0).toLocaleUpperCase() + word.slice(1)
+  }
+  return formatDate(date, options)
+}
+
 /** A time of day in the formatting locale; '' for a missing or invalid value. */
 export function formatTime(value: DateInput, options: TimeOptions = {}): string {
   return formatTimeIn(getFormattingLocale(options.language), value, options)

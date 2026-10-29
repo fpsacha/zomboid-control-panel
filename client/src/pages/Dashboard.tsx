@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react'
+import { Fragment, lazy, Suspense, useEffect, useState, useCallback, useRef } from 'react'
 import type { ReactElement } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
@@ -48,7 +48,7 @@ import { cn, copyText } from '@/lib/utils'
 import { getResultErrorMessage, getUserErrorMessage, getRecoveryUrl } from '@/lib/errorMessage'
 import { lifecycleBusyFromError, lifecycleBusyReason } from '@/lib/lifecycleBusy'
 import { useLifecycleState } from '@/hooks/useLifecycleState'
-import { formatTime } from '@/lib/dateFormat'
+import { formatDayLabel, formatTime, localDayKey } from '@/lib/dateFormat'
 import { modUpdatesOnServer } from '@/lib/modsShared'
 import { VerdictBand, WorkList } from '@/components/dashboard/DashboardVerdict'
 import type { Verdict, WorkItem } from '@/components/dashboard/DashboardVerdict'
@@ -2135,10 +2135,20 @@ export default function Dashboard() {
               </p>
             ) : (
               <ol className="max-h-[15rem] min-h-0 divide-y divide-border/30 overflow-y-auto">
-                {playerActivity.map(a => {
+                {playerActivity.map((a, i) => {
                   const s = eventStyle(t, a.action)
+                  // A day heading wherever the day changes: times alone made
+                  // yesterday's 1:52 PM look out of order under today's 11:32 AM.
+                  const day = localDayKey(a.logged_at)
+                  const newDay = day !== '' && (i === 0 || localDayKey(playerActivity[i - 1].logged_at) !== day)
                   return (
-                    <li key={a.id} className="grid grid-cols-[3.5rem_1rem_minmax(0,8rem)_minmax(0,1fr)] items-center gap-2 px-4 py-1.5 transition-colors hover:bg-accent/20">
+                    <Fragment key={a.id}>
+                    {newDay && (
+                      <li className="bg-muted/20 px-4 py-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+                        {formatDayLabel(a.logged_at, { language: i18n.language })}
+                      </li>
+                    )}
+                    <li className="grid grid-cols-[3.5rem_1rem_minmax(0,8rem)_minmax(0,1fr)] items-center gap-2 px-4 py-1.5 transition-colors hover:bg-accent/20">
                       <time className="font-mono text-xs tabular-nums text-muted-foreground">
                         {formatTime(a.logged_at, { pad: true })}
                       </time>
@@ -2150,6 +2160,7 @@ export default function Dashboard() {
                         {s.verb}
                       </span>
                     </li>
+                    </Fragment>
                   )
                 })}
               </ol>
