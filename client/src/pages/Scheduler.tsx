@@ -164,6 +164,10 @@ export default function Scheduler() {
   // other capability check in the app -- this only ever disables the
   // button when the answer is a confirmed no.
   const canRestartNow = can('server.control')
+  // The countdown text is a server broadcast: writing one's own takes
+  // server.world_events (PUT /scheduler/restart-warning). A language's
+  // preset, picked below, does not.
+  const canWriteRestartWarning = can('server.world_events')
 
   // Task dialog: one draft per open, keyed so the form starts from it.
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -1345,9 +1349,11 @@ export default function Scheduler() {
                         setRestartWarningTemplate(event.target.value)
                       }}
                       maxLength={300}
-                      disabled={restartWarningSaving}
+                      disabled={restartWarningSaving || !canWriteRestartWarning}
                     />
-                    <p className="text-xs text-muted-foreground">{t('restartWarning.templateHint')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {canWriteRestartWarning ? t('restartWarning.templateHint') : t('restartWarning.templateNoPermission')}
+                    </p>
                   </div>
                   <Button
                     variant="outline"

@@ -1589,6 +1589,11 @@ export async function getScheduledTasks() {
   return tasks;
 }
 
+// Far more than any server's schedule (a task already repeats on its cron);
+// a panel saved over it by an older version keeps its tasks, it only can't
+// add more.
+export const MAX_SCHEDULED_TASKS = 500;
+
 export async function createScheduledTask(
   name,
   cronExpression,
@@ -1599,6 +1604,16 @@ export async function createScheduledTask(
   if (!Array.isArray(db.data.scheduled_tasks)) db.data.scheduled_tasks = [];
 
   const resolvedServerId = serverId || (await getActiveServerId());
+
+  // SECURITY: each task is a cron job kept and re-armed at every start, and
+  // nothing limited how many could be created. Checked here, after the last
+  // await, so two requests at once can't both slip under it.
+  if (db.data.scheduled_tasks.length >= MAX_SCHEDULED_TASKS) {
+    throw Object.assign(new Error(`Too many scheduled tasks (max ${MAX_SCHEDULED_TASKS})`), {
+      code: "SCHEDULER_TOO_MANY_TASKS",
+      max: MAX_SCHEDULED_TASKS,
+    });
+  }
 
   const task = {
     id: generateNumericId(db.data.scheduled_tasks),

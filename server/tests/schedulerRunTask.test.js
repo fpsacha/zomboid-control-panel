@@ -1195,6 +1195,9 @@ describe("PUT /api/scheduler/restart-warning", () => {
 
     await getRestartWarningHandler()(
       {
+        // Text of one's own is a server broadcast: server.world_events
+        // (schedulerRestartWarningWorldEvents.test.js).
+        user: { role: "automation_and_world_events" },
         body: { locale: "zh-CN", template: "将在 {count}{unit} 后重启" },
         app: { get: () => ({ setRestartWarning }) },
       },

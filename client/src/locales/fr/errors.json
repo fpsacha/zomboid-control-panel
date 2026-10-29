@@ -516,6 +516,7 @@
   "SCHEDULER_INVALID_TASK_ID": "ID de tâche invalide",
   "SCHEDULER_INVALID_ENABLED_VALUE": "Le champ \"enabled\" doit être un booléen ou 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Tâche introuvable",
+  "SCHEDULER_TOO_MANY_TASKS": "Le panneau conserve au plus {{max}} tâches planifiées. Supprimez-en une d'abord.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Impossible de replanifier la tâche : {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Impossible de redémarrer un serveur distant. Le processus n'est pas géré par ce panneau",
   "SCHEDULER_TIMEZONE_REQUIRED": "Un fuseau horaire est requis",

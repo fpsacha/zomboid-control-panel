@@ -65,6 +65,8 @@ vi.mock('@/lib/api', async () => {
       checkUpdates: vi.fn(),
       syncFromServer: vi.fn(),
       batchRemove: vi.fn(),
+      setAutoRestart: vi.fn(),
+      setRestartOptions: vi.fn(),
     },
     serversApi: {
       ...actual.serversApi,
@@ -96,6 +98,8 @@ const createPreset = vi.mocked(modsApi.createPreset)
 const saveModOrder = vi.mocked(modsApi.saveModOrder)
 const checkUpdates = vi.mocked(modsApi.checkUpdates)
 const syncFromServer = vi.mocked(modsApi.syncFromServer)
+const setAutoRestart = vi.mocked(modsApi.setAutoRestart)
+const setRestartOptions = vi.mocked(modsApi.setRestartOptions)
 const getActive = vi.mocked(serversApi.getActive)
 const serversUpdate = vi.mocked(serversApi.update)
 const listDirectory = vi.mocked(serverApi.listDirectory)
@@ -296,6 +300,65 @@ describe('Mods.tsx capability gating -- "More actions" dropdown menu items', () 
     await openMoreActionsMenu()
     fireEvent.click(await screen.findByRole('menuitem', { name: /auto-restart settings/i }))
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+  })
+})
+
+// SECURITY: turning auto-restart on, and changing how its restart warns or
+// waits, takes server.control on top of mods.manage (server/routes/mods.js);
+// turning it off does not.
+describe('Mods.tsx capability gating -- server.control (auto-restart on mod update)', () => {
+  async function openRestartSettings() {
+    await openMoreActionsMenu()
+    fireEvent.click(await screen.findByRole('menuitem', { name: /auto-restart settings/i }))
+    return screen.findByRole('dialog')
+  }
+
+  it('keeps auto-restart off and the restart options unsaved without server.control', async () => {
+    mockCan = (cap) => cap !== 'server.control'
+    primeReadMocks()
+    renderMods()
+    await waitForLoaded()
+
+    await openRestartSettings()
+    const toggle = screen.getByRole('switch', { name: /toggle auto-restart on mod update/i })
+    expect(toggle).toBeDisabled()
+    fireEvent.click(toggle)
+    const save = screen.getByRole('button', { name: /save settings/i })
+    expect(save).toBeDisabled()
+    fireEvent.click(save)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(setAutoRestart).not.toHaveBeenCalled()
+    expect(setRestartOptions).not.toHaveBeenCalled()
+  })
+
+  it('still lets a role without server.control turn auto-restart off', async () => {
+    mockCan = (cap) => cap !== 'server.control'
+    primeReadMocks()
+    getStatus.mockResolvedValue({ totalModsTracked: 1, workshopAcfConfigured: false, autoRestartEnabled: true } as any)
+    setAutoRestart.mockResolvedValue({ success: true } as any)
+    renderMods()
+    await waitForLoaded()
+
+    await openRestartSettings()
+    const toggle = screen.getByRole('switch', { name: /toggle auto-restart on mod update/i })
+    expect(toggle).not.toBeDisabled()
+    fireEvent.click(toggle)
+    await waitFor(() => expect(setAutoRestart).toHaveBeenCalledWith(false))
+  })
+
+  it('turns auto-restart on and saves the options with server.control', async () => {
+    mockCan = () => true
+    primeReadMocks()
+    setAutoRestart.mockResolvedValue({ success: true } as any)
+    setRestartOptions.mockResolvedValue({ success: true } as any)
+    renderMods()
+    await waitForLoaded()
+
+    await openRestartSettings()
+    fireEvent.click(screen.getByRole('switch', { name: /toggle auto-restart on mod update/i }))
+    await waitFor(() => expect(setAutoRestart).toHaveBeenCalledWith(true))
+    fireEvent.click(screen.getByRole('button', { name: /save settings/i }))
+    await waitFor(() => expect(setRestartOptions).toHaveBeenCalled())
   })
 })
 

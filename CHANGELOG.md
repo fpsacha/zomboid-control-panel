@@ -40,6 +40,13 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Players › Activity names who acted:** kicks, bans, access-level changes, whitelist edits and game-master actions now record the panel account that made them, also in the panel log.
 - **Discord join, leave and death notifications** need View player info to turn on, edit or move to another channel, since they post player names and positions.
 - **Discord bot while logins are off:** its token, server and admin or moderator roles can't be changed, nor a command's tier lowered, until panel logins are on, so nothing set then keeps working afterwards.
+- **Mod presets:** editing a preset now accepts only Workshop IDs and mod IDs, at most 2,000 of each, and applying one writes only those; a malformed preset could stop the panel from saving its settings.
+- **Steam Workshop session kept on Settings save:** saving the Settings page no longer clears the stored Workshop cookies, and clearing them takes the mods permission.
+- **Auto-restart on mod update needs Start/stop:** turning it on, or changing its warning and wait for players, now takes the server control permission as well as Mods (and in Settings too), like every other restart; turning it off doesn't.
+- **Restart warning text:** writing your own countdown message for players now takes the world-events permission, like any other server broadcast; picking a language's preset doesn't.
+- **Docker container actions need Start/stop:** starting, stopping or restarting a server's container from the Servers page now takes the server control permission as well as Docker, as its description says.
+- **Scheduled tasks are capped at 500:** creating more is refused with a clear message; a panel that already has more keeps them.
+- **Request bodies:** the panel only reads a JSON body on its API, behind its rate limit, and refuses compressed request bodies.
 
 ## [2026.10.1] - 2026-10-26
 

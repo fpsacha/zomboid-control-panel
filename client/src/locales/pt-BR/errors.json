@@ -516,6 +516,7 @@
   "SCHEDULER_INVALID_TASK_ID": "ID de tarefa inválido",
   "SCHEDULER_INVALID_ENABLED_VALUE": "O campo enabled deve ser um booleano ou 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Tarefa não encontrada",
+  "SCHEDULER_TOO_MANY_TASKS": "O painel mantém no máximo {{max}} tarefas agendadas. Exclua uma primeiro.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Não foi possível reagendar a tarefa: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Não é possível reiniciar um servidor remoto. O processo não é gerenciado por este painel",
   "SCHEDULER_TIMEZONE_REQUIRED": "O fuso horário é obrigatório",

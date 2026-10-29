@@ -516,6 +516,7 @@
   "SCHEDULER_INVALID_TASK_ID": "ID de tarea no válido",
   "SCHEDULER_INVALID_ENABLED_VALUE": "El campo \"enabled\" debe ser un booleano o 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Tarea no encontrada",
+  "SCHEDULER_TOO_MANY_TASKS": "El panel guarda como máximo {{max}} tareas programadas. Elimina una primero.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "No se pudo reprogramar la tarea: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "No se puede reiniciar un servidor remoto. El proceso no está gestionado por este panel",
   "SCHEDULER_TIMEZONE_REQUIRED": "Se requiere una zona horaria",

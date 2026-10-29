@@ -102,6 +102,7 @@
     "switchToThisServer": "Перемкнутися на цей сервер",
     "added": "Додано {{date}}",
     "noPermissionDocker": "Керування цим контейнером потребує дозволу docker.manage, якого ця роль не має.",
+    "noPermissionDockerControl": "Запуск, зупинка чи перезапуск цього контейнера запускає, зупиняє чи перезапускає сервер, тож потребує ще й дозволу server.control, якого ця роль не має.",
     "noPermissionManage": "Ця дія потребує дозволу servers.manage, якого ця роль не має.",
     "noPermissionStartStop": "Потребує одночасно servers.manage і server.control — неповний набір дозволів залишив би сервер активованим, але не запущеним чи зупиненим."
   },

@@ -96,6 +96,7 @@
     "switchToThisServer": "Mudar para este servidor",
     "added": "Adicionado em {{date}}",
     "noPermissionDocker": "Gerenciar este contêiner requer a permissão docker.manage, que este cargo não tem.",
+    "noPermissionDockerControl": "Iniciar, parar ou reiniciar este contêiner inicia, para ou reinicia o servidor, o que também requer a permissão server.control, que este cargo não tem.",
     "noPermissionManage": "Esta ação requer a permissão servers.manage, que este cargo não tem.",
     "noPermissionStartStop": "Requer as permissões servers.manage e server.control — com só uma delas, o servidor seria ativado, mas não iniciado/parado."
   },

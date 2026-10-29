@@ -75,7 +75,11 @@ router.get("/stats", requirePermission("docker.manage"), async (req, res) => {
   }
 });
 
-router.post("/containers/:id/:action", requirePermission("docker.manage"), async (req, res) => {
+// SECURITY: every action here (start, stop, restart) runs on the container
+// mapped to a server profile, so it starts, stops or restarts that game
+// server, which server.control governs however the server is deployed
+// (services/permissions.js). docker.manage alone did it.
+router.post("/containers/:id/:action", requirePermission("docker.manage"), requirePermission("server.control"), async (req, res) => {
   // normalize-lifecycle-lock-server-identifier, 2026-09-08: req.params.id is
   // the Docker CONTAINER id, a third, unrelated namespace from the server DB
   // id every other call site now standardizes on -- req.body.serverId (the

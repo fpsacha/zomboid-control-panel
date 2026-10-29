@@ -96,6 +96,7 @@
     "switchToThisServer": "Switch to This Server",
     "added": "Added {{date}}",
     "noPermissionDocker": "Managing this container requires the docker.manage permission, which this role doesn't have.",
+    "noPermissionDockerControl": "Starting, stopping or restarting this container starts, stops or restarts the server, so it also requires the server.control permission, which this role doesn't have.",
     "noPermissionManage": "This action requires the servers.manage permission, which this role doesn't have.",
     "noPermissionStartStop": "Requires both servers.manage and server.control — a partial permission set would leave the server activated but not started/stopped."
   },

@@ -339,6 +339,10 @@ export default function Mods() {
   // entirely, not mods.js. OPEN when capabilities are unknown/null, same
   // convention as every other capability check in the app.
   const canManageMods = can('mods.manage')
+  // Turning auto-restart on and changing how its restart warns or waits is a
+  // restart decision: server.control too (server/routes/mods.js). Turning it
+  // off needs mods.manage only.
+  const canServerControl = can('server.control')
   const canManageServers = can('servers.manage')
   // Saving that path on a server with its own start command or launcher
   // script also takes files.manage (RCE-STARTCMD, lib/launchTarget.ts).
@@ -1958,6 +1962,7 @@ export default function Mods() {
 
   const handleToggleAutoRestart = async () => {
     if (busyRef.current || !canManageMods) return
+    if (!status?.autoRestartEnabled && !canServerControl) return
     busyRef.current = true
     setLoading(true)
     try {
@@ -2581,7 +2586,7 @@ export default function Mods() {
   }
 
   const handleSaveRestartSettings = async () => {
-    if (busyRef.current || !canManageMods) return
+    if (busyRef.current || !canManageMods || !canServerControl) return
     busyRef.current = true
     setLoading(true)
     try {
@@ -7119,6 +7124,9 @@ export default function Mods() {
           {/* DialogBody: with "Delay if players online" on, a landscape phone
               scrolled Save Settings below the fold. */}
           <DialogBody className="space-y-4">
+            {!canServerControl && (
+              <p className="text-xs text-muted-foreground">{t('manualRestart.noPermission', { ns: 'scheduler' })}</p>
+            )}
             <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/25 p-3">
               <div className="space-y-1">
                 <Label htmlFor="restart-auto-enabled">{t('statusBar.autoRestart')}</Label>
@@ -7128,7 +7136,7 @@ export default function Mods() {
                 id="restart-auto-enabled"
                 checked={status?.autoRestartEnabled || false}
                 onCheckedChange={handleToggleAutoRestart}
-                disabled={loading || !canManageMods}
+                disabled={loading || !canManageMods || (!status?.autoRestartEnabled && !canServerControl)}
                 aria-label={t('statusBar.autoRestartAria')}
               />
             </div>
@@ -7141,6 +7149,7 @@ export default function Mods() {
                 max={30}
                 value={restartWarningMinutes}
                 onChange={setRestartWarningMinutes}
+                disabled={!canServerControl}
               />
               <p className="mt-1 text-xs text-muted-foreground">
                 {t('restartSettingsDialog.warningTimeHint')}
@@ -7158,6 +7167,7 @@ export default function Mods() {
                 id="restart-delay-players"
                 checked={delayIfPlayersOnline}
                 onCheckedChange={setDelayIfPlayersOnline}
+                disabled={!canServerControl}
               />
             </div>
 
@@ -7170,6 +7180,7 @@ export default function Mods() {
                   max={120}
                   value={maxDelayMinutes}
                   onChange={setMaxDelayMinutes}
+                  disabled={!canServerControl}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
                   {t('restartSettingsDialog.maxDelayHint')}
@@ -7181,7 +7192,7 @@ export default function Mods() {
             <Button variant="outline" onClick={() => setRestartSettingsOpen(false)} className="w-full sm:w-auto">
               {t('restartSettingsDialog.cancel')}
             </Button>
-            <Button onClick={handleSaveRestartSettings} disabled={loading || !canManageMods} className="w-full sm:w-auto">
+            <Button onClick={handleSaveRestartSettings} disabled={loading || !canManageMods || !canServerControl} className="w-full sm:w-auto">
               {loading ? t('restartSettingsDialog.saving') : t('restartSettingsDialog.saveSettings')}
             </Button>
           </DialogFooter>

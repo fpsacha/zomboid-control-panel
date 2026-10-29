@@ -286,6 +286,7 @@
     "languageLabel": "Message language",
     "templateLabel": "Countdown template",
     "templateHint": "Use {count} for the number and {unit} for minutes or seconds.",
+    "templateNoPermission": "Writing your own message requires the server.world_events permission, which this role doesn't have. You can still pick a language and use its preset.",
     "presetButton": "Use language preset",
     "saveButton": "Save warnings",
     "saved": "Restart warnings saved",

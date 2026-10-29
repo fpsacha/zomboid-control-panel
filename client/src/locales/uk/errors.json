@@ -516,6 +516,7 @@
   "SCHEDULER_INVALID_TASK_ID": "Некоректний ID завдання",
   "SCHEDULER_INVALID_ENABLED_VALUE": "Поле enabled має бути булевим значенням або 0/1",
   "SCHEDULER_TASK_NOT_FOUND": "Завдання не знайдено",
+  "SCHEDULER_TOO_MANY_TASKS": "Панель зберігає щонайбільше {{max}} запланованих завдань. Спочатку видаліть одне.",
   "SCHEDULER_TASK_RESCHEDULE_FAILED": "Не вдалося перепланувати завдання: {{reason}}",
   "SCHEDULER_RESTART_REMOTE_NOT_SUPPORTED": "Неможливо перезапустити віддалений сервер. Процесом не керує ця панель",
   "SCHEDULER_TIMEZONE_REQUIRED": "Потрібен часовий пояс",

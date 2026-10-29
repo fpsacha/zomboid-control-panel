@@ -1131,7 +1131,7 @@ app.use(
 // runs body parsers in registration order, and whichever one reads the
 // request stream first is the one whose limit actually applies; a
 // path-scoped parser registered after the app-wide one would never run.
-app.use("/api/debug/client-errors", express.json({ limit: "16kb" }));
+app.use("/api/debug/client-errors", express.json({ limit: "16kb", inflate: false }));
 
 // Server Files text saves carry a whole file (up to 2 MiB) as a JSON
 // string; 6mb covers the worst-case JSON escaping of that. The app-wide
@@ -1148,8 +1148,14 @@ app.put(FILES_TEXT_SAVE_ROUTE, (req, _res, next) => {
 });
 
 // Body parser with explicit size limit
-const appJsonParser = express.json({ limit: "1mb" });
-app.use((req, res, next) => (req.deferLargeJsonBody ? next() : appJsonParser(req, res, next)));
+// SECURITY: mounted where apiLimiter is, not on every path: no route outside
+// /api reads a body, and a POST to any other path had up to 1 MB of JSON
+// parsed before its 404 with no rate limit at all. inflate: false refuses a
+// compressed body (415), which the 1 MB limit only measured once inflated:
+// a few bytes of brotli became a full 1 MB parse. The panel's own clients
+// never compress a request.
+const appJsonParser = express.json({ limit: "1mb", inflate: false });
+app.use("/api/", (req, res, next) => (req.deferLargeJsonBody ? next() : appJsonParser(req, res, next)));
 app.use(cookieParser());
 
 // Compress all HTTP responses (gzip/deflate) EXCEPT the <img>-tag-loaded
