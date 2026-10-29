@@ -255,6 +255,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "存档名称和区块数组均为必填项",
   "DELETE_CHUNKS_TOO_MANY": "区块数量过多（{{count}}）。每次请求最多 100,000 个——请拆分为更小的批次。",
   "SQLITE_ENGINE_UNAVAILABLE": "面板的 SQLite 引擎无法启动，因此无法清理 vehicles.db。未删除任何文件。请更新或重新安装面板，然后重启。",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db 中有一个因服务器非正常停止而未完成的事务。未删除任何文件。请启动服务器并正常停止一次，让游戏恢复它，然后重试。",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "区块文件名无效",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "区块文件路径无效",
   "DELETE_CHUNKS_INVALID_SOURCE": "区块来源无效",

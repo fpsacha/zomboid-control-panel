@@ -255,6 +255,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "Save name and chunks array required",
   "DELETE_CHUNKS_TOO_MANY": "Too many chunks ({{count}}). Maximum is 100,000 per request — split into smaller batches.",
   "SQLITE_ENGINE_UNAVAILABLE": "The panel's SQLite engine could not start, so vehicles.db can't be cleaned. No files were deleted. Update or reinstall the panel, then restart it.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db has an unfinished transaction from an unclean server stop. No files were deleted. Start the server and stop it once so the game can recover it, then try again.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "Invalid chunk file name",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "Invalid chunk file path",
   "DELETE_CHUNKS_INVALID_SOURCE": "Invalid chunk source",

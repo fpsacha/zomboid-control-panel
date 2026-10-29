@@ -255,6 +255,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "اسم الحفظ ومصفوفة الـ chunks مطلوبان",
   "DELETE_CHUNKS_TOO_MANY": "عدد كبير جدًا من الـ chunks ({{count}}). الحد الأقصى 100,000 لكل طلب — قسّمها إلى دفعات أصغر.",
   "SQLITE_ENGINE_UNAVAILABLE": "تعذّر تشغيل محرك SQLite في اللوحة، لذا لا يمكن تنظيف vehicles.db. لم يُحذف أي ملف. حدّث اللوحة أو أعد تثبيتها، ثم أعد تشغيلها.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "يحتوي vehicles.db على معاملة غير مكتملة بسبب إيقاف غير سليم للخادم. لم يُحذف أي ملف. شغّل الخادم ثم أوقفه مرة واحدة لكي تتمكن اللعبة من استعادتها، ثم أعد المحاولة.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "اسم ملف chunk غير صالح",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "مسار ملف chunk غير صالح",
   "DELETE_CHUNKS_INVALID_SOURCE": "مصدر chunk غير صالح",

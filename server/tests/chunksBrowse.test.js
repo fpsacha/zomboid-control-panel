@@ -116,4 +116,56 @@ describe("chunk backup safety", () => {
       code: "EEXIST",
     });
   });
+
+  // vehicles audit (2026-10-28, R2-20): chunk files are the game server's to
+  // write and backups/ is in the folder it shares, so a copy never follows a
+  // link (or blocks on a FIFO) planted at either end.
+  it("legit: copies a regular chunk file", async () => {
+    const source = path.join(dataRoot, "chunk.bin");
+    const destination = path.join(dataRoot, "backup.bin");
+    fs.writeFileSync(source, "chunk bytes");
+
+    await expect(copyChunkBackup(source, destination, true)).resolves.toBe(true);
+    expect(fs.readFileSync(destination, "utf8")).toBe("chunk bytes");
+  });
+
+  it("skips a source that is not a regular file, like a missing one", async () => {
+    const source = path.join(dataRoot, "0.bin");
+    fs.mkdirSync(source);
+    const destination = path.join(dataRoot, "backup.bin");
+
+    await expect(copyChunkBackup(source, destination, true)).resolves.toBe(false);
+    expect(fs.existsSync(destination)).toBe(false);
+  });
+
+  it.skipIf(process.platform === "win32")("never copies through a symlinked chunk file", async () => {
+    const secret = path.join(dataRoot, "jwt.secret");
+    fs.writeFileSync(secret, "jwt-signing-secret");
+    const source = path.join(dataRoot, "0.bin");
+    fs.symlinkSync(secret, source);
+    const destination = path.join(dataRoot, "backup.bin");
+
+    await expect(copyChunkBackup(source, destination, true)).resolves.toBe(false);
+    expect(fs.existsSync(destination)).toBe(false);
+  });
+
+  it.skipIf(process.platform === "win32")("never writes through a symlink planted at the backup path", async () => {
+    const source = path.join(dataRoot, "chunk.bin");
+    fs.writeFileSync(source, "chunk bytes");
+    const panelFile = path.join(dataRoot, "db.json");
+    fs.writeFileSync(panelFile, "{}");
+    const destination = path.join(dataRoot, "chunkdata_0_0.bin");
+    fs.symlinkSync(panelFile, destination);
+
+    await expect(copyChunkBackup(source, destination)).rejects.toMatchObject({ code: "ELOOP" });
+    expect(fs.readFileSync(panelFile, "utf8")).toBe("{}");
+  });
+
+  it.skipIf(process.platform === "win32")("skips a FIFO without blocking", async () => {
+    const { spawnSync } = await import("child_process");
+    const source = path.join(dataRoot, "fifo.bin");
+    expect(spawnSync("mkfifo", [source]).status).toBe(0);
+
+    await expect(copyChunkBackup(source, path.join(dataRoot, "backup.bin"), true)).resolves.toBe(false);
+  }, 10000);
 });

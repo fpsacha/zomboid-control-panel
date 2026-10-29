@@ -255,6 +255,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "Non sovgad ak tablo kawo obligatwa",
   "DELETE_CHUNKS_TOO_MANY": "Twòp kawo ({{count}}). Maksimòm se 100,000 pou chak demann — separe an pi piti gwoup.",
   "SQLITE_ENGINE_UNAVAILABLE": "Motè SQLite panèl la pa t ka demare, kidonk yo pa ka netwaye vehicles.db. Okenn fichye pa t efase. Mete panèl la ajou oswa reenstale l, epi rekòmanse l.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db gen yon tranzaksyon ki pa fini paske sèvè a te kanpe mal. Okenn fichye pa t efase. Demare sèvè a epi kanpe l yon fwa pou jwèt la ka rekipere l, epi eseye ankò.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "Non dosye kawo envalid",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "Chemen dosye kawo envalid",
   "DELETE_CHUNKS_INVALID_SOURCE": "Sous kawo envalid",

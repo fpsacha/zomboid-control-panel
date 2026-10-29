@@ -255,6 +255,7 @@
   "DELETE_CHUNKS_FIELDS_REQUIRED": "Le nom de sauvegarde et le tableau de chunks sont requis",
   "DELETE_CHUNKS_TOO_MANY": "Trop de chunks ({{count}}). Maximum 100 000 par requête — répartissez en lots plus petits.",
   "SQLITE_ENGINE_UNAVAILABLE": "Le moteur SQLite du panneau n'a pas pu démarrer, donc vehicles.db ne peut pas être nettoyé. Aucun fichier n'a été supprimé. Mettez à jour ou réinstallez le panneau, puis redémarrez-le.",
+  "VEHICLES_DB_UNFINISHED_TRANSACTION": "vehicles.db contient une transaction inachevée laissée par un arrêt brutal du serveur. Aucun fichier n'a été supprimé. Démarrez puis arrêtez le serveur une fois pour que le jeu puisse la récupérer, puis réessayez.",
   "DELETE_CHUNKS_INVALID_FILE_NAME": "Nom de fichier de chunk invalide",
   "DELETE_CHUNKS_INVALID_FILE_PATH": "Chemin de fichier de chunk invalide",
   "DELETE_CHUNKS_INVALID_SOURCE": "Source de chunk invalide",

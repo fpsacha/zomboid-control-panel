@@ -77,6 +77,13 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
 - **PanelBridge over SFTP:** the 16 MB download limit now applies to the transfer itself, not only to the size the remote host reports, so a hostile host can no longer fill the panel's disk.
 - **PanelBridge folder files:** the panel no longer follows a link or reads past 16 MB in the bridge folder (inbox cursor and Find Bridge scan included), so a game server account that differs from the panel's can't make it empty or overwrite another file, or run it out of memory.
+- **World Map vehicles:** concurrent requests share one read of vehicles.db and an unchanged file is not read again, so map refreshes can't run the panel out of memory.
+- **Map Cleanup** removes vehicles in one pass over vehicles.db instead of one per chunk, so a large cleanup no longer freezes the panel.
+- **vehicles.db and chunk backups** never follow a link planted in the save folder and only write to new files.
+- A vehicles.db or server database with a crafted schema is refused instead of hanging the panel.
+- A special file in place of vehicles.db or the server database can no longer tie up the panel's file threads.
+- **Map Cleanup** won't remove vehicles while vehicles.db has an unfinished transaction from an unclean stop, which the game would otherwise play back over the cleaned file.
+- A failed vehicles.db rewrite no longer leaves a full-size temp file in the save folder, and a successful one is flushed to disk first.
 
 ## [2026.10.1] - 2026-10-26
 
