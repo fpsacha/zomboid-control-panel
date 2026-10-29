@@ -69,7 +69,7 @@ Tracks every Workshop mod on your server and flags updates through the Steam API
 <td width="50%" valign="top">
 
 ### ⚠️ Mod Conflicts & Load Order
-Scans your mod list for known incompatibilities, missing dependencies, and load-order issues. Severity-tinted findings so you see real problems before you boot the server. Load order can auto-sort from each mod's declared `require=`, with a preview of every move before anything is written.
+Scans your mod list for file conflicts, duplicate mod IDs, missing dependencies, and load-order issues, with severity-tinted findings so you see real problems before you boot the server. **Fix everything** applies every safe fix in one click (with Undo), conflict winners can be suggested and applied in bulk, and smart sort orders the list from each mod's `require=`, Steam's required items, and patches, with a preview of every move before anything is written.
 
 <img src="Screenshots/screenshot-mods-conflicts.png" alt="Mod Conflicts" />
 
@@ -115,7 +115,7 @@ Host RAM and CPU graphs, PZ process memory, player count history. Time-range sel
 <td width="50%" valign="top">
 
 ### 🐛 Crash Logs & Diagnostics
-Java crash dumps, error logs, support bundles. One-click `.zip` export for when you need to share state with someone smarter than you. Health, environment, and activity tabs included, plus a Diagnostics tab that runs dozens of checks across the panel, the server, and PanelBridge — some fail with a one-click fix, others link straight to the setting that needs attention.
+Java crash dumps, error logs, support bundles. One-click `.zip` export for when you need to share state with someone smarter than you. Health, environment, and activity tabs included, plus **Checks & Fixes**: dozens of checks across the panel, the server, and PanelBridge, and a **Problems found** scan of the server console that names each error's cause — many come with a one-click fix, the rest link straight to the setting that needs attention.
 
 <img src="Screenshots/screenshot-debug-crashes.png" alt="Crash Logs" />
 
@@ -175,7 +175,7 @@ Visual map selector for reclaiming disk space from an aging save. Delete individ
 - **PanelBridge** — Server-side Lua mod for actions RCON can't reach: teleport, heal, god mode, character export/import, inventory. The panel copies it into the game folder, or a Build 42 server running with Steam downloads it from the Steam Workshop, which lets you keep the Lua integrity check on.
 - **Discord bot** — Slash commands and two-way chat relay.
 - **Single sign-on (SSO)** — OpenID Connect login, with ready-made presets for Google, Authentik, Keycloak, Azure AD, Okta, and Auth0, or any other compliant provider entered by hand. Full discovery + PKCE + state/nonce flow, with a one-click credential test before you commit to it.
-- **Multi-server** — Manage multiple PZ servers from one panel.
+- **Multi-server** — Manage multiple PZ servers from one panel: each server's state, start/stop/restart and lifecycle locks on the Dashboard's list, without switching the active server.
 - **Chunk cleaner** — Visual map selector for reclaiming disk space from an aging save: delete individual chunks or drag out a rectangular region, with per-save stats before you commit.
 - **Auto-update** — Checks for new releases, downloads and applies them.
 
@@ -272,7 +272,7 @@ PanelBridge is a server-side Lua mod that enables features RCON can't reach — 
 
 It can reach your server in two ways. Choose one per server under **Settings → PanelBridge → How PanelBridge is installed**. The choice covers every server profile that uses the same game folder.
 
-| | **Installed by the panel** (default) | **Steam Workshop** (new in 1.4.0, Preview) |
+| | **Installed by the panel** (default) | **Steam Workshop** (Preview) |
 | --- | --- | --- |
 | How it gets there | The panel copies `PanelBridge.lua` into the game folder before every start | The server downloads it from the Workshop when it starts |
 | `DoLuaChecksum` | Must stay `false` | Can be turned back on |
@@ -381,6 +381,7 @@ If you instead terminate TLS at nginx *and* run the panel's own HTTPS listener b
 - CORS configurable per deployment (LAN auto-allows private IPs, VPS requires explicit origins).
 - Recovery codes are single-use, enforced even against two redemption attempts racing each other.
 - Password reset via secure token file or `--reset-password` CLI flag.
+- Regular security audits (static scanners, CodeQL, and multi-agent review); fixes ship with a test that fails on the old code. Report issues privately via GitHub's **Report a vulnerability**.
 
 ---
 
