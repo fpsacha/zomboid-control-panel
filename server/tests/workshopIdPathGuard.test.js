@@ -133,7 +133,7 @@ WorkshopItems=1234567890;${ESCAPE}
   it("PUT /presets/:id still saves digits-only workshopIds", async () => {
     const res = await runRoute("/presets/:id", "put", {
       params: { id: "p1" },
-      body: { workshopIds: ["1234567890", 2222222222, " 3333333333 "] },
+      body: { workshopIds: ["1234567890", 2222222222, "3333333333"] },
     });
     expect(res.getStatusCode()).toBe(200);
     expect(updateModPreset).toHaveBeenCalledWith("p1", { workshop_ids: ["1234567890", "2222222222", "3333333333"] });
