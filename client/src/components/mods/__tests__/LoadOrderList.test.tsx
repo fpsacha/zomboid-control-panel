@@ -191,11 +191,15 @@ describe('LoadOrderList group blocks', () => {
 
 describe('LoadOrderList with a big list', () => {
   // jsdom lays nothing out: give the scroll box an 800px viewport and every
-  // row its estimated height, so the virtualizer has a window to fill.
+  // row its estimated height, so the virtualizer has a window to fill. The
+  // virtualizer reads the scroll box through clientHeight, rows through
+  // offsetHeight.
   beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    const height = function (this: HTMLElement) {
       return this.hasAttribute('data-load-order-scroll') ? 800 : 38
-    })
+    }
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(height)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(height)
   })
   afterEach(() => {
     vi.restoreAllMocks()

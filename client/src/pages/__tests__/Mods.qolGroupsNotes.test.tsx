@@ -446,10 +446,14 @@ describe('Load order: Auto-sort with groups', () => {
 
 describe('With a laid-out list', () => {
   beforeEach(() => {
-    // jsdom lays nothing out: an 800px list viewport and 64px rows.
-    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    // jsdom lays nothing out: an 800px list viewport and 64px rows (the
+    // virtualizer reads the viewport through clientHeight, rows through
+    // offsetHeight).
+    const height = function (this: HTMLElement) {
       return this.className.includes('overflow-y-auto') ? 800 : 64
-    })
+    }
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(height)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(height)
   })
   afterEach(() => {
     vi.restoreAllMocks()

@@ -1609,6 +1609,9 @@ export function installDemoFetchShim(): void {
     if (path === '/api/servers/active') {
       return jsonResponse({ server: demoServer() })
     }
+    if (path === '/api/servers/lifecycle') {
+      return jsonResponse({ lock: null, servers: [] })
+    }
     if (path.startsWith('/api/servers/') && path.endsWith('/activate') && method === 'POST') {
       return jsonResponse({ success: true, message: 'Demo mode: active server updated locally only.', server: demoServer() })
     }
