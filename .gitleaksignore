@@ -1,0 +1,29 @@
+# gitleaks findings checked by hand and known not to be secrets (audit
+# 2026-10-28). Each line is a finding's Fingerprint from `gitleaks git`.
+# Add a line only after reading the value at that commit and line.
+
+# Test fixtures: made-up keys, tokens and secrets.
+d7835b7f207c7d557afb79c042fed5d351223a14:server/tests/modSteamKnowledge.test.js:generic-api-key:29
+3329647176ff591fad05e0b59afb3222a8edc235:server/tests/resetTokenHardening.test.js:generic-api-key:413
+3329647176ff591fad05e0b59afb3222a8edc235:server/tests/resetTokenStrength.test.js:generic-api-key:348
+5ca5e9251f13c0331d191ff78d413c62161f3a20:server/tests/resetTokenStrength.test.js:generic-api-key:67
+73ff0d87ca756fa28d5751af3d77fa2614064d45:server/tests/jwtSecretMigration.test.js:generic-api-key:129
+73ff0d87ca756fa28d5751af3d77fa2614064d45:server/tests/jwtSecretMigration.test.js:generic-api-key:175
+7ecc6617649171918954fd1d17fa9d461a5ae1d8:client/src/components/mods/__tests__/ModsQolPieces.test.tsx:generic-api-key:238
+
+# Placeholder Discord guild IDs (123456789012345678) in test settings.
+95ba5bd1a50117ae14ffc32910d11fb22125b99b:server/tests/appSettingsRoleView.test.js:discord-client-id:39
+b24ba8839bce7887768392a12aae8c463b28ba9c:server/tests/appSettingsCapabilityPartition.test.js:discord-client-id:148
+b24ba8839bce7887768392a12aae8c463b28ba9c:server/tests/appSettingsCapabilityPartition.test.js:discord-client-id:199
+
+# An unsigned alg "none" JWT the test forges to prove the panel rejects it.
+be9b188956ed7aef6b59a243a1ced6aeec285195:server/tests/bugfixes.test.js:jwt:219
+
+# Mod IDs in the demo mode's load order.
+6b013c7c074edaec37eca46961efa345b8624b2f:client/src/lib/demo.ts:generic-api-key:174
+02704a9afdb9e5aa2bd9f6e2528fcc64b30b7dbb:client/src/lib/demo.ts:generic-api-key:176
+
+# Error-message keys next to "Discord ... Token" text in the locales.
+fe965068a58a16bfbfb52b547761d583bb55d270:client/src/locales/en/errors.json:discord-client-secret:455
+fe965068a58a16bfbfb52b547761d583bb55d270:client/src/locales/es/errors.json:discord-client-secret:455
+fe965068a58a16bfbfb52b547761d583bb55d270:client/src/locales/ht/errors.json:discord-client-secret:455

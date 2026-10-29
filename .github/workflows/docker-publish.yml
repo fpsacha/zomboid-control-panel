@@ -36,6 +36,8 @@ on:
       - 'package-lock.json'
       - 'client/package.json'
       - 'client/package-lock.json'
+      - '.github/helper-images/Dockerfile'
+      - 'scripts/helper-images.mjs'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
@@ -60,6 +62,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Reject release tag outside main
@@ -121,13 +124,37 @@ jobs:
 
       - name: Verify tag Docker version
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/verify-package-version.mjs "${{ github.ref_name }}"
+        run: node scripts/verify-package-version.mjs "$GITHUB_REF_NAME"
+
+      # `latest` and the <major>.<minor> alias follow the highest release
+      # tag. A re-run of an older tag's run, or a manual run on one, still
+      # publishes its own version tags but never moves those back.
+      - name: Check whether this is the newest release tag
+        id: newest
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag --list 'v*' | node scripts/newest-release-tag.mjs "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+
+      # The QEMU image runs privileged and the BuildKit image pushes with the
+      # registry login: both by digest from .github/helper-images/Dockerfile,
+      # never the actions' moving default tags.
+      - name: Read pinned helper images
+        id: helpers
+        run: node scripts/helper-images.mjs >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          image: ${{ steps.helpers.outputs.binfmt }}
+          platforms: arm64
+          cache-image: false
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=${{ steps.helpers.outputs.buildkit }}
 
       # Never on a pull request: a fork's token is read-only, and even a
       # same-repository change must merge before an image is published.
@@ -155,8 +182,8 @@ jobs:
           tags: |
             type=ref,event=tag
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ steps.newest.outputs.minor == 'true' }}
+            type=raw,value=latest,enable=${{ steps.newest.outputs.latest == 'true' }}
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,format=short
