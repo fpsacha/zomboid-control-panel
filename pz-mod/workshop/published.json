@@ -3,8 +3,8 @@
   "modId": "ZCPB",
   "workshopId": "3809901056",
   "visibility": "unlisted",
-  "publishedVersion": "1.7.78",
-  "serverLuaSha256": "112d0bb1900b07c2d10b7d10408086f5c3983c1060c8db71b54696b87b9ff359",
-  "publishedAt": "2026-10-21T12:07:16.556Z",
+  "publishedVersion": "1.7.79",
+  "serverLuaSha256": "8856f757f9c0f6a015e18000b298657e1ba537c91423e857fdfa4471b1813ce3",
+  "publishedAt": "2026-10-29T13:42:00.444Z",
   "liveVerified": { "windowsServer": null, "linuxServer": null }
 }
