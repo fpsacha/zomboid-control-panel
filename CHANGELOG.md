@@ -70,6 +70,13 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Map Cleanup paths on Windows:** a typed custom path can no longer name a network share or device path (unless it is a server's data folder), which made the panel's Windows account sign in to that host.
 - **Map Cleanup with the game outside the panel's container:** deleting chunks now also refuses while the server's container runs or RCON still answers, as restore and wipe do.
 - **Map Cleanup vehicles:** a chunk whose file couldn't be deleted now keeps its vehicles in vehicles.db.
+- **PanelBridge commands can't stall the game server:** the panel refuses command data over 64 KB (512 KB for a character import) or nested more than 32 levels, and PanelBridge reads each command in linear time; one request used to freeze the server for minutes.
+- **Bridge command history stays small:** db.json keeps at most 4 KB of each command's data, so a huge or deeply nested command can no longer bloat it or stop the panel from saving.
+- **Character import:** PanelBridge stops trying an item type that doesn't exist, and the panel refuses more than 2000 items or an item type that isn't a plain name, so an import file can't stall the game server.
+- **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
+- **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
+- **PanelBridge over SFTP:** the 16 MB download limit now applies to the transfer itself, not only to the size the remote host reports, so a hostile host can no longer fill the panel's disk.
+- **PanelBridge folder files:** the panel no longer follows a link or reads past 16 MB in the bridge folder (inbox cursor and Find Bridge scan included), so a game server account that differs from the panel's can't make it empty or overwrite another file, or run it out of memory.
 
 ## [2026.10.1] - 2026-10-26
 

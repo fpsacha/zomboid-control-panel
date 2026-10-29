@@ -6,6 +6,25 @@
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
 
+                vNEXT Changes:
+                - Fix: reading a large command no longer stalls the game
+                    thread. Trimming a file took time growing with the
+                    square of each run of spaces in it (8,000 spaces: 7 s),
+                    and json.decode copied a string again at every escape
+                    in it. Both are linear now, json.decode refuses nesting
+                    deeper than 128 levels, and an inbox command file over
+                    4 MB is skipped unread.
+                - Fix: a character import of item types that don't exist no
+                    longer runs AddItem up to 100 times per entry without
+                    end. An entry stops at its first failed add, and an
+                    import makes at most 1000 add attempts over at most
+                    2000 entries.
+                - Fix: playWorldSound and playSoundNearPlayer keep the radius
+                    to 10..500 and the volume to 1..500, as createNoise
+                    always did. The server sends a sound to every client in
+                    its radius and each client walks every chunk inside it,
+                    so a radius of 1e7 froze every player's game.
+
                 v1.7.78 Changes:
                 - Fix: a character import can no longer freeze the server.
                     importPlayerData levelled each perk once per level in the
@@ -793,6 +812,11 @@ local PanelBridge = {
     MAX_DEBUG_ENTRIES = 200,
     MAX_PENDING_RESULTS = 500,
     MAX_COMMANDS_PER_TICK = 200,
+    -- An inbox command file over this is skipped unread. The panel refuses
+    -- command args over 1 MB (a character import; 64 KB for the rest) and
+    -- writes them compact; panels before that pretty-printed them, which
+    -- stays well under this too.
+    MAX_INBOX_COMMAND_BYTES = 4 * 1024 * 1024,
     QUEUE_SEQUENCE_WIDTH = 10,
 
     -- The panel only writes the legacy commands.json when a numbered queue
@@ -1462,16 +1486,28 @@ local function utf8EncodeCodepoint(code)
     end
 end
 
+-- Nesting limit for json.decode. json.encode never writes more than
+-- JSON_MAX_DEPTH + 1 levels and the panel refuses command args nested more
+-- than 32 deep, so only a hand-made file reaches it; past it the parse fails
+-- like any malformed file instead of recursing until the stack runs out.
+local JSON_DECODE_MAX_DEPTH = 128
+
+-- The whitespace, string and number scans below jump with string.find
+-- instead of walking one character at a time, and a string is collected in a
+-- table and joined once: `result = result .. piece` copied everything built
+-- so far at every escape, so a string full of escapes took quadratic time on
+-- the game thread.
 function json.decode(str)
     if not str or str == "" then return nil end
 
     local pos = 1
+    local strLen = #str
+    local depth = 0
     local function skip_whitespace()
-        while pos <= #str and str:sub(pos, pos):match('%s') do
-            pos = pos + 1
-        end
+        pos = str:find('%S', pos) or (strLen + 1)
     end
 
+    local parse_container
     local function parse_value()
         skip_whitespace()
         local c = str:sub(pos, pos)
@@ -1480,21 +1516,32 @@ function json.decode(str)
             -- String
             pos = pos + 1
             local start = pos
-            local result = ""
-            while pos <= #str do
-                c = str:sub(pos, pos)
-                if c == '\\' then
-                    result = result .. str:sub(start, pos - 1)
+            local parts = {}
+            local n = 0
+            while pos <= strLen do
+                pos = str:find('["\\]', pos)
+                if not pos then
+                    -- Unterminated: what came before the last escape, as
+                    -- the character-by-character loop returned.
+                    pos = strLen + 1
+                    break
+                end
+                if pos > start then
+                    n = n + 1
+                    parts[n] = str:sub(start, pos - 1)
+                end
+                if string.byte(str, pos) == 92 then -- backslash
                     pos = pos + 1
                     local escape = str:sub(pos, pos)
-                    if escape == 'n' then result = result .. '\n'
-                    elseif escape == 'r' then result = result .. '\r'
-                    elseif escape == 't' then result = result .. '\t'
-                    elseif escape == 'b' then result = result .. '\b'
-                    elseif escape == 'f' then result = result .. '\f'
-                    elseif escape == '"' then result = result .. '"'
-                    elseif escape == '\\' then result = result .. '\\'
-                    elseif escape == '/' then result = result .. '/'
+                    n = n + 1
+                    if escape == 'n' then parts[n] = '\n'
+                    elseif escape == 'r' then parts[n] = '\r'
+                    elseif escape == 't' then parts[n] = '\t'
+                    elseif escape == 'b' then parts[n] = '\b'
+                    elseif escape == 'f' then parts[n] = '\f'
+                    elseif escape == '"' then parts[n] = '"'
+                    elseif escape == '\\' then parts[n] = '\\'
+                    elseif escape == '/' then parts[n] = '/'
                     elseif escape == 'u' then
                         -- \uXXXX: the ONLY escape form that isn't a single
                         -- literal character -- everything above it just
@@ -1513,27 +1560,50 @@ function json.decode(str)
                         local hex = str:sub(pos + 1, pos + 4)
                         local code = hex:match('^%x%x%x%x$') and tonumber(hex, 16)
                         if code then
-                            result = result .. utf8EncodeCodepoint(code)
+                            parts[n] = utf8EncodeCodepoint(code)
                             pos = pos + 4
                         else
                             -- Malformed \u (not 4 hex digits): fail safe,
                             -- same as the pre-fix behavior for every escape
                             -- this branch didn't recognize.
-                            result = result .. escape
+                            parts[n] = escape
                         end
-                    else result = result .. escape end
+                    else parts[n] = escape end
                     pos = pos + 1
                     start = pos
-                elseif c == '"' then
-                    result = result .. str:sub(start, pos - 1)
-                    pos = pos + 1
-                    return result
                 else
                     pos = pos + 1
+                    return table.concat(parts)
                 end
             end
-            return result
-        elseif c == '{' then
+            return table.concat(parts)
+        elseif c == '{' or c == '[' then
+            depth = depth + 1
+            if depth > JSON_DECODE_MAX_DEPTH then
+                error("nesting deeper than " .. JSON_DECODE_MAX_DEPTH .. " levels at position " .. pos)
+            end
+            local value = parse_container(c)
+            depth = depth - 1
+            return value
+        elseif str:sub(pos, pos + 3) == 'true' then
+            pos = pos + 4
+            return true
+        elseif str:sub(pos, pos + 4) == 'false' then
+            pos = pos + 5
+            return false
+        elseif str:sub(pos, pos + 3) == 'null' then
+            pos = pos + 4
+            return nil
+        else
+            -- Number
+            local start = pos
+            pos = str:find('[^%d%.%-eE%+]', pos) or (strLen + 1)
+            return tonumber(str:sub(start, pos - 1))
+        end
+    end
+
+    parse_container = function(c)
+        if c == '{' then
             -- Object
             pos = pos + 1
             local obj = {}
@@ -1610,22 +1680,6 @@ function json.decode(str)
                 end
             end
             return arr
-        elseif str:sub(pos, pos + 3) == 'true' then
-            pos = pos + 4
-            return true
-        elseif str:sub(pos, pos + 4) == 'false' then
-            pos = pos + 5
-            return false
-        elseif str:sub(pos, pos + 3) == 'null' then
-            pos = pos + 4
-            return nil
-        else
-            -- Number
-            local start = pos
-            while pos <= #str and str:sub(pos, pos):match('[%d%.%-eE%+]') do
-                pos = pos + 1
-            end
-            return tonumber(str:sub(start, pos - 1))
         end
     end
 
@@ -2402,7 +2456,28 @@ function PanelBridge.ensureDirectory()
     return PanelBridge.canWritePath(PanelBridge.getWritePath(".write-check"))
 end
 
-function PanelBridge.readPath(path)
+-- Returned (as the second value, content nil) by readPath/readFile when a
+-- file passes the caller's maxBytes: it exists but was not read.
+PanelBridge.FILE_TOO_LARGE = "tooLarge"
+
+-- Leading and trailing whitespace off, in linear time. The gsub pattern
+-- "^%s*(.-)%s*$" tried the trailing %s*$ at every character, so each run of
+-- k spaces anywhere in the file (inside a JSON string too) cost k^2 steps on
+-- the game thread.
+local function trimWhitespace(content)
+    local first = content:find('%S')
+    if not first then return "" end
+    local last = #content
+    local byte = string.byte(content, last)
+    -- %s: space, \t, \n, \v, \f, \r
+    while byte == 32 or (byte >= 9 and byte <= 13) do
+        last = last - 1
+        byte = string.byte(content, last)
+    end
+    return content:sub(first, last)
+end
+
+function PanelBridge.readPath(path, maxBytes)
     local readerOk, reader = pcall(function()
         return getFileReader(path, false)
     end)
@@ -2411,35 +2486,42 @@ function PanelBridge.readPath(path)
     end
 
     local lines = {}
+    local total = 0
+    local tooLarge = false
     local readOk, readErr = pcall(function()
         local line = reader:readLine()
         while line do
             lines[#lines + 1] = line
+            total = total + #line + 1
+            if maxBytes and total > maxBytes then
+                tooLarge = true
+                return
+            end
             line = reader:readLine()
         end
     end)
     local closeOk = pcall(function()
         reader:close()
     end)
+    if tooLarge then return nil, PanelBridge.FILE_TOO_LARGE end
     if not readOk or not closeOk then return nil end
 
-    local content = table.concat(lines, "\n")
-    return (content:gsub("^%s*(.-)%s*$", "%1")) -- trim
+    return trimWhitespace(table.concat(lines, "\n"))
 end
 
-function PanelBridge.readFile(filename)
+function PanelBridge.readFile(filename, maxBytes)
     local nestedPath = PanelBridge.getBasePath() .. filename
     if PanelBridge.isPanelOwnedFile(filename) then
-        return PanelBridge.readPath(nestedPath)
+        return PanelBridge.readPath(nestedPath, maxBytes)
     end
 
     -- Prefer the .txt-suffixed file this build writes, then fall back to the
     -- unsuffixed file left behind by a pre-Build-42-24449161 session.
-    local content = PanelBridge.readPath(nestedPath .. PanelBridge.WRITE_SUFFIX)
-    if content ~= nil then
-        return content
+    local content, readErr = PanelBridge.readPath(nestedPath .. PanelBridge.WRITE_SUFFIX, maxBytes)
+    if content ~= nil or readErr then
+        return content, readErr
     end
-    return PanelBridge.readPath(nestedPath)
+    return PanelBridge.readPath(nestedPath, maxBytes)
 end
 
 function PanelBridge.writeFile(filename, content)
@@ -3071,9 +3153,23 @@ local function processQueuedCommands(budget)
 
     while scanned < budget do
         local fileName = "inbox/cmd-" .. PanelBridge.formatSeq(nextSeq) .. ".json"
-        local raw = PanelBridge.readFile(fileName)
+        local raw, readErr = PanelBridge.readFile(fileName, PanelBridge.MAX_INBOX_COMMAND_BYTES)
 
-        if raw == nil then
+        if readErr == PanelBridge.FILE_TOO_LARGE then
+            -- Never decoded: skipped like a malformed file, so the cursor
+            -- moves past it and a restart does not read it again.
+            PanelBridge.warn("Skipping oversized queued command file", {
+                file = fileName,
+                seq = nextSeq,
+                maxBytes = PanelBridge.MAX_INBOX_COMMAND_BYTES
+            })
+            PanelBridge.clearFile(fileName)
+            scanned = scanned + 1
+            PanelBridge.queueState.lastCommandSeq = nextSeq
+            PanelBridge.writeInboxCursor(nextSeq)
+            advanced = true
+            nextSeq = nextSeq + 1
+        elseif raw == nil then
             if tryResyncInboxCursor(nextSeq) then
                 -- Resynced to the panel's actual write position; loop back
                 -- around and retry immediately at the new nextSeq.
@@ -4344,7 +4440,18 @@ end
 -- so fall back to the WorldSoundManager API when it is missing. Returns
 -- (true, method) on success or (false, errorMessage) on failure so callers
 -- never crash with "attempt to call nil value (global 'addSound')".
+-- A sound's radius and volume within createNoise's range (10..500 and
+-- 1..500). The server sends a sound to every client within its radius, and
+-- each client walks every chunk inside it, so radius 1e7 froze them all.
+local function clampSoundNumber(value, default, low, high)
+    value = tonumber(value)
+    if not value or value ~= value then value = default end
+    return math.floor(math.min(math.max(value, low), high))
+end
+
 local function emitWorldSound(player, x, y, z, radius, volume)
+    radius = clampSoundNumber(radius, 50, 10, 500)
+    volume = clampSoundNumber(volume, 100, 1, 500)
     local method = "unknown"
     local ok, err = pcall(function()
         if addSound then
@@ -4376,8 +4483,8 @@ handlers.playWorldSound = function(args)
     local x = tonumber(args.x)
     local y = tonumber(args.y)
     local z = tonumber(args.z) or 0
-    local radius = tonumber(args.radius) or 50
-    local volume = tonumber(args.volume) or 100
+    local radius = clampSoundNumber(args.radius, 50, 10, 500)
+    local volume = clampSoundNumber(args.volume, 100, 1, 500)
 
     if not x or not y then
         return false, nil, "x and y coordinates are required"
@@ -4404,8 +4511,8 @@ end
 -- Play a sound near a specific player (zombies will hear it)
 handlers.playSoundNearPlayer = function(args)
     local username = args.username
-    local radius = tonumber(args.radius) or 50
-    local volume = tonumber(args.volume) or 100
+    local radius = clampSoundNumber(args.radius, 50, 10, 500)
+    local volume = clampSoundNumber(args.volume, 100, 1, 500)
 
     if not username then
         return false, nil, "username is required"
@@ -6339,13 +6446,26 @@ handlers.importPlayerData = function(args)
         if inventory then
             local MAX_DEPTH = 3
             local MAX_ITEMS = 500
+            -- MAX_ITEMS counts items that were made, so a list of item
+            -- types that don't exist ran AddItem (a failed lookup across
+            -- every mod's scripts, plus a log line) up to 100 times per
+            -- entry with no end. Attempts and entries are capped too, and
+            -- an entry stops at its first failed add.
+            local MAX_ADD_ATTEMPTS = 1000
+            local MAX_ENTRIES = 2000
             local totalAdded = 0
+            local attempts = 0
+            local entriesSeen = 0
             -- Helper function to add items recursively with depth limit
             local function addItems(container, itemList, depth)
                 if depth > MAX_DEPTH then return end
                 if type(itemList) ~= "table" then return end
                 for _, itemData in ipairs(itemList) do
-                    if totalAdded >= MAX_ITEMS then break end
+                    if totalAdded >= MAX_ITEMS or attempts >= MAX_ADD_ATTEMPTS
+                        or entriesSeen >= MAX_ENTRIES then
+                        break
+                    end
+                    entriesSeen = entriesSeen + 1
                     if type(itemData) ~= "table" or not itemData.fullType then
                         -- skip malformed entries
                     else
@@ -6353,8 +6473,10 @@ handlers.importPlayerData = function(args)
                             -- Clamp to prevent server freeze
                             local count = math.floor(clampImportNumber(itemData.count, 1, 0, 100))
                             for c = 1, count do
-                                if totalAdded >= MAX_ITEMS then break end
+                                if totalAdded >= MAX_ITEMS or attempts >= MAX_ADD_ATTEMPTS then break end
+                                attempts = attempts + 1
                                 local newItem = container:AddItem(itemData.fullType)
+                                if not newItem then break end
                                 if newItem then
                                     -- Java userdata does not reliably expose
                                     -- callable methods as readable fields.

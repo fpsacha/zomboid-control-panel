@@ -1853,6 +1853,16 @@ export const ErrorCode = Object.freeze({
    * entries, or an entry's level is not a whole number from 0 to 10 (a huge
    * level used to freeze the game server, one LevelPerk call per level). */
   PANELBRIDGE_CHARACTER_PERK_INVALID: "PANELBRIDGE_CHARACTER_PERK_INVALID",
+  /** 400, server/routes/panelBridge.js (utils/characterImport.js says
+   * why) -- POST /character/import or POST /command importPlayerData:
+   * `data.inventory` is not a list, lists more than 2000 items, or names an
+   * item type with quotes, backslashes or control characters. */
+  PANELBRIDGE_CHARACTER_INVENTORY_INVALID: "PANELBRIDGE_CHARACTER_INVENTORY_INVALID",
+  /** 400/413, server/routes/panelBridge.js (utils/bridgeCommandArgs.js) --
+   * POST /command or /character/import: the command's args nest more than
+   * 32 levels deep or serialize to more than 64 KB (512 KB for a character
+   * import). The mod parses every command on the game thread. */
+  PANELBRIDGE_ARGS_TOO_LARGE: "PANELBRIDGE_ARGS_TOO_LARGE",
   /** server/routes/panelBridge.js -- POST /zombies/clear-near (or
    * similar), `count` outside 1-100. */
   PANELBRIDGE_HORDE_COUNT_INVALID: "PANELBRIDGE_HORDE_COUNT_INVALID",

@@ -26,6 +26,7 @@ import {
   secretFileAclsEnabled,
 } from "../utils/secretFileAcl.js";
 import { isPidAlive } from "../utils/pidLiveness.js";
+import { BRIDGE_ARGS_MAX_DEPTH, bridgeArgsNestingDepth } from "../utils/bridgeCommandArgs.js";
 const log = createLogger("DB");
 
 // ============================================
@@ -1485,6 +1486,30 @@ export async function getCommandHistory(limit = 100, serverId = undefined) {
 // getActiveServerId() anyway, for symmetry with logCommand()'s identical
 // contract and in case a future caller (a per-server PanelBridge instance,
 // should that ever exist) needs to override it.
+// SECURITY (2026-10-28): the args are whatever the caller sent, and this
+// used to keep the caller's object itself. Large args grew db.json by up to
+// 1 MB per entry (500 entries are kept), and args nested deeper than
+// JSON.stringify can go made every later db.json write fail. A copy is kept
+// when it nests at most 32 deep and serializes to 4 KB or less; otherwise
+// only the first 20 key names.
+const BRIDGE_LOG_ARGS_MAX_CHARS = 4096;
+function boundedBridgeLogArgs(args) {
+  if (args === undefined || args === null) return {};
+  const keys = () => (typeof args === "object" && !Array.isArray(args)
+    ? Object.keys(args).slice(0, 20).map((key) => key.slice(0, 64))
+    : []);
+  if (bridgeArgsNestingDepth(args) > BRIDGE_ARGS_MAX_DEPTH) return { truncated: true, keys: keys() };
+  let text;
+  try {
+    text = JSON.stringify(args);
+  } catch {
+    return { truncated: true };
+  }
+  if (typeof text !== "string") return {};
+  if (text.length <= BRIDGE_LOG_ARGS_MAX_CHARS) return JSON.parse(text);
+  return { truncated: true, keys: keys() };
+}
+
 export async function logBridgeCommand(
   action,
   args,
@@ -1511,7 +1536,7 @@ export async function logBridgeCommand(
     id: generateId(),
     server_id: serverId !== undefined ? serverId : await getActiveServerId(),
     action,
-    args: args || {},
+    args: boundedBridgeLogArgs(args),
     result: truncatedResult,
     success: success ? 1 : 0,
     duration_ms: durationMs,

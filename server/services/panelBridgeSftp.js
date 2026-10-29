@@ -36,11 +36,21 @@ function isRemoteFile(entryType) {
 // replaces the local copy exactly as before.
 function hasSameContent(firstPath, secondPath) {
   try {
-    if (fs.statSync(firstPath).size !== fs.statSync(secondPath).size) return false;
+    const size = fs.statSync(firstPath).size;
+    if (size !== fs.statSync(secondPath).size) return false;
+    // Neither is read whole past the download limit (an older cache could
+    // hold a file from before the transfer itself was capped).
+    if (size > MAX_BRIDGE_FILE_BYTES) return false;
     return fs.readFileSync(firstPath).equals(fs.readFileSync(secondPath));
   } catch (_) {
     return false;
   }
+}
+
+function removeQuietly(filePath) {
+  try {
+    fs.rmSync(filePath, { force: true });
+  } catch (_) { /* the next sync's download overwrites it */ }
 }
 
 // Single source of truth for classifying an SFTP failure: which ErrorCode it
@@ -531,7 +541,33 @@ export class PanelBridgeSftpTransport {
     const localPath = this.local(relativeName);
     fs.mkdirSync(path.dirname(localPath), { recursive: true, mode: 0o700 });
     const temporaryPath = `${localPath}.${this.transferId}.download`;
-    await this.call(client, (c) => c.fastGet(remotePath, temporaryPath));
+    // SECURITY (2026-10-28): the stat above is only what the host said a
+    // moment ago. fastGet copies as many bytes as the host's own answer at
+    // open time (and the file can grow in between), so the limit is held
+    // on the transfer itself: past it the connection is dropped, which fails
+    // the download, and the partial file is removed.
+    let oversized = false;
+    try {
+      await this.call(client, (c) => c.fastGet(remotePath, temporaryPath, {
+        step: (total, _chunk, fileSize) => {
+          if (!oversized && (fileSize > MAX_BRIDGE_FILE_BYTES || total > MAX_BRIDGE_FILE_BYTES)) {
+            oversized = true;
+            dropSftpConnection(c);
+          }
+        },
+      }));
+      if (!oversized && fs.statSync(temporaryPath).size > MAX_BRIDGE_FILE_BYTES) oversized = true;
+    } catch (error) {
+      if (!oversized) {
+        removeQuietly(temporaryPath);
+        throw error;
+      }
+    }
+    if (oversized) {
+      this.forget(client);
+      removeQuietly(temporaryPath);
+      throw new Error(`Remote bridge file ${remotePath} exceeds the ${MAX_BRIDGE_FILE_BYTES / (1024 * 1024)} MB download limit`);
+    }
     // The local copy's mtime is the heartbeat PanelBridge.checkModStatus()
     // judges (and what markServerExited() pins), so it may only move when
     // the remote file really changed. Replacing it on every sync stamped a
