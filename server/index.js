@@ -4505,7 +4505,7 @@ export function resolvePanelPort(rawValue, { onInvalid } = {}) {
 // dropping it here (as this payload used to) meant the client had no way to
 // tell a private whisper between two players apart from ordinary public
 // chat, even though logTailer.js had already done the work of computing it
-// (see chatMessageKey/collectChatRoomIds) and discordBot.js's chat relay
+// (see processChatLogData) and discordBot.js's chat relay
 // already depends on this exact same field to keep private channels out of
 // Discord (PUBLIC_CHAT_TYPES in discordBot.js).
 export function buildChatSocketPayload(data, id) {
