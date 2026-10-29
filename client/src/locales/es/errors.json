@@ -685,5 +685,7 @@
   "RETRY_AFTER_MINUTES_many": "Inténtalo de nuevo en {{count}} minutos.",
   "LOGIN_FAILED": "No pudimos iniciar tu sesión. Comprueba tu nombre de usuario y contraseña e inténtalo de nuevo.",
   "LOGIN_CORS_BLOCKED": "El navegador bloqueó la conexión por su política de origen. Para la primera configuración detrás de un proxy inverso, define CORS_ORIGINS con esta URL en el entorno del panel y reinícialo. Si no, abre el panel desde una dirección local o de la red local; después de la configuración, gestiona los orígenes en Ajustes > Acceso remoto.",
-  "SETUP_FAILED": "No pudimos crear la cuenta de administrador. Inténtalo de nuevo."
+  "SETUP_FAILED": "No pudimos crear la cuenta de administrador. Inténtalo de nuevo.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "Esta carpeta está en un recurso compartido de red o es una ruta de dispositivo de Windows. Elige una carpeta de este equipo, o asigna primero el recurso compartido a una letra de unidad.",
+  "PANEL_DATA_FOLDER_REFUSED": "La carpeta de datos del panel no puede ser su carpeta de programa, una carpeta dentro de ella (salvo su propia carpeta de datos), una carpeta que la contenga ni una carpeta que el panel sirve a los navegadores web. Elige otra carpeta."
 }

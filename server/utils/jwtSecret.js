@@ -24,6 +24,7 @@ import crypto from "crypto";
 import { getDataPaths } from "./paths.js";
 import { readSecret } from "./secrets.js";
 import { checkAndExitIfOwnershipBlocked } from "./firstRunOwnershipCheck.js";
+import { restrictSecretFileSync } from "./secretFileAcl.js";
 
 export function getJwtSecretPath() {
   return path.join(getDataPaths().dataDir, "jwt.secret");
@@ -75,6 +76,7 @@ function writeSecretFile(secretPath, value) {
   } catch {
     /* best-effort: Windows / network shares */
   }
+  restrictSecretFileSync(secretPath); // the Windows equivalent (utils/secretFileAcl.js)
 }
 
 /**

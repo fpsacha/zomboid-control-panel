@@ -685,5 +685,7 @@
   "RETRY_AFTER_MINUTES_many": "Réessayez dans {{count}} minutes.",
   "LOGIN_FAILED": "Connexion impossible. Vérifiez votre nom d'utilisateur et votre mot de passe, puis réessayez.",
   "LOGIN_CORS_BLOCKED": "Connexion bloquée par la politique d'origine du navigateur. Pour une première configuration derrière un reverse proxy, définissez CORS_ORIGINS sur cette URL dans l'environnement du panneau, puis redémarrez-le. Sinon, ouvrez le panneau depuis une adresse locale ou du réseau local ; une fois la configuration terminée, gérez les origines dans Paramètres > Accès distant.",
-  "SETUP_FAILED": "Impossible de créer le compte administrateur. Réessayez."
+  "SETUP_FAILED": "Impossible de créer le compte administrateur. Réessayez.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "Ce dossier se trouve sur un partage réseau ou est un chemin de périphérique Windows. Choisissez un dossier sur cet ordinateur, ou associez d'abord le partage à une lettre de lecteur.",
+  "PANEL_DATA_FOLDER_REFUSED": "Le dossier de données du panneau ne peut pas être son dossier de programme, un dossier qu'il contient (autre que son propre dossier de données), un dossier qui le contient, ni un dossier que le panneau fournit aux navigateurs web. Choisissez un autre dossier."
 }

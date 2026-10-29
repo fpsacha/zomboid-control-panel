@@ -52,6 +52,7 @@ import {
 import { sanitizeError, sanitizeErrorParams, SENSITIVE_FIELD_RE } from "../utils/sanitize.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { serverConfigDirOf } from "../utils/serverConfigPath.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { checkSandboxBraceBalance } from "./serverFiles.js";
 import { validateSandboxLua } from "../utils/sandboxLua.js";
 import panelBridgeService from "../services/panelBridge.js";
@@ -2318,7 +2319,15 @@ router.post("/paths", requirePermission("diagnostics.manage"), async (req, res) 
         requiresRestart: true,
       });
     } else {
-      res.status(400).json({ error: result.error });
+      // setDataPaths()'s coded refusals (utils/paths.js); the rest are
+      // self-contained English validation text.
+      const code = [
+        ErrorCode.FOLDER_NETWORK_SHARE_REFUSED,
+        ErrorCode.PANEL_DATA_FOLDER_REFUSED,
+      ].includes(result.code)
+        ? result.code
+        : undefined;
+      res.status(400).json({ error: result.error, ...(code ? { code } : {}) });
     }
   } catch (error) {
     log.error(`Failed to update paths: ${error.message}`);
@@ -2850,6 +2859,28 @@ async function scanSaveStats(saveDir, budgetMs) {
   };
   await walk(saveDir);
   return { totalBytes, chunks, staleLocks, truncated };
+}
+
+// The bundled JRE the diagnostics run with `-version`: <install>/jre64 (or
+// jre)/bin/java, or null.
+//
+// SECURITY (2026-10-28): never from a Steam Workshop download folder or a
+// Windows network share (utils/untrustedFolder.js), whose files anyone can
+// supply -- the rule a server start applies. An install folder saved before
+// that rule existed is still stored, so it is judged here, before any file
+// call, rather than trusted because it was accepted then.
+export async function findBundledJavaToProbe(installPath) {
+  if (typeof installPath !== "string" || !installPath.trim()) return null;
+  if (untrustedFolderReason(installPath)) return null;
+  const jreCandidates =
+    process.platform === "win32"
+      ? ["jre64/bin/java.exe", "jre/bin/java.exe"]
+      : ["jre64/bin/java", "jre/bin/java"];
+  for (const rel of jreCandidates) {
+    const p = path.join(installPath, ...rel.split("/"));
+    if (await safePathExists(p)) return p;
+  }
+  return null;
 }
 
 // Execute the bundled JRE with `-version`. PZ prints to stderr. Returns
@@ -4617,18 +4648,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
         // SteamCMD install. The existing `server.jre` check only verifies
         // the binary file is present.
         if (installPath) {
-          const isWin = process.platform === "win32";
-          const jreCandidates = isWin
-            ? ["jre64/bin/java.exe", "jre/bin/java.exe"]
-            : ["jre64/bin/java", "jre/bin/java"];
-          let javaBin = null;
-          for (const rel of jreCandidates) {
-            const p = path.join(installPath, ...rel.split("/"));
-            if (await safePathExists(p)) {
-              javaBin = p;
-              break;
-            }
-          }
+          const javaBin = await findBundledJavaToProbe(installPath);
           if (javaBin) {
             const probe = await raceWithFallback(probeJre(javaBin), 5000, {
               ok: false,

@@ -63,6 +63,10 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Steam branch names:** Install and Update accept only a real branch name (letters, digits, dots, dashes, underscores), so nothing else reaches SteamCMD's command line.
 - **Server config folder:** a config folder on a Windows network share outside the server's data folder is refused before the panel touches it, so saving one no longer signs the panel's account in to that host.
 - **Server scan folder:** Scan for servers refuses a Windows network share before touching it, as server detection already did.
+- **Panel data folder:** it can no longer be moved into the panel's program folder or the web client it serves, or (on Windows) onto a network share, which could expose the panel's secrets.
+- **Zomboid data folders:** on Windows a server's data folder can no longer be a network share, which made the panel's account sign in to that host; map the share to a drive letter instead.
+- **Windows secret files:** `jwt.secret`, `db.json`, its backups and the other `.secret` files are now readable only by the account that runs the panel, SYSTEM and Administrators, not by every account on the PC.
+- **Diagnostics Java check:** no longer runs Java from an install folder inside a Steam Workshop download folder or on a network share that was saved before those folders were refused.
 
 ## [2026.10.1] - 2026-10-26
 

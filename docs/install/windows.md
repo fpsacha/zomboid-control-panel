@@ -15,6 +15,14 @@ right before moving to the next one.
 2. Right-click the downloaded zip → **Extract All...** → pick a folder (for
    example `C:\ZomboidPanel`) → **Extract**.
 
+   On a PC other people also sign in to (a shared or rented server with
+   several Windows accounts), extract it inside your own user folder instead
+   (for example `C:\Users\<you>\ZomboidPanel`): a folder made directly under
+   `C:\` lets every account on the PC change the panel's program files. The
+   panel itself keeps its secret files (`data\jwt.secret`, `data\db.json` and
+   the other `.secret` files) readable only by the account that runs it,
+   SYSTEM and Administrators.
+
    Don't run anything straight out of the zip's built-in preview window —
    always extract first. Windows Explorer lets you double-click files inside
    a zip without extracting, and this project's launcher (Phase 2) needs its
@@ -362,6 +370,9 @@ stay open under your own login.
 a different Windows account than the one who extracted the zip can hit
 permission errors writing to that folder, which the log will show even
 though Task Scheduler itself reports the task as having run successfully.
+Run the task as the account that first started the panel (or as SYSTEM):
+the panel's secret files in `data\` are readable only by that account,
+SYSTEM and Administrators.
 
 ---
 

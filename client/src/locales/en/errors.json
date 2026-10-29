@@ -683,5 +683,7 @@
   "RETRY_AFTER_MINUTES_other": "Try again in {{count}} minutes.",
   "LOGIN_FAILED": "We couldn't sign you in. Check your username and password and try again.",
   "LOGIN_CORS_BLOCKED": "Connection blocked by browser origin policy. For first-time reverse-proxy setup, set CORS_ORIGINS to this URL in the panel environment and restart it. Otherwise open the panel from a local/LAN address; after setup, manage origins in Settings > Remote Access.",
-  "SETUP_FAILED": "We couldn't create the admin account. Try again."
+  "SETUP_FAILED": "We couldn't create the admin account. Try again.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "This folder is on a network share or is a Windows device path. Choose a folder on this computer, or map the share to a drive letter first.",
+  "PANEL_DATA_FOLDER_REFUSED": "The panel's data folder can't be its program folder, a folder inside it (other than its own data folder), a folder that holds it, or a folder the panel serves to web browsers. Choose another folder."
 }

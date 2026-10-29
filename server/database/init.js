@@ -19,6 +19,12 @@ import {
 } from "../utils/serverRconSecrets.js";
 import { redactRconCommandSecrets } from "../utils/rconCommandRedaction.js";
 import { readUiSecretFile, writeUiSecretFile } from "../utils/uiSecretFile.js";
+import {
+  restrictExistingSecretFiles,
+  restrictSecretFile,
+  restrictSecretFileSync,
+  secretFileAclsEnabled,
+} from "../utils/secretFileAcl.js";
 import { isPidAlive } from "../utils/pidLiveness.js";
 const log = createLogger("DB");
 
@@ -482,6 +488,9 @@ export async function flushWrites() {
       } catch (_) {
         /* best-effort: Windows */
       }
+      // The Windows equivalent (utils/secretFileAcl.js), on the temporary
+      // file: the rename keeps its ACL, so db.json never has its folder's.
+      if (secretFileAclsEnabled()) await restrictSecretFile(tmpPath);
       fs.renameSync(tmpPath, dbPath);
       _writeRetries = 0; // Reset on success
       _lastWriteError = null;
@@ -715,6 +724,7 @@ function createBackup(label = "") {
     } catch (_) {
       /* best-effort: Windows */
     }
+    restrictSecretFileSync(backupFile); // the Windows equivalent (utils/secretFileAcl.js)
     pruneBackups();
     return backupFile;
   } catch (err) {
@@ -938,6 +948,7 @@ export function validateData(data) {
         encoding: "utf-8",
         mode: 0o600,
       });
+      restrictSecretFileSync(snapshotPath); // Windows (utils/secretFileAcl.js)
       log.warn(
         `Saved a snapshot of the pre-repair file for recovery: ${snapshotPath}`,
       );
@@ -1119,6 +1130,9 @@ export async function getDb() {
     } catch (_) {
       /* backupDir may not be readable yet on first run */
     }
+    // The Windows equivalent, for db.json, the *.secret files and the
+    // backups an earlier version left with their folder's ACL.
+    void restrictExistingSecretFiles(dataDir);
 
     const adapter = new JSONFile(dbPath);
     db = new Low(adapter, defaultData);
@@ -1192,6 +1206,7 @@ export async function getDb() {
         } catch (_) {
           /* best-effort */
         }
+        restrictSecretFileSync(corruptPath); // the Windows equivalent (utils/secretFileAcl.js)
       } catch (_) {
         /* best-effort */
       }

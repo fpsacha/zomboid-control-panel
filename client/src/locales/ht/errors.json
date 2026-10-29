@@ -683,5 +683,7 @@
   "RETRY_AFTER_MINUTES_other": "Eseye ankò nan {{count}} minit.",
   "LOGIN_FAILED": "Nou pa t ka konekte ou. Verifye non itilizatè a ak modpas la epi eseye ankò.",
   "LOGIN_CORS_BLOCKED": "Navigatè a bloke koneksyon an akòz règ orijin li. Pou premye konfigirasyon dèyè yon pwoksi envès, mete CORS_ORIGINS sou URL sa a nan anviwònman panèl la epi rekòmanse li. Sinon, louvri panèl la apati yon adrès lokal oswa LAN; apre konfigirasyon, jere orijin yo nan Paramèt > Aksè Adistans.",
-  "SETUP_FAILED": "Nou pa t ka kreye kont administratè a. Eseye ankò."
+  "SETUP_FAILED": "Nou pa t ka kreye kont administratè a. Eseye ankò.",
+  "FOLDER_NETWORK_SHARE_REFUSED": "Dosye sa a sou yon pataj rezo oswa se yon chemen aparèy Windows. Chwazi yon dosye sou òdinatè sa a, oswa konekte pataj la ak yon lèt disk anvan.",
+  "PANEL_DATA_FOLDER_REFUSED": "Dosye done panèl la pa ka dosye pwogram li, yon dosye anndan li (eksepte pwòp dosye done li), yon dosye ki genyen li, oswa yon dosye panèl la bay navigatè entènèt yo. Chwazi yon lòt dosye."
 }
