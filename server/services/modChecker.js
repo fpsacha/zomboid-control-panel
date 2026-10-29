@@ -808,6 +808,10 @@ export class ModChecker extends EventEmitter {
 
   // Helper: Try to resolve mod name from disk
   resolveModNameFromDisk(workshopId, skipCache = false) {
+    // Ids also come from the ini's WorkshopItems= line (hand edits, Server
+    // Files, a saved preset): only a digits-only id names a Workshop folder,
+    // so a "../.." can't make this read a mod.info outside it.
+    if (!/^\d{1,15}$/.test(String(workshopId ?? ""))) return null;
     // Check cache first (with size limit)
     if (!skipCache && this.modNameCache.has(workshopId)) {
       return this.modNameCache.get(workshopId).name;

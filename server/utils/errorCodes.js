@@ -1406,8 +1406,8 @@ export const ErrorCode = Object.freeze({
    * this file, kept separate rather than normalized). Identical wording across
    * these 5 sites, shared code. */
   MODS_INVALID_WORKSHOP_ID_CAP: "MODS_INVALID_WORKSHOP_ID_CAP",
-  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info) -- workshopId present but fails
-   * /^\d{1,15}$/. Identical wording, shared code. */
+  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info, PUT /presets/:id workshopIds) --
+   * workshopId present but fails /^\d{1,15}$/. Identical wording, shared code. */
   MODS_INVALID_WORKSHOP_ID_FORMAT: "MODS_INVALID_WORKSHOP_ID_FORMAT",
   /** server/routes/mods.js -- (sites: DELETE /track/:id, /ignored/:id, /collection/items(+/:id),
    * /collection/tracking/:id, /delete-disk-mod, /purge-mod, GET /mod-details)
