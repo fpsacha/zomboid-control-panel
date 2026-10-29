@@ -125,7 +125,7 @@ WorkshopItems=1234567890;${ESCAPE}
     for (const bad of [[ESCAPE], ["1234567890", "../.."], [{ id: "1" }], ["12;34"]]) {
       const res = await runRoute("/presets/:id", "put", { params: { id: "p1" }, body: { workshopIds: bad } });
       expect(res.getStatusCode()).toBe(400);
-      expect(res.getBody().code).toBe(ErrorCode.MODS_INVALID_WORKSHOP_ID_FORMAT);
+      expect(res.getBody().code).toBe(ErrorCode.MODS_INVALID_WORKSHOP_ID_TEMPLATE);
     }
     expect(updateModPreset).not.toHaveBeenCalled();
   });

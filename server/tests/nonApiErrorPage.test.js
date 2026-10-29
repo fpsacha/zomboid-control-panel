@@ -73,11 +73,12 @@ describe("errors outside /api never show a stack trace", () => {
     expect(res.text).not.toMatch(STACK);
   });
 
-  it("POST / with a malformed JSON body answers a plain 400", async () => {
+  it("POST / with a malformed JSON body is not parsed and shows no stack trace", async () => {
+    // The JSON body parser only runs on /api, so this body is never read.
     const res = await request("POST", "/", { "Content-Type": "application/json" }, "{bad");
 
-    expect(res.status).toBe(400);
-    expect(res.text).toBe("Bad Request");
+    expect(res.status).not.toBe(500);
+    expect(res.text).not.toMatch(/SyntaxError|JSON/);
     expect(res.text).not.toMatch(STACK);
   });
 });

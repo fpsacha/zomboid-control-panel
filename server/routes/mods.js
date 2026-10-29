@@ -5087,7 +5087,12 @@ router.get("/validate-config", async (req, res) => {
 const PRESET_LIST_MAX = 2000;
 
 function presetWorkshopId(value) {
-  const id = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;
+  const id =
+    typeof value === "number" && Number.isSafeInteger(value)
+      ? String(value)
+      : typeof value === "string"
+        ? value.trim()
+        : value;
   return typeof id === "string" && /^\d{1,15}$/.test(id) ? id : null;
 }
 
