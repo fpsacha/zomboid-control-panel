@@ -54,6 +54,7 @@ FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472
 # is only usable on amd64, where its 32-bit runtime libraries are installed.
 RUN set -eux; \
         apt-get update; \
+        apt-get upgrade -y --no-install-recommends; \
         apt-get install -y --no-install-recommends bash ca-certificates curl procps tar util-linux wget; \
         if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
             apt-get install -y --no-install-recommends lib32gcc-s1 lib32stdc++6; \
@@ -85,7 +86,8 @@ WORKDIR /app
 # Install server dependencies only (no devDeps), exactly as package-lock.json
 # pins them.
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --prefer-offline --omit=dev
+RUN npm ci --no-audit --prefer-offline --omit=dev \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /root/.npm
 
 # Copy server source
 COPY server/ ./server/
