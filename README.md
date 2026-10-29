@@ -161,7 +161,7 @@ Visual map selector for reclaiming disk space from an aging save. Delete individ
 - **Console** — Live log viewer and RCON terminal with command history.
 - **Scheduling** — Recurring restarts, saves, broadcasts with countdown warnings.
 - **Backups** — Manual or scheduled world backups with configurable retention, snapshot preview, and download/upload of the raw archive. Restore takes an automatic safety backup first and warns it can't be undone.
-- **Roles & permissions** — Capability-based access control: three built-in roles (admin, technician, moderator) plus fully custom ones, each granting an explicit subset of the panel's 28 individual capabilities across 12 areas (server lifecycle, RCON, backups, mods, and more).
+- **Roles & permissions** — Capability-based access control: three built-in roles (admin, technician, moderator) plus fully custom ones, each granting an explicit subset of the panel's 31 individual capabilities across 12 areas (server lifecycle, RCON, backups, mods, and more).
 - **Account recovery** — Single-use recovery codes, generated in advance from an authenticated admin session, let the admin reset their own password later if they get locked out. Two more paths cover losing access to the panel entirely: a local-only token file, or the `--reset-password` CLI flag run directly on the server.
 
 ### Observe
@@ -214,7 +214,18 @@ PanelBridge features additionally need its server files or SFTP access.
 
 **Not sure which?** If you already rent a Project Zomboid server from a host, pick Hosted — you're not installing anything server-side. Otherwise pick the row that matches the computer the *panel* will run on; Docker needs the fewest manual steps if that machine has it.
 
-Every path above ends the same way: a browser tab open to the panel's setup screen, where you create your admin account. Download the current package from [Releases](https://github.com/fpsacha/zomboid-control-panel/releases/latest). Something not working? [docs/install/troubleshooting.md](docs/install/troubleshooting.md) is organized by what's actually on your screen, not by which guide you followed.
+Every path above ends the same way: a browser tab open to the panel's setup screen, where you create your admin account. Download the current package from [Releases](https://github.com/fpsacha/zomboid-control-panel/releases/latest).
+
+**Which file do I download?**
+
+| You run the panel on | Download |
+| --- | --- |
+| Windows | `ZomboidControlPanel-windows.zip` (or the bare `ZomboidControlPanel.exe`) |
+| Linux | `ZomboidControlPanel-linux.tar.gz` (or the bare `ZomboidControlPanel` binary) |
+| Docker, panel + new PZ server | `bootstrap.sh` (the one-line installer below) |
+| Docker, panel only | `docker-compose.install.yml` |
+
+The other files are for checking downloads (`checksums.txt`), building the image yourself (`Dockerfile`), and the optional Steam Sync browser extension (`zomboid-panel-extension.zip`). Something not working? [docs/install/troubleshooting.md](docs/install/troubleshooting.md) is organized by what's actually on your screen, not by which guide you followed.
 
 ### macOS
 
