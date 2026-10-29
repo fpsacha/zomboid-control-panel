@@ -794,6 +794,10 @@ export const ErrorCode = Object.freeze({
    * Windows network share (steamCmdFolderRefusal(), utils/untrustedFolder.js):
    * its files are anyone's, so SteamCMD is never run from it. */
   STEAMCMD_FOLDER_REFUSED: "STEAMCMD_FOLDER_REFUSED",
+  /** server/routes/server.js (/install, /steam-update, getBetaArgs()) -- the
+   * Steam branch named is not letters, digits, dots, dashes and underscores
+   * (isValidSteamBranch()), so it never reaches SteamCMD's -beta. */
+  STEAM_BRANCH_INVALID: "STEAM_BRANCH_INVALID",
   /** server/routes/server.js (sites: /install, /quick-setup, /steam-update) --
    * installPath fails isValidPath(). */
   INSTALL_PATH_INVALID: "INSTALL_PATH_INVALID",

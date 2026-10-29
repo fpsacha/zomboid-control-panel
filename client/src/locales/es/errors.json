@@ -176,6 +176,7 @@
   "EVENTS_INVALID_USERNAME": "Nombre de usuario no válido",
   "STEAMCMD_PATH_INVALID": "Ruta de SteamCMD no válida",
   "STEAMCMD_FOLDER_REFUSED": "No se puede usar SteamCMD desde esta carpeta: está dentro de una carpeta de descargas del Steam Workshop o en un recurso compartido de red, cuyos archivos podría aportar cualquiera. Elige la carpeta en la que está instalado SteamCMD en este equipo.",
+  "STEAM_BRANCH_INVALID": "Nombre de rama de Steam no válido. Usa solo letras, números, puntos, guiones y guiones bajos.",
   "INSTALL_PATH_INVALID": "Ruta de instalación no válida",
   "INSTALL_MISSING_FIELDS": "Faltan campos obligatorios: steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "Nombre de servidor no válido. Usa solo letras, números, guiones bajos, guiones y espacios (máximo 64 caracteres)",

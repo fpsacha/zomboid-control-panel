@@ -59,6 +59,10 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Crash logs:** the crash-log viewer and the support bundle no longer follow a link placed in the server folder, and log scans no longer hang on a special file there.
 - **Workshop items:** an item id that isn't a number (in `WorkshopItems=` or a mod preset) no longer makes the Mods page read folders outside the Workshop folder; presets now take numeric ids only.
 - Starting, stopping or restarting another server from the Dashboard's server list, and the Scheduler's Restart now, have the same rate limit as the active server's buttons.
+- **Steam branch list:** another website open in the operator's browser can no longer make the panel save and run a SteamCMD folder of its choosing while panel logins are off.
+- **Steam branch names:** Install and Update accept only a real branch name (letters, digits, dots, dashes, underscores), so nothing else reaches SteamCMD's command line.
+- **Server config folder:** a config folder on a Windows network share outside the server's data folder is refused before the panel touches it, so saving one no longer signs the panel's account in to that host.
+- **Server scan folder:** Scan for servers refuses a Windows network share before touching it, as server detection already did.
 
 ## [2026.10.1] - 2026-10-26
 

@@ -176,6 +176,7 @@
   "EVENTS_INVALID_USERNAME": "اسم مستخدم غير صالح",
   "STEAMCMD_PATH_INVALID": "مسار SteamCMD غير صالح",
   "STEAMCMD_FOLDER_REFUSED": "لا يمكن استخدام SteamCMD من هذا المجلد: فهو داخل مجلد تنزيلات Steam Workshop أو على مشاركة شبكة، يمكن لأي شخص أن يضع ملفاتها. اختر المجلد المثبَّت فيه SteamCMD على هذا الكمبيوتر.",
+  "STEAM_BRANCH_INVALID": "اسم فرع Steam غير صالح. استخدم الأحرف والأرقام والنقاط والشرطات والشرطات السفلية فقط.",
   "INSTALL_PATH_INVALID": "مسار تثبيت غير صالح",
   "INSTALL_MISSING_FIELDS": "حقول مطلوبة مفقودة: steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "اسم خادم غير صالح. استخدم الأحرف والأرقام والشرطات السفلية والشرطات والمسافات فقط (بحد أقصى 64 حرفًا)",

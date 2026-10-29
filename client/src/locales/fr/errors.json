@@ -176,6 +176,7 @@
   "EVENTS_INVALID_USERNAME": "Nom d'utilisateur invalide",
   "STEAMCMD_PATH_INVALID": "Chemin SteamCMD invalide",
   "STEAMCMD_FOLDER_REFUSED": "SteamCMD ne peut pas être utilisé depuis ce dossier : il se trouve dans un dossier de téléchargement du Steam Workshop ou sur un partage réseau, dont n'importe qui pourrait fournir les fichiers. Choisissez le dossier où SteamCMD est installé sur cet ordinateur.",
+  "STEAM_BRANCH_INVALID": "Nom de branche Steam invalide. Utilisez uniquement des lettres, des chiffres, des points, des tirets et des tirets bas.",
   "INSTALL_PATH_INVALID": "Chemin d'installation invalide",
   "INSTALL_MISSING_FIELDS": "Champs requis manquants : steamcmdPath, installPath, serverName",
   "SERVER_NAME_FORMAT_INVALID": "Nom de serveur invalide. Utilisez uniquement des lettres, chiffres, tirets bas, tirets et espaces (64 caractères max)",

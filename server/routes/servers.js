@@ -539,6 +539,11 @@ router.post("/auto-scan", requirePermission("servers.discover"), async (req, res
     if (!path.isAbsolute(scanPath)) {
       return res.status(400).json({ error: "Must be an absolute path" });
     }
+    // A Windows network path is never touched, as on /detect: the panel's
+    // account would sign in to that host (utils/untrustedFolder.js).
+    if (untrustedLaunchFolderReason(scanPath) === "networkShare") {
+      return res.status(400).json({ error: "Invalid path format" });
+    }
     const resolvedPath = path.resolve(scanPath);
 
     // Block scanning root paths directly — require at least one subfolder
