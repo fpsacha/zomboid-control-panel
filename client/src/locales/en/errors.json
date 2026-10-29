@@ -271,6 +271,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Access denied: path is outside the server's save directory",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "Path does not exist",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Path is not a directory",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Map Cleanup doesn't open a network share or device path typed here. Use a folder on this computer, or a data folder already set for a server.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Either selectedModIds or includeAllModIds is required",
   "MODS_ADD_ALL_DEPS_REQUIRED": "No dependencies provided",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Too many dependencies in one request (max 200)",

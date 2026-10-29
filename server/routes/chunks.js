@@ -37,6 +37,8 @@ import {
 } from "../utils/zomboidPaths.js";
 import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { ErrorCode } from "../utils/errorCodes.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { resolveObservedServerRunning } from "../utils/serverStatus.js";
 import {
   buildVehicleBoxes,
   cellDivisorFor,
@@ -66,6 +68,49 @@ async function refusedWithoutSqlite(res, route) {
     });
     return true;
   }
+}
+
+// R2-23 (2026-10-28): the delete routes' process scan only sees the panel's
+// own PID namespace. With the game in another container, or on the host
+// while the panel runs in Docker (/zomboid bind-mounted), it finds nothing
+// while the world is open, and the delete went ahead under a live server:
+// the game writes the chunks back and vehicles.db is replaced under it. So,
+// once the scan has said "stopped", also ask what the panel already knows:
+// resolveObservedServerRunning() -- the container's own state for the Docker
+// providers, RCON and PanelBridge alongside the scan otherwise, the verdict
+// restore and wipe use -- and a live RCON connection on its own, which means
+// the game is up wherever it runs. Running refuses as the scan does (force
+// still overrides); "cannot tell" refuses as "can't verify". `details` is
+// the scan already taken, not a second one. True when it has answered.
+async function refusedForServerTheScanCannotSee(req, res, details) {
+  const rconService = req.app.get("rconService");
+  let observed;
+  try {
+    observed = await resolveObservedServerRunning(
+      { getServerProcessDetails: async () => details },
+      rconService,
+    );
+  } catch (error) {
+    log.warn(`Could not tell whether the server is running before a chunk delete: ${error.message}`);
+    observed = null;
+  }
+  if (observed === true || Boolean(rconService?.connected)) {
+    res.status(400).json({
+      error:
+        "Stop the server before deleting chunks. Running servers hold save files open and will overwrite your changes on shutdown.",
+      code: "server_running",
+      matched: Array.isArray(details?.matched) ? details.matched : [],
+    });
+    return true;
+  }
+  if (observed !== false) {
+    res.status(503).json({
+      error: "Can't verify whether the server is actually stopped — the process-detection scan itself failed, not the server. Check the panel's log for the error. If this keeps happening, something on this host (antivirus, a full disk, or a missing system tool) may be blocking detection.",
+      code: ErrorCode.SERVER_STATE_UNKNOWN,
+    });
+    return true;
+  }
+  return false;
 }
 
 // Run `worker` over `items` with at most `limit` in flight at once. Used for
@@ -296,8 +341,71 @@ function resolveSavesPath(zomboidDataPath) {
   return savesPath;
 }
 
-function resolveCustomOrDefaultDataPath(customPath) {
+// The data folders an operator configured: every server's, the saved
+// setting and PZ_SAVE_PATH, resolved the Windows way and lower-cased.
+async function operatorDataRootsWin32() {
+  const stored = [];
+  for (const server of (await getServers()) || []) {
+    if (server?.zomboidDataPath) stored.push(server.zomboidDataPath);
+  }
+  const legacyPath = await getSetting("zomboidDataPath");
+  if (legacyPath) stored.push(legacyPath);
+  if (process.env.PZ_SAVE_PATH) stored.push(process.env.PZ_SAVE_PATH);
+  return stored
+    .map((p) => normalizeUserPath(p))
+    .filter(Boolean)
+    .map((p) => path.win32.resolve(p).toLowerCase());
+}
+
+function isSameOrInsideWin32(target, root) {
+  if (target === root) return true;
+  return target.startsWith(root.endsWith("\\") ? root : `${root}\\`);
+}
+
+// SECURITY (2026-10-28, R2-13): on Windows, opening \\host\share makes the
+// OS sign in to that host as the panel's account (SMB, then WebDAV: an NTLM
+// response anyone can capture), and a typed %VAR%/$VAR would carry its
+// value to that host. So a custom path that names a network share or a
+// device path (\\?\, \\.\) -- as typed, without its quotes, after the
+// variable expansion, or once resolved -- is refused here, before any
+// file-system call, unless it is (inside) a data folder an operator already
+// configured (a server's, the saved setting, PZ_SAVE_PATH): the panel
+// already opens that share. Linux and Docker are untouched: //host is a
+// local path there.
+async function refuseNetworkCustomPath(customPath) {
+  if (process.platform !== "win32") return;
+  const isShare = (p) =>
+    Boolean(p) && untrustedFolderReason(p, { windows: true }) === "networkShare";
+  const raw = String(customPath);
+  const typed = normalizeUserPath(raw, { expandEnv: false });
+  if (!isShare(raw) && !isShare(typed)) {
+    if (!isShare(normalizeUserPath(raw))) return;
+  }
+  const expanded = normalizeUserPath(raw);
+  if (expanded) {
+    const target = path.win32.resolve(expanded).toLowerCase();
+    const roots = await operatorDataRootsWin32();
+    if (roots.some((root) => isSameOrInsideWin32(target, root))) return;
+  }
+  const error = new Error(
+    "Map Cleanup doesn't open a network share or device path typed here. " +
+      "Use a folder on this computer, or a data folder already set for a server.",
+  );
+  error.statusCode = 400;
+  error.errorCode = ErrorCode.CHUNKS_CUSTOM_PATH_NETWORK_REFUSED;
+  error.details = { reason: "network-path", tried: raw };
+  throw error;
+}
+
+// The `code` a resolveCustomOrDefaultDataPath() refusal carries, for the
+// route's error reply.
+function refusalCode(error) {
+  return error?.errorCode ? { code: error.errorCode } : {};
+}
+
+async function resolveCustomOrDefaultDataPath(customPath) {
   if (!customPath) return null;
+  await refuseNetworkCustomPath(customPath);
   const cleaned = normalizeUserPath(customPath);
   if (!cleaned) return null;
   const normalized = path.resolve(cleaned);
@@ -370,7 +478,7 @@ function resolveCustomOrDefaultDataPath(customPath) {
     error.statusCode = 400;
     error.details = {
       reason: "install-folder",
-      tried: normalized,
+      tried: String(customPath),
       checks: verdict.checks,
     };
     throw error;
@@ -392,7 +500,7 @@ function resolveCustomOrDefaultDataPath(customPath) {
   error.statusCode = 403;
   error.details = {
     reason: "no-zomboid-markers",
-    tried: normalized,
+    tried: String(customPath),
     checks: verdict.checks,
     parentSuggestion: verdict.parentSuggestion || null,
   };
@@ -512,7 +620,7 @@ router.get("/saves", requirePermission("chunks.manage"), async (req, res) => {
     let autoPickedFrom = null;
     if (customPath) {
       // Validate custom path exists and is a directory
-      const normalized = resolveCustomOrDefaultDataPath(customPath);
+      const normalized = await resolveCustomOrDefaultDataPath(customPath);
       zomboidDataPath = normalized;
       log.info(`[ChunkCleaner] Using custom path: ${normalized}`);
     } else {
@@ -776,7 +884,7 @@ router.get("/saves", requirePermission("chunks.manage"), async (req, res) => {
     }
     // Forward structured rejection details (reason, checks, parentSuggestion)
     // so the frontend empty-state panel can render targeted remediation.
-    const payload = { error: sanitizeError(error.message) };
+    const payload = { error: sanitizeError(error.message), ...refusalCode(error) };
     if (error.details) {
       payload.debug = {
         zomboidDataPath: null,
@@ -823,13 +931,33 @@ router.post("/save-path", requirePermission("chunks.manage"), async (req, res) =
         code: ErrorCode.CHUNKS_SAVE_PATH_MISSING,
       });
     }
+    // SECURITY (2026-10-28): without server.configure only the path already
+    // in effect may be saved again (see below), so a different one is refused
+    // before the panel opens it: the data-folder rule's verdict on it is not
+    // chunks.manage's to read.
+    const activeServer = await getActiveServer();
+    const currentPath = activeServer?.zomboidDataPath || (await getSetting("zomboidDataPath")) || null;
+    const role = req.user ? await getRoleByName(req.user.role) : null;
+    const capabilities = Array.isArray(role?.capabilities) ? role.capabilities : [];
+    const mayRepoint = capabilities.includes("server.configure");
+    const typedTarget = normalizeUserPath(rawPath);
+    const currentTarget = normalizeUserPath(currentPath);
+    if (
+      !mayRepoint &&
+      !(typedTarget && currentTarget && path.resolve(typedTarget) === path.resolve(currentTarget))
+    ) {
+      return res.status(403).json({
+        error: "Repointing the server's data path also requires server.configure.",
+        code: ErrorCode.CHUNKS_SAVE_PATH_CAPABILITY_REQUIRED,
+      });
+    }
     let validated;
     try {
-      validated = resolveCustomOrDefaultDataPath(rawPath);
+      validated = await resolveCustomOrDefaultDataPath(rawPath);
     } catch (e) {
       // Surface validation details so the UI can render the same empty-state
       // remediation it gets from /saves.
-      const payload = { error: sanitizeError(e.message) };
+      const payload = { error: sanitizeError(e.message), ...refusalCode(e) };
       if (e.details) payload.rejection = e.details;
       return res.status(e.statusCode || 400).json(payload);
     }
@@ -850,8 +978,6 @@ router.post("/save-path", requirePermission("chunks.manage"), async (req, res) =
       return res.status(400).json(dataPathCheck.body);
     }
 
-    const activeServer = await getActiveServer();
-
     // This route repoints the ACTIVE SERVER's entire zomboidDataPath -- the
     // same field serverManager.js/mods.js/server.js resolve Server/<name>.ini
     // (RCON password included) and every server-scoped file from, not a
@@ -865,11 +991,8 @@ router.post("/save-path", requirePermission("chunks.manage"), async (req, res) =
     // "the server's ... network/path configuration" everywhere else.
     // Enforced on CHANGE, not presence: re-submitting the path already in
     // effect must not require anything beyond chunks.manage.
-    const currentPath = activeServer?.zomboidDataPath || (await getSetting("zomboidDataPath")) || null;
     if (currentPath !== validated) {
-      const role = req.user ? await getRoleByName(req.user.role) : null;
-      const capabilities = Array.isArray(role?.capabilities) ? role.capabilities : [];
-      if (!capabilities.includes("server.configure")) {
+      if (!mayRepoint) {
         return res.status(403).json({
           error: "Repointing the server's data path also requires server.configure.",
           code: ErrorCode.CHUNKS_SAVE_PATH_CAPABILITY_REQUIRED,
@@ -959,7 +1082,7 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
 
     let zomboidDataPath;
     if (customPath) {
-      zomboidDataPath = resolveCustomOrDefaultDataPath(String(customPath));
+      zomboidDataPath = await resolveCustomOrDefaultDataPath(String(customPath));
       assertRealSaveDataPath(zomboidDataPath);
     } else {
       zomboidDataPath = await getZomboidDataPath();
@@ -1272,7 +1395,7 @@ router.get("/chunks/:saveName", requirePermission("chunks.manage"), async (req, 
     if (isUserError)
       log.warn(`Get chunks rejected (${error.statusCode}): ${error.message}`);
     else log.error(`Failed to get chunks: ${error.message}`);
-    const payload = { error: sanitizeError(error.message) };
+    const payload = { error: sanitizeError(error.message), ...refusalCode(error) };
     if (error.details) payload.rejection = error.details;
     res.status(error.statusCode || 500).json(payload);
   }
@@ -1393,6 +1516,7 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
           matched: details.matched,
         });
       }
+      if (await refusedForServerTheScanCannotSee(req, res, details)) return;
     } else {
       log.warn("delete-chunks: server-running check bypassed via force=true");
     }
@@ -1496,7 +1620,7 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
     }
 
     const zomboidDataPath = customPath
-      ? resolveCustomOrDefaultDataPath(String(customPath))
+      ? await resolveCustomOrDefaultDataPath(String(customPath))
       : await getZomboidDataPath();
     if (!zomboidDataPath) {
       return res.status(400).json({
@@ -1729,9 +1853,12 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
         ? path.join(backupPath, "vehicles.db.bak")
         : null;
       // Tile bboxes per deleted chunk; a chunkdata entry's whole-cell box only
-      // once the cell has no chunks left (see buildVehicleBoxes).
+      // once the cell has no chunks left (see buildVehicleBoxes). R2-26: only
+      // chunks whose file is gone (deleted now, or already missing) -- one
+      // that failed to delete stays, and so do its vehicles.
+      const goneChunks = chunks.filter((_, i) => deleteResults[i]?.success);
       try {
-        const boxes = await buildVehicleBoxes(savePath, chunks, isB42);
+        const boxes = await buildVehicleBoxes(savePath, goneChunks, isB42);
         vehiclesResult = await deleteVehiclesInBoxes(savePath, boxes, {
           backupPath: dbBackup,
         });
@@ -1792,7 +1919,7 @@ router.post("/delete-chunks", requirePermission("chunks.manage"), async (req, re
     log.error(`Failed to delete chunks: ${error.message}`);
     res
       .status(error.statusCode || 500)
-      .json({ error: sanitizeError(error.message) });
+      .json({ error: sanitizeError(error.message), ...refusalCode(error) });
   } finally {
     lifecycleLock.release();
   }
@@ -1879,6 +2006,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
           matched: details.matched,
         });
       }
+      if (await refusedForServerTheScanCannotSee(req, res, details)) return;
     } else {
       log.warn("delete-region: server-running check bypassed via force=true");
     }
@@ -1947,7 +2075,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
     }
 
     const zomboidDataPath = customPath
-      ? resolveCustomOrDefaultDataPath(String(customPath))
+      ? await resolveCustomOrDefaultDataPath(String(customPath))
       : await getZomboidDataPath();
     if (!zomboidDataPath) {
       return res.status(400).json({
@@ -2213,6 +2341,9 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
     const errors = [];
     const touchedCells = new Set();
     const regionCellDiv = cellDivisorFor(regionIsB42);
+    // R2-26: the chunks whose file is gone (deleted now, or already
+    // missing), the only ones whose vehicles go below.
+    const goneChunks = [];
 
     await Promise.all(
       chunksToDelete.map(async (chunk) => {
@@ -2225,6 +2356,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
                 : path.join(mapPath, chunk.file);
           await fs.promises.unlink(chunkFile);
           deleted++;
+          goneChunks.push(chunk);
           touchedCells.add(
             `${Math.floor(chunk.x / regionCellDiv)},${Math.floor(chunk.y / regionCellDiv)}`,
           );
@@ -2232,6 +2364,8 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
           if (err.code !== "ENOENT") {
             log.warn(`Failed to delete chunk ${chunk.file}: ${err.message}`);
             errors.push(`${chunk.file}: ${sanitizeError(err.message)}`);
+          } else {
+            goneChunks.push(chunk);
           }
         }
       }),
@@ -2277,7 +2411,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
       try {
         const boxes = await buildVehicleBoxes(
           savePath,
-          chunksToDelete,
+          goneChunks,
           regionIsB42,
         );
         vehiclesResult = await deleteVehiclesInBoxes(savePath, boxes, {
@@ -2339,7 +2473,7 @@ router.post("/delete-region", requirePermission("chunks.manage"), async (req, re
     log.error(`Failed to delete region: ${error.message}`);
     res
       .status(error.statusCode || 500)
-      .json({ error: sanitizeError(error.message) });
+      .json({ error: sanitizeError(error.message), ...refusalCode(error) });
   } finally {
     lifecycleLock.release();
   }
@@ -2382,7 +2516,7 @@ router.get("/stats/:saveName", requirePermission("chunks.manage"), async (req, r
     if (customPath) {
       // Validate custom path the same way /saves and /chunks do — prevents
       // arbitrary filesystem reads via the stats endpoint.
-      zomboidDataPath = resolveCustomOrDefaultDataPath(String(customPath));
+      zomboidDataPath = await resolveCustomOrDefaultDataPath(String(customPath));
     } else {
       zomboidDataPath = await getZomboidDataPath();
     }
@@ -2564,7 +2698,7 @@ router.get("/stats/:saveName", requirePermission("chunks.manage"), async (req, r
     if (isUserError)
       log.warn(`Get stats rejected (${error.statusCode}): ${error.message}`);
     else log.error(`Failed to get save stats: ${error.message}`);
-    const payload = { error: sanitizeError(error.message) };
+    const payload = { error: sanitizeError(error.message), ...refusalCode(error) };
     if (error.details) payload.rejection = error.details;
     res.status(error.statusCode || 500).json(payload);
   }
@@ -2903,6 +3037,22 @@ router.get("/browse", requirePermission("chunks.manage"), async (req, res) => {
     }
 
     const allowedRoots = [path.resolve(zomboidDataPath)];
+    // SECURITY (2026-10-28, R2-13): confineToRoots() resolves the real path
+    // of what it is given, and on Windows that opens a \\host\share (an NTLM
+    // sign-in to that host). A network or device path not written inside
+    // the data folder is refused before that.
+    if (
+      untrustedFolderReason(browsePath) === "networkShare" &&
+      !isSameOrInsideWin32(
+        path.win32.resolve(browsePath).toLowerCase(),
+        path.win32.resolve(zomboidDataPath).toLowerCase(),
+      )
+    ) {
+      return res.status(403).json({
+        error: "Access denied: path is outside the server's save directory",
+        code: ErrorCode.BROWSE_CHUNKS_ACCESS_DENIED,
+      });
+    }
     const resolved = confineToRoots(browsePath, allowedRoots);
     if (!resolved) {
       return res.status(403).json({

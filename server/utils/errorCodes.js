@@ -1205,6 +1205,11 @@ export const ErrorCode = Object.freeze({
   /** server/routes/chunks.js -- GET /browse, resolved path exists but isn't
    * a directory. */
   BROWSE_CHUNKS_PATH_NOT_DIRECTORY: "BROWSE_CHUNKS_PATH_NOT_DIRECTORY",
+  /** server/routes/chunks.js -- refuseNetworkCustomPath() (400): on Windows,
+   * a Map Cleanup custom path (customPath, POST /save-path's path) names a
+   * network share or device path that is not inside a data folder already
+   * set for a server, so it is never opened. */
+  CHUNKS_CUSTOM_PATH_NETWORK_REFUSED: "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED",
 
   /** server/routes/mods.js -- POST /add-mod-advanced, neither selectedModIds nor includeAllModIds given. */
   MODS_ADD_ADVANCED_SELECTION_REQUIRED: "MODS_ADD_ADVANCED_SELECTION_REQUIRED",

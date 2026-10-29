@@ -271,6 +271,7 @@
   "BROWSE_CHUNKS_ACCESS_DENIED": "Доступ заборонено: шлях поза текою збережень сервера",
   "BROWSE_CHUNKS_PATH_NOT_FOUND": "Шлях не існує",
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Шлях не є текою",
+  "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Очищення карти не відкриває введені тут мережеву теку чи шлях до пристрою. Вкажіть теку на цьому комп'ютері або теку даних, уже задану для сервера.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Потрібно вказати або selectedModIds, або includeAllModIds",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Залежності не надано",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Забагато залежностей в одному запиті (максимум 200)",
