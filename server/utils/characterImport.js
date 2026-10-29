@@ -86,7 +86,8 @@ export function characterImportArgs({ username, data, options }) {
     if (Array.isArray(data.perks)) {
       out.perks = data.perks;
     } else {
-      const perks = {};
+      // No prototype: a perk named __proto__ stays a plain key.
+      const perks = Object.create(null);
       let kept = 0;
       for (const [name, entry] of Object.entries(data.perks)) {
         if (kept >= IMPORT_MAX_PERKS) break;
