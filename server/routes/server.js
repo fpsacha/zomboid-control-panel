@@ -70,6 +70,11 @@ import { candidateIniPaths } from "../utils/zomboidPaths.js";
 import { serverHasWorldFolder } from "../utils/savesFolder.js";
 import { adminPasswordStartScriptRefusal } from "../services/startScriptValues.js";
 import {
+  ADMIN_PASSWORD_ENV,
+  adminPasswordForLaunch,
+  recordAdminPasswordPassed,
+} from "../services/adminPasswordLaunch.js";
+import {
   quoteForBatch,
   quoteForShell,
   textForScriptComment,
@@ -1518,21 +1523,30 @@ export function generateStartupScripts(options) {
     minMemory = 4,
     maxMemory = 8,
     zomboidDataPath,
-    adminPassword,
+    embeddedAdminPassword,
     serverPort = 16261,
     useNoSteam = false,
     useDebug = false,
   } = options;
 
-  // The server name, data folder and admin password reach the game exactly as
-  // stored, each quoted for the script it goes into (utils/startScriptQuoting.js).
-  // They used to be stripped of every shell metacharacter, which silently
-  // pointed the game at another folder and gave it another password; a value
-  // that can't be quoted (a double quote, a control character) now stops the
-  // script from being generated instead.
+  // The server name and data folder reach the game exactly as stored, each
+  // quoted for the script it goes into (utils/startScriptQuoting.js). They
+  // used to be stripped of every shell metacharacter, which silently pointed
+  // the game at another folder; a value that can't be quoted (a double quote,
+  // a control character) now stops the script from being generated instead.
+  //
+  // The admin password is not written into either script (security audit
+  // R1-30/R1-35, services/adminPasswordLaunch.js): both read it from
+  // PZ_PANEL_ADMIN_PASSWORD, which the panel sets for the launches that need
+  // it, and pass -adminpassword only then. `embeddedAdminPassword` is for a
+  // systemd/OpenRC unit alone, which the panel can't hand an environment: the
+  // .sh then carries it as text for that one start.
   const nameText = String(serverName ?? "");
   const dataPathText = zomboidDataPath ? String(zomboidDataPath) : "";
-  const adminPasswordText = adminPassword ? String(adminPassword) : "";
+  const embeddedAdminPasswordText = embeddedAdminPassword ? String(embeddedAdminPassword) : "";
+  const shellAdminPasswordSource = embeddedAdminPasswordText
+    ? quoteForShell(embeddedAdminPasswordText, "The admin password")
+    : `"\${${ADMIN_PASSWORD_ENV}:-}"`;
   const commentName = textForScriptComment(nameText);
   // 0 = automatic: no -Xms, so the JVM starts small and ZGC can return
   // whatever the server isn't using -- it never uncommits below -Xms.
@@ -1586,16 +1600,15 @@ export function generateStartupScripts(options) {
 
   // Build game arguments: the same list for both scripts, each value quoted
   // the way its script reads it (a .bat is read by cmd.exe, a .sh by bash).
-  const buildGameArgs = (quote) => {
+  const buildGameArgs = (quote, adminPasswordArgs) => {
     const args = [`-servername ${quote(nameText, "The server name")}`];
 
     if (dataPathText) {
       args.push(`-cachedir=${quote(dataPathText, "The Zomboid data folder")}`);
     }
 
-    if (adminPasswordText) {
-      args.push(`-adminpassword ${quote(adminPasswordText, "The admin password")}`);
-    }
+    // `-adminpassword "<password>"` when the launch provides one, else nothing.
+    args.push(adminPasswordArgs);
 
     if (serverPort !== 16261) {
       args.push(`-port ${serverPort}`);
@@ -1606,8 +1619,13 @@ export function generateStartupScripts(options) {
     }
     return args;
   };
-  const batchGameArgs = buildGameArgs(quoteForBatch);
-  const shellGameArgs = buildGameArgs(quoteForShell);
+  const batchGameArgs = buildGameArgs(quoteForBatch, "%PZ_ADMIN_ARGS%");
+  // Bash's ${VAR:+...}: both words only when the variable is set and not
+  // empty, the password one word whatever it holds.
+  const shellGameArgs = buildGameArgs(
+    quoteForShell,
+    `\${PZ_ADMIN_PASSWORD:+-adminpassword "$PZ_ADMIN_PASSWORD"}`,
+  );
 
   const classpathEntries = buildClasspathEntries(installPath);
 
@@ -1659,6 +1677,12 @@ REM =====================================================
 
 SET PZ_CLASSPATH=${classpathEntries.join(";")}
 
+REM No admin password is written here. The panel sets ${ADMIN_PASSWORD_ENV}
+REM for the starts that need it: a new world, or a changed password.
+SET "PZ_ADMIN_ARGS="
+IF DEFINED ${ADMIN_PASSWORD_ENV} SET PZ_ADMIN_ARGS=-adminpassword "%${ADMIN_PASSWORD_ENV}%"
+SET "${ADMIN_PASSWORD_ENV}="
+
 ".\\jre64\\bin\\java.exe" ${jvmArgs.join(" ")} -Djava.library.path=${formatJavaLibraryPath(windowsLibraryDirs.dirs, "win32")} -cp %PZ_CLASSPATH% zombie.network.GameServer ${batchGameArgs.join(" ")}
 
 PAUSE
@@ -1700,6 +1724,18 @@ fi
 INSTDIR="$(dirname "$0")"
 export LD_LIBRARY_PATH="${linuxLdLibraryPath}"
 
+${
+  embeddedAdminPasswordText
+    ? `# The admin password is here for this start only (a systemd/OpenRC unit
+# gets no environment from the panel); the next start rewrites this file
+# without it.`
+    : `# No admin password is written here. The panel sets ${ADMIN_PASSWORD_ENV}
+# for the starts that need it: a new world, or a changed password. It is not
+# passed on to the game's own environment.`
+}
+PZ_ADMIN_PASSWORD=${shellAdminPasswordSource}
+unset ${ADMIN_PASSWORD_ENV}
+
 "$JAVA_CMD" ${linuxJvmArgs.join(" ")} -Djava.library.path=${formatJavaLibraryPath(linuxLibraryDirs.dirs, "linux")} -cp "$PZ_CLASSPATH" zombie.network.GameServer ${shellGameArgs.join(" ")}
 `;
 
@@ -1712,7 +1748,11 @@ export LD_LIBRARY_PATH="${linuxLdLibraryPath}"
 // a moved/copied install directory the same way the scripts themselves do.
 const SCRIPT_FINGERPRINT_FILE = ".pz-panel-scripts.json";
 
+// Detects a hand edit; not a password hash. The scripts carry no admin
+// password, except a systemd/OpenRC unit's .sh for the one start that needs
+// it (services/adminPasswordLaunch.js), and the sidecar is owner-only.
 function hashScriptContent(content) {
+  // codeql[js/insufficient-password-hash] A fingerprint of a whole generated start script, compared only to tell the panel's own output from a hand edit; the scripts no longer hold the admin password (env var at launch), bar a managed unit's .sh for one start, and the sidecar is written 0600 like that .sh is owner/group-only.
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
 
@@ -1807,9 +1847,11 @@ export function writeStartupScriptsWithBackup(installPath, files) {
     }
 
     try {
-      // Both scripts embed -adminpassword. An explicit mode also tightens a
-      // .bat written before #193 (writeFileAtomic otherwise keeps an existing
-      // file's mode), since every Start regenerates it here.
+      // A script written before 2026-10-28 carried -adminpassword, and a
+      // systemd/OpenRC unit's .sh still does for the start that needs it. An
+      // explicit mode also tightens a .bat written before #193
+      // (writeFileAtomic otherwise keeps an existing file's mode), since
+      // every Start regenerates it here.
       writeFileAtomic(
         filePath,
         content,
@@ -1825,10 +1867,12 @@ export function writeStartupScriptsWithBackup(installPath, files) {
   }
 
   try {
+    // Owner-only, like the scripts it fingerprints (CodeQL 334): it used to
+    // take the umask default, 0644, next to a 0600 .bat.
     writeFileAtomic(
       fingerprintPath,
       JSON.stringify(fingerprints, null, 2),
-      "utf8",
+      { encoding: "utf8", mode: 0o600 },
     );
   } catch (fpErr) {
     log.warn(`Could not persist script fingerprint file: ${fpErr.message}`);
@@ -1958,6 +2002,8 @@ export async function refreshLaunchTargetBeforeStart(
   }
 
   let scriptBackupWarnings = [];
+  // The admin password a direct launch hands the game, "" for none.
+  let launchAdminPassword = "";
   // Whether this launch runs a start script the panel wrote just now (and
   // so loads linux64/ first), for the leftover-natives warning below.
   let wroteLaunchedScript = false;
@@ -1988,6 +2034,16 @@ export async function refreshLaunchTargetBeforeStart(
     activeServer.serverName
   ) {
     try {
+      // Whether this start hands the game its admin password, decided from
+      // the record as it is now (services/adminPasswordLaunch.js). A direct
+      // launch gets it through its environment (returned below, for
+      // serverManager.startServer()); a systemd/OpenRC unit runs the .sh
+      // with no environment from the panel, so it goes into the .sh itself,
+      // for that start only.
+      const dueAdminPassword = adminPasswordForLaunch(activeServer);
+      const managedUnit =
+        platform !== "win32" && isManagedLifecycleProvider(activeServer.lifecycleProvider);
+      const embeddedAdminPassword = managedUnit ? dueAdminPassword : "";
       const scripts = generateStartupScripts({
         installPath: launchDir,
         serverName: activeServer.serverName,
@@ -1995,7 +2051,7 @@ export async function refreshLaunchTargetBeforeStart(
         minMemory: activeServer.minMemory ?? 4,
         maxMemory: activeServer.maxMemory || 8,
         zomboidDataPath: activeServer.zomboidDataPath || "",
-        adminPassword: activeServer.adminPassword || "",
+        embeddedAdminPassword,
         serverPort: activeServer.serverPort || 16261,
         useNoSteam: activeServer.useNoSteam || false,
         useDebug: activeServer.useDebug || false,
@@ -2015,6 +2071,13 @@ export async function refreshLaunchTargetBeforeStart(
           { path: shPath, content: scripts.sh.replace(/\r\n/g, "\n") },
         ],
       );
+      // Recorded now; it only counts as applied once the game has written
+      // its account database after this (adminPasswordForLaunch()), so a
+      // start that never happens or never gets that far passes it again.
+      if (dueAdminPassword && (!managedUnit || !failedPaths.includes(shPath))) {
+        recordAdminPasswordPassed(activeServer, dueAdminPassword);
+        if (!managedUnit) launchAdminPassword = dueAdminPassword;
+      }
       scriptBackupWarnings = backupMessages;
       if (scriptBackupWarnings.length > 0) {
         log.warn(
@@ -2056,7 +2119,7 @@ export async function refreshLaunchTargetBeforeStart(
         launchesPanelStartScript(activeServer, { windows: platform === "win32" }),
     });
   }
-  return { scriptBackupWarnings };
+  return { scriptBackupWarnings, launchAdminPassword };
 }
 
 // Logs, before every launch the panel performs, the leftover natives/ folder
@@ -4332,7 +4395,6 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
                 minMemory: safeMinMemory,
                 maxMemory: safeMaxMemory,
                 zomboidDataPath: zomboidPath,
-                adminPassword,
                 serverPort: safeServerPort,
                 useNoSteam,
                 useDebug,
@@ -4344,8 +4406,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
               );
               writeFileAtomic(batchPath, scripts.bat, {
                 encoding: "utf8",
-                // security audit L1: the .bat embeds -adminpassword; keep it
-                // owner-only like the .sh (0750) instead of the umask default.
+                // Owner-only (security audit L1), though the scripts no longer
+                // carry the admin password (services/adminPasswordLaunch.js).
                 mode: 0o600,
               });
               log.info(`Created custom startup batch: ${batchPath}`);
@@ -4865,7 +4927,6 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       minMemory: safeMinMemory,
       maxMemory: safeMaxMemory,
       zomboidDataPath: zomboidPath,
-      adminPassword,
       serverPort: safeServerPort,
       useNoSteam,
       useDebug,
@@ -4874,8 +4935,8 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
     const batchPath = path.join(installPath, `StartServer_${serverName}.bat`);
     writeFileAtomic(batchPath, scripts.bat, {
       encoding: "utf8",
-      // security audit L1: the .bat embeds -adminpassword; keep it
-      // owner-only like the .sh (0750) instead of the umask default.
+      // Owner-only (security audit L1), though the scripts no longer
+      // carry the admin password (services/adminPasswordLaunch.js).
       mode: 0o600,
     });
     log.info(`Created custom startup batch: ${batchPath}`);
@@ -6317,6 +6378,37 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
       return res.status(400).json({ error: "Invalid path", code: ErrorCode.INVALID_PATH });
     }
 
+    // hasPzInstallMarker() below only confirms a handful of marker
+    // FILENAMES exist -- trivially satisfied by creating an empty file
+    // with one of those names anywhere on the host, not an authorization
+    // check (bug-hunt-2026-08-27). The two real callers of this route
+    // (Servers.tsx's "Delete Everything" and "Clear Install Folder") only
+    // ever pass a path that's already a configured server's own
+    // installPath, so require an exact match against one -- turning
+    // "any directory with a spoofable marker file" into "must be a server
+    // the panel already has on record" (creating that record requires
+    // servers.manage, a capability distinct from server.wipe).
+    //
+    // SECURITY (2026-10-28, CodeQL js/path-injection 307): matched FIRST,
+    // before the path touches the disk. The existence and marker checks
+    // used to run on any absolute path, so their different answers told a
+    // server.wipe role whether any folder or file on the host existed.
+    const resolvedDeletePath = path.resolve(deletePath);
+    const configuredServers = await getServers();
+    // .find(), not .some() -- the matched record's own zomboidDataPath and
+    // lifecycleProvider are needed below for the nesting and stopped
+    // checks, not just a yes/no membership test.
+    const targetServer = configuredServers.find(
+      (s) => s.installPath && path.resolve(s.installPath) === resolvedDeletePath,
+    );
+    if (!targetServer) {
+      return res.status(400).json({
+        error:
+          "This path doesn't match a server the panel has on record. Refusing to delete for safety.",
+        code: ErrorCode.DELETE_FILES_NOT_CONFIGURED_SERVER,
+      });
+    }
+
     // Safety check: path must exist and contain PZ server files
     if (!fs.existsSync(deletePath)) {
       return res.status(404).json({ error: "Path does not exist", code: ErrorCode.PATH_NOT_FOUND });
@@ -6337,34 +6429,6 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
         error:
           "This does not appear to be a Project Zomboid server installation. Refusing to delete for safety.",
         code: ErrorCode.DELETE_FILES_NOT_PZ_INSTALL,
-      });
-    }
-
-    // hasPzInstallMarker() above only confirms a handful of marker
-    // FILENAMES exist -- trivially satisfied by creating an empty file
-    // with one of those names anywhere on the host, not an authorization
-    // check (bug-hunt-2026-08-27). The two real callers of this route
-    // (Servers.tsx's "Delete Everything" and "Clear Install Folder") only
-    // ever pass a path that's already a configured server's own
-    // installPath, so require an exact match against one -- turning
-    // "any directory with a spoofable marker file" into "must be a server
-    // the panel already has on record" (creating that record requires
-    // servers.manage, a capability distinct from server.wipe). This is a
-    // second, narrower layer on top of the marker check, not a
-    // replacement for it.
-    const resolvedDeletePath = path.resolve(deletePath);
-    const configuredServers = await getServers();
-    // .find(), not .some() -- the matched record's own zomboidDataPath and
-    // lifecycleProvider are needed below for the nesting and stopped
-    // checks, not just a yes/no membership test.
-    const targetServer = configuredServers.find(
-      (s) => s.installPath && path.resolve(s.installPath) === resolvedDeletePath,
-    );
-    if (!targetServer) {
-      return res.status(400).json({
-        error:
-          "This path doesn't match a server the panel has on record. Refusing to delete for safety.",
-        code: ErrorCode.DELETE_FILES_NOT_CONFIGURED_SERVER,
       });
     }
 

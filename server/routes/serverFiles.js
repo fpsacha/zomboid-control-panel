@@ -2544,6 +2544,49 @@ async function getTemplatesPath(req) {
   return path.join(configPath, "templates");
 }
 
+// How a saved template is opened: never through a symlink (O_NOFOLLOW) and
+// without blocking on a FIFO (O_NONBLOCK); POSIX only, 0 on Windows. The
+// templates folder sits in the game's own Zomboid/Server folder, which
+// another account or container can share.
+const TEMPLATE_READ_FLAGS =
+  fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+
+// A saved template, read through one descriptor (nothing can be swapped in
+// between the check and the read), or null when the name is not a regular
+// file. Templates saved before v1.2.7 kept the RCON and join passwords: they
+// are stripped here on every read, so no route returns or rewrites them.
+// Apply alone reads them as stored (`keepSecretLines`): it never returns the
+// template, and keepLiveSecretIniLines() swaps every stale secret line for
+// the live one in place, so an old template keeps its key order.
+function readTemplateFile(templateFile, { keepSecretLines = false } = {}) {
+  let fd;
+  try {
+    // codeql[js/path-injection] templateFile is <config folder>/templates/<safeId>.json, safeId reduced to [a-z0-9_-] by every caller.
+    fd = fs.openSync(templateFile, TEMPLATE_READ_FLAGS);
+  } catch (error) {
+    if (["ENOENT", "ELOOP", "ENOTDIR", "ENXIO", "EISDIR"].includes(error.code)) return null;
+    throw error;
+  }
+  try {
+    const stats = fs.fstatSync(fd);
+    if (!stats.isFile()) return null;
+    // Windows has no O_NOFOLLOW: a link at the name is refused after the fact.
+    if (process.platform === "win32" && fs.lstatSync(templateFile).isSymbolicLink()) return null;
+    const content = JSON.parse(fs.readFileSync(fd, "utf-8"));
+    if (!keepSecretLines && content && typeof content === "object") {
+      if (content.ini && typeof content.ini === "object") {
+        content.ini = omitSensitiveFields(content.ini);
+      }
+      if (typeof content.iniRaw === "string") {
+        content.iniRaw = stripSensitiveIniLines(content.iniRaw);
+      }
+    }
+    return { content, stats };
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 // Ensure templates directory exists
 async function ensureTemplatesDir(req) {
   const templatesPath = await getTemplatesPath(req);
@@ -2572,8 +2615,9 @@ router.get("/templates", async (req, res) => {
       .map((f) => {
         try {
           const filePath = path.join(templatesPath, f);
-          const stats = fs.statSync(filePath);
-          const content = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+          const read = readTemplateFile(filePath);
+          if (!read) return null;
+          const { content, stats } = read;
           return {
             id: f.replace(".json", ""),
             name: content.name || f.replace(".json", ""),
@@ -2621,15 +2665,15 @@ router.get("/templates/:id", async (req, res) => {
     const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
-    if (!fs.existsSync(templateFile)) {
+    const read = readTemplateFile(templateFile);
+    if (!read) {
       return res.status(404).json({
         error: "Template not found",
         code: ErrorCode.TEMPLATE_NOT_FOUND,
       });
     }
 
-    const content = JSON.parse(fs.readFileSync(templateFile, "utf-8"));
-    res.json(content);
+    res.json(read.content);
   } catch (error) {
     log.error("Failed to get template:", error);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -2714,7 +2758,9 @@ router.post("/templates", async (req, res) => {
     }
 
     // codeql[js/path-injection] safeId/templateFile is derived from name via .toLowerCase().replace(/[^a-z0-9]/g, '_') a few lines above before being joined into a path here.
-    fs.writeFileSync(templateFile, JSON.stringify(template, null, 2));
+    // "wx": created here or not at all -- a name that turned up since the
+    // check above (a symlink included) is never followed or overwritten.
+    fs.writeFileSync(templateFile, JSON.stringify(template, null, 2), { flag: "wx" });
     log.info(`Created template: ${name} (${safeId})`);
 
     res.json({
@@ -2752,14 +2798,15 @@ router.post("/templates/:id/apply", async (req, res) => {
     const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
-    if (!fs.existsSync(templateFile)) {
+    const read = readTemplateFile(templateFile, { keepSecretLines: true });
+    if (!read) {
       return res.status(404).json({
         error: "Template not found",
         code: ErrorCode.TEMPLATE_NOT_FOUND,
       });
     }
 
-    const template = JSON.parse(fs.readFileSync(templateFile, "utf-8"));
+    const template = read.content;
     const { serverConfigPath: configPath, serverName } = req.activeServerContext;
 
     // A template stores the whole SandboxVars.lua as it was when saved, so
@@ -2885,20 +2932,25 @@ router.put("/templates/:id", async (req, res) => {
     const templatesPath = await getTemplatesPath(req);
     const templateFile = path.join(templatesPath, `${safeId}.json`);
 
-    if (!fs.existsSync(templateFile)) {
+    const read = readTemplateFile(templateFile);
+    if (!read) {
       return res.status(404).json({
         error: "Template not found",
         code: ErrorCode.TEMPLATE_NOT_FOUND,
       });
     }
 
-    const template = JSON.parse(fs.readFileSync(templateFile, "utf-8"));
+    // Secret lines of a pre-v1.2.7 template are already gone from `template`
+    // (readTemplateFile), so this edit also cleans the stored file.
+    const template = read.content;
 
     if (name) template.name = name;
     if (description !== undefined) template.description = description;
     template.modified = new Date().toISOString();
 
-    fs.writeFileSync(templateFile, JSON.stringify(template, null, 2));
+    // Temp file + rename: a symlink swapped in at this name is replaced,
+    // never written through.
+    writeFileAtomic(templateFile, JSON.stringify(template, null, 2));
 
     res.json({ success: true, message: "Template updated" });
   } catch (error) {

@@ -51,6 +51,11 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Steam Sync extension after an in-app update:** the panel now hands out, and keeps next to its executable, the extension of the version it runs; an install updated in place kept the one it was first installed with, without the 1.5.0 HTTPS fix. Reload the extension from that folder once.
 - **Steam Sync extension: a panel's sign-in stays with that panel:** after you change the panel address or username, the extension signs in again instead of sending the previous panel's session.
 - **Steam Sync extension over plain http://:** before it sends the Steam cookies or the password again, the panel address must prove it is the panel you signed in to, so another network answering at the same address gets nothing.
+- **Config templates:** a template saved by v1.2.6 or older no longer shows its RCON and join passwords, and editing one removes them from the file; template files are no longer written through a link to another file.
+- **Shared backups folder (Windows):** another server profile's backup can no longer be downloaded, read, deleted or restored by spelling its name in another letter case or by its short name.
+- **Backup restore:** an archive can no longer create more files and folders than the disk has room for, nest folders without limit, or open thousands of files at once while it is extracted.
+- **Delete server files:** a path that is not a configured server's install folder is refused before the panel looks at it, so the request no longer tells whether a folder exists on the host.
+- **Admin password:** the generated start scripts no longer contain it; the panel hands it to the game only for the starts that need it (a new world or a changed password), so other accounts on the host can no longer read it from the .bat or the running server's command line.
 
 ## [2026.10.1] - 2026-10-26
 

@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "上传文件超过 4 GB 限制。",
   "BACKUP_SNAPSHOT_TOO_LARGE": "此备份中的服务器快照大于 1 MB，因此未打开。",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "备份压缩包中的数据多于其记录的大小，说明它已损坏或被篡改。恢复已停止，当前世界未被更改。",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "备份压缩包中的文件和文件夹多于此磁盘能容纳的数量，或文件夹嵌套深度超过任何世界存档。恢复已停止，当前世界未被更改。",
   "BACKUPS_FOLDER_UNAVAILABLE": "备份文件夹不可用，请先配置服务器。",
   "USER_SELF_DELETE_REFUSED": "无法删除自己的账户，请让另一位管理员代为操作。",
   "USER_SELF_ROLE_CHANGE_REFUSED": "无法更改自己的角色，请让另一位管理员代为操作。",

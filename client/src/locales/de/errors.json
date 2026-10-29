@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "Der Upload überschreitet das Limit von 4 GB.",
   "BACKUP_SNAPSHOT_TOO_LARGE": "Der Server-Snapshot dieses Backups ist größer als 1 MB und wurde deshalb nicht geöffnet.",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "Das Backup-Archiv enthält mehr Daten, als es angibt, und ist daher beschädigt oder manipuliert. Die Wiederherstellung wurde abgebrochen, deine aktuelle Welt bleibt unverändert.",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "Das Backup-Archiv enthält mehr Dateien und Ordner, als auf diesem Datenträger Platz haben, oder Ordner, die tiefer verschachtelt sind als in jedem Weltspeicherstand. Die Wiederherstellung wurde abgebrochen, deine aktuelle Welt bleibt unverändert.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Backup-Ordner nicht verfügbar. Konfiguriere zuerst den Server.",
   "USER_SELF_DELETE_REFUSED": "Du kannst dein eigenes Konto nicht löschen. Bitte stattdessen einen anderen Administrator darum.",
   "USER_SELF_ROLE_CHANGE_REFUSED": "Du kannst deine eigene Rolle nicht ändern. Bitte stattdessen einen anderen Administrator darum.",

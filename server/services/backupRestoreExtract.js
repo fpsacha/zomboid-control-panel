@@ -19,6 +19,22 @@ const TOTAL_SIZE_SLACK_BYTES = 1024 * 1024;
 // already approved the restore; it stays close to that figure).
 const FREE_SPACE_MARGIN_BYTES = 128 * 1024 * 1024;
 const FREE_SPACE_MARGIN_FRACTION = 10;
+// The bytes an archive records say nothing about how many files and folders
+// it makes: millions of empty entries, or one name nesting thousands of
+// folders, record about 0 bytes. Each file and folder the extraction creates
+// is therefore charged this much against the free space too (an NTFS file
+// record is 1 KB; the real cost with block rounding is higher), and on a
+// volume that counts inodes the extraction leaves some of them free, like the
+// byte margin above.
+const ENTRY_OVERHEAD_BYTES = 1024;
+const FREE_INODE_MARGIN = 10000;
+const FREE_INODE_MARGIN_FRACTION = 10;
+// A world save is a few folders deep (<server>/map/<x>/<y>.bin); no real
+// backup comes anywhere near this.
+const MAX_ENTRY_DEPTH = 64;
+// Write streams open at once: past this the archive stops being read until
+// some close, so a run of empty entries can't open thousands of files.
+const MAX_OPEN_WRITES = 64;
 
 function sizeMismatchError() {
   const error = new Error(
@@ -26,6 +42,27 @@ function sizeMismatchError() {
   );
   error.errorCode = ErrorCode.BACKUP_ARCHIVE_SIZE_MISMATCH;
   return error;
+}
+
+function archiveLayoutError(reason) {
+  const error = new Error(
+    `The backup archive ${reason} -- extraction stopped. Live save left untouched.`,
+  );
+  error.errorCode = ErrorCode.BACKUP_ARCHIVE_LAYOUT_REFUSED;
+  return error;
+}
+
+/**
+ * Free inodes on the volume holding `dir`, or null when the file system does
+ * not count them (NTFS reports 0 files) or cannot be asked.
+ */
+export function freeInodesAt(dir) {
+  try {
+    const stats = fs.statfsSync(dir);
+    return Number(stats.files) > 0 && Number.isFinite(Number(stats.ffree)) ? Number(stats.ffree) : null;
+  } catch {
+    return null;
+  }
 }
 
 // What a restore extracts into before it swaps the world in: a sibling of the
@@ -157,13 +194,18 @@ export function normalizeZipEntryPath(entryPath) {
  * directory records (plus a little slack) stops the extraction as a damaged
  * archive, and so does a total past the central directory's sum; the total
  * also stops short of the free space measured before the extraction, minus a
- * margin, so the extraction never fills the disk.
+ * margin, so the extraction never fills the disk. The files and folders it
+ * creates are counted as well (ENTRY_OVERHEAD_BYTES each against the free
+ * space, and against the free inodes where the volume counts them), entries
+ * nested deeper than MAX_ENTRY_DEPTH stop it, and at most MAX_OPEN_WRITES
+ * files are open at once.
  *
  * @param {object} unzip the `unzipper` module
- * @param {{ declaredSizes?: Map<string, number>|null, declaredTotal?: number|null, freeBytes?: number|null }} [limits]
+ * @param {{ declaredSizes?: Map<string, number>|null, declaredTotal?: number|null, declaredEntries?: number|null, freeBytes?: number|null, freeInodes?: number|null }} [limits]
  *   declaredSizes: the central directory's uncompressed size per entry
  *   (keyed by normalizeZipEntryPath()), declaredTotal its sum over files,
- *   freeBytes the free space on the staging volume; null/absent = unknown.
+ *   declaredEntries its entry count, freeBytes the free space and freeInodes
+ *   the free inodes on the staging volume; null/absent = unknown.
  */
 export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits = {}) {
   const resolvedParent = path.resolve(stagingPath) + path.sep;
@@ -174,7 +216,37 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
   const freeMargin =
     freeBytes !== null ? Math.min(FREE_SPACE_MARGIN_BYTES, Math.floor(freeBytes / FREE_SPACE_MARGIN_FRACTION)) : 0;
   const freeCap = freeBytes !== null ? Math.max(0, freeBytes - freeMargin) : null;
+  const freeInodes = Number.isFinite(limits.freeInodes) ? limits.freeInodes : null;
+  const inodeCap =
+    freeInodes !== null
+      ? Math.max(0, freeInodes - Math.min(FREE_INODE_MARGIN, Math.floor(freeInodes / FREE_INODE_MARGIN_FRACTION)))
+      : null;
   let written = 0;
+  // Files and folders created so far.
+  let created = 0;
+  const overLimit = () => {
+    if (inodeCap !== null && created > inodeCap) {
+      log.error(`Restore stopped: the archive makes more files and folders than the volume has inodes free`);
+      return archiveLayoutError("holds more files and folders than the disk has room for");
+    }
+    if (freeCap !== null && written + created * ENTRY_OVERHEAD_BYTES > freeCap) {
+      log.error(`Restore stopped: the extraction would leave less than ${freeMargin} bytes free`);
+      return insufficientSpaceError(
+        Math.max(declaredTotal ?? 0, written + created * ENTRY_OVERHEAD_BYTES),
+        freeBytes,
+      );
+    }
+    return null;
+  };
+  // mkdir -p, counting each folder it creates.
+  const makeDirs = (dir) => {
+    const first = fs.mkdirSync(dir, { recursive: true });
+    if (first) created += path.relative(first, dir).split(path.sep).filter(Boolean).length + 1;
+  };
+
+  if (Number.isFinite(limits.declaredEntries) && inodeCap !== null && limits.declaredEntries > inodeCap) {
+    return Promise.reject(archiveLayoutError("holds more files and folders than the disk has room for"));
+  }
 
   // The size this entry may reach: the smaller of the local header's figure
   // (when the header has one: not with a data descriptor) and the central
@@ -198,6 +270,8 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
     let pendingWrites = 0;
     let parseClosed = false;
     const openWrites = new Set();
+    // Set while the archive is unpiped because MAX_OPEN_WRITES are open.
+    let throttled = false;
 
     const settle = (err) => {
       if (settled) return;
@@ -240,6 +314,10 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
     };
 
     readStream.on("error", abort);
+    let readEnded = false;
+    readStream.on("end", () => {
+      readEnded = true;
+    });
 
     readStream
       .pipe(parser)
@@ -261,18 +339,35 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
             return;
           }
 
+          if (
+            (entry.type === "Directory" || entry.type === "File") &&
+            entryName.split("/").filter(Boolean).length > MAX_ENTRY_DEPTH
+          ) {
+            log.error(`Restore stopped: ${JSON.stringify(entry.path)} is nested deeper than ${MAX_ENTRY_DEPTH} folders`);
+            throw archiveLayoutError("holds folders nested deeper than any world save");
+          }
+
           if (entry.type !== "Directory" && entry.type !== "File") {
             log.warn(`Skipping unsupported backup entry type ${entry.type}: ${entry.path}`);
             entry.autodrain();
           } else if (entry.type === "Directory") {
-            fs.mkdirSync(resolvedEntry, { recursive: true });
+            makeDirs(resolvedEntry);
+            const over = overLimit();
+            if (over) throw over;
             entry.autodrain();
           } else {
             // Ensure parent directory exists
-            fs.mkdirSync(path.dirname(resolvedEntry), { recursive: true });
+            makeDirs(path.dirname(resolvedEntry));
+            created++;
+            const over = overLimit();
+            if (over) throw over;
             const writeStream = createWriteStream(resolvedEntry);
             pendingWrites++;
             openWrites.add(writeStream);
+            if (openWrites.size >= MAX_OPEN_WRITES && !throttled) {
+              throttled = true;
+              readStream.unpipe(parser);
+            }
             // Per-entry write failures (ENOSPC, EACCES, path too long on
             // Windows) surface as 'error' on the WriteStream and are NOT
             // forwarded by pipe(). Without this listener the event is
@@ -290,6 +385,10 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
             writeStream.on("close", () => {
               openWrites.delete(writeStream);
               pendingWrites--;
+              if (throttled && !failure && openWrites.size <= MAX_OPEN_WRITES / 2) {
+                throttled = false;
+                if (!readEnded) readStream.pipe(parser);
+              }
               settleIfComplete();
             });
             const entryCap = entryCapOf(entry, entryName);
@@ -301,9 +400,8 @@ export function extractArchiveToStaging(unzip, backupPath, stagingPath, limits =
                 if ((entryCap !== null && entryBytes > entryCap) || (declaredCap !== null && written > declaredCap)) {
                   log.error(`Restore stopped: ${JSON.stringify(entry.path)} holds more data than the archive records`);
                   callback(sizeMismatchError());
-                } else if (freeCap !== null && written > freeCap) {
-                  log.error(`Restore stopped: the extraction would leave less than ${freeMargin} bytes free`);
-                  callback(insufficientSpaceError(Math.max(declaredTotal ?? 0, written), freeBytes));
+                } else if (freeCap !== null && written + created * ENTRY_OVERHEAD_BYTES > freeCap) {
+                  callback(overLimit());
                 } else {
                   callback(null, chunk);
                 }

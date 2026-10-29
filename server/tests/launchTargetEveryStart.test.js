@@ -204,8 +204,11 @@ describe.each(PLATFORMS)("GH #167 on $platform", ({ platform, quote, named, stoc
     const script = fs.readFileSync(path.join(installPath, named), "utf8");
     expect(script).toContain(`-servername ${quote("Restored")}`);
     expect(script).toContain(`-cachedir=${quote(zomboidDataPath)}`);
-    expect(script).toContain(`-adminpassword ${quote("admin-pw")}`);
+    // The admin password reaches the game through the launch's environment,
+    // never the script file (security audit R1-30/R1-35).
+    expect(script).not.toContain("admin-pw");
     expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0].options.env.PZ_PANEL_ADMIN_PASSWORD).toBe("admin-pw");
     expect(spawnedScript(spawnCalls[0])).toBe(named);
   });
 
@@ -243,10 +246,9 @@ describe.each(PLATFORMS)("GH #167 on $platform", ({ platform, quote, named, stoc
     // The panel ran before with the old passwords: the named script exists
     // and was generated with them.
     db.server = { ...db.server, adminPassword: "old-admin" };
-    await m.refreshLaunchTargetBeforeStart(db.server);
-    expect(fs.readFileSync(path.join(installPath, named), "utf8")).toContain(
-      `-adminpassword ${quote("old-admin")}`,
-    );
+    const before = await m.refreshLaunchTargetBeforeStart(db.server);
+    expect(before.launchAdminPassword).toBe("old-admin");
+    expect(fs.readFileSync(path.join(installPath, named), "utf8")).not.toContain("old-admin");
     const manager = quietManager(m.ServerManager);
     await manager.loadConfig();
     // Servers > Edit Server changes both passwords. PUT /servers/:id does not
@@ -262,9 +264,11 @@ describe.each(PLATFORMS)("GH #167 on $platform", ({ platform, quote, named, stoc
     expect(readIni()).toContain("RCONPassword=new-rcon");
     expect(readIni()).not.toContain("RCONPassword=old-rcon");
     const script = fs.readFileSync(path.join(installPath, named), "utf8");
-    expect(script).toContain(`-adminpassword ${quote("new-admin")}`);
+    expect(script).not.toContain("new-admin");
     expect(script).not.toContain("old-admin");
     expect(spawnedScript(spawnCalls[0])).toBe(named);
+    // The edited password, from the record as it is now, not the manager's.
+    expect(spawnCalls[0].options.env.PZ_PANEL_ADMIN_PASSWORD).toBe("new-admin");
   });
 
   it("names the no-Steam stock launcher when that's what the server would have fallen back to", async () => {
@@ -418,7 +422,7 @@ describe("prepareForLaunch()", () => {
     const result = await m.prepareForLaunch({ id: "a" });
 
     expect(order).toEqual(["refresh:a:false", "hook:a"]);
-    expect(result).toEqual({ scriptWarnings: ["backed up"], launchSeq: expect.any(Number) });
+    expect(result).toEqual({ scriptWarnings: ["backed up"], launchSeq: expect.any(Number), launchAdminPassword: "" });
   });
 
   it("tells the refresher a container launch owns its own command (ini only, no script)", async () => {
@@ -441,6 +445,7 @@ describe("prepareForLaunch()", () => {
       await expect(m.prepareForLaunch({ id: "a" })).resolves.toEqual({
         scriptWarnings: [],
         launchSeq: expect.any(Number),
+        launchAdminPassword: "",
       });
       for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
     } finally {
@@ -460,6 +465,7 @@ describe("prepareForLaunch()", () => {
     await expect(m.prepareForLaunch(null)).resolves.toEqual({
       scriptWarnings: [],
       launchSeq: expect.any(Number),
+      launchAdminPassword: "",
     });
     expect(order).toEqual([]);
   });
@@ -587,12 +593,10 @@ describe("the refresh targets the server being launched", () => {
   it("refreshLaunchTargetForLaunch() reads the record again instead of trusting the one it was handed", async () => {
     db.server = { ...db.server, rconPassword: "fresh-rcon", adminPassword: "fresh-admin" };
 
-    await m.refreshLaunchTargetForLaunch({ ...db.server, rconPassword: "stale", adminPassword: "stale" });
+    const result = await m.refreshLaunchTargetForLaunch({ ...db.server, rconPassword: "stale", adminPassword: "stale" });
 
     expect(readIni()).toContain("RCONPassword=fresh-rcon");
-    expect(fs.readFileSync(path.join(installPath, "start-server_Restored.sh"), "utf8")).toContain(
-      "-adminpassword 'fresh-admin'",
-    );
+    expect(result.launchAdminPassword).toBe("fresh-admin");
   });
 
   it("refreshLaunchTargetForLaunch() leaves a remote server alone", async () => {

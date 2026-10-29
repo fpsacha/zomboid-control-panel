@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "L'import dépasse la limite de 4 Go.",
   "BACKUP_SNAPSHOT_TOO_LARGE": "L'instantané du serveur de cette sauvegarde dépasse 1 Mo ; il n'a donc pas été ouvert.",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "L'archive de sauvegarde contient plus de données qu'elle n'en déclare : elle est endommagée ou a été modifiée. La restauration a été arrêtée et votre monde actuel n'a pas été modifié.",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "L'archive de sauvegarde contient plus de fichiers et de dossiers que ce disque ne peut en accueillir, ou des dossiers imbriqués plus profondément que dans n'importe quelle sauvegarde de monde. La restauration a été arrêtée et votre monde actuel n'a pas été modifié.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Dossier de sauvegardes indisponible. Configurez d'abord le serveur.",
   "USER_SELF_DELETE_REFUSED": "Vous ne pouvez pas supprimer votre propre compte. Demandez à un autre administrateur de le faire.",
   "USER_SELF_ROLE_CHANGE_REFUSED": "Vous ne pouvez pas modifier votre propre rôle. Demandez à un autre administrateur de le faire.",

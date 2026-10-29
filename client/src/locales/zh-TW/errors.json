@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "上傳檔案超過 4 GB 限制。",
   "BACKUP_SNAPSHOT_TOO_LARGE": "此備份中的伺服器快照大於 1 MB，因此未開啟。",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "備份壓縮檔中的資料多於其記錄的大小，表示它已損毀或遭竄改。還原已停止，目前的世界未被更改。",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "備份壓縮檔中的檔案和資料夾多於此磁碟能容納的數量，或資料夾巢狀深度超過任何世界存檔。還原已停止，目前的世界未被更改。",
   "BACKUPS_FOLDER_UNAVAILABLE": "備份資料夾無法使用，請先設定伺服器。",
   "USER_SELF_DELETE_REFUSED": "無法刪除自己的帳號，請讓另一位管理員代為操作。",
   "USER_SELF_ROLE_CHANGE_REFUSED": "無法更改自己的角色，請讓另一位管理員代為操作。",

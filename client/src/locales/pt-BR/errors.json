@@ -143,6 +143,7 @@
   "BACKUP_UPLOAD_TOO_LARGE": "O upload excede o limite de 4 GB.",
   "BACKUP_SNAPSHOT_TOO_LARGE": "O snapshot do servidor deste backup tem mais de 1 MB, por isso não foi aberto.",
   "BACKUP_ARCHIVE_SIZE_MISMATCH": "O arquivo do backup contém mais dados do que declara, então está danificado ou foi adulterado. A restauração foi interrompida e seu mundo atual não foi alterado.",
+  "BACKUP_ARCHIVE_LAYOUT_REFUSED": "O arquivo do backup contém mais arquivos e pastas do que cabem neste disco, ou pastas aninhadas mais fundo do que em qualquer save de mundo. A restauração foi interrompida e seu mundo atual não foi alterado.",
   "BACKUPS_FOLDER_UNAVAILABLE": "Pasta de backups indisponível. Configure o servidor primeiro.",
   "USER_SELF_DELETE_REFUSED": "Você não pode excluir sua própria conta. Peça a outro administrador para fazer isso.",
   "USER_SELF_ROLE_CHANGE_REFUSED": "Você não pode alterar seu próprio cargo. Peça a outro administrador para fazer isso.",
