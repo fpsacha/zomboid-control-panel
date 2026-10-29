@@ -124,7 +124,6 @@ import {
 import { installDirKey } from "../services/bridgeDisk.js";
 import { resolveInstallDir } from "../services/panelBridgeInstaller.js";
 import { isUnmanagedRemoteServer } from "../utils/serverStatusModel.js";
-import { redactGameLogSecrets } from "../utils/gameLogSecrets.js";
 
 const router = express.Router();
 
@@ -6989,15 +6988,42 @@ const CONSOLE_LOG_FILE_NAME = "server-console.txt";
 // SECURITY (2026-10-20): every role, admins included, gets the game's
 // "Command line admin password: <value>" line redacted
 // (utils/gameLogSecrets.js); the Console page never needs to show it.
+// SECURITY (audit R1-27): and every secret the download and the support
+// bundle redact (routes/debug.js redactRawLogText): the passwords the panel
+// holds, adduser/setpassword passwords, and the RCON password in the AUTH
+// packet the game prints with -debug. The known values are re-read at most
+// every few seconds: the Console page polls every 2 s.
+const CONSOLE_KNOWN_SECRETS_TTL_MS = 5000;
+let consoleKnownSecretsCache = { at: 0, values: null };
+
+async function consoleLogRedactor() {
+  // Loaded here, not at the top: routes/debug.js imports routes/mods.js,
+  // which imports this file, so a static import would be a cycle.
+  const { collectBundleKnownSecrets, redactRawLogText } = await import("./debug.js");
+  const now = Date.now();
+  if (
+    !consoleKnownSecretsCache.values ||
+    now - consoleKnownSecretsCache.at > CONSOLE_KNOWN_SECRETS_TTL_MS
+  ) {
+    consoleKnownSecretsCache = {
+      at: now,
+      values: await collectBundleKnownSecrets().catch(() => []),
+    };
+  }
+  const knownSecrets = consoleKnownSecretsCache.values;
+  return (line) => redactRawLogText(line, knownSecrets);
+}
+
 async function consoleLogView(req) {
+  const redact = await consoleLogRedactor();
   if (await canSeeHostPaths(req.user)) {
     return {
-      lines: (lines) => lines.map((line) => redactGameLogSecrets(line)),
+      lines: (lines) => lines.map((line) => redact(line)),
       path: (consoleLogPath) => consoleLogPath,
     };
   }
   return {
-    lines: (lines) => lines.map((line) => (line ? sanitizeError(redactGameLogSecrets(line)) : line)),
+    lines: (lines) => lines.map((line) => (line ? sanitizeError(redact(line)) : line)),
     path: () => CONSOLE_LOG_FILE_NAME,
   };
 }
@@ -7158,12 +7184,9 @@ router.get("/console-log/download", requirePermission("server.world_events"), as
       return res.status(404).json({ error: "File not found", code: ErrorCode.FILE_NOT_FOUND });
     }
 
-    // Loaded here, not at the top: routes/debug.js imports routes/mods.js,
-    // which imports this file, so a static import would be a cycle.
-    const { collectBundleKnownSecrets, redactRawLogText } = await import("./debug.js");
-    const knownSecrets = await collectBundleKnownSecrets().catch(() => []);
+    // The same redaction as the Console page (consoleLogView).
     const view = await consoleLogView(req);
-    const redactLine = (line) => view.lines([redactRawLogText(line, knownSecrets)])[0];
+    const redactLine = (line) => view.lines([line])[0];
 
     const size = stats.size;
     const start = Math.max(0, size - CONSOLE_LOG_DOWNLOAD_MAX_BYTES);

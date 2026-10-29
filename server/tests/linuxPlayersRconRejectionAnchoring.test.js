@@ -71,3 +71,48 @@ describe("classifyRconResponse: unrelated informative responses are untouched", 
     expect(rcon.classifyRconResponse("Players connected (2):\n-Alice\n-Bob")).toBeNull();
   });
 });
+
+// SECURITY (audit R1-25): "...can be executed only from the game" was only
+// end-anchored. A co-op name (no isValidUserName check, no length cap) that
+// ends in it and is listed last made every `players` reply a refusal: the
+// Players page, the player polling, Discord /players and the restart's RCON
+// check all failed while that player stayed on.
+describe("classifyRconResponse: 'can be executed only from the game'", () => {
+  const rcon = new RconService();
+
+  it("still fires on the one-line refusal", () => {
+    expect(rcon.classifyRconResponse("releasesafehouse can be executed only from the game")).not.toBeNull();
+    expect(rcon.classifyRconResponse("This command can be executed only from the game.")).not.toBeNull();
+  });
+
+  it("does not fire on a players list whose last name ends with it", () => {
+    expect(
+      rcon.classifyRconResponse("Players connected (2): \n-Alice\n-xcan be executed only from the game\n"),
+    ).toBeNull();
+    expect(
+      rcon.classifyRconResponse("Players connected (1): \n- can be executed only from the game\n"),
+    ).toBeNull();
+  });
+
+  // Adversary pass: a one-line success reply that ends with a player's name.
+  it("does not fire on a one-line reply ending with a player's name", () => {
+    expect(
+      rcon.classifyRconResponse("teleported Bob to x can be executed only from the game"),
+    ).toBeNull();
+    expect(
+      rcon.classifyRconResponse("User x can be executed only from the game kicked."),
+    ).toBeNull();
+  });
+
+  it("getPlayers() answers with the list", async () => {
+    const service = new RconService();
+    service.connected = true;
+    service.client = {
+      execute: async () => "Players connected (2): \n-Alice\n-xcan be executed only from the game\n",
+    };
+    service.ensureConnected = async () => true;
+    const result = await service.getPlayers();
+    expect(result.success).toBe(true);
+    expect(result.players.map((p) => p.name)).toEqual(["Alice", "xcan be executed only from the game"]);
+  });
+});

@@ -123,3 +123,59 @@ describe("GET /api/server/console-log/download", () => {
     expect(body).not.toContain("NOT THE CONSOLE LOG");
   });
 });
+
+// SECURITY (audit R1-27): the Console page itself (GET /console-log and the
+// /console-log/stream it polls) only redacted the "Command line admin
+// password:" line, so a moderator read the RCON password in the AUTH packet
+// the game prints with -debug, a known password anywhere in the log, and
+// adduser passwords. It now redacts what the download redacts.
+describe("GET /api/server/console-log and /console-log/stream", () => {
+  const SOCKET = "Socket[addr=/127.0.0.1,port=50123,localport=27015]";
+  const TRACE = [
+    `LOG  : DetailedInfo f:0, t:1> RCON: ID=1 Type=3 Body='Rotated0ld!' ${SOCKET}`,
+    `LOG  : DetailedInfo f:0, t:2> RCON: ID=2 Type=2 Body='adduser amy AmyPa55' ${SOCKET}`,
+    "",
+  ].join("\n");
+  const SECRETS = ["Sup3rS3cret!", "BobPa55word", "KnownRcon9876", "Rotated0ld!", "AmyPa55"];
+
+  async function getJson(url) {
+    const res = await fetch(baseUrl + url);
+    expect(res.status, url).toBe(200);
+    return res.json();
+  }
+
+  for (const role of ["moderator", "technician", "admin"]) {
+    it(`redacts the secrets the download redacts for ${role}`, async () => {
+      currentRole = role;
+      fs.writeFileSync(LOG, CONTENT + TRACE);
+      const responses = [];
+      for (const filter of ["all", "filtered"]) {
+        responses.push(await getJson(`/api/server/console-log?filter=${filter}`));
+        responses.push(await getJson(`/api/server/console-log/stream?filter=${filter}&lastSize=0`));
+      }
+      const text = JSON.stringify(responses);
+      for (const secret of SECRETS) expect(text).not.toContain(secret);
+      const all = responses[0].lines;
+      expect(all).toContain(`LOG  : DetailedInfo f:0, t:1> RCON: ID=1 Type=3 Body='[REDACTED]' ${SOCKET}`);
+      expect(all).toContain(
+        `LOG  : DetailedInfo f:0, t:2> RCON: ID=2 Type=2 Body='adduser amy "[REDACTED]"' ${SOCKET}`,
+      );
+      expect(all).toContain("LOG  : General      > rcon password is [REDACTED] here");
+      expect(all).toContain("LOG  : General      > SERVER STARTED");
+    });
+  }
+
+  it("redacts a line that arrives in a later poll", async () => {
+    currentRole = "moderator";
+    fs.writeFileSync(LOG, "LOG  : General      > SERVER STARTED\n");
+    const first = await getJson("/api/server/console-log/stream?filter=all&lastSize=0");
+    fs.appendFileSync(LOG, TRACE);
+    const next = await getJson(
+      `/api/server/console-log/stream?filter=all&lastSize=${first.currentSize}&identity=${encodeURIComponent(first.identity)}`,
+    );
+    expect(next.newLines.length).toBe(2);
+    const text = JSON.stringify(next);
+    expect(text).not.toContain("Rotated0ld!");
+    expect(text).not.toContain("AmyPa55");
+  });
+});

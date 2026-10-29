@@ -163,6 +163,25 @@ export function resolveEnvRconHost() {
   return envHost && envHost !== "CHANGE_ME" ? envHost : "127.0.0.1";
 }
 
+// SECURITY: the RCON_PASSWORD_FILE password belongs to the game server the
+// operator set up next to the panel: this machine, or the RCON_HOST
+// container. A server record that names any other host gets its own stored
+// password instead, so the secret is never sent to a host someone typed into
+// a server record (the same rule as "a new host needs the password typed
+// again", routes/servers.js rconConnectionChanges()). The port is not part of
+// the rule: several servers on one machine answer on different ports.
+export function rconHostMayUseSecretFilePassword(host) {
+  const value = String(host ?? "").trim().toLowerCase();
+  return (
+    value === "" ||
+    value === "localhost" ||
+    value === "::1" ||
+    value === "[::1]" ||
+    /^127(\.\d{1,3}){3}$/.test(value) ||
+    value === resolveEnvRconHost().trim().toLowerCase()
+  );
+}
+
 function parseConfiguredRconPort(value) {
   if (
     value === undefined ||
@@ -246,6 +265,22 @@ export function parsePlayersResponse(response) {
   return players;
 }
 
+// SECURITY (audit R1-24): the header counts the names it lists (co-op slots
+// included), but a name is written raw: an account name may hold a line
+// break and a co-op name is not checked at all, so a player named
+// "x\n-Alice" reads as two players, x and Alice. A list whose "-" lines
+// don't add up to the header's count is ambiguous: some of its entries are
+// pieces of one name, and none of them can be told apart from a real player.
+const PLAYERS_HEADER = /^\s*Players connected \((\d+)\)/;
+
+// { players, ambiguous, count }: count is the game's own number of names.
+export function parsePlayersReply(response) {
+  const players = parsePlayersResponse(response);
+  const header = PLAYERS_HEADER.exec(typeof response === "string" ? response : "");
+  const count = header ? Number(header[1]) : players.length;
+  return { players, ambiguous: !header || count !== players.length, count };
+}
+
 // Tests arbitrary RCON credentials without touching the shared RconService
 // singleton's connection state — used by the "Test Connection" UI so a user
 // can validate host/port/password before saving them. `countPlayers` also
@@ -277,11 +312,14 @@ export async function testRconConnection({
     let players = null;
     let playerNames = null;
     try {
-      const list = parsePlayersResponse(
+      const reply = parsePlayersReply(
         await client.execute("players", { timeoutMs }),
       );
-      players = list.length;
-      playerNames = list.map((entry) => entry.name);
+      players = reply.count;
+      // An ambiguous list's names are not recorded as sessions.
+      playerNames = reply.ambiguous
+        ? null
+        : reply.players.map((entry) => entry.name);
     } catch {
       players = null;
     }
@@ -368,7 +406,11 @@ export const KNOWN_RCON_REJECTIONS = [
     // full text/interpolation not present in the checked-in fixture (only
     // the class name citation above is available); end-anchored as the
     // best available tightening without a confirmed complete template.
-    pattern: /can be executed only from the game\.?\s*$/i,
+    // SECURITY (audit R1-25): start-anchored too, to a one-line reply of a
+    // command word or "This command". End-anchored only, a co-op name
+    // (no isValidUserName check, no length cap) ending in this text and
+    // listed last made every `players` reply count as a refusal.
+    pattern: /^\s*(?:This command|[\w-]+) can be executed only from the game\.?\s*$/i,
     describe: (text) => `${text}. This command can only be run from in-game, not over RCON.`,
   },
   {
@@ -668,6 +710,11 @@ export class RconService extends EventEmitter {
       port: parseInt(process.env.RCON_PORT, 10) || 27015,
       password: readSecret("RCON_PASSWORD") || "",
     };
+    // Kept apart from config.password, which loadConfig() swaps for a
+    // record's own password when the record names another host.
+    this.secretFilePassword = this.passwordFromSecretFile
+      ? this.config.password
+      : "";
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
     this.baseReconnectDelay = 2000; // Start at 2s
@@ -1018,11 +1065,19 @@ export class RconService extends EventEmitter {
         this.config.host = normalizeRconHost(targetServer.rconHost);
         this.config.port = parseConfiguredRconPort(targetServer.rconPort);
 
-        if (targetServer.rconPassword) {
-          if (!this.passwordFromSecretFile) {
-            this.config.password = targetServer.rconPassword;
+        if (
+          this.passwordFromSecretFile &&
+          rconHostMayUseSecretFilePassword(this.config.host)
+        ) {
+          this.config.password = this.secretFilePassword || "";
+        } else if (targetServer.rconPassword) {
+          if (this.passwordFromSecretFile) {
+            log.info(
+              "RCON_PASSWORD_FILE is only used for this machine and RCON_HOST; this server's own RCON password is used for its host",
+            );
           }
-        } else if (!this.passwordFromSecretFile) {
+          this.config.password = targetServer.rconPassword;
+        } else {
           // Don't carry over a stale password from a previously loaded
           // server (e.g. after reloadConfig() on server switch) — a missing
           // password is a real, visible state to report, not a value to
@@ -1053,15 +1108,20 @@ export class RconService extends EventEmitter {
         const dbPort = await getSetting("rconPort");
         const dbPassword = await getSetting("rconPassword");
 
-        if (dbPassword && !this.passwordFromSecretFile) {
-          this.config.password = dbPassword;
-          log.info("password loaded from legacy settings");
-        }
         if (dbPort !== undefined && dbPort !== null && dbPort !== "") {
           this.config.port = parseConfiguredRconPort(dbPort);
         }
         if (dbHost) {
           this.config.host = normalizeRconHost(dbHost);
+        }
+        if (this.passwordFromSecretFile) {
+          // Same rule as a server record above.
+          this.config.password = rconHostMayUseSecretFilePassword(this.config.host)
+            ? this.secretFilePassword || ""
+            : dbPassword || "";
+        } else if (dbPassword) {
+          this.config.password = dbPassword;
+          log.info("password loaded from legacy settings");
         }
       } else {
         log.warn(`No RCON config found for server ${serverId}`);
@@ -2058,9 +2118,13 @@ export class RconService extends EventEmitter {
       retryOnConnectionError: true,
     });
     if (result.success) {
+      const reply = parsePlayersReply(result.response);
       return {
         success: true,
-        players: this.parsePlayers(result.response),
+        players: reply.players,
+        // parsePlayersReply(): shown as it is, never announced as joins or
+        // leaves (index.js player polling).
+        ...(reply.ambiguous ? { ambiguous: true } : {}),
       };
     }
     return result;

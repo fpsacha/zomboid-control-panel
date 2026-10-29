@@ -220,3 +220,102 @@ describe("createRedactingLogStream() -- streams a raw log file through the same 
     expect(out).toBe(ETXTBSY_STACK_TRACE_LINE + "\n");
   });
 });
+
+// SECURITY (audit R1-7): the game's admin log (Logs/<date>_admin.txt, in
+// the bundle's zomboid-server/Logs) writes a whitelisted player's password
+// in plain text (AddUserCommand), and the join or RCON password on a
+// changeoption (ChangeOptionCommand). None of them is a value the panel holds.
+describe("redactRawLogText() -- the game's admin log", () => {
+  it("redacts the password from 'created user ... with password ...'", () => {
+    expect(
+      redactRawLogText("[28-10-26 13:00:00.123] admin created user bob with password hunter2 two.", []),
+    ).toBe("[28-10-26 13:00:00.123] admin created user bob with password [REDACTED]");
+  });
+
+  it("redacts the join and RCON passwords from 'changed option'", () => {
+    expect(redactRawLogText("[28-10-26 13:00:00.123] admin changed option Password=join pw", [])).toBe(
+      "[28-10-26 13:00:00.123] admin changed option Password=[REDACTED]",
+    );
+    expect(redactRawLogText("[28-10-26 13:00:00.123] admin changed option RCONPassword=rc", [])).toBe(
+      "[28-10-26 13:00:00.123] admin changed option RCONPassword=[REDACTED]",
+    );
+  });
+
+  it("leaves the admin log's other lines as they are", () => {
+    const lines = [
+      "[28-10-26 13:00:00.123] admin created user bob without password",
+      "[28-10-26 13:00:00.123] admin changed option PVP=true",
+      "[28-10-26 13:00:00.123] admin changing password for the bob",
+      "[28-10-26 13:00:00.123] bob said: I'll go with password reset tomorrow",
+    ];
+    for (const line of lines) expect(redactRawLogText(line, [])).toBe(line);
+  });
+
+  it("redacts only the line that carries the password", () => {
+    const text = "admin created user bob with password pw1\r\nadmin created user amy without password\r\n";
+    expect(redactRawLogText(text, [])).toBe(
+      "admin created user bob with password [REDACTED]\r\nadmin created user amy without password\r\n",
+    );
+  });
+
+  it("streams the rotated admin log through the same rule", async () => {
+    const source = Readable.from([Buffer.from("x\nadmin created user bob with pass"), Buffer.from("word hunter2\n")]);
+    const chunks = [];
+    for await (const chunk of source.pipe(createRedactingLogStream([]))) chunks.push(Buffer.from(chunk));
+    const out = Buffer.concat(chunks).toString("utf-8");
+    expect(out).toBe("x\nadmin created user bob with password [REDACTED]\n");
+  });
+
+  // Adversary pass: a name that itself holds the marker words, and a line
+  // made of the marker repeated (no quadratic rescan).
+  it("still hides the password when the user name holds ' with password '", () => {
+    const out = redactRawLogText("admin created user a with password b with password hunter2", []);
+    expect(out).not.toContain("hunter2");
+  });
+
+  it("a line of repeated markers is redacted in linear time", () => {
+    const line = " created user".repeat(40000) + " with password x".repeat(40000);
+    const started = performance.now();
+    const out = redactRawLogText(line, []);
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(out.endsWith(" with password [REDACTED]")).toBe(true);
+  });
+});
+
+// SECURITY (audit R1-27): with -debug the game prints every RCON packet,
+// the AUTH packet's body being the RCON password.
+describe("redactRawLogText() -- the game's -debug RCON packet trace", () => {
+  const SOCKET = "Socket[addr=/127.0.0.1,port=50123,localport=27015]";
+
+  it("redacts the AUTH (Type=3) body and keeps the rest of the line", () => {
+    expect(
+      redactRawLogText(`LOG  : DetailedInfo f:0, t:1> RCON: ID=1 Type=3 Body='rotated pw' it's' ${SOCKET}`, []),
+    ).toBe(`LOG  : DetailedInfo f:0, t:1> RCON: ID=1 Type=3 Body='[REDACTED]' ${SOCKET}`);
+  });
+
+  it("redacts the password inside a command body, keeping its closing quote", () => {
+    expect(redactRawLogText(`RCON: ID=7 Type=2 Body='adduser bob hunter2' ${SOCKET}`, [])).toBe(
+      `RCON: ID=7 Type=2 Body='adduser bob "[REDACTED]"' ${SOCKET}`,
+    );
+    expect(redactRawLogText(`RCON: ID=8 Type=2 Body='setpassword "bob" "pw"' ${SOCKET}`, [])).toBe(
+      `RCON: ID=8 Type=2 Body='setpassword "bob" "[REDACTED]"' ${SOCKET}`,
+    );
+  });
+
+  it("leaves an ordinary command body as it is", () => {
+    const line = `RCON: ID=9 Type=2 Body='servermsg "hello"' ${SOCKET}`;
+    expect(redactRawLogText(line, [])).toBe(line);
+  });
+
+  // Adversary pass: a password holding the "' Socket[" separator, and a
+  // trace whose socket part is missing.
+  it("hides an AUTH body that contains the separator or has no socket part", () => {
+    expect(redactRawLogText(`RCON: ID=1 Type=3 Body='a' Socket[b' ${SOCKET}`, [])).toBe(
+      `RCON: ID=1 Type=3 Body='[REDACTED]' ${SOCKET}`,
+    );
+    expect(redactRawLogText("RCON: ID=1 Type=3 Body='secret-without-socket", [])).toBe(
+      "RCON: ID=1 Type=3 Body='[REDACTED]",
+    );
+    expect(redactRawLogText("RCON: ID=-1 Type=3 Body='pw'", [])).toBe("RCON: ID=-1 Type=3 Body='[REDACTED]'");
+  });
+});

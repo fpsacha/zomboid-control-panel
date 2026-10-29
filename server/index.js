@@ -3372,6 +3372,8 @@ let lastPlayerList = [];
 // Inferring this from lastPlayerList being empty swallowed every join onto an
 // empty server, which is most of them.
 let playerBaselineReady = false;
+// The names last shown from an ambiguous player list, or null.
+let lastAmbiguousPlayerNames = null;
 let playerPollingInterval = null;
 let rconConnectedAt = 0; // timestamp of last RCON connect — used for grace period
 
@@ -3390,9 +3392,10 @@ let rconConnectedAt = 0; // timestamp of last RCON connect — used for grace pe
 function resetPlayerPollingBaseline() {
   lastPlayerList = [];
   playerBaselineReady = false;
+  lastAmbiguousPlayerNames = null;
 }
 
-function startPlayerPolling() {
+export function startPlayerPolling() {
   // Poll every 5 seconds for player changes
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
@@ -3414,6 +3417,24 @@ function startPlayerPolling() {
 
       const result = await rconService.getPlayers();
       if (result.success && result.players) {
+        // SECURITY (audit R1-24): an ambiguous list (rcon.js
+        // parsePlayersReply()) has entries that are pieces of one player's
+        // name, e.g. "x\n-Alice" read as x and Alice. It is shown as it is,
+        // but nobody in it is announced on Discord, exported or taken as the
+        // baseline: the next unambiguous list is compared with the last one.
+        if (result.ambiguous) {
+          const shownNames = result.players.map((p) => p.name).sort().join("\n");
+          if (shownNames !== lastAmbiguousPlayerNames) {
+            lastAmbiguousPlayerNames = shownNames;
+            io.to("players").emit("players:update", result.players);
+            log.warn(
+              "The game's player list holds a name with a line break in it; join and leave notices wait until it is gone",
+            );
+          }
+          return;
+        }
+        const wasAmbiguous = lastAmbiguousPlayerNames !== null;
+        lastAmbiguousPlayerNames = null;
         const baselineWasReady = playerBaselineReady;
         playerBaselineReady = true;
 
@@ -3427,7 +3448,9 @@ function startPlayerPolling() {
           .sort()
           .join(",");
 
-        if (currentNames !== lastNames) {
+        // After an ambiguous list, the pages are shown the real one again
+        // even when nobody joined or left meanwhile.
+        if (currentNames !== lastNames || wasAmbiguous) {
           // Detect joins and leaves before updating the baseline
           const currentSet = new Set(result.players.map((p) => p.name));
           const lastSet = new Set(lastPlayerList.map((p) => p.name));
@@ -3490,7 +3513,7 @@ function startPlayerPolling() {
   log.info("Server-side player polling started (5s interval)");
 }
 
-function stopPlayerPolling() {
+export function stopPlayerPolling() {
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
     playerPollingInterval = null;

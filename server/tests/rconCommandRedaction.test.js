@@ -34,7 +34,10 @@ describe("redactRconCommandSecrets", () => {
       'kick "Bob" "griefing"',
       'setaccesslevel "Bob" "admin"',
       'banuser "Bob" "reason"',
-      'servermsg "adduser is not a real broadcast"', // contains the word but not the shape
+      'servermsg "type adduser"', // contains the word but not the shape
+      'changeoption "PVP" "true"',
+      'changeoption "ServerWelcomeMessage" "Password reset tonight"',
+      "changeoption PasswordHint x",
       "players",
       'teleport "Bob" "Alice"',
     ];
@@ -59,6 +62,69 @@ describe("redactRconCommandSecrets", () => {
     const echoed = 'Command received: adduser "Bob" "hunter2" -> User added';
     expect(redactRconCommandSecrets(echoed)).toBe(
       'Command received: adduser "Bob" "[REDACTED]" -> User added',
+    );
+  });
+});
+
+// SECURITY (audit R1-8): the game also takes unquoted arguments, Discord
+// /rcon strips every quote before running a command, and setpassword and
+// changeoption Password/RCONPassword carry passwords too.
+describe("redactRconCommandSecrets: every form the game accepts", () => {
+  const cases = [
+    ['adduser "bob" hunter2', 'adduser "bob" "[REDACTED]"'],
+    ['adduser bob "hunter2"', 'adduser bob "[REDACTED]"'],
+    ["setpassword bob NewPass1", 'setpassword bob "[REDACTED]"'],
+    ['setpassword "bob" "NewPass1"', 'setpassword "bob" "[REDACTED]"'],
+    ['/setpassword "bob" "NewPass1"', '/setpassword "bob" "[REDACTED]"'],
+    ["SetPassword bob NewPass1", 'SetPassword bob "[REDACTED]"'],
+    ['changeoption "Password" "join-pw"', 'changeoption "Password" "[REDACTED]"'],
+    ["changeoption RCONPassword rcon-pw", 'changeoption RCONPassword "[REDACTED]"'],
+    // Discord /rcon runs `/rcon adduser "bob" "hunter2"` as this:
+    ["adduser bob hunter2", 'adduser bob "[REDACTED]"'],
+  ];
+  for (const [input, expected] of cases) {
+    it(`redacts ${input}`, () => {
+      expect(redactRconCommandSecrets(input)).toBe(expected);
+      expect(redactRconCommandSecrets(input)).not.toMatch(/hunter2|NewPass1|join-pw|rcon-pw/);
+    });
+  }
+
+  it("keeps the text around the secret, on the same line and on the next ones", () => {
+    expect(
+      redactRconCommandSecrets(
+        "Server rejected command: setpassword bob NewPass1 (User bob doesn't exist)\nnext line stays",
+      ),
+    ).toBe(
+      "Server rejected command: setpassword bob \"[REDACTED]\" (User bob doesn't exist)\nnext line stays",
+    );
+    expect(redactRconCommandSecrets('adduser "bob"\nplayers')).toBe('adduser "bob"\nplayers');
+  });
+
+  it("is idempotent", () => {
+    const once = redactRconCommandSecrets("adduser bob hunter2");
+    expect(redactRconCommandSecrets(once)).toBe(once);
+  });
+
+  // Adversary pass: shapes the game still reads as user + password.
+  it("redacts half-quoted, unterminated and spaceless forms", () => {
+    const tricky = [
+      'adduser "bob"hunter2', // a quoted argument needs no space after it
+      'adduser "bob hunter2', // the game skips a quote that never closes
+      'adduser bob "hunter2 and more', // unterminated: hidden to the end of the line
+      "adduser\tbob\thunter2",
+      "adduser   bob    hunter2",
+      'ADDUSER "Bob Smith" hunter2',
+    ];
+    for (const input of tricky) {
+      const out = redactRconCommandSecrets(input);
+      expect(out).not.toContain("hunter2");
+      expect(out).toContain("[REDACTED]");
+    }
+  });
+
+  it("a broadcast that spells out the command shape has that word hidden: over-redaction, never a leak", () => {
+    expect(redactRconCommandSecrets('servermsg "adduser is not a broadcast"')).toBe(
+      'servermsg "adduser is "[REDACTED]" a broadcast"',
     );
   });
 });

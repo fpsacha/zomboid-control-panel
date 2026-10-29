@@ -1011,6 +1011,15 @@ function appendCapped(arr, item, max, { newest = true } = {}) {
   return arr;
 }
 
+function redactCommandHistoryRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const command = redactRconCommandSecrets(row.command);
+  const response = redactRconCommandSecrets(row.response);
+  return command === row.command && response === row.response
+    ? row
+    : { ...row, command, response };
+}
+
 /**
  * Apply retention policies to trim oversized collections.
  */
@@ -1028,6 +1037,11 @@ function compactData(data) {
     data.command_history,
     RETENTION.command_history,
   );
+  // SECURITY (audit R1-8): rows logged before the redaction covered
+  // setpassword and unquoted arguments still hold the password.
+  if (Array.isArray(data.command_history)) {
+    data.command_history = data.command_history.map(redactCommandHistoryRow);
+  }
   data.player_logs = capPlayerLogs(data.player_logs);
   data.server_events = trimArray(data.server_events, RETENTION.server_events);
   data.schedule_history = trimArray(

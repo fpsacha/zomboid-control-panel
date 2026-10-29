@@ -29,6 +29,12 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - **Chat relay:** a player can no longer get their chat text posted to Discord and the Chat page as a server announcement.
 - **Chat relay:** only messages the game delivered are relayed, with the text players saw: a message for a chat the server turned off, or the unfiltered text of a bad-word-filtered one, no longer reaches Discord or the Chat page.
 - **Chat relay:** on a server started with `-debug`, chat text copied into the server console can no longer be relayed as another player's message.
+- **RCON password file:** the `RCON_PASSWORD_FILE` password is only sent to this machine and `RCON_HOST`; a server on another host uses its own saved RCON password.
+- **Passwords in RCON command history and logs:** `setpassword`, `changeoption Password`/`RCONPassword` and unquoted `adduser` passwords (as Discord /rcon sends them) are redacted too, and history saved by older versions is cleaned when the panel starts.
+- **Support bundle:** players' passwords and changed join or RCON passwords in the game's admin log are redacted.
+- **Console page:** the live server log redacts the same secrets as its download, including the RCON password the game prints with Debug on.
+- **Player list:** a player whose name holds a line break no longer adds made-up players to Discord join and leave notices, auto-export or play-time sessions.
+- **Player list:** a co-op player's name can no longer make the player list, its polling and the restart's RCON check fail.
 
 ## [2026.10.1] - 2026-10-26
 

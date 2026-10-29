@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Both defects here are the same shape as the startup fallback probe fixed in
@@ -335,5 +338,129 @@ describe("RconService.execute() tags command_history with the REAL target server
     await service.execute("save");
 
     expect(logCommand).toHaveBeenCalledWith("save", "saved", true, "srv-1");
+  });
+});
+
+// SECURITY (audit R1-6): with RCON_PASSWORD_FILE set, loadConfig() used to
+// keep the file's password whatever host the server record named, so a
+// record pointed at another host (or a "retyped" dummy password for it) sent
+// the secret there. The secret now only goes to this machine or RCON_HOST.
+describe("RconService.loadConfig with RCON_PASSWORD_FILE", () => {
+  const savedEnv = {};
+  let secretPath;
+
+  beforeEach(() => {
+    for (const key of ["RCON_PASSWORD_FILE", "RCON_HOST", "RCON_PORT"]) {
+      savedEnv[key] = process.env[key];
+    }
+    secretPath = path.join(
+      os.tmpdir(),
+      `zcp-rcon-secret-${process.pid}-${Date.now()}.txt`,
+    );
+    fs.writeFileSync(secretPath, "file-secret\n");
+    process.env.RCON_PASSWORD_FILE = secretPath;
+    process.env.RCON_HOST = "pz-game";
+    delete process.env.RCON_PORT;
+  });
+
+  afterEach(() => {
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    fs.rmSync(secretPath, { force: true });
+  });
+
+  it("never sends the secret to a host a server record names", async () => {
+    getServer.mockResolvedValue({
+      id: "srv-9",
+      rconHost: "203.0.113.5",
+      rconPort: 27015,
+      rconPassword: "typed-for-this-host",
+    });
+    const service = new RconService();
+    await service.loadConfig("srv-9");
+    expect(service.config.host).toBe("203.0.113.5");
+    expect(service.config.password).toBe("typed-for-this-host");
+  });
+
+  it("does not keep the secret for a record with no password of its own", async () => {
+    getActiveServer.mockResolvedValue({
+      id: "srv-9",
+      rconHost: "attacker.example",
+      rconPort: 27015,
+      rconPassword: "",
+    });
+    const service = new RconService();
+    await service.loadConfig();
+    expect(service.config.password).toBe("");
+  });
+
+  it("still uses the secret for this machine and RCON_HOST, on any port", async () => {
+    for (const rconHost of ["127.0.0.1", " localhost ", "PZ-GAME", "::1"]) {
+      getServer.mockResolvedValue({
+        id: "srv-1",
+        rconHost,
+        rconPort: 27016,
+        rconPassword: "stored-value",
+      });
+      const service = new RconService();
+      await service.loadConfig("srv-1");
+      expect(service.config.password).toBe("file-secret");
+    }
+  });
+
+  it("goes back to the secret after switching from a remote record to a local one", async () => {
+    getActiveServer.mockResolvedValue({
+      id: "srv-9",
+      rconHost: "203.0.113.5",
+      rconPort: 27015,
+      rconPassword: "remote-pw",
+    });
+    const service = new RconService();
+    await service.loadConfig();
+    expect(service.config.password).toBe("remote-pw");
+    getActiveServer.mockResolvedValue({
+      id: "srv-1",
+      rconHost: "127.0.0.1",
+      rconPort: 27015,
+      rconPassword: "remote-pw",
+    });
+    await service.reloadConfig();
+    expect(service.config.password).toBe("file-secret");
+  });
+
+  // Adversary pass: look-alike hosts that start or end like a local one.
+  it("treats look-alike hosts as other hosts", async () => {
+    for (const rconHost of [
+      "127.0.0.1.attacker.example",
+      "localhost.attacker.example",
+      "pz-game.attacker.example",
+      "0.0.0.0",
+    ]) {
+      getServer.mockResolvedValue({
+        id: "srv-9",
+        rconHost,
+        rconPort: 27015,
+        rconPassword: "own-pw",
+      });
+      const service = new RconService();
+      await service.loadConfig("srv-9");
+      expect(service.config.password).toBe("own-pw");
+    }
+  });
+
+  it("applies the same rule to legacy global settings", async () => {
+    getSetting.mockImplementation(async (key) =>
+      key === "rconHost"
+        ? "198.51.100.7"
+        : key === "rconPassword"
+          ? "legacy-pw"
+          : null,
+    );
+    const service = new RconService();
+    await service.loadConfig();
+    expect(service.config.host).toBe("198.51.100.7");
+    expect(service.config.password).toBe("legacy-pw");
   });
 });

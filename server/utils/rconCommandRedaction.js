@@ -36,11 +36,32 @@
  * Case-insensitive on the command name: PZ's RCON accepts adduser
  * regardless of case, and an operator typing into /execute isn't
  * constrained to the panel's own lowercase convention.
+ *
+ * SECURITY (audit R1-8): that enumeration missed commands that
+ * commands.js doesn't list, and the shape only matched both arguments quoted. The game
+ * splits arguments with `([^"]\S*|".*?")\s*` (CommandBase), so
+ * `adduser bob pw`, `adduser "bob" pw` and `adduser "bob"pw` all set a
+ * password, and Discord /rcon strips every quote (rconService.sanitize())
+ * before running a command. Now covered, quoted or not:
+ *   - adduser <user> <password>
+ *   - setpassword <user> <password> (SetPasswordCommand in the B42 jar)
+ *   - changeoption Password|RCONPassword <value> (the join and RCON
+ *     passwords, ChangeOptionCommand)
+ * Only the secret argument is replaced; an unterminated quoted value is
+ * hidden to the end of its line. Matching never crosses a line break, so
+ * the log lines around a command are left as they are.
  */
 
-const ADDUSER_WITH_PASSWORD = /(\badduser\s+"[^"]*")\s+"[^"]*"/gi;
+// One argument as the game reads it: a quoted run, or a run of non-spaces.
+// [^\S\r\n] is whitespace other than a line break.
+const PASSWORD_COMMAND =
+  /(\b(?:adduser|setpassword)[^\S\r\n]+(?:"[^"\r\n]*"[^\S\r\n]*|"?[^\s"]\S*[^\S\r\n]+))("[^"\r\n]*"?|\S+)/gi;
+const SECRET_OPTION_COMMAND =
+  /(\bchangeoption[^\S\r\n]+"?(?:RCON)?Password"?[^\S\r\n]+)("[^"\r\n]*"?|\S+)/gi;
 
 export function redactRconCommandSecrets(text) {
   if (typeof text !== "string") return text;
-  return text.replace(ADDUSER_WITH_PASSWORD, '$1 "[REDACTED]"');
+  return text
+    .replace(PASSWORD_COMMAND, '$1"[REDACTED]"')
+    .replace(SECRET_OPTION_COMMAND, '$1"[REDACTED]"');
 }
