@@ -5,6 +5,8 @@ const listServerRoleNames = vi.fn();
 const listWhitelistAccounts = vi.fn();
 
 vi.mock("../database/init.js", () => ({
+  // R2-5: these tests act as a role that may grant staff levels.
+  getRoleByName: vi.fn(async () => ({ capabilities: ["players.moderate", "rcon.execute"] })),
   getActiveServer,
   logPlayerAction: vi.fn(),
   getPlayerLogs: vi.fn(),
@@ -40,6 +42,7 @@ function createResponse() {
 function createRequest(body = {}, rconService = {}) {
   return {
     body,
+    user: { username: "tech", role: "technician" },
     app: { get: () => rconService },
   };
 }

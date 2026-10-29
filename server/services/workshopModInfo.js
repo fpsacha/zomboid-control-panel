@@ -12,8 +12,17 @@ import { orderingFieldsFromModInfo, parseModInfoForGame } from "../utils/modLoad
 // mod id the game would load is testable on its own and shared by the routes.
 const log = createLogger("API:Mods");
 
-// Helper to get workshop paths for a mod
-export function getWorkshopPaths(workshopId, serverPath) {
+// A Workshop item id as a folder name: digits only. Ids also come from the
+// ini's WorkshopItems= line (hand edits, Server Files, a saved preset), not
+// only from routes that check them, so the check sits here, before any join.
+const WORKSHOP_ID_RE = /^\d{1,15}$/;
+
+// Helper to get workshop paths for a mod. Anything but a digits-only id has
+// no folder: [] (a "../.." would otherwise reach outside the Workshop folder).
+export function getWorkshopPaths(rawWorkshopId, serverPath) {
+  const workshopId =
+    typeof rawWorkshopId === "string" || typeof rawWorkshopId === "number" ? String(rawWorkshopId) : "";
+  if (!WORKSHOP_ID_RE.test(workshopId)) return [];
   const home = os.homedir();
   const paths = [
     // Server's steamapps folder
@@ -95,7 +104,7 @@ export function getWorkshopPaths(workshopId, serverPath) {
 // Valid map folders have .lotheader, objects.lua, or .lotpack/.bin cell data
 function isValidMapFolder(mapFolderPath) {
   try {
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     const files = fs.readdirSync(mapFolderPath);
     for (const file of files) {
       const lower = file.toLowerCase();
@@ -138,9 +147,9 @@ export function findMapFoldersFromWorkshop(workshopId, serverPath) {
 
   // Helper: scan a media/maps directory for valid map subfolders
   function scanMapsDir(mapsPath) {
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     if (!fs.existsSync(mapsPath)) return;
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     const mapEntries = fs.readdirSync(mapsPath, { withFileTypes: true });
     for (const mapEntry of mapEntries) {
       if (mapEntry.isDirectory() && !isWritableMapFolderName(mapEntry.name)) {
@@ -163,18 +172,18 @@ export function findMapFoldersFromWorkshop(workshopId, serverPath) {
   }
 
   for (const workshopPath of possiblePaths) {
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     if (!fs.existsSync(workshopPath)) continue;
 
     // Look for mods subfolder first (some mods have mods/ModName/media/maps structure)
     const modsFolder = path.join(workshopPath, "mods");
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     const searchPath = fs.existsSync(modsFolder) ? modsFolder : workshopPath;
 
     try {
-      // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+      // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
       if (fs.existsSync(searchPath)) {
-        // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+        // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
         const entries = fs.readdirSync(searchPath, { withFileTypes: true });
         for (const entry of entries) {
           if (!entry.isDirectory()) continue;
@@ -187,7 +196,7 @@ export function findMapFoldersFromWorkshop(workshopId, serverPath) {
           // <entry>/<sub>/media/maps/ (covers common, 42, 42.0, 42.1, 41,
           // 43, and any future version folder).
           try {
-            // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+            // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
             const subEntries = fs.readdirSync(entryPath, {
               withFileTypes: true,
             });
@@ -462,7 +471,7 @@ function collectModsFromFolder(searchPath, mods, seenIds) {
     ];
     try {
       const subfolders = fs
-        // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+        // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
         .readdirSync(modDir, { withFileTypes: true })
         .filter((sub) => sub.isDirectory())
         .map((sub) => sub.name)
@@ -487,7 +496,7 @@ function collectModsFromFolder(searchPath, mods, seenIds) {
     // them, so take the first (newest version folder, then the mod root,
     // then common/ ...) that actually declares an id.
     for (const candidate of candidatePaths
-      // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+      // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
       .filter((item) => fs.existsSync(item.path))
       .sort(compareModInfoCandidatePaths)) {
       const { id, meta, game } = parseModInfoFile(candidate.path);
@@ -550,11 +559,11 @@ export function getModDetailsFromWorkshop(workshopId, serverPath) {
   const possiblePaths = getWorkshopPaths(workshopId, serverPath);
 
   for (const workshopPath of possiblePaths) {
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     if (!fs.existsSync(workshopPath)) continue;
 
     const modsFolder = path.join(workshopPath, "mods");
-    // codeql[js/path-injection] workshopId is validated as /^\d{1,15}$/ at this file's POST /inspect-workshop-item handler before reaching getWorkshopPaths/getModDetailsFromWorkshop/findMapFoldersFromWorkshop -- CodeQL's only tracked source for this sink is that numeric-validated field.
+    // codeql[js/path-injection] the Workshop item folder comes from getWorkshopPaths(), which returns none unless workshopId is digits only (/^\d{1,15}$/), whatever the caller passed (a route's field or the ini's WorkshopItems=); below it, only folder names read from that item's own folder are joined.
     const searchPath = fs.existsSync(modsFolder) ? modsFolder : workshopPath;
 
     try {

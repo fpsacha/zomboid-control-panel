@@ -27,6 +27,10 @@ import {
   isValidIanaTimezone,
 } from '../utils/cronValidation.js';
 import { parseBoundedInteger, parseClampedInteger } from '../utils/queryNumbers.js';
+import {
+  getRestartWarningPresetTemplates,
+  normalizeRestartWarningSettings,
+} from '../utils/restartWarning.js';
 
 export { hasUnsupportedCronFieldCount };
 
@@ -87,6 +91,9 @@ const CODED_ACTION_RESULT_CODES = new Set([
   ErrorCode.SERVER_START_STATE_UNKNOWN,
   ErrorCode.SERVER_LAUNCH_TARGET_REFUSED,
   ErrorCode.SERVER_RESTART_LAUNCH_TARGET_REFUSED,
+  // ...and the launch folder itself refused (a Workshop download folder or
+  // a network share, untrustedLaunchFolderReason()).
+  ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED,
   ErrorCode.SERVER_RESTART_RCON_UNAVAILABLE,
   ErrorCode.SERVER_RESTART_SAVE_FAILED,
   ErrorCode.SERVER_RESTART_STOP_UNCONFIRMED,
@@ -253,9 +260,26 @@ router.put('/timezone', async (req, res) => {
   }
 });
 
+// SECURITY: the countdown text is broadcast to every player, as the server,
+// on every restart with a countdown, whoever starts it. Writing it is a
+// server broadcast, so text of one's own takes server.world_events (as POST
+// /server/message and servermsg tasks do); automation.manage alone set it.
+// Keeping the stored text, or picking a language's preset, does not.
+function writesOwnRestartWarning(body, stored) {
+  const template = typeof body?.template === 'string' ? body.template.trim() : body?.template;
+  if (template === normalizeRestartWarningSettings(stored).template) return false;
+  return !Object.values(getRestartWarningPresetTemplates()).includes(template);
+}
+
 router.put('/restart-warning', async (req, res) => {
   try {
     const scheduler = req.app.get('scheduler');
+    if (
+      writesOwnRestartWarning(req.body, scheduler.restartWarning) &&
+      !(await requireCapabilityInline('server.world_events', req, res))
+    ) {
+      return;
+    }
     const restartWarning = await scheduler.setRestartWarning(req.body);
     res.json({ success: true, restartWarning });
   } catch (error) {
@@ -397,7 +421,17 @@ router.post('/tasks', async (req, res) => {
       return refuseRemoteRestartTask(res);
     }
 
-    const result = await createScheduledTask(name, cronExpression, command, resolvedServerId);
+    let result;
+    try {
+      result = await createScheduledTask(name, cronExpression, command, resolvedServerId);
+    } catch (createErr) {
+      if (createErr?.code !== 'SCHEDULER_TOO_MANY_TASKS') throw createErr;
+      return res.status(400).json({
+        error: createErr.message,
+        code: ErrorCode.SCHEDULER_TOO_MANY_TASKS,
+        params: sanitizeErrorParams({ max: createErr.max }),
+      });
+    }
     const task = {
       id: result.id,
       name,

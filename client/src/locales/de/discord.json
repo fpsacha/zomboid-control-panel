@@ -359,6 +359,7 @@
   },
   "capabilityGate": {
     "connection": "Ändern kann das nur, wer alle Berechtigungen besitzt, die die Bot-Befehle erfordern: Der Eigentümer des Discord-Servers des Bots und alle mit seiner Admin-Rolle können jeden Befehl ausführen.",
-    "modRole": "Ändern kann das nur, wer die Berechtigungen besitzt, die die Befehle der Stufe „Moderator“ erfordern: Alle mit dieser Rolle können diese Befehle ausführen."
+    "modRole": "Ändern kann das nur, wer die Berechtigungen besitzt, die die Befehle der Stufe „Moderator“ erfordern: Alle mit dieser Rolle können diese Befehle ausführen.",
+    "playerEvents": "Nur wer Spielerinformationen sehen darf, kann dies einschalten, die Nachricht ändern oder den Kanal verlegen: Es sendet Spielernamen und -positionen an Discord."
   }
 }

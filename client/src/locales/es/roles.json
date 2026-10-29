@@ -166,7 +166,7 @@
     "rcon": {
       "execute": {
         "label": "Ejecutar comandos RCON",
-        "description": "Conectar a RCON y ejecutar comandos de consola arbitrarios, incluidos los que pueden detener el servidor. También otorga acceso de lectura al historial completo de comandos RCON — incluidas las contraseñas reales de jugadores escritas en comandos de lista blanca como adduser."
+        "description": "Conectar a RCON y ejecutar comandos de consola arbitrarios, incluidos los que pueden detener el servidor. También otorga acceso de lectura al historial completo de comandos RCON — incluidas las contraseñas reales de jugadores escritas en comandos de lista blanca como adduser. Junto con «Sancionar a los jugadores», también otorga niveles de acceso de equipo dentro del juego, como admin."
       }
     },
     "servers": {
@@ -202,7 +202,7 @@
     "players": {
       "moderate": {
         "label": "Sancionar a los jugadores",
-        "description": "Banear, desbanear, expulsar o poner en lista blanca a un jugador, y cambiar el nivel de acceso dentro del juego de un jugador — incluyendo otorgar o revocar privilegios de administrador."
+        "description": "Banear, desbanear, expulsar o poner en lista blanca a un jugador, y darle un nivel de acceso dentro del juego sencillo como user o priority. Otorgar un nivel de equipo (admin, moderator, gm, observer o un rol personalizado con más poderes), o cambiar el nivel de una cuenta que ya tiene uno, también requiere «Ejecutar comandos RCON»: esos niveles ejecutan comandos de consola del servidor dentro del juego."
       },
       "gm_tools": {
         "label": "Herramientas de Game Master",

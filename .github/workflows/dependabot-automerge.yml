@@ -1,22 +1,31 @@
 name: Dependabot Auto-Merge
 
 on:
-  pull_request_target:
+  # pull_request_target, not pull_request: it runs this workflow as it is on
+  # main, so a Dependabot PR that bumps an action used here (fetch-metadata)
+  # can't run the new version with this write token before a person merges
+  # it. Nothing from the pull request is checked out or run, and its values
+  # reach the scripts only through env.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   queue:
     name: Queue passing Dependabot update
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main'
+    permissions:
+      contents: write # the queued squash merge
+      pull-requests: write # enabling auto-merge on the PR
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       # This workflow intentionally does not check out or execute pull-request code.
-      # GitHub still enforces required checks and reviews before the queued merge runs.
+      # The queued merge waits for main's required status checks only: branch
+      # protection requires no review, so the 7-day Dependabot cooldown
+      # (dependabot.yml) is what keeps a fresh, possibly hijacked release
+      # out of an auto-merged update.
       #
       # Reads the update's ecosystem, semver level and group from Dependabot's
       # signed commit metadata (it fails, and nothing merges, when the last

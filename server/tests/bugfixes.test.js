@@ -1011,10 +1011,11 @@ describe("PZ shout detection from the chat log", () => {
     expect(seen.map((m) => m.sourceChatType)).toEqual(["Local", "Shout"]);
   });
 
-  it("still emits when the delivery line is missing", async () => {
+  // The game logs the receipt before it may drop the message (a chat
+  // stream the server turned off); only the delivery line means it went out.
+  it("does not relay a message the game never delivered", async () => {
     const seen = await parse([received("General", "Max", "hi")]);
-    expect(seen).toHaveLength(1);
-    expect(seen[0].sourceChatType).toBe("General");
+    expect(seen).toEqual([]);
   });
 });
 
@@ -1205,7 +1206,7 @@ describe("LogTailer chunk boundaries", () => {
   };
 
   const chatLine = (author, text) =>
-    `[05-08-26 11:00:00.000][info] Got message:ChatMessage{chat=Say, author='${author}', text='${text}'}.`;
+    `[05-08-26 11:00:00.000][info] Message ChatMessage{chat=Say, author='${author}', text='${text}'} sent to chat (id = 1) members.`;
 
   it("keeps a message that is split across two reads", async () => {
     const { tailer, seen } = await makeTailer();
@@ -1884,7 +1885,7 @@ describe("LogTailer chat parsing", () => {
 
   it("relays a player whose name contains an apostrophe", async () => {
     const seen = await parse(
-      "[05-08-26 12:00:00.000][info] Got message:ChatMessage{chat=Say, author='O'Brien', text='hello'}.",
+      "[05-08-26 12:00:00.000][info] Message ChatMessage{chat=Say, author='O'Brien', text='hello'} sent to chat (id = 1) members.",
     );
     expect(seen).toHaveLength(1);
     expect(seen[0].author).toBe("O'Brien");
@@ -1893,7 +1894,7 @@ describe("LogTailer chat parsing", () => {
 
   it("keeps quotes inside the message body", async () => {
     const seen = await parse(
-      "[05-08-26 12:00:00.000][info] Got message:ChatMessage{chat=Say, author='Bob', text='it's mine'}.",
+      "[05-08-26 12:00:00.000][info] Message ChatMessage{chat=Say, author='Bob', text='it's mine'} sent to chat (id = 1) members.",
     );
     expect(seen[0].author).toBe("Bob");
     expect(seen[0].message).toBe("it's mine");

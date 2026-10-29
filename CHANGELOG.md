@@ -7,6 +7,86 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.10.2] - 2026-10-29
+
+### Security
+
+- **Live updates no longer take a sign-in token from the address:** the Socket.IO connection reads it from its sign-in data only, as the panel already sends it, so a token copied into a URL or a proxy log can't open one.
+- **Problems found can't be fed a fake warning before sign-in:** a crash report sent from the login page no longer counts as the panel's own failed process scan.
+- **Server install folders:** a server can no longer be started from a Steam Workshop download folder or a Windows network share, whose files anyone could supply; a server-management role could otherwise have chosen what ran on the host.
+- **SteamCMD folder:** SteamCMD is no longer run from a Steam Workshop download folder or a Windows network share; an install role could otherwise have run a program of its choosing.
+- **Windows network paths:** SteamCMD, install and server-detection paths can no longer name a network share (`\\host\share`), which made the panel's Windows account sign in to that host.
+- A very long run of slashes in a typed install path or a Server Files request no longer stalls the panel.
+- **Docker `:latest`:** re-running an older release's image build no longer points `:latest` back at that older version.
+- **Docker image builds:** the QEMU and BuildKit helper images that build and push the panel images are pinned by digest (kept current by Dependabot) instead of moving tags.
+- **Release builds:** the release tag name is read from the environment instead of being written into build scripts, and the version check refuses an empty tag instead of skipping it.
+- **Release builds:** the exe and Linux downloads are built without restoring an npm cache, only from the registry and the lockfiles.
+- **CI:** no workflow leaves its GitHub token in the checked-out repository, where build steps and dependencies could read it.
+- **Dependabot auto-merge:** write access is limited to the one merge job, which runs main's copy of the workflow and nothing from the update itself.
+- **README:** the dashboard screenshot no longer shows real network addresses.
+- **Server memory on Windows:** status requests that arrive together share one memory read instead of each starting its own PowerShell.
+- **Problems found:** a console line written to make text matching slow no longer freezes the panel while Diagnostics reads the game log.
+- **Console page:** such a line no longer freezes the Server Log tab in the browser either.
+- **Panel log:** a line break in a name or ID sent with a request can no longer add a fake entry to the panel's log or a support bundle.
+- **Chat relay:** a player can no longer get their chat text posted to Discord and the Chat page as a server announcement.
+- **Chat relay:** only messages the game delivered are relayed, with the text players saw: a message for a chat the server turned off, or the unfiltered text of a bad-word-filtered one, no longer reaches Discord or the Chat page.
+- **Chat relay:** on a server started with `-debug`, chat text copied into the server console can no longer be relayed as another player's message.
+- **RCON password file:** the `RCON_PASSWORD_FILE` password is only sent to this machine and `RCON_HOST`; a server on another host uses its own saved RCON password.
+- **Passwords in RCON command history and logs:** `setpassword`, `changeoption Password`/`RCONPassword` and unquoted `adduser` passwords (as Discord /rcon sends them) are redacted too, and history saved by older versions is cleaned when the panel starts.
+- **Support bundle:** players' passwords and changed join or RCON passwords in the game's admin log are redacted.
+- **Console page:** the live server log redacts the same secrets as its download, including the RCON password the game prints with Debug on.
+- **Player list:** a player whose name holds a line break no longer adds made-up players to Discord join and leave notices, auto-export or play-time sessions.
+- **Player list:** a co-op player's name can no longer make the player list, its polling and the restart's RCON check fail.
+- **In-game staff access levels:** granting admin, moderator, gm, observer or a custom role with more than login rights on the Players page, or changing the level of an account that has one, now also needs Run RCON commands, since those levels run console commands in game.
+- **Player notes are bounded:** at most 20 tags per note, 5,000 notes and 5 million characters in all, so notes can no longer grow the panel's database without limit.
+- **Players › Activity names who acted:** kicks, bans, access-level changes, whitelist edits and game-master actions now record the panel account that made them, also in the panel log.
+- **Discord join, leave and death notifications** need View player info to turn on, edit or move to another channel, since they post player names and positions.
+- **Discord bot while logins are off:** its token, server and admin or moderator roles can't be changed, nor a command's tier lowered, until panel logins are on, so nothing set then keeps working afterwards.
+- **Mod presets:** editing a preset now accepts only Workshop IDs and mod IDs, at most 2,000 of each, and applying one writes only those; a malformed preset could stop the panel from saving its settings.
+- **Steam Workshop session kept on Settings save:** saving the Settings page no longer clears the stored Workshop cookies, and clearing them takes the mods permission.
+- **Auto-restart on mod update needs Start/stop:** turning it on, or changing its warning and wait for players, now takes the server control permission as well as Mods (and in Settings too), like every other restart; turning it off doesn't.
+- **Restart warning text:** writing your own countdown message for players now takes the world-events permission, like any other server broadcast; picking a language's preset doesn't.
+- **Docker container actions need Start/stop:** starting, stopping or restarting a server's container from the Servers page now takes the server control permission as well as Docker, as its description says.
+- **Scheduled tasks are capped at 500:** creating more is refused with a clear message; a panel that already has more keeps them.
+- **Request bodies:** the panel only reads a JSON body on its API, behind its rate limit, and refuses compressed request bodies.
+- **Browser extensions with panel logins off:** only an extension you name under Settings > Remote Access (`chrome-extension://<id>` or `moz-extension://<uuid>`) can use the panel; any other installed extension could read it as admin.
+- **Steam Sync extension after an in-app update:** the panel now hands out, and keeps next to its executable, the extension of the version it runs; an install updated in place kept the one it was first installed with, without the 1.5.0 HTTPS fix. Reload the extension from that folder once.
+- **Steam Sync extension: a panel's sign-in stays with that panel:** after you change the panel address or username, the extension signs in again instead of sending the previous panel's session.
+- **Steam Sync extension over plain http://:** before it sends the Steam cookies or the password again, the panel address must prove it is the panel you signed in to, so another network answering at the same address gets nothing.
+- **Config templates:** a template saved by v1.2.6 or older no longer shows its RCON and join passwords, and editing one removes them from the file; template files are no longer written through a link to another file.
+- **Shared backups folder (Windows):** another server profile's backup can no longer be downloaded, read, deleted or restored by spelling its name in another letter case or by its short name.
+- **Backup restore:** an archive can no longer create more files and folders than the disk has room for, nest folders without limit, or open thousands of files at once while it is extracted.
+- **Delete server files:** a path that is not a configured server's install folder is refused before the panel looks at it, so the request no longer tells whether a folder exists on the host.
+- **Admin password:** the generated start scripts no longer contain it; the panel hands it to the game only for the starts that need it (a new world or a changed password), so other accounts on the host can no longer read it from the .bat or the running server's command line.
+- **Crash logs:** the crash-log viewer and the support bundle no longer follow a link placed in the server folder, and log scans no longer hang on a special file there.
+- **Workshop items:** an item id that isn't a number (in `WorkshopItems=` or a mod preset) no longer makes the Mods page read folders outside the Workshop folder; presets now take numeric ids only.
+- Starting, stopping or restarting another server from the Dashboard's server list, and the Scheduler's Restart now, have the same rate limit as the active server's buttons.
+- **Steam branch list:** another website open in the operator's browser can no longer make the panel save and run a SteamCMD folder of its choosing while panel logins are off.
+- **Steam branch names:** Install and Update accept only a real branch name (letters, digits, dots, dashes, underscores), so nothing else reaches SteamCMD's command line.
+- **Server config folder:** a config folder on a Windows network share outside the server's data folder is refused before the panel touches it, so saving one no longer signs the panel's account in to that host.
+- **Server scan folder:** Scan for servers refuses a Windows network share before touching it, as server detection already did.
+- **Panel data folder:** it can no longer be moved into the panel's program folder or the web client it serves, or (on Windows) onto a network share, which could expose the panel's secrets.
+- **Zomboid data folders:** on Windows a server's data folder can no longer be a network share, which made the panel's account sign in to that host; map the share to a drive letter instead.
+- **Windows secret files:** `jwt.secret`, `db.json`, its backups and the other `.secret` files are now readable only by the account that runs the panel, SYSTEM and Administrators, not by every account on the PC.
+- **Diagnostics Java check:** no longer runs Java from an install folder inside a Steam Workshop download folder or on a network share that was saved before those folders were refused.
+- **Map Cleanup paths on Windows:** a typed custom path can no longer name a network share or device path (unless it is a server's data folder), which made the panel's Windows account sign in to that host.
+- **Map Cleanup with the game outside the panel's container:** deleting chunks now also refuses while the server's container runs or RCON still answers, as restore and wipe do.
+- **Map Cleanup vehicles:** a chunk whose file couldn't be deleted now keeps its vehicles in vehicles.db.
+- **PanelBridge commands can't stall the game server:** the panel refuses command data over 64 KB (512 KB for a character import) or nested more than 32 levels, and PanelBridge reads each command in linear time; one request used to freeze the server for minutes.
+- **Bridge command history stays small:** db.json keeps at most 4 KB of each command's data, so a huge or deeply nested command can no longer bloat it or stop the panel from saving.
+- **Character import:** PanelBridge stops trying an item type that doesn't exist, and the panel refuses more than 2000 items or an item type that isn't a plain name, so an import file can't stall the game server.
+- **Event sequences:** a General or Admin chat step and a noise step need the "Endanger or impersonate a player" permission, like the same actions on their own.
+- **World sounds:** a sound played from the World Map or Events page keeps its radius to 10-500 and volume to 1-500, as noises already did; a huge radius froze every connected player's game.
+- **PanelBridge over SFTP:** the 16 MB download limit now applies to the transfer itself, not only to the size the remote host reports, so a hostile host can no longer fill the panel's disk.
+- **PanelBridge folder files:** the panel no longer follows a link or reads past 16 MB in the bridge folder (inbox cursor and Find Bridge scan included), so a game server account that differs from the panel's can't make it empty or overwrite another file, or run it out of memory.
+- **World Map vehicles:** concurrent requests share one read of vehicles.db and an unchanged file is not read again, so map refreshes can't run the panel out of memory.
+- **Map Cleanup** removes vehicles in one pass over vehicles.db instead of one per chunk, so a large cleanup no longer freezes the panel.
+- **vehicles.db and chunk backups** never follow a link planted in the save folder and only write to new files.
+- A vehicles.db or server database with a crafted schema is refused instead of hanging the panel.
+- A special file in place of vehicles.db or the server database can no longer tie up the panel's file threads.
+- **Map Cleanup** won't remove vehicles while vehicles.db has an unfinished transaction from an unclean stop, which the game would otherwise play back over the cleaned file.
+- A failed vehicles.db rewrite no longer leaves a full-size temp file in the save folder, and a successful one is flushed to disk first.
+
 ## [2026.10.1] - 2026-10-26
 
 ### Added

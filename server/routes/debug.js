@@ -52,6 +52,7 @@ import {
 import { sanitizeError, sanitizeErrorParams, SENSITIVE_FIELD_RE } from "../utils/sanitize.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { serverConfigDirOf } from "../utils/serverConfigPath.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { checkSandboxBraceBalance } from "./serverFiles.js";
 import { validateSandboxLua } from "../utils/sandboxLua.js";
 import panelBridgeService from "../services/panelBridge.js";
@@ -228,11 +229,20 @@ function isListedLogEntry(entry) {
   return entry.isFile() && entry.name.endsWith(".log");
 }
 
+// Read-only, refusing a link swapped in at the final name and never blocking
+// on a FIFO swapped in after a check (POSIX; Windows has neither flag).
+const CHECKED_READ_FLAGS =
+  fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
+// Read-only and never blocking on a FIFO, for a game log the panel only scans.
+const SCAN_READ_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0);
+
 // Opens a log file the listing shows, or returns null. The name must be one
 // readdir() returns (exact spelling: no case alias, trailing dot, short name
 // or ":stream" suffix), a regular file whose real path is directly inside
-// the logs folder's real path, and the file opened must be the one checked.
-async function openListedLogFile(logsDir, filename) {
+// the folder's real path, and the file opened must be the one checked.
+// isListedEntry is the listing's own rule (GET /logs/files by default,
+// GET /crash-logs for crash logs).
+async function openListedLogFile(logsDir, filename, isListedEntry = isListedLogEntry) {
   let entries;
   try {
     entries = await fs.promises.readdir(logsDir, { withFileTypes: true });
@@ -240,7 +250,7 @@ async function openListedLogFile(logsDir, filename) {
     return null;
   }
   const entry = entries.find((candidate) => candidate.name === filename);
-  if (!entry || !isListedLogEntry(entry)) return null;
+  if (!entry || !isListedEntry(entry)) return null;
   const filePath = path.join(logsDir, entry.name);
   let handle = null;
   try {
@@ -249,7 +259,7 @@ async function openListedLogFile(logsDir, filename) {
     const realDir = await fs.promises.realpath(logsDir);
     const rel = path.relative(realDir, await fs.promises.realpath(filePath));
     if (!rel || rel.includes(path.sep) || rel.startsWith("..") || path.isAbsolute(rel)) return null;
-    handle = await fs.promises.open(filePath, "r");
+    handle = await fs.promises.open(filePath, CHECKED_READ_FLAGS);
     const opened = await handle.stat();
     if (!opened.isFile() || opened.ino !== checked.ino || opened.dev !== checked.dev) {
       await handle.close();
@@ -518,13 +528,14 @@ async function collectBundleKnownSecrets() {
 function redactRawLogText(text, knownSecrets) {
   if (typeof text !== "string" || !text) return text;
   let out = redactKnownSecrets(text, knownSecrets);
+  // The game's own lines that carry a secret (utils/gameLogSecrets.js): the
+  // "Command line admin password:" line, the admin log's passwords and the
+  // -debug RCON packet trace. First, so a packet body is redacted inside
+  // its quotes and the rest of the line stays as written.
+  out = redactGameLogSecrets(out);
   out = redactRconCommandSecrets(out);
   out = out.replace(RAW_LOG_DISCORD_TOKEN_RE, "[REDACTED-DISCORD-TOKEN]");
   out = out.replace(RAW_LOG_STEAM_KEY_QUERY_RE, "$1[REDACTED]");
-  // The game's own "Command line admin password: <value>" line
-  // (utils/gameLogSecrets.js), a value it may have been started with that
-  // the panel no longer holds.
-  out = redactGameLogSecrets(out);
   return out;
 }
 
@@ -823,13 +834,16 @@ const SANDBOX_DIAGNOSTIC_MAX_MODS = 500;
 const SANDBOX_ENUM_INDEX_ZERO_FIRST_BRIDGE = "1.7.45";
 const SANDBOX_ENUM_INDEX_ZERO_LAST_BRIDGE = "1.7.70";
 
-async function readTailText(filePath, maxBytes = SANDBOX_DIAGNOSTIC_MAX_LOG_BYTES) {
+// Opened first and checked through the descriptor, not stat-then-open: a FIFO
+// put at this name can't block the open (and a libuv thread with it), and
+// the size read is the size of the file actually open. Exported for tests.
+export async function readTailText(filePath, maxBytes = SANDBOX_DIAGNOSTIC_MAX_LOG_BYTES) {
   let handle = null;
   try {
-    const stats = await fs.promises.stat(filePath);
+    handle = await fs.promises.open(filePath, SCAN_READ_FLAGS);
+    const stats = await handle.stat();
     if (!stats.isFile()) return null;
     const length = Math.min(stats.size, maxBytes);
-    handle = await fs.promises.open(filePath, "r");
     const buffer = Buffer.alloc(length);
     const { bytesRead } = await handle.read(buffer, 0, length, stats.size - length);
     return buffer.subarray(0, bytesRead).toString("utf8");
@@ -2157,7 +2171,10 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
       // raw read stream needs its own handler or a rotated/deleted/unreadable
       // log file crashes the whole process instead of failing this request
       // (same convention as backupService.js's restore-extraction path).
-      const entryStream = fs.createReadStream(entry.filePath);
+      // The scan listed regular files only; a link or FIFO swapped in at the
+      // name since (crash logs sit in a folder another OS account may own)
+      // is refused instead of followed or waited on.
+      const entryStream = fs.createReadStream(entry.filePath, { flags: CHECKED_READ_FLAGS });
       entryStream.on("error", handleArchiveFailure);
       archive.append(entryStream.pipe(createRedactingLogStream(knownSecrets)), {
         name: entry.archivePath,
@@ -2302,7 +2319,15 @@ router.post("/paths", requirePermission("diagnostics.manage"), async (req, res) 
         requiresRestart: true,
       });
     } else {
-      res.status(400).json({ error: result.error });
+      // setDataPaths()'s coded refusals (utils/paths.js); the rest are
+      // self-contained English validation text.
+      const code = [
+        ErrorCode.FOLDER_NETWORK_SHARE_REFUSED,
+        ErrorCode.PANEL_DATA_FOLDER_REFUSED,
+      ].includes(result.code)
+        ? result.code
+        : undefined;
+      res.status(400).json({ error: result.error, ...(code ? { code } : {}) });
     }
   } catch (error) {
     log.error(`Failed to update paths: ${error.message}`);
@@ -2549,21 +2574,18 @@ export { scanWorkshopFailures };
 export async function scanRecentCrash(zPath) {
   if (!zPath) return null;
   const logPath = path.join(zPath, "server-console.txt");
-  let stat;
-  try {
-    stat = await fs.promises.stat(logPath);
-  } catch {
-    return null;
-  }
-  if (!stat.isFile() || stat.size === 0) return null;
-
   const MAX_TAIL = 256 * 1024;
-  const start = Math.max(0, stat.size - MAX_TAIL);
-  const length = stat.size - start;
+  let stat;
   let text = "";
   let fd;
   try {
-    fd = await fs.promises.open(logPath, "r");
+    // Opened first and checked through the descriptor (see readTailText): a
+    // FIFO at this name can't block the open.
+    fd = await fs.promises.open(logPath, SCAN_READ_FLAGS);
+    stat = await fd.stat();
+    if (!stat.isFile() || stat.size === 0) return null;
+    const start = Math.max(0, stat.size - MAX_TAIL);
+    const length = stat.size - start;
     const buf = Buffer.alloc(length);
     await fd.read(buf, 0, length, start);
     text = buf.toString("utf-8");
@@ -2837,6 +2859,28 @@ async function scanSaveStats(saveDir, budgetMs) {
   };
   await walk(saveDir);
   return { totalBytes, chunks, staleLocks, truncated };
+}
+
+// The bundled JRE the diagnostics run with `-version`: <install>/jre64 (or
+// jre)/bin/java, or null.
+//
+// SECURITY (2026-10-28): never from a Steam Workshop download folder or a
+// Windows network share (utils/untrustedFolder.js), whose files anyone can
+// supply -- the rule a server start applies. An install folder saved before
+// that rule existed is still stored, so it is judged here, before any file
+// call, rather than trusted because it was accepted then.
+export async function findBundledJavaToProbe(installPath) {
+  if (typeof installPath !== "string" || !installPath.trim()) return null;
+  if (untrustedFolderReason(installPath)) return null;
+  const jreCandidates =
+    process.platform === "win32"
+      ? ["jre64/bin/java.exe", "jre/bin/java.exe"]
+      : ["jre64/bin/java", "jre/bin/java"];
+  for (const rel of jreCandidates) {
+    const p = path.join(installPath, ...rel.split("/"));
+    if (await safePathExists(p)) return p;
+  }
+  return null;
 }
 
 // Execute the bundled JRE with `-version`. PZ prints to stderr. Returns
@@ -4604,18 +4648,7 @@ router.get("/diagnostics", requirePermission("diagnostics.manage"), async (req, 
         // SteamCMD install. The existing `server.jre` check only verifies
         // the binary file is present.
         if (installPath) {
-          const isWin = process.platform === "win32";
-          const jreCandidates = isWin
-            ? ["jre64/bin/java.exe", "jre/bin/java.exe"]
-            : ["jre64/bin/java", "jre/bin/java"];
-          let javaBin = null;
-          for (const rel of jreCandidates) {
-            const p = path.join(installPath, ...rel.split("/"));
-            if (await safePathExists(p)) {
-              javaBin = p;
-              break;
-            }
-          }
+          const javaBin = await findBundledJavaToProbe(installPath);
           if (javaBin) {
             const probe = await raceWithFallback(probeJre(javaBin), 5000, {
               ok: false,
@@ -6824,6 +6857,14 @@ function isCrashLogFilename(file) {
   );
 }
 
+// What GET /crash-logs lists, and so all GET /crash-logs/:filename serves: a
+// regular file (not a link) with a crash-log name. A link named
+// hs_err_pid1.log in the install folder, which may belong to another OS
+// account, must not make the panel read wherever it points (jwt.secret).
+function isCrashLogEntry(entry) {
+  return entry.isFile() && isCrashLogFilename(entry.name);
+}
+
 router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, res) => {
   try {
     const serverManager = req.app.get("serverManager");
@@ -6857,18 +6898,19 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
           continue;
         }
 
-        const files = await fs.promises.readdir(dir);
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
 
         await Promise.all(
-          files.map(async (file) => {
+          entries.map(async (entry) => {
+            const file = entry.name;
             // Skip if already seen
             if (seenFiles.has(file)) return;
 
             // Match Java crash dumps and common crash log patterns
-            if (isCrashLogFilename(file)) {
+            if (isCrashLogEntry(entry)) {
               try {
                 const filePath = path.join(dir, file);
-                const stats = await fs.promises.stat(filePath);
+                const stats = await fs.promises.lstat(filePath);
                 if (!seenFiles.has(file)) {
                   // Check again after await
                   seenFiles.add(file);
@@ -6947,19 +6989,22 @@ router.get("/crash-logs/:filename", requirePermission("diagnostics.manage"), asy
     ].filter(Boolean);
 
     for (const dir of searchDirs) {
-      const filePath = path.join(dir, filename);
       try {
-        await fs.promises.access(filePath);
+        // Only a crash log GET /crash-logs lists, opened as checked: the
+        // install folder may belong to another OS account (an externally
+        // managed or network-mounted server), and a link it plants there
+        // under a crash-log name must not be followed.
+        const handle = await openListedLogFile(dir, filename, isCrashLogEntry);
+        if (!handle) continue;
 
         // Read only first 100KB using file handle to prevent OOM on large files
-        const handle = await fs.promises.open(filePath, "r");
         try {
           const stats = await handle.stat();
           const readSize = Math.min(stats.size, 100000);
           const buffer = Buffer.alloc(readSize);
 
-          await handle.read(buffer, 0, readSize, 0);
-          const content = buffer.toString("utf-8");
+          const { bytesRead } = await handle.read(buffer, 0, readSize, 0);
+          const content = buffer.subarray(0, bytesRead).toString("utf-8");
 
           return res.json({
             content,

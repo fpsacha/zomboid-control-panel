@@ -362,6 +362,15 @@ export default function Servers() {
   // execution today (activate succeeds and the server record changes state,
   // then start/stop 403s), not a clean refusal. Gate on both present.
   const canInlineStartStop = canServersManage && canServerControl
+  // A container action (start, stop, restart) runs on the container mapped
+  // to a server profile, so it is that server's power state too: the route
+  // takes docker.manage AND server.control (server/routes/docker.js).
+  const canDockerAction = canDockerManage && canServerControl
+  const dockerActionBlockedReason = !canDockerManage
+    ? t('card.noPermissionDocker')
+    : !canServerControl
+      ? t('card.noPermissionDockerControl')
+      : null
   // Why a card's Start or Stop is unavailable while another lifecycle
   // operation runs, or while that server waits for its RCON.
   const lifecycleState = useLifecycleState()
@@ -756,7 +765,7 @@ export default function Servers() {
     container: DockerContainerSummary,
     action: 'start' | 'stop' | 'restart',
   ) => {
-    if (!canDockerManage) return
+    if (!canDockerAction) return
     setDockerActionPending(`${action}-${container.id}`)
     try {
       const server = servers?.find((item) => item.dockerContainerName === container.name || item.dockerContainerName === container.id)
@@ -782,7 +791,7 @@ export default function Servers() {
     } finally {
       setDockerActionPending(null)
     }
-  }, [fetchDockerState, servers, toast, t, canDockerManage])
+  }, [fetchDockerState, servers, toast, t, canDockerAction])
 
   const handleConfigureRemoteBridge = useCallback(async (server: ServerInstance) => {
     if (!canServersManage) return
@@ -2399,20 +2408,20 @@ export default function Servers() {
                       <StatusPill size="sm" tone={isRunning ? 'ok' : 'error'} label={container.state} />
                     </div>
                     <div className="flex items-center gap-1">
-                      <DisabledReason reason={!canDockerManage ? t('card.noPermissionDocker') : null}>
+                      <DisabledReason reason={dockerActionBlockedReason}>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="iconDense" variant="ghost" disabled={pending || isRunning || !canDockerManage} onClick={() => handleDockerAction(container, 'start')} aria-label={t('card.startContainerAria', { name: container.name })}>
+                          <Button size="iconDense" variant="ghost" disabled={pending || isRunning || !canDockerAction} onClick={() => handleDockerAction(container, 'start')} aria-label={t('card.startContainerAria', { name: container.name })}>
                             {dockerActionPending === `start-${container.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>{t('card.startContainer')}</TooltipContent>
                       </Tooltip>
                       </DisabledReason>
-                      <DisabledReason reason={!canDockerManage ? t('card.noPermissionDocker') : null}>
+                      <DisabledReason reason={dockerActionBlockedReason}>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="iconDense" variant="ghost" disabled={pending || !isRunning || !canDockerManage} onClick={async () => {
+                          <Button size="iconDense" variant="ghost" disabled={pending || !isRunning || !canDockerAction} onClick={async () => {
                             // Traced via Dwight: this route saves via RCON first and
                             // refuses outright if that save fails (stricter than plain
                             // process Stop), but the actual termination is Docker
@@ -2435,10 +2444,10 @@ export default function Servers() {
                         <TooltipContent>{t('card.stopContainer')}</TooltipContent>
                       </Tooltip>
                       </DisabledReason>
-                      <DisabledReason reason={!canDockerManage ? t('card.noPermissionDocker') : null}>
+                      <DisabledReason reason={dockerActionBlockedReason}>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button size="iconDense" variant="ghost" disabled={pending || !canDockerManage} onClick={async () => {
+                          <Button size="iconDense" variant="ghost" disabled={pending || !canDockerAction} onClick={async () => {
                             // Same disruption tier as Stop above (RCON save, then
                             // Docker SIGTERM-then-SIGKILL) -- the container comes
                             // back up on its own afterward, so this isn't styled

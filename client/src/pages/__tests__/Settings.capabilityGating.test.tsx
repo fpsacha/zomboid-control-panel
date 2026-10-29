@@ -118,6 +118,31 @@ describe('Settings.tsx: General Save is gated on panel.settings', () => {
   })
 })
 
+// SECURITY: auto-restart on mod update and its delay are a restart decision,
+// so the server refuses a change to them without server.control.
+describe('Settings.tsx: Mods tab auto-restart is gated on server.control', () => {
+  it('disables the auto-restart switch and its delay without server.control', async () => {
+    mockCan = (cap) => cap !== 'server.control'
+    primeCommonMocks()
+    getAppSettings.mockResolvedValue({ settings: { ...baseSettings, modAutoRestart: true, modRestartDelay: '5' } } as never)
+
+    renderSettings('mods')
+    const toggle = await screen.findByRole('switch', { name: /auto-restart server when mods update/i })
+    expect(toggle).toBeDisabled()
+    expect(screen.getByLabelText(/^restart delay/i)).toBeDisabled()
+  })
+
+  it('leaves them enabled with server.control', async () => {
+    mockCan = () => true
+    primeCommonMocks()
+    getAppSettings.mockResolvedValue({ settings: { ...baseSettings, modAutoRestart: true, modRestartDelay: '5' } } as never)
+
+    renderSettings('mods')
+    const toggle = await screen.findByRole('switch', { name: /auto-restart server when mods update/i })
+    expect(toggle).not.toBeDisabled()
+  })
+})
+
 describe('Settings.tsx: Access tab CORS actions are gated on diagnostics.manage', () => {
   it('disables Reload CORS Rules and never calls it when the role lacks diagnostics.manage', async () => {
     mockCan = (cap) => cap !== 'diagnostics.manage'

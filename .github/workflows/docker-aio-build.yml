@@ -50,6 +50,8 @@ on:
       - 'scripts/verify-package-version.mjs'
       - 'package.json'
       - 'package-lock.json'
+      - '.github/helper-images/Dockerfile'
+      - 'scripts/helper-images.mjs'
       - '.github/workflows/docker-aio-build.yml'
   workflow_dispatch:
 
@@ -72,6 +74,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Reject release tag outside main
@@ -133,10 +136,18 @@ jobs:
 
       - name: Verify tag Docker version
         if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/verify-package-version.mjs "${{ github.ref_name }}"
+        run: node scripts/verify-package-version.mjs "$GITHUB_REF_NAME"
+
+      # The BuildKit image pushes with the registry login: by digest from
+      # .github/helper-images/Dockerfile, never the action's moving default.
+      - name: Read pinned helper images
+        id: helpers
+        run: node scripts/helper-images.mjs >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: image=${{ steps.helpers.outputs.buildkit }}
 
       - name: Extract all-in-one image metadata
         id: panel-meta

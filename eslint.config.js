@@ -38,6 +38,7 @@ export default [
         PANEL_BRIDGE_LUA_B64: "readonly",
         PANEL_BRIDGE_WORKSHOP_JSON: "readonly",
         PANEL_CLIENT_DIST_B64: "readonly",
+        PANEL_BROWSER_EXTENSION_B64: "readonly",
         SQL_WASM_B64: "readonly",
       },
     },

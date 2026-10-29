@@ -39,6 +39,8 @@ vi.mock("../database/init.js", () => ({
             "bridge.setup",
             "integrations.manage",
             "mods.manage",
+            // modAutoRestart/modRestartDelay (a restart decision).
+            "server.control",
           ],
         }
       : null,

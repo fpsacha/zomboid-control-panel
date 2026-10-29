@@ -454,6 +454,7 @@
     "description": "Змінити рівень доступу для {{player}}",
     "label": "Рівень доступу",
     "placeholder": "Виберіть рівень...",
+    "staffLevelsHint": "Рівні персоналу, як-от admin, moderator чи gm, потребують ще дозволу «Виконувати команди RCON», тому їх тут немає.",
     "submit": "Встановити рівень"
   },
   "confirmLastAdmin": {
@@ -593,6 +594,7 @@
     "saveButton": "Зберегти нотатку",
     "activityLogTitle": "Журнал активності",
     "activityLogTruncatedHint": "Показано {{count}} останніх записів -- старіша активність може не відображатися.",
+    "activityByActor": "виконавець: {{actor}}",
     "logsErrorTitle": "Журнал активності недоступний",
     "filterPlaceholder": "Фільтрувати за іменем гравця...",
     "filterAria": "Фільтрувати журнал активності за іменем гравця",

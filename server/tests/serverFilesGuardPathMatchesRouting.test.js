@@ -75,4 +75,16 @@ describe("serverFiles guards match every spelling Express routes to the guarded 
     expect(isLocalConfigEdit({ method: "GET", path: "/ini/" })).toBe(false);
     expect(isLocalOnlyPath({ method: "GET", path: "/browse-files/x" })).toBe(false);
   });
+
+  // SECURITY: req.path used to go through /\/+$/, quadratic on a long run of
+  // slashes that doesn't end the path (seconds per request at 100k).
+  it("reads a long run of slashes in linear time", () => {
+    const run = "/".repeat(100_000);
+    const started = Date.now();
+    expect(isLocalOnlyPath({ method: "GET", path: `${run}browse-files` })).toBe(false);
+    // Adversary pass: the run inside the path, and trailing slashes as well.
+    expect(isLocalConfigEdit({ method: "PUT", path: `/ini${run}x${run}` })).toBe(false);
+    expect(isLocalOnlyPath({ method: "GET", path: `/browse-files${run}` })).toBe(true);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
 });

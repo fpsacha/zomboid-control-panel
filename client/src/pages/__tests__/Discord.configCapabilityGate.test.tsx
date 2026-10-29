@@ -75,7 +75,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-async function renderConfiguredBot() {
+async function renderConfiguredBot(events: Record<string, { enabled: boolean; template: string }> = {}) {
   getStatus.mockResolvedValue({ running: true, configured: true })
   getConfig.mockResolvedValue({
     token: null,
@@ -89,7 +89,7 @@ async function renderConfiguredBot() {
     chatRelayChannelId: '',
     chatRelayScope: 'public',
   })
-  getWebhookEvents.mockResolvedValue({ events: {} })
+  getWebhookEvents.mockResolvedValue({ events })
   getPermissions.mockResolvedValue({ permissions: DEFAULT_TIERS })
   updateConfig.mockResolvedValue({ success: true })
 
@@ -184,5 +184,39 @@ describe('Discord.tsx: connection and role fields follow the PUT /config capabil
 
     await waitFor(() => expect(updateConfig).toHaveBeenCalledTimes(1))
     expect(updateConfig.mock.calls[0][2]).toBe(NEW_ROLE)
+  })
+})
+
+// Security audit R1-23: join, leave and death notifications post player data,
+// so the server requires players.view to turn one on, change an enabled one's
+// message, or move the notification channel while one is on.
+describe('Discord.tsx: player notifications follow the players.view gate', () => {
+  const JOIN_ON = { playerJoin: { enabled: true, template: '{player} joined' } }
+  const switchFor = (key: string) => document.getElementById(`event-${key}`) as HTMLElement
+  const GATE_TEXT = /Only someone who can view player info/
+
+  it('without players.view: a player notification can be turned off, not on or edited, and the channel stays put', async () => {
+    mockCan = holding('integrations.manage')
+    await renderConfiguredBot(JOIN_ON)
+
+    expect(fields().channel).toBeDisabled()
+    expect(switchFor('playerJoin')).not.toBeDisabled()
+    expect(switchFor('playerDeath')).toBeDisabled()
+    expect(switchFor('playerLeave')).toBeDisabled()
+    expect(switchFor('serverStart')).not.toBeDisabled()
+    expect(document.getElementById('template-playerJoin')).toHaveAttribute('readonly')
+    expect(screen.getAllByText(GATE_TEXT).length).toBeGreaterThan(0)
+  })
+
+  it('with players.view: every notification and the channel stay editable', async () => {
+    mockCan = holding('integrations.manage', 'players.view')
+    await renderConfiguredBot(JOIN_ON)
+
+    expect(fields().channel).not.toBeDisabled()
+    for (const key of ['playerJoin', 'playerDeath', 'playerLeave']) {
+      expect(switchFor(key)).not.toBeDisabled()
+    }
+    expect(document.getElementById('template-playerJoin')).not.toHaveAttribute('readonly')
+    expect(screen.queryByText(GATE_TEXT)).not.toBeInTheDocument()
   })
 })

@@ -34,3 +34,128 @@ export function characterImportRefusal(data) {
   }
   return null;
 }
+
+// What PanelBridge's importPlayerData reads from an inventory entry.
+const IMPORT_ITEM_NUMBER_FIELDS = ["count", "condition", "uses", "jobDelta", "useDelta", "delta"];
+// An export lists at most 1000 items (bag contents included); hand-made
+// files get twice that.
+export const CHARACTER_IMPORT_MAX_ITEMS = 2000;
+// The bridge restores bag contents three levels deep and exports four.
+const IMPORT_CONTENTS_MAX_DEPTH = 4;
+const IMPORT_MAX_PERKS = 256;
+const IMPORT_NAME_MAX_LENGTH = 128;
+
+const UNSAFE_NAME_CHARS = new RegExp(`["\\\\${String.fromCharCode(0)}-${String.fromCharCode(0x1f, 0x7f)}]`);
+
+function plainName(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= IMPORT_NAME_MAX_LENGTH
+    && !UNSAFE_NAME_CHARS.test(value);
+}
+
+function importNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.length <= 32 && value.trim() !== "" && Number.isFinite(Number(value))) return value;
+  return undefined;
+}
+
+/**
+ * The args to send the bridge for a character import, keeping only what
+ * PanelBridge's importPlayerData reads (perks, inventory and two options),
+ * or why the import is refused.
+ *
+ * SECURITY (2026-10-28): the mod parses every command on the game thread,
+ * and it tried each listed item up to 100 times whether it existed or not,
+ * so a 1 MB import body of made-up items stalled the server. The bridge now
+ * stops on a missing item and counts attempts; the panel sends only the
+ * fields the bridge uses (an export also carries names, worn items, bag
+ * copies, recipes and diagnostics) and refuses more than 2000 items or an
+ * item type that is no plain name.
+ *
+ * @param {{ username: unknown, data: any, options?: any }} input
+ * @returns {{ args: object } | { refusal: string, kind: "perks" | "inventory" }}
+ */
+export function characterImportArgs({ username, data, options }) {
+  const perkRefusal = characterImportRefusal(data);
+  if (perkRefusal) return { refusal: perkRefusal, kind: "perks" };
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    return { args: { username, data, ...(options === undefined ? {} : { options }) } };
+  }
+
+  const out = {};
+  if (data.perks !== undefined && data.perks !== null) {
+    if (Array.isArray(data.perks)) {
+      out.perks = data.perks;
+    } else {
+      // No prototype, and no perk named after an Object member: no PZ perk
+      // is, and such a key could otherwise reach the object's prototype.
+      const perks = Object.create(null);
+      let kept = 0;
+      for (const [name, entry] of Object.entries(data.perks)) {
+        if (kept >= IMPORT_MAX_PERKS) break;
+        if (name === "__proto__" || name === "constructor" || name === "prototype") continue;
+        if (!plainName(name) || entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+        const perk = {};
+        if (Number.isInteger(entry.level)) perk.level = entry.level;
+        const xp = importNumber(entry.xp);
+        if (xp !== undefined) perk.xp = xp;
+        perks[name] = perk;
+        kept++;
+      }
+      out.perks = perks;
+    }
+  }
+
+  if (data.inventory !== undefined && data.inventory !== null) {
+    if (!Array.isArray(data.inventory)) {
+      return { refusal: "The character data's inventory must be a list of items.", kind: "inventory" };
+    }
+    let total = 0;
+    let badType = null;
+    const copyItems = (list, depth) => {
+      const items = [];
+      for (const entry of list) {
+        if (badType !== null || total > CHARACTER_IMPORT_MAX_ITEMS) return items;
+        if (entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+        if (entry.fullType === undefined || entry.fullType === null) continue;
+        total++;
+        if (!plainName(entry.fullType)) {
+          badType = String(entry.fullType).slice(0, 64);
+          return items;
+        }
+        const item = { fullType: entry.fullType };
+        for (const field of IMPORT_ITEM_NUMBER_FIELDS) {
+          const value = importNumber(entry[field]);
+          if (value !== undefined) item[field] = value;
+        }
+        if (Array.isArray(entry.contents) && depth < IMPORT_CONTENTS_MAX_DEPTH) {
+          item.contents = copyItems(entry.contents, depth + 1);
+        }
+        items.push(item);
+      }
+      return items;
+    };
+    out.inventory = copyItems(data.inventory, 1);
+    if (badType !== null) {
+      return {
+        refusal: `The character data lists an item type that is not a plain item name (${JSON.stringify(badType)}).`,
+        kind: "inventory",
+      };
+    }
+    if (total > CHARACTER_IMPORT_MAX_ITEMS) {
+      return {
+        refusal: `The character data lists more than ${CHARACTER_IMPORT_MAX_ITEMS} items.`,
+        kind: "inventory",
+      };
+    }
+  }
+
+  const args = { username, data: out };
+  if (options !== null && typeof options === "object" && !Array.isArray(options)) {
+    const kept = {};
+    for (const key of ["restorePerks", "restoreInventory"]) {
+      if (typeof options[key] === "boolean") kept[key] = options[key];
+    }
+    args.options = kept;
+  }
+  return { args };
+}

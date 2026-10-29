@@ -144,3 +144,21 @@ describe("POST /debug/paths: extraBlockedPaths wiring", () => {
     });
   });
 });
+
+// SECURITY (2026-10-28): setDataPaths()'s coded refusals (a network share,
+// the program or served folder) reach the client with their code, so the
+// Debug page shows the translated reason.
+describe("POST /debug/paths: refusal codes", () => {
+  it("forwards a refusal's code with its error", async () => {
+    setDataPaths.mockResolvedValue({ success: false, error: "refused", code: "PANEL_DATA_FOLDER_REFUSED" });
+    const res = await postPaths({ dataDir: "/app/client/dist/x" });
+    expect(res.getStatusCode()).toBe(400);
+    expect(res.getBody()).toEqual({ error: "refused", code: "PANEL_DATA_FOLDER_REFUSED" });
+  });
+
+  it("sends no code for an uncoded refusal", async () => {
+    setDataPaths.mockResolvedValue({ success: false, error: "Path must be absolute" });
+    const res = await postPaths({ dataDir: "relative" });
+    expect(res.getBody()).toEqual({ error: "Path must be absolute" });
+  });
+});

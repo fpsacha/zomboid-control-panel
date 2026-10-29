@@ -506,6 +506,7 @@ export default function Settings() {
   const canManageDiagnostics = can("diagnostics.manage"); // Access tab: Reload CORS Rules, Clear Blocked Log
   const canConfigureServerSettings = can("server.configure"); // Connection tab: Test (RCON recheck)
   const canSetupBridge = can("bridge.setup"); // Bridge tab: every write action on it
+  const canControlServer = can("server.control"); // Mods tab: auto-restart on mod update and its delay (a restart decision)
   // GET /config/app-settings leaves host paths and account names out for a
   // role without panel.settings, unless it holds the capability that edits
   // them (server/routes/config.js, appSettingsViewFor()), so these fields
@@ -1026,6 +1027,15 @@ export default function Settings() {
       for (const origin of origins) {
         if (origin.length > MAX_CORS_ORIGIN_LENGTH) {
           return t("access.originsError.tooLong", { length: origin.length, max: MAX_CORS_ORIGIN_LENGTH });
+        }
+
+        // A browser extension let in while panel logins are off, named the
+        // way the panel's refusal names it (server/utils/extensionOrigin.js).
+        if (/^(chrome-extension|moz-extension|safari-web-extension):/i.test(origin)) {
+          if (!/^(chrome-extension|moz-extension|safari-web-extension):\/\/[a-z0-9-]{1,128}\/?$/i.test(origin)) {
+            return t("access.originsError.invalidFormat", { origin });
+          }
+          continue;
         }
 
         try {
@@ -5373,13 +5383,18 @@ export default function Settings() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-muted/50">
-                  <Switch
-                    checked={settings.modAutoRestart}
-                    onCheckedChange={(value) =>
-                      updateSetting("modAutoRestart", value)
-                    }
-                    aria-label={t("ariaLabels.autoRestartOnModUpdate")}
-                  />
+                  <DisabledReason
+                    reason={!canControlServer ? t("manualRestart.noPermission", { ns: "scheduler" }) : null}
+                  >
+                    <Switch
+                      checked={settings.modAutoRestart}
+                      onCheckedChange={(value) =>
+                        updateSetting("modAutoRestart", value)
+                      }
+                      disabled={!canControlServer}
+                      aria-label={t("ariaLabels.autoRestartOnModUpdate")}
+                    />
+                  </DisabledReason>
                   <div>
                     <Label className="text-base">
                       {t("mods.autoRestartLabel")}
@@ -5402,6 +5417,7 @@ export default function Settings() {
                         updateSetting("modRestartDelay", e.target.value)
                       }
                       onWheel={(e) => e.currentTarget.blur()}
+                      disabled={!canControlServer}
                       min="1"
                       max="30"
                       className="h-11"

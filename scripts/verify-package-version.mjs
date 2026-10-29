@@ -5,6 +5,11 @@ import process from "node:process";
 const args = process.argv.slice(2);
 const minimumMode = args[0] === "--minimum";
 const expectedInput = minimumMode ? args[1] : args[0];
+// A version argument that is there but empty (an unset variable, such as
+// "$GITHUB_REF_NAME" read by PowerShell) must fail, not skip the comparison.
+if ((minimumMode || args.length > 0) && !String(expectedInput ?? "").trim()) {
+  throw new Error("The expected package version argument is empty");
+}
 const expectedVersion = expectedInput ? String(expectedInput).replace(/^v/, "") : null;
 const semverPattern = /^\d+\.\d+\.\d+$/;
 

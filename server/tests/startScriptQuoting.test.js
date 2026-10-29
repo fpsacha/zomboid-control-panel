@@ -167,17 +167,15 @@ describe("generateStartupScripts()", () => {
     expect(scripts.bat).not.toContain("x86)\\PZ Data\\");
   });
 
-  it("passes the admin password P@ss%w0rd!&x$y through to the game (it used to become P@ssw0rdxy)", () => {
-    const scripts = generateStartupScripts({ ...base, adminPassword: "P@ss%w0rd!&x$y" });
-    // % is doubled for cmd.exe, which turns %% back into %
-    expect(scripts.bat).toContain('-adminpassword "P@ss%%w0rd!&x$y"');
-    expect(scripts.sh).toContain("-adminpassword 'P@ss%w0rd!&x$y'");
-  });
-
-  it("keeps a password with '..' and a single quote", () => {
-    const scripts = generateStartupScripts({ ...base, adminPassword: "pa..ss'word" });
-    expect(scripts.bat).toContain('-adminpassword "pa..ss\'word"');
-    expect(scripts.sh).toContain("-adminpassword 'pa..ss'\\''word'");
+  // The admin password no longer goes into the scripts (security audit
+  // R1-30/R1-35): the panel hands it over in PZ_PANEL_ADMIN_PASSWORD, and
+  // adminPasswordOutOfScripts.test.js runs that through real cmd.exe and
+  // bash with P@ss%w0rd!&x$y and friends. The one place it is still quoted
+  // into a script is a systemd/OpenRC unit's .sh, for one start.
+  it("quotes an admin password embedded for a systemd/OpenRC unit's .sh, single quote included", () => {
+    const scripts = generateStartupScripts({ ...base, embeddedAdminPassword: "pa..ss'w%rd!&x$y" });
+    expect(scripts.sh).toContain("PZ_ADMIN_PASSWORD='pa..ss'\\''w%rd!&x$y'");
+    expect(scripts.bat).not.toContain("pa..ss");
   });
 
   it("doubles a trailing backslash in the .bat so -cachedir=\"...\" keeps its closing quote", () => {
@@ -192,7 +190,7 @@ describe("generateStartupScripts()", () => {
 
   it("refuses a double quote or a control character anywhere, and writes no script", () => {
     for (const bad of FORBIDDEN) {
-      expect(() => generateStartupScripts({ ...base, adminPassword: `pw${bad}x` })).toThrow();
+      expect(() => generateStartupScripts({ ...base, embeddedAdminPassword: `pw${bad}x` })).toThrow();
       expect(() => generateStartupScripts({ ...base, zomboidDataPath: `D:\\Data${bad}x` })).toThrow();
       expect(() => generateStartupScripts({ ...base, serverName: `My${bad}Server` })).toThrow();
     }
@@ -200,7 +198,7 @@ describe("generateStartupScripts()", () => {
 
   it("a line break in the admin password can't start a new script line (it is refused, not stripped)", () => {
     expect(() =>
-      generateStartupScripts({ ...base, adminPassword: "hunter2\r\necho INJECTED\r\nrem " }),
+      generateStartupScripts({ ...base, embeddedAdminPassword: "hunter2\r\necho INJECTED\r\nrem " }),
     ).toThrow();
     expect(() =>
       generateStartupScripts({ ...base, zomboidDataPath: "C:\\PZServer_Data\r\necho INJECTED" }),
@@ -411,7 +409,7 @@ describe("POST /quick-setup and POST /install", () => {
     expect(sh).toContain(`-cachedir='${data}'`);
   });
 
-  it("/quick-setup writes the admin password into the scripts as typed", async () => {
+  it("/quick-setup keeps the admin password out of the scripts it writes", async () => {
     const response = createResponse();
     await getHandler("/quick-setup")(
       fakeReq({
@@ -424,12 +422,11 @@ describe("POST /quick-setup and POST /install", () => {
       response,
     );
     expect(response.status).not.toHaveBeenCalledWith(400);
-    expect(fs.readFileSync(path.join(installDir, "StartServer_MyServer.bat"), "utf8")).toContain(
-      '-adminpassword "P@ss%%w0rd!&x$y"',
-    );
-    expect(fs.readFileSync(path.join(installDir, "start-server_MyServer.sh"), "utf8")).toContain(
-      "-adminpassword 'P@ss%w0rd!&x$y'",
-    );
+    for (const name of ["StartServer_MyServer.bat", "start-server_MyServer.sh"]) {
+      const text = fs.readFileSync(path.join(installDir, name), "utf8");
+      expect(text).toContain("-servername");
+      expect(text).not.toContain("w0rd");
+    }
   });
 
   it("/quick-setup refuses an admin password a script cannot carry, before writing anything", async () => {
@@ -501,9 +498,9 @@ describe("POST /quick-setup and POST /install", () => {
     const bat = fs.readFileSync(path.join(installDir, "StartServer_MyServer.bat"), "utf8");
     expect(bat).toContain('-servername "MyServer"');
     expect(bat).toContain(`-cachedir="${data}"`);
-    expect(bat).toContain('-adminpassword "P@ss%%w0rd!&x$y"');
+    expect(bat).not.toContain("w0rd");
     const sh = fs.readFileSync(path.join(installDir, "start-server_MyServer.sh"), "utf8");
-    expect(sh).toContain("-adminpassword 'P@ss%w0rd!&x$y'");
+    expect(sh).not.toContain("w0rd");
   });
 
   it("/install refuses an admin password a script cannot carry, before SteamCMD runs", async () => {

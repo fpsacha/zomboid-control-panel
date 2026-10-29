@@ -111,7 +111,7 @@ import oidcRoutes from "./routes/oidc.js";
 import { loadOrCreateCerts } from "./utils/certs.js";
 import { sanitizeError, sanitizeErrorParams } from "./utils/sanitize.js";
 import { escapeLogText } from "./utils/logText.js";
-import { isExtensionOrigin } from "./utils/extensionOrigin.js";
+import { isExtensionOrigin, normalizeExtensionOrigin } from "./utils/extensionOrigin.js";
 import { ErrorCode } from "./utils/errorCodes.js";
 import { getSftpCachePath } from "./services/panelBridgeSftp.js";
 import { reconcileBridge } from "./services/bridgeDelivery.js";
@@ -122,6 +122,7 @@ import {
   readClientDistMetadata,
   resolveClientDistPath,
 } from "./utils/embeddedClient.js";
+import { refreshShippedExtensionCopies } from "./utils/embeddedExtension.js";
 import { resolveObservedServerRunning, resolveServerPhase } from "./utils/serverStatus.js";
 import { discoverMounts } from "./services/mountDiscovery.js";
 import { shouldAutoOpenBrowser } from "./utils/browserLaunch.js";
@@ -501,6 +502,13 @@ const allowedOrigins = new Set(defaultAllowedOrigins);
 // every private-network origin let such a page read an access token from
 // /api/auth/refresh.
 const credentialedOrigins = new Set();
+// SECURITY (2026-10-28, R2-27): browser extensions the operator named
+// (chrome-extension://<id> or moz-extension://<uuid> under Settings >
+// Remote Access, or in CORS_ORIGINS). While panel logins are off, only
+// these may call the API or open a socket (resolveOriginAccess()): before,
+// every extension in the world got credentialed CORS, so one with no
+// permission for the panel at all could read the whole API as admin.
+const pinnedExtensionOrigins = new Set();
 const MAX_CORS_BLOCK_EVENTS = 50;
 const MAX_CORS_CUSTOM_ORIGINS = 100;
 const MAX_CORS_ORIGIN_LENGTH = 256;
@@ -529,9 +537,10 @@ function normalizeOrigin(origin) {
 
 function parseOriginList(rawOrigins) {
   if (typeof rawOrigins !== "string") return [];
+  // An extension origin keeps its own form (URL.origin is "null" for it).
   const parsed = rawOrigins
     .split(/[\n,;]+/)
-    .map((origin) => normalizeOrigin(origin))
+    .map((origin) => (isExtensionOrigin(origin.trim()) ? normalizeExtensionOrigin(origin) : normalizeOrigin(origin)))
     .filter(Boolean);
   return [...new Set(parsed)].slice(0, MAX_CORS_CUSTOM_ORIGINS);
 }
@@ -624,9 +633,22 @@ function addAllowedOrigin(origin) {
   allowedOrigins.add(normalized);
 }
 
+// An origin the operator named. An extension's is kept apart: its "host" is
+// the extension id, which must never count as one of the panel's own host
+// names (isAllowedHostHeader() reads allowedOrigins).
+function addOperatorOrigin(origin) {
+  if (isExtensionOrigin(origin)) {
+    pinnedExtensionOrigins.add(origin);
+    return;
+  }
+  addAllowedOrigin(origin);
+  credentialedOrigins.add(origin);
+}
+
 function rebuildAllowedOriginsFromSettings(settings = {}) {
   allowedOrigins.clear();
   credentialedOrigins.clear();
+  pinnedExtensionOrigins.clear();
   for (const origin of defaultAllowedOrigins) {
     addAllowedOrigin(origin);
   }
@@ -634,8 +656,7 @@ function rebuildAllowedOriginsFromSettings(settings = {}) {
   const customOrigins = parseOriginList(settings.corsAllowedOrigins || "");
   corsState.customOrigins = new Set(customOrigins);
   for (const origin of customOrigins) {
-    addAllowedOrigin(origin);
-    credentialedOrigins.add(origin);
+    addOperatorOrigin(origin);
   }
 
   const httpsEnabled = settings.httpsEnabled === true;
@@ -652,8 +673,7 @@ function rebuildAllowedOriginsFromSettings(settings = {}) {
   if (envOrigins) {
     const parsed = parseOriginList(envOrigins);
     for (const origin of parsed) {
-      addAllowedOrigin(origin);
-      credentialedOrigins.add(origin);
+      addOperatorOrigin(origin);
     }
   }
 }
@@ -691,15 +711,18 @@ async function refreshCorsConfig() {
 }
 
 // CORS origin checker, shared between Express and Socket.IO. "credentialed":
-// no Origin, allow-all, the extension or an origin the operator named.
+// no Origin, allow-all, an extension or another origin the operator named.
 // "uncredentialed": the built-in localhost origins, or a private/LAN address
 // (192.168.x, 10.x, 100.x Tailscale, 172.16-31.x, LAN-style names) found by
 // shape. Those are no longer remembered in allowedOrigins, which made them
-// look operator-named. null: refused.
+// look operator-named. "extension": any other browser extension, which
+// resolveOriginAccess() decides on. null: refused.
 function classifyOrigin(origin) {
   if (!origin) return "credentialed";
   if (corsState.allowAll) return "credentialed";
-  if (isExtensionOrigin(origin)) return "credentialed";
+  if (isExtensionOrigin(origin)) {
+    return pinnedExtensionOrigins.has(normalizeExtensionOrigin(origin)) ? "credentialed" : "extension";
+  }
 
   const normalized = normalizeOrigin(origin);
   if (!normalized) return null;
@@ -721,8 +744,39 @@ function classifyOrigin(origin) {
   return null;
 }
 
-function isAllowedOrigin(origin) {
-  return classifyOrigin(origin) !== null;
+// classifyOrigin() plus the one answer that depends on the auth state. An
+// extension the operator did not name keeps credentialed CORS while panel
+// logins are on: it still needs the panel password for anything, and the
+// Steam Sync popup signs in with it. While logins are off every caller is
+// admin, so it is refused (hostCheckApplies(): fails closed).
+async function resolveOriginAccess(origin) {
+  const access = classifyOrigin(origin);
+  if (access !== "extension") return access;
+  return (await hostCheckApplies()) ? null : "credentialed";
+}
+
+// What a refused caller is told. An extension gets the exact line to add.
+function corsDenyMessage(origin) {
+  if (!isExtensionOrigin(origin)) return CORS_DENY_MESSAGE;
+  const named = normalizeExtensionOrigin(origin);
+  return named
+    ? `Panel logins are off, so this panel only answers the browser extensions you allowed. To allow this one, add ${named} under Settings > Remote Access (allowed origins).`
+    : "Panel logins are off, so this panel only answers the browser extensions you allowed under Settings > Remote Access (allowed origins).";
+}
+
+// Socket.IO's cors.origin, for the HTTP listener and the HTTPS one alike.
+function checkSocketOrigin(origin, callback) {
+  resolveOriginAccess(origin).then(
+    (access) => {
+      if (access !== null) {
+        callback(null, true);
+        return;
+      }
+      recordCorsBlock(origin, "socket");
+      callback(new Error(corsDenyMessage(origin)));
+    },
+    () => callback(new Error(corsDenyMessage(origin))),
+  );
 }
 
 // The panel's own page: the browser says so (Sec-Fetch-Site, which no page
@@ -832,14 +886,7 @@ function socketHandshakeAddress(req) {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: (origin, callback) => {
-      if (isAllowedOrigin(origin)) {
-        callback(null, true);
-      } else {
-        recordCorsBlock(origin, "socket");
-        callback(new Error(CORS_DENY_MESSAGE));
-      }
-    },
+    origin: checkSocketOrigin,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -931,13 +978,7 @@ export function setupHttpsServer({
   // this additional http.Server.
   io.attach(httpsServer, {
     cors: {
-      origin: (origin, callback) => {
-        if (isAllowedOrigin(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(CORS_DENY_MESSAGE));
-        }
-      },
+      origin: checkSocketOrigin,
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -1097,17 +1138,22 @@ function corsRefusal(origin) {
     loggedCorsRefusals.add(shown);
     log.warn(`CORS blocked request from origin: ${shown}`);
   }
-  return Object.assign(new Error(CORS_DENY_MESSAGE), { status: 403, corsRefused: true });
+  return Object.assign(new Error(corsDenyMessage(origin)), { status: 403, corsRefused: true });
 }
 
 // Delegate form: whether credentials are allowed depends on the request
-// (classifyOrigin, isSameOriginRequest), not only on the Origin. Without
-// Access-Control-Allow-Credentials the browser keeps a credentialed
+// (resolveOriginAccess, isSameOriginRequest), not only on the Origin.
+// Without Access-Control-Allow-Credentials the browser keeps a credentialed
 // response from the calling page.
 app.use(
-  cors((req, callback) => {
+  cors(async (req, callback) => {
     const origin = req.headers.origin;
-    const access = classifyOrigin(origin);
+    let access = null;
+    try {
+      access = await resolveOriginAccess(origin);
+    } catch {
+      access = null;
+    }
     if (!access) {
       recordCorsBlock(origin, "http");
       callback(corsRefusal(origin));
@@ -1131,7 +1177,7 @@ app.use(
 // runs body parsers in registration order, and whichever one reads the
 // request stream first is the one whose limit actually applies; a
 // path-scoped parser registered after the app-wide one would never run.
-app.use("/api/debug/client-errors", express.json({ limit: "16kb" }));
+app.use("/api/debug/client-errors", express.json({ limit: "16kb", inflate: false }));
 
 // Server Files text saves carry a whole file (up to 2 MiB) as a JSON
 // string; 6mb covers the worst-case JSON escaping of that. The app-wide
@@ -1148,8 +1194,14 @@ app.put(FILES_TEXT_SAVE_ROUTE, (req, _res, next) => {
 });
 
 // Body parser with explicit size limit
-const appJsonParser = express.json({ limit: "1mb" });
-app.use((req, res, next) => (req.deferLargeJsonBody ? next() : appJsonParser(req, res, next)));
+// SECURITY: mounted where apiLimiter is, not on every path: no route outside
+// /api reads a body, and a POST to any other path had up to 1 MB of JSON
+// parsed before its 404 with no rate limit at all. inflate: false refuses a
+// compressed body (415), which the 1 MB limit only measured once inflated:
+// a few bytes of brotli became a full 1 MB parse. The panel's own clients
+// never compress a request.
+const appJsonParser = express.json({ limit: "1mb", inflate: false });
+app.use("/api/", (req, res, next) => (req.deferLargeJsonBody ? next() : appJsonParser(req, res, next)));
 app.use(cookieParser());
 
 // Compress all HTTP responses (gzip/deflate) EXCEPT the <img>-tag-loaded
@@ -1226,6 +1278,13 @@ app.use("/api/server/start", strictLimiter);
 app.use("/api/server/stop", strictLimiter);
 app.use("/api/server/force-stop", strictLimiter);
 app.use("/api/server/restart", strictLimiter);
+// Start/Stop/Restart of a server other than the active one, from the
+// Dashboard's server list (routes/servers.js): the same budget as above.
+app.post("/api/servers/:id/start", strictLimiter);
+app.post("/api/servers/:id/stop", strictLimiter);
+app.post("/api/servers/:id/restart", strictLimiter);
+// The Scheduler page's "Restart now": the same live restart.
+app.post("/api/scheduler/restart-now", strictLimiter);
 app.use("/api/docker/containers", strictLimiter);
 app.use("/api/backup/restore", strictLimiter);
 app.use("/api/backup/delete-older-than", strictLimiter);
@@ -2951,9 +3010,14 @@ io.use(async (socket, next) => {
       return next();
     }
 
-    // Check for token in handshake auth or query params
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (!token) {
+    // SECURITY (2026-10-28): the token comes from the handshake's auth
+    // payload only, which is where the panel's client sends it
+    // (client/src/lib/socketAuth.ts). The URL query (?token=) used to be
+    // read too: a URL lands in proxy access logs and browser history, the
+    // reason HTTP stopped taking ?token= on every route but the SSE stream
+    // (QUERY_TOKEN_PATHS, security audit M2).
+    const token = socket.handshake.auth?.token;
+    if (typeof token !== "string" || !token) {
       return next(new Error("Authentication required"));
     }
 
@@ -3367,6 +3431,8 @@ let lastPlayerList = [];
 // Inferring this from lastPlayerList being empty swallowed every join onto an
 // empty server, which is most of them.
 let playerBaselineReady = false;
+// The names last shown from an ambiguous player list, or null.
+let lastAmbiguousPlayerNames = null;
 let playerPollingInterval = null;
 let rconConnectedAt = 0; // timestamp of last RCON connect — used for grace period
 
@@ -3385,9 +3451,10 @@ let rconConnectedAt = 0; // timestamp of last RCON connect — used for grace pe
 function resetPlayerPollingBaseline() {
   lastPlayerList = [];
   playerBaselineReady = false;
+  lastAmbiguousPlayerNames = null;
 }
 
-function startPlayerPolling() {
+export function startPlayerPolling() {
   // Poll every 5 seconds for player changes
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
@@ -3409,6 +3476,24 @@ function startPlayerPolling() {
 
       const result = await rconService.getPlayers();
       if (result.success && result.players) {
+        // SECURITY (audit R1-24): an ambiguous list (rcon.js
+        // parsePlayersReply()) has entries that are pieces of one player's
+        // name, e.g. "x\n-Alice" read as x and Alice. It is shown as it is,
+        // but nobody in it is announced on Discord, exported or taken as the
+        // baseline: the next unambiguous list is compared with the last one.
+        if (result.ambiguous) {
+          const shownNames = result.players.map((p) => p.name).sort().join("\n");
+          if (shownNames !== lastAmbiguousPlayerNames) {
+            lastAmbiguousPlayerNames = shownNames;
+            io.to("players").emit("players:update", result.players);
+            log.warn(
+              "The game's player list holds a name with a line break in it; join and leave notices wait until it is gone",
+            );
+          }
+          return;
+        }
+        const wasAmbiguous = lastAmbiguousPlayerNames !== null;
+        lastAmbiguousPlayerNames = null;
         const baselineWasReady = playerBaselineReady;
         playerBaselineReady = true;
 
@@ -3422,7 +3507,9 @@ function startPlayerPolling() {
           .sort()
           .join(",");
 
-        if (currentNames !== lastNames) {
+        // After an ambiguous list, the pages are shown the real one again
+        // even when nobody joined or left meanwhile.
+        if (currentNames !== lastNames || wasAmbiguous) {
           // Detect joins and leaves before updating the baseline
           const currentSet = new Set(result.players.map((p) => p.name));
           const lastSet = new Set(lastPlayerList.map((p) => p.name));
@@ -3485,7 +3572,7 @@ function startPlayerPolling() {
   log.info("Server-side player polling started (5s interval)");
 }
 
-function stopPlayerPolling() {
+export function stopPlayerPolling() {
   if (playerPollingInterval) {
     clearInterval(playerPollingInterval);
     playerPollingInterval = null;
@@ -4500,7 +4587,7 @@ export function resolvePanelPort(rawValue, { onInvalid } = {}) {
 // dropping it here (as this payload used to) meant the client had no way to
 // tell a private whisper between two players apart from ordinary public
 // chat, even though logTailer.js had already done the work of computing it
-// (see chatMessageKey/collectChatRoomIds) and discordBot.js's chat relay
+// (see processChatLogData) and discordBot.js's chat relay
 // already depends on this exact same field to keep private channels out of
 // Discord (PUBLIC_CHAT_TYPES in discordBot.js).
 export function buildChatSocketPayload(data, id) {
@@ -5247,6 +5334,20 @@ async function start() {
         // leaves its .restore-staging-* folder (a whole world's worth of
         // files) in Saves/Multiplayer; nothing else removes it.
         void backupService.sweepRestoreStaging();
+
+        // The Steam Sync extension next to the executable (browser-extension/
+        // and its zip) is left at the version first installed by an in-place
+        // update; bring it up to the one this binary carries (audit R2-28).
+        if (isPackaged) {
+          refreshShippedExtensionCopies(path.dirname(process.execPath)).then(
+            (changed) => {
+              if (changed.folderFiles.length || changed.zip) {
+                log.info("Updated the Steam Sync browser extension next to the panel to this version. Reload it in the browser to use it.");
+              }
+            },
+            (error) => log.warn(`Could not update the Steam Sync browser extension next to the panel: ${error.message}`),
+          );
+        }
 
         // If PZ server files were bind-mounted in but no server profile has
         // been created yet, point the user at Settings instead of leaving

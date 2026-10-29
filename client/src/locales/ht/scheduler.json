@@ -288,6 +288,7 @@
     "languageLabel": "Lang mesaj la",
     "templateLabel": "Modèl kontdaoun",
     "templateHint": "Itilize {count} pou nimewo a ak {unit} pou minit oswa segond.",
+    "templateNoPermission": "Pou ou ekri pwòp mesaj ou, ou bezwen pèmisyon server.world_events, e wòl sa a pa genyen li. Ou ka toujou chwazi yon lang epi itilize prereglaj li.",
     "presetButton": "Itilize prereglaj lang lan",
     "saveButton": "Sove avètisman yo",
     "saved": "Avètisman redèmaj yo sove",

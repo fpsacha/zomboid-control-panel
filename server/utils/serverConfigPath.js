@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { ErrorCode } from "./errorCodes.js";
+import { untrustedFolderReason } from "./untrustedFolder.js";
 import {
   zomboidDataFolderHolds,
   zomboidDataFolderRefusal,
@@ -61,6 +62,17 @@ export function serverConfigPathIsConfined(value, zomboidDataPath) {
     return false;
   }
   if (typeof zomboidDataPath !== "string" || !zomboidDataPath.trim()) {
+    return false;
+  }
+  // SECURITY (2026-10-28): a Windows network path (\\host\share) is judged on
+  // its text before anything below touches it: resolving it through links
+  // makes the panel's account sign in to that host. Only one inside the data
+  // folder's Server folder as written goes on (a data folder on a share, if
+  // the data-folder rule accepted it); any other is refused unread.
+  if (
+    untrustedFolderReason(value) === "networkShare" &&
+    !isSameOrInside(path.resolve(value), path.resolve(zomboidDataPath, "Server"))
+  ) {
     return false;
   }
   const target = resolveThroughLinks(value);

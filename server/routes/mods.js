@@ -86,6 +86,7 @@ import {
   validateGroupDocument,
 } from "../utils/modGroups.js";
 import { computeGroupSuggestions, isSuggestionKey } from "../utils/modGroupSuggestions.js";
+import { cleanRuleModId } from "../utils/modOrderRules.js";
 import { MOD_NOTE_LIMITS, cleanModNoteText, isNoteWorkshopId } from "../utils/modNotes.js";
 import {
   getWorkshopPaths,
@@ -127,6 +128,7 @@ import {
 import { downloadWorkshopItem } from "../services/workshopDownload.js";
 import { addConflictSuggestions, refreshConflictSuggestions } from "../services/modSmartScan.js";
 import { hardOrderEdges } from "../services/modSmartContext.js";
+import { loadCurrentExtensionFiles, zipExtensionFiles } from "../utils/embeddedExtension.js";
 
 // The workshop readers live in services/workshopModInfo.js; the route file
 // keeps exporting getModDetailsFromWorkshop for its existing importers.
@@ -159,6 +161,17 @@ router.use((req, res, next) => {
   if (req.path.toLowerCase().startsWith("/thumbnail/")) return next();
   return requireModsManage(req, res, next);
 });
+
+// A capability on top of mods.manage, checked inside a handler (the same
+// helper as routes/scheduler.js): requirePermission() answers the 401/403
+// itself, and this says whether the handler may go on.
+async function requireCapabilityInline(capability, req, res) {
+  let passed = false;
+  await requirePermission(capability)(req, res, () => {
+    passed = true;
+  });
+  return passed;
+}
 
 // ─── INI write mutex ────────────────────────────────────────────────────────
 // Serialises write operations to the same INI file so concurrent requests
@@ -942,6 +955,13 @@ router.post("/auto-restart", async (req, res) => {
       });
     }
 
+    // SECURITY: with auto-restart on, a tracked item's update restarts the
+    // running servers, so turning it on is a restart decision and takes
+    // server.control, as scheduling a restart does (routes/scheduler.js).
+    // mods.manage alone (which picks the tracked items, and can force an
+    // update check) turned it on. Turning it off stays with mods.manage.
+    if (enabled && !(await requireCapabilityInline("server.control", req, res))) return;
+
     if (enabled) {
       await modChecker.setUpdateCallback(async (updatedMods) => {
         const handled = await modChecker.handleModUpdate(updatedMods);
@@ -1022,6 +1042,20 @@ router.put("/restart-options", async (req, res) => {
           error: "delayIfPlayersOnline must be a boolean",
           code: ErrorCode.MODS_RESTART_DELAY_IF_PLAYERS_ONLINE_INVALID,
         });
+    }
+
+    // How a mod-update restart warns and waits for players is part of the
+    // restart (see POST /auto-restart): changing it takes server.control.
+    // The check interval stays with mods.manage.
+    const changes = (value, current) =>
+      value !== undefined && value !== current && Number(value) !== current;
+    if (
+      (changes(warningMinutes, modChecker.restartWarningMinutes) ||
+        changes(delayIfPlayersOnline, modChecker.delayIfPlayersOnline) ||
+        changes(maxDelayMinutes, modChecker.maxDelayMinutes)) &&
+      !(await requireCapabilityInline("server.control", req, res))
+    ) {
+      return;
     }
 
     await modChecker.setRestartOptions({
@@ -1147,7 +1181,11 @@ router.post("/sync-from-server", async (req, res) => {
     const workshopMatch = content.match(/^[ \t]*WorkshopItems[ \t]*=[ \t]*(.*)$/m);
 
     const modIds = splitModIdList(modsMatch?.[1]);
-    const workshopIds = splitIniList(workshopMatch?.[1]);
+    // Only digits-only ids are Workshop items (same filter as GET /tracked);
+    // anything else in a hand-edited line is neither tracked nor looked up.
+    const workshopIds = splitIniList(workshopMatch?.[1]).filter((id) =>
+      /^\d{1,15}$/.test(id),
+    );
 
     log.info(
       `sync-from-server: Found ${modIds.length} mod IDs and ${workshopIds.length} workshop IDs`,
@@ -1761,98 +1799,27 @@ router.post("/collection/extension-push", async (req, res) => {
   }
 });
 
-// Serves the panel's browser extension as a zip. Prefers a prebuilt zip next
-// to the install, but falls back to zipping `browser-extension/` on the fly —
-// Docker images and pkg builds ship the source folder, not the zip, so
-// relying on a prebuilt artifact made this endpoint 404 for most installs.
-// Every file popup.html loads must be listed: a missing urlPolicy.js would
-// leave the popup unable to send anything.
-const EXTENSION_SOURCE_FILES = [
-  "manifest.json",
-  "popup.html",
-  "popup.css",
-  "urlPolicy.js",
-  "popup.js",
-  "README.md",
-];
-
-function resolveExtensionPaths() {
-  const isPkg = typeof process.pkg !== "undefined";
-  const baseDir = isPkg
-    ? path.dirname(process.execPath)
-    : path.resolve(process.cwd());
-  const zipCandidates = [
-    path.join(baseDir, "zomboid-panel-extension.zip"),
-    path.join(baseDir, "release", "zomboid-panel-extension.zip"),
-    path.join(baseDir, "..", "release", "zomboid-panel-extension.zip"),
-  ];
-  const dirCandidates = [
-    path.join(baseDir, "browser-extension"),
-    path.join(baseDir, "..", "browser-extension"),
-  ];
-  return { zipCandidates, dirCandidates };
-}
-
-function firstExisting(candidates) {
-  for (const c of candidates) {
-    try {
-      if (fs.existsSync(c)) return c;
-    } catch {
-      /* ignore */
-    }
-  }
-  return null;
-}
-
+// Serves the panel's browser extension as a zip: the copy this panel version
+// carries (utils/embeddedExtension.js), never a prebuilt zip next to the
+// install, which an in-place update leaves at the version first installed.
 router.get("/collection/extension-bundle", async (req, res) => {
   try {
-    const { zipCandidates, dirCandidates } = resolveExtensionPaths();
-
-    const zipPath = firstExisting(zipCandidates);
-    if (zipPath) {
-      const stat = fs.statSync(zipPath);
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="zomboid-panel-extension.zip"',
-      );
-      res.setHeader("Content-Length", String(stat.size));
-      const zipStream = fs.createReadStream(zipPath);
-      zipStream.on("error", (err) => {
-        log.error(`Extension bundle stream error: ${err.message}`);
-        if (!res.headersSent) res.status(500).end();
-        else res.destroy();
-      });
-      zipStream.pipe(res);
-      return;
-    }
-
-    const srcDir = firstExisting(dirCandidates);
-    if (!srcDir) {
+    const files = loadCurrentExtensionFiles();
+    if (!files) {
       return res.status(404).json({
         error:
           "Browser extension files are missing from this panel install. Download zomboid-panel-extension.zip from the GitHub release instead.",
         code: ErrorCode.MODS_EXTENSION_FILES_MISSING,
       });
     }
-
-    const { default: archiver } = await import("archiver");
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const zip = await zipExtensionFiles(files);
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
       'attachment; filename="zomboid-panel-extension.zip"',
     );
-    archive.on("error", (err) => {
-      log.error(`Extension bundle zip failed: ${err.message}`);
-      res.destroy();
-    });
-    archive.pipe(res);
-    for (const name of EXTENSION_SOURCE_FILES) {
-      const filePath = path.join(srcDir, name);
-      if (fs.existsSync(filePath)) archive.file(filePath, { name });
-    }
-    await archive.finalize();
+    res.setHeader("Content-Length", String(zip.length));
+    res.end(zip);
   } catch (error) {
     log.error(`Extension bundle serve failed: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
@@ -5111,6 +5078,33 @@ router.get("/validate-config", async (req, res) => {
 
 // ===== MOD PRESETS =====
 
+// A preset's lists end up in WorkshopItems= and Mods= when it is applied, so
+// they follow the rules of every other writer of those lines: Workshop IDs
+// are 1-15 digits, mod IDs are what Mods= holds (cleanRuleModId), and a list
+// keeps at most PRESET_LIST_MAX entries (the load-order save's cap). PUT
+// /presets/:id stored whatever JSON it was sent: any value, nested to any
+// depth (which stops every later save of the panel database) or of any size.
+const PRESET_LIST_MAX = 2000;
+
+function presetWorkshopId(value) {
+  const id = typeof value === "number" && Number.isSafeInteger(value) ? String(value) : value;
+  return typeof id === "string" && /^\d{1,15}$/.test(id) ? id : null;
+}
+
+// The ids of a stored preset that can be written, for a preset saved before
+// the checks above (or edited by hand in db.json). Not cut to
+// PRESET_LIST_MAX: POST /presets saves the server's own lists, whatever
+// their length.
+function writablePresetIds(list, clean) {
+  if (!Array.isArray(list)) return [];
+  const out = new Set();
+  for (const raw of list) {
+    const id = clean(raw);
+    if (id !== null) out.add(id);
+  }
+  return [...out];
+}
+
 // Get all mod presets
 router.get("/presets", async (req, res) => {
   try {
@@ -5235,7 +5229,25 @@ router.put("/presets/:id", async (req, res) => {
           error: "workshopIds must be an array",
           code: ErrorCode.MODS_PRESET_UPDATE_WORKSHOP_IDS_ARRAY,
         });
-      updates.workshop_ids = req.body.workshopIds;
+      if (req.body.workshopIds.length > PRESET_LIST_MAX)
+        return res.status(400).json({
+          error: `Too many mod IDs (max ${PRESET_LIST_MAX})`,
+          code: ErrorCode.MODS_SAVE_ORDER_TOO_MANY,
+        });
+      const workshopIds = new Set();
+      for (const raw of req.body.workshopIds) {
+        const workshopId = presetWorkshopId(raw);
+        if (workshopId === null) {
+          const shown = (typeof raw === "string" ? raw : typeof raw).substring(0, 20);
+          return res.status(400).json({
+            error: `Invalid Workshop ID: ${shown}`,
+            code: ErrorCode.MODS_INVALID_WORKSHOP_ID_TEMPLATE,
+            params: sanitizeErrorParams({ workshopId: shown }),
+          });
+        }
+        workshopIds.add(workshopId);
+      }
+      updates.workshop_ids = [...workshopIds];
     }
     if (req.body.modIds !== undefined) {
       if (!Array.isArray(req.body.modIds))
@@ -5243,7 +5255,23 @@ router.put("/presets/:id", async (req, res) => {
           error: "modIds must be an array",
           code: ErrorCode.MODS_MOD_IDS_ARRAY_REQUIRED,
         });
-      updates.mods = req.body.modIds;
+      if (req.body.modIds.length > PRESET_LIST_MAX)
+        return res.status(400).json({
+          error: `Too many mod IDs (max ${PRESET_LIST_MAX})`,
+          code: ErrorCode.MODS_SAVE_ORDER_TOO_MANY,
+        });
+      const modIds = new Set();
+      for (const raw of req.body.modIds) {
+        const modId = cleanRuleModId(raw);
+        if (modId === null) {
+          return res.status(400).json({
+            error: "Each mod ID must be a string (max 200 chars)",
+            code: ErrorCode.MODS_SAVE_ORDER_MODID_STRING_REQUIRED,
+          });
+        }
+        modIds.add(modId);
+      }
+      updates.mods = [...modIds];
     }
 
     const preset = await updateModPreset(id, updates);
@@ -5323,6 +5351,11 @@ router.post("/presets/:id/apply", async (req, res) => {
       });
     }
 
+    // Only what PUT /presets/:id would accept now reaches the ini (a preset
+    // saved before that check could hold anything).
+    const presetWorkshopIds = writablePresetIds(preset.workshop_ids, presetWorkshopId);
+    const presetModIds = writablePresetIds(preset.mods, cleanRuleModId);
+
     let backupWarning = null;
     await withIniLock(iniPath, async () => {
       let content = readTextFile(iniPath);
@@ -5332,7 +5365,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // a map mod's map stayed in Map= after a preset without it (and a
       // preset with one loaded it without its map).
       const itemsBefore = workshopItemsOf(content);
-      const itemsAfter = (preset.workshop_ids || []).map(String);
+      const itemsAfter = presetWorkshopIds;
       const isItemId = (id) => /^\d{1,15}$/.test(id);
       const removedItems = itemsBefore.filter((id) => isItemId(id) && !itemsAfter.includes(id));
       const addedItems = itemsAfter.filter((id) => isItemId(id) && !itemsBefore.includes(id));
@@ -5362,7 +5395,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // Existence must be checked with the same anchored regex used to
       // replace it, not a plain .includes() -- see this file's first
       // ini-write site for why.
-      const workshopLine = `WorkshopItems=${sanitizeIniList(preset.workshop_ids || [])}`;
+      const workshopLine = `WorkshopItems=${sanitizeIniList(presetWorkshopIds)}`;
       if (content.match(/^[ \t]*WorkshopItems[ \t]*=.*/m)) {
         content = content.replace(/^[ \t]*WorkshopItems[ \t]*=.*/m, () => workshopLine);
       } else {
@@ -5376,7 +5409,7 @@ router.post("/presets/:id/apply", async (req, res) => {
       // `id=` legitimately IS a 5-15 digit number (e.g. "Tear All Clothes"
       // 3519629457, see this file's enable-disk-mod handler). Character-only
       // sanitization here, same bypass already used for disk-verified IDs.
-      const modsLine = `Mods=${sanitizeIniList(preset.mods || [])}`;
+      const modsLine = `Mods=${sanitizeIniList(presetModIds)}`;
       if (content.match(/^[ \t]*Mods[ \t]*=.*/m)) {
         content = content.replace(/^[ \t]*Mods[ \t]*=.*/m, () => modsLine);
       } else {
@@ -5389,12 +5422,12 @@ router.post("/presets/:id/apply", async (req, res) => {
     });
 
     log.info(
-      `Applied mod preset "${preset.name}": ${(preset.workshop_ids || []).length} workshop items, ${(preset.mods || []).length} mod IDs`,
+      `Applied mod preset "${preset.name}": ${presetWorkshopIds.length} workshop items, ${presetModIds.length} mod IDs`,
     );
     res.json({
       message: `Preset "${preset.name}" applied successfully`,
-      workshopCount: (preset.workshop_ids || []).length,
-      modCount: (preset.mods || []).length,
+      workshopCount: presetWorkshopIds.length,
+      modCount: presetModIds.length,
       ...(backupWarning ? { backupWarning } : {}),
     });
   } catch (error) {

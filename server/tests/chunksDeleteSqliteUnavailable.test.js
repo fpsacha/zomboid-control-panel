@@ -21,6 +21,7 @@ vi.mock("../database/init.js", () => ({
 
 vi.mock("../utils/vehiclesDb.js", () => ({
   deleteVehiclesInBoxes: vi.fn(),
+  vehiclesDbHasUnfinishedTransaction: vi.fn(async () => false),
 }));
 
 vi.mock("../utils/sqlJs.js", async (importOriginal) => {

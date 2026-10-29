@@ -50,6 +50,8 @@ import { memoryMinExceedsMax, memoryMinExceedsMaxFields } from "../utils/memory.
 import { setSteamSessionCredentials } from "../services/steamSessionCredentials.js";
 import { KNOWN_HOSTS_SETTING } from "../services/sftpHostKeys.js";
 import { SFTP_PASSWORD_REQUIRED_MESSAGE, sftpTargetOf } from "../utils/sftpSavedTarget.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { isExtensionOrigin, normalizeExtensionOrigin } from "../utils/extensionOrigin.js";
 
 const SFTP_TARGET_SETTING_KEYS = [
   "panelBridgeSftpHost",
@@ -263,7 +265,14 @@ const SETTINGS_KEY_CAPABILITY = {
   workshopCollectionAutoSync: "mods.manage",
   steamSessionId: "mods.manage",
   steamLoginSecure: "mods.manage",
+  // Restarting the server when a mod updates, and its warning: the same
+  // capability as the Mods page's own door (routes/mods.js POST
+  // /auto-restart, PUT /restart-options).
+  modAutoRestart: "server.control",
+  modRestartDelay: "server.control",
 };
+
+const STEAM_COOKIE_KEYS = new Set(["steamSessionId", "steamLoginSecure"]);
 
 const ORIGIN_DELIMITER_REGEX = /[\n,;]+/;
 const MAX_CORS_ALLOWED_ORIGINS_LENGTH = 5000;
@@ -291,6 +300,15 @@ function validateCorsAllowedOrigins(value) {
   for (const origin of rawOrigins) {
     if (origin.length > MAX_CORS_ORIGIN_LENGTH) {
       return `Origin is too long (max ${MAX_CORS_ORIGIN_LENGTH} chars): ${origin.slice(0, 40)}...`;
+    }
+    // A browser extension the operator lets in while panel logins are off
+    // (server/index.js, resolveOriginAccess()): chrome-extension://<id> or
+    // moz-extension://<uuid>, nothing after it.
+    if (isExtensionOrigin(origin)) {
+      if (!normalizeExtensionOrigin(origin)) {
+        return `Invalid origin format: ${origin}`;
+      }
+      continue;
     }
     try {
       const url = new URL(origin);
@@ -606,6 +624,16 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         if (!delayCheck.ok) {
           return res.status(400).json({ error: delayCheck.message, code: ErrorCode.CONFIG_INVALID_NUMERIC_FIELD, params: sanitizeErrorParams({ message: delayCheck.message }) });
         }
+      }
+
+      // SteamCMD is never run from a Workshop download folder or a network
+      // share (routes/server.js's steamCmdFolderRefusal()); same rule here.
+      if (key === "steamcmdPath" && typeof value === "string" && untrustedFolderReason(value)) {
+        return res.status(400).json({
+          error:
+            "SteamCMD can't be used from this folder: it is inside a Steam Workshop download folder or on a network share, whose files anyone could supply. Choose the folder SteamCMD is installed in on this computer.",
+          code: ErrorCode.STEAMCMD_FOLDER_REFUSED,
+        });
       }
 
       if (key === "lanIpAddress" && value !== "" && net.isIP(value) !== 4) {
@@ -964,6 +992,13 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         );
         return false;
       }
+      // SECURITY: the Steam cookies live in their own secret files and
+      // db.json keeps null for them (services/steamSessionCredentials.js),
+      // which GET returns as it is, so Settings sends that null back on
+      // every Save. A null is "unchanged", as the mask is: it used to clear
+      // both cookies, for any panel.settings holder (the mods.manage check
+      // below compared it with the stored null and let it through).
+      if (STEAM_COOKIE_KEYS.has(key) && value === null) return false;
       return true;
     });
 
@@ -999,7 +1034,13 @@ router.put("/app-settings", requirePermission("panel.settings"), async (req, res
         requiredCapability = "files.manage";
       }
       if (!requiredCapability) continue;
-      if (JSON.stringify(currentSettings[key]) === JSON.stringify(value)) {
+      // The stored copy of a Steam cookie says nothing about the cookie in
+      // its secret file (it is null once one is saved), so any value sent
+      // for one is a change.
+      if (
+        !STEAM_COOKIE_KEYS.has(key) &&
+        JSON.stringify(currentSettings[key]) === JSON.stringify(value)
+      ) {
         continue;
       }
       if (callerCapabilities === null) {

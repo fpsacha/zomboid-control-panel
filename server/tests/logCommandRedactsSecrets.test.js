@@ -9,7 +9,7 @@ import fs from "fs";
 // db.json. Checks the FILE on disk, not just logCommand's return value --
 // the whole point of the original defect was that the secret reached disk.
 
-const { logCommand, getCommandHistory, flushWrites } = await import("../database/init.js");
+const { logCommand, getCommandHistory, flushWrites, getDb, compactDatabase } = await import("../database/init.js");
 const { getDataPaths } = await import("../utils/paths.js");
 
 describe("logCommand redacts RCON secrets before persisting", () => {
@@ -42,5 +42,43 @@ describe("logCommand redacts RCON secrets before persisting", () => {
 
     const history = await getCommandHistory(10);
     expect(history.some((entry) => entry.command === 'adduser "Carol"')).toBe(true);
+  });
+});
+
+// SECURITY (audit R1-8): unquoted arguments (what Discord /rcon always
+// sends) and setpassword reached db.json in clear text, and rows logged
+// before this fix are scrubbed when the database is loaded or compacted.
+describe("logCommand redacts every password-carrying command form", () => {
+  it("redacts the unquoted adduser Discord /rcon runs, and setpassword, on disk", async () => {
+    await logCommand("adduser Dave discord-pass-1", "User added", true);
+    await logCommand("setpassword Dave reset-pass-2", "Password changed", true);
+    await flushWrites();
+
+    const { dataDir } = getDataPaths();
+    const raw = fs.readFileSync(`${dataDir}/db.json`, "utf8");
+    expect(raw).not.toContain("discord-pass-1");
+    expect(raw).not.toContain("reset-pass-2");
+    const history = await getCommandHistory(10);
+    expect(history.some((entry) => entry.command === 'setpassword Dave "[REDACTED]"')).toBe(true);
+  });
+
+  it("scrubs rows an older version stored with the password in clear", async () => {
+    const db = await getDb();
+    db.data.command_history.unshift({
+      id: "old-row",
+      server_id: null,
+      command: "adduser Erin old-clear-pass",
+      response: "echo: setpassword Erin old-clear-pass-2",
+      success: 1,
+      executed_at: new Date().toISOString(),
+    });
+    await compactDatabase();
+
+    const { dataDir } = getDataPaths();
+    const raw = fs.readFileSync(`${dataDir}/db.json`, "utf8");
+    expect(raw).not.toContain("old-clear-pass");
+    const row = (await getCommandHistory(50)).find((entry) => entry.id === "old-row");
+    expect(row.command).toBe('adduser Erin "[REDACTED]"');
+    expect(row.response).toBe('echo: setpassword Erin "[REDACTED]"');
   });
 });

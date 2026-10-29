@@ -19,7 +19,14 @@ import {
 } from "../utils/serverRconSecrets.js";
 import { redactRconCommandSecrets } from "../utils/rconCommandRedaction.js";
 import { readUiSecretFile, writeUiSecretFile } from "../utils/uiSecretFile.js";
+import {
+  restrictExistingSecretFiles,
+  restrictSecretFile,
+  restrictSecretFileSync,
+  secretFileAclsEnabled,
+} from "../utils/secretFileAcl.js";
 import { isPidAlive } from "../utils/pidLiveness.js";
+import { BRIDGE_ARGS_MAX_DEPTH, bridgeArgsNestingDepth } from "../utils/bridgeCommandArgs.js";
 const log = createLogger("DB");
 
 // ============================================
@@ -482,6 +489,9 @@ export async function flushWrites() {
       } catch (_) {
         /* best-effort: Windows */
       }
+      // The Windows equivalent (utils/secretFileAcl.js), on the temporary
+      // file: the rename keeps its ACL, so db.json never has its folder's.
+      if (secretFileAclsEnabled()) await restrictSecretFile(tmpPath);
       fs.renameSync(tmpPath, dbPath);
       _writeRetries = 0; // Reset on success
       _lastWriteError = null;
@@ -715,6 +725,7 @@ function createBackup(label = "") {
     } catch (_) {
       /* best-effort: Windows */
     }
+    restrictSecretFileSync(backupFile); // the Windows equivalent (utils/secretFileAcl.js)
     pruneBackups();
     return backupFile;
   } catch (err) {
@@ -938,6 +949,7 @@ export function validateData(data) {
         encoding: "utf-8",
         mode: 0o600,
       });
+      restrictSecretFileSync(snapshotPath); // Windows (utils/secretFileAcl.js)
       log.warn(
         `Saved a snapshot of the pre-repair file for recovery: ${snapshotPath}`,
       );
@@ -1011,6 +1023,15 @@ function appendCapped(arr, item, max, { newest = true } = {}) {
   return arr;
 }
 
+function redactCommandHistoryRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const command = redactRconCommandSecrets(row.command);
+  const response = redactRconCommandSecrets(row.response);
+  return command === row.command && response === row.response
+    ? row
+    : { ...row, command, response };
+}
+
 /**
  * Apply retention policies to trim oversized collections.
  */
@@ -1028,6 +1049,11 @@ function compactData(data) {
     data.command_history,
     RETENTION.command_history,
   );
+  // SECURITY (audit R1-8): rows logged before the redaction covered
+  // setpassword and unquoted arguments still hold the password.
+  if (Array.isArray(data.command_history)) {
+    data.command_history = data.command_history.map(redactCommandHistoryRow);
+  }
   data.player_logs = capPlayerLogs(data.player_logs);
   data.server_events = trimArray(data.server_events, RETENTION.server_events);
   data.schedule_history = trimArray(
@@ -1105,6 +1131,9 @@ export async function getDb() {
     } catch (_) {
       /* backupDir may not be readable yet on first run */
     }
+    // The Windows equivalent, for db.json, the *.secret files and the
+    // backups an earlier version left with their folder's ACL.
+    void restrictExistingSecretFiles(dataDir);
 
     const adapter = new JSONFile(dbPath);
     db = new Low(adapter, defaultData);
@@ -1178,6 +1207,7 @@ export async function getDb() {
         } catch (_) {
           /* best-effort */
         }
+        restrictSecretFileSync(corruptPath); // the Windows equivalent (utils/secretFileAcl.js)
       } catch (_) {
         /* best-effort */
       }
@@ -1456,6 +1486,30 @@ export async function getCommandHistory(limit = 100, serverId = undefined) {
 // getActiveServerId() anyway, for symmetry with logCommand()'s identical
 // contract and in case a future caller (a per-server PanelBridge instance,
 // should that ever exist) needs to override it.
+// SECURITY (2026-10-28): the args are whatever the caller sent, and this
+// used to keep the caller's object itself. Large args grew db.json by up to
+// 1 MB per entry (500 entries are kept), and args nested deeper than
+// JSON.stringify can go made every later db.json write fail. A copy is kept
+// when it nests at most 32 deep and serializes to 4 KB or less; otherwise
+// only the first 20 key names.
+const BRIDGE_LOG_ARGS_MAX_CHARS = 4096;
+function boundedBridgeLogArgs(args) {
+  if (args === undefined || args === null) return {};
+  const keys = () => (typeof args === "object" && !Array.isArray(args)
+    ? Object.keys(args).slice(0, 20).map((key) => key.slice(0, 64))
+    : []);
+  if (bridgeArgsNestingDepth(args) > BRIDGE_ARGS_MAX_DEPTH) return { truncated: true, keys: keys() };
+  let text;
+  try {
+    text = JSON.stringify(args);
+  } catch {
+    return { truncated: true };
+  }
+  if (typeof text !== "string") return {};
+  if (text.length <= BRIDGE_LOG_ARGS_MAX_CHARS) return JSON.parse(text);
+  return { truncated: true, keys: keys() };
+}
+
 export async function logBridgeCommand(
   action,
   args,
@@ -1482,7 +1536,7 @@ export async function logBridgeCommand(
     id: generateId(),
     server_id: serverId !== undefined ? serverId : await getActiveServerId(),
     action,
-    args: args || {},
+    args: boundedBridgeLogArgs(args),
     result: truncatedResult,
     success: success ? 1 : 0,
     duration_ms: durationMs,
@@ -1575,6 +1629,11 @@ export async function getScheduledTasks() {
   return tasks;
 }
 
+// Far more than any server's schedule (a task already repeats on its cron);
+// a panel saved over it by an older version keeps its tasks, it only can't
+// add more.
+export const MAX_SCHEDULED_TASKS = 500;
+
 export async function createScheduledTask(
   name,
   cronExpression,
@@ -1585,6 +1644,16 @@ export async function createScheduledTask(
   if (!Array.isArray(db.data.scheduled_tasks)) db.data.scheduled_tasks = [];
 
   const resolvedServerId = serverId || (await getActiveServerId());
+
+  // SECURITY: each task is a cron job kept and re-armed at every start, and
+  // nothing limited how many could be created. Checked here, after the last
+  // await, so two requests at once can't both slip under it.
+  if (db.data.scheduled_tasks.length >= MAX_SCHEDULED_TASKS) {
+    throw Object.assign(new Error(`Too many scheduled tasks (max ${MAX_SCHEDULED_TASKS})`), {
+      code: "SCHEDULER_TOO_MANY_TASKS",
+      max: MAX_SCHEDULED_TASKS,
+    });
+  }
 
   const task = {
     id: generateNumericId(db.data.scheduled_tasks),
@@ -1786,7 +1855,11 @@ export async function getLatestScheduleExecutionByCommand(command, serverId = un
 // of pre-fix untagged rows. `serverId` overrides the active server for a
 // caller that knows which server the action happened on (PanelBridge's
 // player connect/disconnect, see recordPlayerSession()).
-export async function logPlayerAction(playerName, action, details = null, serverId = undefined) {
+// SECURITY (2026-10-28, audit R2-6): `actor` names the panel account behind a
+// deliberate action (routes/players.js), so the trail shows which moderator
+// granted an access level or banned someone. Absent on automatic rows, on
+// rows from before this change, and while panel logins are off.
+export async function logPlayerAction(playerName, action, details = null, serverId = undefined, actor = null) {
   const db = await getDb();
   const entry = {
     id: generateId(),
@@ -1794,6 +1867,7 @@ export async function logPlayerAction(playerName, action, details = null, server
     player_name: playerName,
     action,
     details,
+    ...(typeof actor === "string" && actor ? { actor } : {}),
     logged_at: new Date().toISOString(),
   };
 
@@ -2624,6 +2698,43 @@ export async function getPlayerNote(playerName) {
   );
 }
 
+// SECURITY (2026-10-28, audit R1-9): player notes had no count, tag or total
+// size bound, so the role that writes them could grow db.json (rewritten in
+// full on every flush) without limit, one new player name per request. New
+// names are refused past MAX_PLAYER_NOTES, and any note that would grow the
+// total past MAX_PLAYER_NOTES_CHARS; a note can always be shortened or
+// deleted. Refused rather than evicted: the oldest notes are other staff's
+// records.
+export const MAX_PLAYER_NOTES = 5000;
+export const MAX_PLAYER_NOTE_TAGS = 20;
+const MAX_PLAYER_NOTES_CHARS = 5_000_000;
+
+export class PlayerNotesFullError extends Error {
+  constructor() {
+    super("Player notes are full");
+    this.name = "PlayerNotesFullError";
+  }
+}
+
+function playerNoteChars(entry) {
+  const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+  return (
+    String(entry?.note ?? "").length +
+    tags.reduce((sum, tag) => sum + String(tag ?? "").length, 0)
+  );
+}
+
+// Strings only, no blank or repeated tag, at most MAX_PLAYER_NOTE_TAGS.
+export function normalizePlayerNoteTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const unique = [];
+  for (const tag of tags) {
+    if (typeof tag !== "string" || tag.trim() === "" || unique.includes(tag)) continue;
+    unique.push(tag);
+  }
+  return unique.slice(0, MAX_PLAYER_NOTE_TAGS);
+}
+
 export async function upsertPlayerNote(playerName, note, tags = []) {
   const db = await getDb();
   if (!db.data.player_notes) db.data.player_notes = [];
@@ -2635,9 +2746,25 @@ export async function upsertPlayerNote(playerName, note, tags = []) {
   const entry = {
     player_name: playerName,
     note: note || "",
-    tags: tags || [],
+    tags: normalizePlayerNoteTags(tags),
     updated_at: new Date().toISOString(),
   };
+
+  if (existingIndex === -1 && db.data.player_notes.length >= MAX_PLAYER_NOTES) {
+    throw new PlayerNotesFullError();
+  }
+  const previousChars =
+    existingIndex === -1 ? 0 : playerNoteChars(db.data.player_notes[existingIndex]);
+  const nextChars = playerNoteChars(entry);
+  if (nextChars > previousChars) {
+    const totalChars = db.data.player_notes.reduce(
+      (sum, existing) => sum + playerNoteChars(existing),
+      0,
+    );
+    if (totalChars - previousChars + nextChars > MAX_PLAYER_NOTES_CHARS) {
+      throw new PlayerNotesFullError();
+    }
+  }
 
   if (existingIndex !== -1) {
     db.data.player_notes[existingIndex] = {

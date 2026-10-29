@@ -97,10 +97,20 @@ function knownGateNamesFor(file, source) {
   return names;
 }
 
+// Comments are left out: a handler that only MENTIONS requirePermission()
+// in a comment (auth.js GET /me does) has no gate.
+function withoutComments(window) {
+  return window
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:\/\/|\/?\*).*$/, "").replace(/\s\/\/.*$/, ""))
+    .join("\n");
+}
+
 function windowHasKnownGate(window, knownNames) {
-  if (INLINE_GATE_RE.test(window)) return true;
+  const code = withoutComments(window);
+  if (INLINE_GATE_RE.test(code)) return true;
   for (const name of knownNames) {
-    if (new RegExp(`\\b${name}\\b`).test(window)) return true;
+    if (new RegExp(`\\b${name}\\b`).test(code)) return true;
   }
   return false;
 }
@@ -150,6 +160,7 @@ const UNGATED_BY_DESIGN = new Map([
   ["auth.js GET /status", "pre-session: tells the client whether setup/login is needed before any session exists"],
   ["auth.js POST /setup", "pre-session: first-run account creation, only works when no users exist yet"],
   ["auth.js POST /login", "pre-session: this IS how a session begins"],
+  ["auth.js POST /extension-proof", "pre-session: the Steam Sync extension checks a plain-http:// address is the panel before it signs in; answers only an HMAC of the caller's own challenge, rate-limited"],
   ["auth.js POST /refresh", "pre-session: the refresh token itself is the credential being checked"],
   ["auth.js POST /logout", "pre-session: clears a cookie, no capability model applies to ending your own session"],
   ["auth.js GET /me", "self-scoped via getAuthenticatedUser(req) -- never a caller-supplied id"],
@@ -239,7 +250,8 @@ const UNGATED_BY_DESIGN = new Map([
   ["servers.js GET /", "sanitizeServerResponseList() masks RCON password and other sensitive fields"],
   ["servers.js GET /status", "per-server id/status detection result only, never the raw server record"],
   ["servers.js GET /lifecycle", "the lifecycle lock's operation and server name only, never the raw server record"],
-  ["servers.js GET /rcon-status", "own comment in source: never returns credential material"],
+  // GET /rcon-status left this list: it is gated (servers.manage or
+  // rcon.execute), which the stale entry kept from being checked.
   ["servers.js GET /updates", "per-server mod names and game build numbers only, never the raw server record"],
   ["servers.js GET /active", "sanitizeServerResponse() masks sensitive fields"],
   ["servers.js GET /:id", "sanitizeServerResponse() masks sensitive fields"],
@@ -256,7 +268,13 @@ const UNGATED_BY_DESIGN = new Map([
   ["templates.js GET /", "non-secret catalog read -- templates structurally exclude RCONPassword/port/ServerName via resolveIniExclusions() (2026-08-24 conv-template-privesc)"],
   ["templates.js GET /:id", "same -- a single template's contents, same exclusion"],
   ["templates.js GET /:id/export", "same data as GET /:id, delivered as a download"],
-  ["templates.js POST /:id/preview", "read-only diff against a live server's current config, same exclusion"],
+  // POST /:id/preview left this list: it is gated (templates.manage) since
+  // the 2026-10-20 access-control fix, and an entry here skipped its check.
+
+  // --- index.js: the app-level routes (see the index.js scan below) ---
+  ["index.js GET /api/health", "pre-session: version, build and boot id only, the liveness probe Docker and the updater poll"],
+  ["index.js GET /api/panel-info", "login-only on purpose: the panel's own LAN address and port, shown to every role"],
+  ["index.js GET /api/panel/update-status", "login-only on purpose (Layout and Dashboard poll it for every role); redactUpdateStatus() leaves out the panel.settings fields for other roles (#193)"],
 ]);
 
 function extractRoutes(source) {
@@ -271,6 +289,67 @@ function extractRoutes(source) {
     });
   }
   return routes;
+}
+
+// The gate window of routes[i]: from its declaration to the next route's,
+// at most GATE_WINDOW_CHARS (see the per-file test below for why both).
+function gateWindow(source, routes, i) {
+  const nextRouteIndex = i + 1 < routes.length ? routes[i + 1].index : source.length;
+  return source.slice(routes[i].index, Math.min(routes[i].index + GATE_WINDOW_CHARS, nextRouteIndex));
+}
+
+// --- server/index.js: the routes declared on the app itself ---
+// /api/panel/restart, the panel update routes, /api/panel-info and
+// /api/health live in index.js as app.<verb>(...), which the router scan
+// above never saw: an ungated app.post("/api/...") there passed silently.
+// Same regex shape as ROUTE_DECL_RE, for `app.` (not `req.app.`), and only
+// /api/ paths (the SPA catch-all is a path-less app.use()).
+const INDEX_FILE = path.join(__dirname, "..", "index.js");
+const APP_ROUTE_DECL_RE =
+  /(?<![\w.$])app\.(get|post|put|patch|delete)\(\s*(?:\r?\n\s*)?(["'`])(\/api\/(?:\\.|(?!\2)[^\r\n])*)\2/g;
+// index.js also hangs a route-specific rate limiter on a router's path
+// (`app.delete("/api/backup/:name", strictLimiter);`): a middleware for the
+// route the router file declares and gates, not a route of its own.
+const LIMITER_ONLY_RE = /^\s*,\s*\w+Limiter\s*\)\s*;/;
+// A route whose path is a constant, not a literal, is invisible to the
+// regex above. The known ones are FILES_TEXT_SAVE_ROUTE's two hooks (they
+// mark and parse the Server Files text save, then pass it on to the files
+// router, which is blanket-gated): a new one fails the test below until it
+// is looked at and listed.
+const APP_ROUTE_CONST_PATH_RE = /(?<![\w.$])app\.(get|post|put|patch|delete)\(\s*([A-Za-z_$][\w$]*)\s*,/g;
+const KNOWN_CONST_PATH_APP_ROUTES = new Set(["FILES_TEXT_SAVE_ROUTE"]);
+
+function extractAppRoutes(source) {
+  const routes = [];
+  let match;
+  APP_ROUTE_DECL_RE.lastIndex = 0;
+  while ((match = APP_ROUTE_DECL_RE.exec(source))) {
+    const rest = source.slice(match.index + match[0].length, match.index + match[0].length + 200);
+    if (LIMITER_ONLY_RE.test(rest)) continue;
+    routes.push({ method: match[1].toUpperCase(), routePath: match[3], index: match.index });
+  }
+  return routes;
+}
+
+// Every route the scans see, keyed like UNGATED_BY_DESIGN, with whether its
+// own window holds a gate (a blanket gate is not counted: the one entry
+// inside a blanket-gated file is exempted from that blanket by name).
+function allRoutesWithInlineGates() {
+  const all = new Map();
+  for (const file of listRouteFiles()) {
+    const source = fs.readFileSync(path.join(ROUTES_DIR, file), "utf-8");
+    const routes = extractRoutes(source);
+    const knownNames = knownGateNamesFor(file, source);
+    routes.forEach((route, i) => {
+      all.set(`${file} ${route.method} ${route.routePath}`, windowHasKnownGate(gateWindow(source, routes, i), knownNames));
+    });
+  }
+  const indexSource = fs.readFileSync(INDEX_FILE, "utf-8");
+  const appRoutes = extractAppRoutes(indexSource);
+  appRoutes.forEach((route, i) => {
+    all.set(`index.js ${route.method} ${route.routePath}`, windowHasKnownGate(gateWindow(indexSource, appRoutes, i), new Set()));
+  });
+  return all;
 }
 
 describe("server/routes/ authorization coverage: every route is gated, blanket-covered, or a documented exclusion", () => {
@@ -361,4 +440,48 @@ describe("server/routes/ authorization coverage: every route is gated, blanket-c
       ).toEqual([]);
     });
   }
+
+  it("index.js: every app-level /api route is gated or a documented exclusion", () => {
+    const source = fs.readFileSync(INDEX_FILE, "utf-8");
+    const routes = extractAppRoutes(source);
+    // panel/restart, update-check, -status, -preflight, -apply-log,
+    // -download, panel-info, health: a drop means the regex stopped matching.
+    expect(routes.length).toBeGreaterThanOrEqual(8);
+
+    const uncovered = [];
+    routes.forEach((route, i) => {
+      const key = `index.js ${route.method} ${route.routePath}`;
+      if (UNGATED_BY_DESIGN.has(key)) return;
+      if (!windowHasKnownGate(gateWindow(source, routes, i), new Set())) uncovered.push(key);
+    });
+    expect(
+      uncovered,
+      uncovered.length
+        ? `${uncovered.length} app-level route(s) in index.js have no gate and no UNGATED_BY_DESIGN entry.`
+        : "",
+    ).toEqual([]);
+  });
+
+  it("index.js: no app-level route hides its path in a constant this scan can't read", () => {
+    const source = fs.readFileSync(INDEX_FILE, "utf-8");
+    const unknown = [];
+    let match;
+    APP_ROUTE_CONST_PATH_RE.lastIndex = 0;
+    while ((match = APP_ROUTE_CONST_PATH_RE.exec(source))) {
+      if (!KNOWN_CONST_PATH_APP_ROUTES.has(match[2])) unknown.push(`app.${match[1]}(${match[2]}, ...)`);
+    }
+    expect(unknown).toEqual([]);
+  });
+
+  // An exclusion that outlives the gap it documented is a stale pass: the
+  // route's own gate is never checked while its entry is here.
+  it("every UNGATED_BY_DESIGN entry names a route that exists and still has no gate of its own", () => {
+    const routes = allRoutesWithInlineGates();
+    const stale = [];
+    for (const key of UNGATED_BY_DESIGN.keys()) {
+      if (!routes.has(key)) stale.push(`${key}: no such route`);
+      else if (routes.get(key)) stale.push(`${key}: gated now -- remove the entry`);
+    }
+    expect(stale).toEqual([]);
+  });
 });

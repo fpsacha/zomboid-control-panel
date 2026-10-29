@@ -67,6 +67,7 @@ import {
 import {
   createRestoreStagingDir,
   extractArchiveToStaging,
+  freeInodesAt,
   normalizeZipEntryPath,
   sweepStaleRestoreStaging,
 } from "./backupRestoreExtract.js";
@@ -356,6 +357,39 @@ function dataFolderUsable(server, dataPath) {
     `Not using ${dataPath} for backups: ${describeRefusal(zomboidDataFolderRefusal())}`,
   );
   return false;
+}
+
+// The key two profiles' backups folders are compared by: the folder's real
+// path when it exists (a junction, a symlink or a short 8.3 spelling leads to
+// the same key), case-folded on Windows, where C:\PZ and c:\pz are one folder.
+function backupsFolderKey(folder) {
+  let resolved = path.resolve(String(folder));
+  try {
+    resolved = fs.realpathSync.native(resolved);
+  } catch {
+    // Not there (yet): the path as written.
+  }
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
+// Every spelling a requested backup name is known by: as requested, and the
+// name the file has on disk when that differs (a case variant, or a Windows
+// 8.3 short name) and the file sits right in `backupsPath`.
+function backupNameSpellings(name, backupsPath) {
+  const spellings = [name];
+  try {
+    const real = fs.realpathSync.native(path.join(backupsPath, name));
+    const onDisk = path.basename(real);
+    if (
+      onDisk !== name &&
+      backupsFolderKey(path.dirname(real)) === backupsFolderKey(backupsPath)
+    ) {
+      spellings.push(onDisk);
+    }
+  } catch {
+    // Not there: nothing else it could name.
+  }
+  return spellings;
 }
 
 function sameFolderPath(a, b) {
@@ -729,11 +763,11 @@ export class BackupService {
       if (others.length === 0) return backups;
 
       const collidingOtherNames = new Set();
-      const resolvedBackupsPath = path.resolve(backupsPath);
+      const resolvedBackupsPath = backupsFolderKey(backupsPath);
       for (const other of others) {
         const otherBasePath = await this._resolveServerDataBasePath(other);
         if (!otherBasePath) continue;
-        const otherBackupsPath = path.resolve(path.join(otherBasePath, "backups"));
+        const otherBackupsPath = backupsFolderKey(path.join(otherBasePath, "backups"));
         if (
           otherBackupsPath === resolvedBackupsPath &&
           typeof other.serverName === "string" &&
@@ -784,13 +818,13 @@ export class BackupService {
       );
       if (others.length === 0) return null;
 
-      const resolvedBackupsPath = path.resolve(backupsPath);
+      const resolvedBackupsPath = backupsFolderKey(backupsPath);
       const collidingOtherNames = new Set();
       for (const other of others) {
         if (typeof other.serverName !== "string" || !other.serverName) continue;
         const otherBasePath = await this._resolveServerDataBasePath(other);
         if (!otherBasePath) continue;
-        const otherBackupsPath = path.resolve(path.join(otherBasePath, "backups"));
+        const otherBackupsPath = backupsFolderKey(path.join(otherBasePath, "backups"));
         if (otherBackupsPath === resolvedBackupsPath) {
           collidingOtherNames.add(other.serverName);
         }
@@ -803,8 +837,15 @@ export class BackupService {
           : null;
       const candidates = ownName ? [ownName, ...collidingOtherNames] : [...collidingOtherNames];
 
-      const owner = attributeBackupFilename(name, candidates);
-      return owner && owner !== ownName ? owner : null;
+      // Windows (and macOS) ignore case in file names, and Windows also opens
+      // a file by its 8.3 short name: "serverb_2026-...t...zip" or
+      // "SERVER~1.ZIP" reaches ServerB's archive while matching no pattern.
+      // The name the file really has is attributed too.
+      for (const spelling of backupNameSpellings(name, backupsPath)) {
+        const owner = attributeBackupFilename(spelling, candidates);
+        if (owner && owner !== ownName) return owner;
+      }
+      return null;
     } catch (error) {
       log.warn(`Could not check backup ownership for ${name}: ${error.message}`);
       return null; // fail open, same posture as _excludeOtherServersBackups
@@ -2524,8 +2565,10 @@ export class BackupService {
   async _restoreExtractionLimits(unzip, backupPath, savesParentPath) {
     let declaredSizes = null;
     let declaredTotal = null;
+    let declaredEntries = null;
     try {
       const archive = await unzip.Open.file(backupPath);
+      declaredEntries = archive.files.length;
       const sizes = new Map();
       let total = 0;
       let totalKnown = true;
@@ -2553,7 +2596,7 @@ export class BackupService {
     } catch (error) {
       log.debug(`Restore size limits: could not read free space: ${error.message}`);
     }
-    return { declaredSizes, declaredTotal, freeBytes };
+    return { declaredSizes, declaredTotal, declaredEntries, freeBytes, freeInodes: freeInodesAt(savesParentPath) };
   }
 
   // Recomputes each extracted file's CRC32 and compares it against the value

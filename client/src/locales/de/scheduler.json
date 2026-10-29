@@ -286,6 +286,7 @@
     "languageLabel": "Nachrichtensprache",
     "templateLabel": "Countdown-Vorlage",
     "templateHint": "{count} für die Zahl und {unit} für Minuten oder Sekunden verwenden.",
+    "templateNoPermission": "Eine eigene Nachricht zu schreiben erfordert die Berechtigung server.world_events, über die diese Rolle nicht verfügt. Sie können weiterhin eine Sprache wählen und deren Vorlage verwenden.",
     "presetButton": "Sprachvorlage verwenden",
     "saveButton": "Warnungen speichern",
     "saved": "Neustartwarnungen gespeichert",

@@ -23,6 +23,7 @@ import { PageAlerts, type PageAlert } from '@/components/PageAlerts'
 import { DisabledReason } from '@/components/DisabledReason'
 import { HelpTip } from '@/components/HelpTip'
 import { cn } from '@/lib/utils'
+import { isConsoleNoiseLine, parseLogLine } from '@/lib/consoleLogLine'
 import { getUserErrorMessage, getResultErrorMessage } from '@/lib/errorMessage'
 import { formatTime, useDateFormat } from '@/lib/dateFormat'
 import { usePageShortcut } from '@/hooks/useKeyboardShortcuts'
@@ -67,79 +68,6 @@ interface RconResponse {
   // apart from another's.
   serverId?: string | number | null
   timestamp: string
-}
-
-// Parse PZ server log line into structured parts
-interface ParsedLogLine {
-  type: 'LOG' | 'WARN' | 'ERROR' | 'DEBUG' | 'INFO' | 'UNKNOWN'
-  category: string
-  message: string
-  raw: string
-  /** Human-readable HH:mm:ss extracted from PZ's `t:<epoch_ms>` field, if present. */
-  time?: string
-}
-
-// Convert a PZ epoch-ms timestamp to local HH:mm:ss. PZ logs `t:1777482455659`
-// where the value is milliseconds since epoch. We render it as wall-clock time
-// in the viewer's locale so admins can correlate events without doing math.
-function formatLogTime(epochMs: number): string | undefined {
-  if (!Number.isFinite(epochMs) || epochMs < 1_000_000_000_000) return undefined
-  try {
-    const d = new Date(epochMs)
-    const hh = String(d.getHours()).padStart(2, '0')
-    const mm = String(d.getMinutes()).padStart(2, '0')
-    const ss = String(d.getSeconds()).padStart(2, '0')
-    return `${hh}:${mm}:${ss}`
-  } catch { return undefined }
-}
-
-function parseLogLine(line: string): ParsedLogLine {
-  // PZ log format: "TYPE : Category    f:XXXXX, t:XXXXX, st:XXXXX> Source > Message"
-  // or just plain text
-  
-  const trimmed = line.trim()
-  if (!trimmed) {
-    return { type: 'UNKNOWN', category: '', message: '', raw: line }
-  }
-  
-  // Match: LOG/WARN/ERROR : Category  f:xxx, t:<epoch_ms>, st:xxx> Message
-  // The `t:` field is epoch-ms — capture it so we can show a readable time.
-  const match = trimmed.match(/^(LOG|WARN|ERROR|DEBUG|INFO)\s*:\s*(\w+)(?:[^>]*?\bt:(\d+))?[^>]*>\s*(.+)$/i)
-  if (match) {
-    let type = match[1].toUpperCase() as ParsedLogLine['type']
-    const tField = match[3]
-    const message = match[4]
-    // Promote LOG → ERROR when the message body is a Java exception or stack trace.
-    // PZ logs every exception as `LOG : General ... > java.lang.NullPointerException ...`
-    // which makes them invisible against routine LOG spam.
-    if (type === 'LOG' && /^(java\.|kotlin\.|zombie\.|com\.|org\.|at\s+\S+\.|Exception in thread|Caused by:|\S+(Exception|Error)(:|\s|$))/i.test(message)) {
-      type = 'ERROR'
-    }
-    return {
-      type,
-      category: match[2],
-      message,
-      raw: line,
-      time: tField ? formatLogTime(Number(tField)) : undefined,
-    }
-  }
-  
-  // Check for simple prefixes
-  if (trimmed.startsWith('ERROR')) {
-    return { type: 'ERROR', category: '', message: trimmed.replace(/^ERROR\s*:?\s*/i, ''), raw: line }
-  }
-  if (trimmed.startsWith('WARN')) {
-    return { type: 'WARN', category: '', message: trimmed.replace(/^WARN\s*:?\s*/i, ''), raw: line }
-  }
-  if (trimmed.startsWith('LOG')) {
-    return { type: 'LOG', category: '', message: trimmed.replace(/^LOG\s*:?\s*/i, ''), raw: line }
-  }
-  // Bare Java stack-trace continuation lines ("\tat zombie.network...", "Caused by: ...")
-  if (/^(\s*at\s+\S+|Caused by:|\.{3}\s+\d+ more|Exception in thread)/.test(trimmed)) {
-    return { type: 'ERROR', category: '', message: trimmed, raw: line }
-  }
-  
-  return { type: 'UNKNOWN', category: '', message: trimmed, raw: line }
 }
 
 // Log line type → text color
@@ -559,25 +487,11 @@ export default function Console() {
     }
   }, [socket])
 
-  // Patterns to filter out (uninteresting/repetitive messages) - memoized to prevent recreation
-  const noisePatterns = useMemo(() => [
-    /moveZombie: There are no zombies/i,
-    /ItemPickInfo -> cannot get ID for container/i,
-    /IsoThumpable not found on square/i,
-    /SpriteConfig\.initObjectInfo.*Invalid SpriteConfig/i,
-    /MOWoodenWalFrame\.lua: replacing isoObject/i,
-    /OreVein\{startPoint/i,
-    /SkeletonBone not resolved for bone/i,
-    /action was null, object: null/i,
-    /Could not find item type for/i,
-    /Canceled loading wrong transition/i,
-  ], [])
-
   // Get filtered lines - memoized to prevent recalculation on every render
   const filteredLogLines = useMemo(() => {
     if (!serverLogFiltered) return serverLogLines
-    return serverLogLines.filter(line => !noisePatterns.some(pattern => pattern.test(line)))
-  }, [serverLogLines, serverLogFiltered, noisePatterns])
+    return serverLogLines.filter(line => !isConsoleNoiseLine(line))
+  }, [serverLogLines, serverLogFiltered])
 
   // Command history filtered by the search box below -- pulled into its own
   // memo (rather than inlined in the JSX .filter().map()) so the "history

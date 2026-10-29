@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../database/init.js", () => ({
   getActiveServer: vi.fn(async () => null),
   getSetting: vi.fn(async () => null),
+  // Turning auto-restart on takes server.control on top of mods.manage.
+  getRoleByName: vi.fn(async () => ({ capabilities: ["mods.manage", "server.control"] })),
 }));
 
 const { default: router } = await import("../routes/mods.js");
@@ -41,6 +43,7 @@ describe("POST /mods/auto-restart", () => {
 
     await getAutoRestartHandler()(
       {
+        user: { role: "technician" },
         body: { enabled: true },
         app: { get: () => ({ setUpdateCallback, handleModUpdate }) },
       },
@@ -65,6 +68,7 @@ describe("POST /mods/auto-restart", () => {
 
     await getAutoRestartHandler()(
       {
+        user: { role: "technician" },
         body: { enabled: true },
         app: { get: () => ({ setUpdateCallback, handleModUpdate }) },
       },

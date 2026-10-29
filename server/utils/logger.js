@@ -2,7 +2,7 @@ import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
 import { getDataPaths } from './paths.js';
-import { escapeLogLineBreakers } from './logText.js';
+import { formatLogEntryText } from './logText.js';
 
 // Get paths from central config
 const paths = getDataPaths();
@@ -52,9 +52,11 @@ export function onLog(callback) {
 // control characters (U+0085 NEL among them) and U+2028/U+2029 escaped
 // (utils/logText.js). Some log viewers break a line on them, nothing the
 // panel writes contains them, and a request header can: Node's HTTP parser
-// hands bytes 0x80-0xFF over as latin1. CR/LF are left to the call sites
-// that quote request input (escapeLogText), since the panel's own messages
-// and stack traces use them.
+// hands bytes 0x80-0xFF over as latin1. CR/LF the panel's own messages and
+// stack traces use, so they stay, but every line after an entry's first is
+// indented (2026-10-28, indentLogContinuationLines): text a request chose
+// can't start a line that looks like an entry. Call sites quoting request
+// input still use escapeLogText to keep it on one line.
 
 // Custom transport to stream logs to callbacks
 class CallbackTransport extends winston.Transport {
@@ -64,7 +66,7 @@ class CallbackTransport extends winston.Transport {
         try {
           cb({
             level: info.level,
-            message: escapeLogLineBreakers(info.message),
+            message: formatLogEntryText(info.message),
             timestamp: info.timestamp || new Date().toISOString(),
             source: info.source || 'server'
           });
@@ -90,7 +92,7 @@ const consolePrintf = winston.format.printf(({ level, message, timestamp, stack,
   const time = timestamp;                       // HH:mm:ss only
   const icon = levelIcons[level] || '•';
   const tag  = source ? `[${source}]` : '';
-  const msg  = escapeLogLineBreakers(stack || message);
+  const msg  = formatLogEntryText(stack || message);
   // e.g.  12:34:56 ● [RCON] Connected on attempt 1
   return `${time} ${icon} ${tag}${tag ? ' ' : ''}${msg}`;
 });
@@ -105,10 +107,10 @@ const consoleFormat = winston.format.combine(
 // ── File format (full timestamp, structured, no colors) ──
 const filePrintf = winston.format.printf(({ level, message, timestamp, stack, source }) => {
   const tag = source ? `[${source}] ` : '';
-  return `${timestamp} [${level.toUpperCase()}] ${tag}${escapeLogLineBreakers(stack || message)}`;
+  return `${timestamp} [${level.toUpperCase()}] ${tag}${formatLogEntryText(stack || message)}`;
 });
 
-const fileFormat = winston.format.combine(
+export const fileFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   filePrintf

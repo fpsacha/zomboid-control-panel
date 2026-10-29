@@ -166,7 +166,7 @@
     "rcon": {
       "execute": {
         "label": "Egzekite kòmand RCON",
-        "description": "Konekte ak RCON epi egzekite nenpòt kòmand konsòl, ki gen ladan sa ki ka sispann sèvè a. Sa bay tou aksè pou li tout istorik kòmand RCON — ki gen ladan vrè modpas jwè ki te tape nan kòmand lis blan tankou adduser."
+        "description": "Konekte ak RCON epi egzekite nenpòt kòmand konsòl, ki gen ladan sa ki ka sispann sèvè a. Sa bay tou aksè pou li tout istorik kòmand RCON — ki gen ladan vrè modpas jwè ki te tape nan kòmand lis blan tankou adduser. Ansanm ak « Disipline jwè », li bay tou nivo aksè estaf nan jwèt la tankou admin."
       }
     },
     "servers": {
@@ -202,7 +202,7 @@
     "players": {
       "moderate": {
         "label": "Disipline jwè",
-        "description": "Bani, retire baniman, mete deyò oswa mete yon jwè sou lis blan, epi chanje nivo aksè yon jwè nan jwèt la — ki gen ladan bay oswa retire dwa admin."
+        "description": "Bani, retire baniman, mete deyò oswa mete yon jwè sou lis blan, epi ba li yon nivo aksè senp nan jwèt la tankou user oswa priority. Pou bay yon nivo estaf (admin, moderator, gm, observer oswa yon wòl pèsonalize ki gen plis pouvwa), oswa pou chanje nivo yon kont ki gen youn, ou bezwen tou « Egzekite kòmand RCON »: nivo sa yo egzekite kòmand konsòl sèvè a nan jwèt la."
       },
       "gm_tools": {
         "label": "Zouti mèt-jwèt",

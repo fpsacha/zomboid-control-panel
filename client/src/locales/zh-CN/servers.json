@@ -95,6 +95,7 @@
     "switchToThisServer": "切换到此服务器",
     "added": "添加于 {{date}}",
     "noPermissionDocker": "管理此容器需要 docker.manage 权限，而该角色没有此权限。",
+    "noPermissionDockerControl": "启动、停止或重启此容器就是启动、停止或重启服务器，因此还需要 server.control 权限，而该角色没有此权限。",
     "noPermissionManage": "此操作需要 servers.manage 权限，而该角色没有此权限。",
     "noPermissionStartStop": "需要同时拥有 servers.manage 和 server.control 权限——只拥有其中一个会导致服务器被激活但无法启动/停止。",
     "restartContainerAria": "重启 {{name}}"

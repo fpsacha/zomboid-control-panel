@@ -53,18 +53,37 @@ export const FINDER_LIMITS = Object.freeze({
   maxFrameLines: 40,
   maxChunks: 10,
   tailLinesForCrash: 12,
+  // How much of one log line is read (see splitLines()).
+  maxScanLineChars: 4096,
 });
 
 const SEVERITY_RANK = { critical: 0, warning: 1, info: 2 };
 const CATEGORY_RANK = { mods: 0, server: 1, network: 2, panel: 3 };
 
+// SECURITY (2026-10-28): a Workshop mod's Lua print() puts text of its
+// choosing in server-console.txt, and this finder reads every line of it on
+// the panel's main thread. The patterns that read a line used to backtrack
+// (lazy groups before "> ", " -- file: ", " line # " or "at x(...)", then
+// \s*$): one crafted line froze the whole panel for minutes. A line is now
+// cut to FINDER_LIMITS.maxScanLineChars, and its parts are found by
+// position (indexOf) or with patterns that cannot backtrack, so reading it
+// takes time in proportion to its length. Each reader below gives what the
+// pattern it replaced gave (server/tests/serverErrorFinderHostileLines.test.js
+// checks that against the old pattern).
+//
 // "[30-03-26 14:38:17.563] ERROR: General      f:0, t:1774895897563, st:0> text"
-const ENTRY_RE = /^(?:\[[^\]]{0,40}\]\s*)?(TRACE|NOISE|DEBUG|LOG {2}|WARN |ERROR): (\S+)(.*?)> (.*)$/;
+// The level and the category; the category is the whole run of non-spaces
+// (the lookahead and back-reference read it once, without giving any back).
+const ENTRY_HEAD_RE = /^(?:\[[^\]]{0,40}\]\s*)?(TRACE|NOISE|DEBUG|LOG {2}|WARN |ERROR): (?=(\S+))\2/;
+// What `.` does not match. \n never survives splitLines(); the others are
+// turned into spaces there.
+const LINE_BREAK_RE = /[\n\r\u2028\u2029]/;
+const LINE_BREAKS_RE = /[\r\u2028\u2029]/g;
+const SPACE_RE = /\s/;
+const CLASS_NAME_RE = /[\w$]+(?:\.[\w$]+)+/y;
+const FRAME_NAME_CHAR_RE = /[\w.$<>]/;
 const DATE_PREFIX_RE = /^\[(\d{2})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?\]/;
 const ORIGIN_RE = /^([\w.$<>]+)\s*> ?(.*)$/;
-const FRAME_RE = /^function: (.*?) -- file: (.*?) line # (\d+)(?: \| (?:MOD: (.*?)|(Vanilla)))?\.?\s*$/;
-const EXCEPTION_LINE_RE = /^\s*(?:Caused by: )?([\w$]+(?:\.[\w$]+)+(?:Exception|Error))(?::\s?(.*?))?(?:\s+at [\w.$<>]+\([^)]*\))?\.?\s*$/;
-const CAUSED_BY_RE = /^\s*Caused by: ([\w$]+(?:\.[\w$]+)+):?\s*(.*?)\.?\s*$/;
 const LUA_TEXT_RE = /attempted index|tried to call|non-table|non-function|__index|KahluaThread|KahluaUtil|LuaCaller/i;
 
 const BRIDGE_NAME = "zomboid control panel bridge";
@@ -142,22 +161,191 @@ function entryTime(meta, raw) {
 
 /** One log line read as a DebugLog entry, or null for a continuation line. */
 export function parseEntry(raw) {
-  const m = ENTRY_RE.exec(raw);
+  if (typeof raw !== "string") return null;
+  const m = ENTRY_HEAD_RE.exec(raw);
   if (!m) return null;
+  let category = m[2];
+  let end = m[0].length;
+  // A line break after the level makes no entry (`.` never crossed one).
+  if (LINE_BREAK_RE.test(raw.slice(end))) return null;
+  // The text starts after the first "> " past the category; with none, a
+  // category ending in ">" gives that ">" ("ERROR: General> text").
+  let sep = raw.indexOf("> ", end);
+  if (sep === -1) {
+    if (category.length < 2 || !category.endsWith(">") || raw[end] !== " ") return null;
+    category = category.slice(0, -1);
+    end -= 1;
+    sep = end;
+  }
   const level = m[1].trim();
-  let text = m[4];
+  let text = raw.slice(sep + 2);
   let origin = null;
   const o = ORIGIN_RE.exec(text);
   if (o && /[.$]/.test(o[1])) {
     origin = o[1];
     text = o[2];
   }
-  return { level, category: m[2], origin, text: text.trim(), time: entryTime(m[3], raw) };
+  return { level, category, origin, text: text.trim(), time: entryTime(raw.slice(end, sep), raw) };
+}
+
+const isSpaceAt = (s, i) => i >= 0 && i < s.length && SPACE_RE.test(s[i]);
+
+// Where the text of `s` ends before an optional "." and trailing spaces:
+// the first index from which the rest of `s` is /^\.?\s*$/.
+function endBeforeDotAndSpaces(s) {
+  const end = s.trimEnd().length;
+  return end > 0 && s[end - 1] === "." ? end - 1 : end;
+}
+
+const FRAME_FUNCTION = "function: ";
+const FRAME_FILE = " -- file: ";
+const FRAME_LINE = " line # ";
+
+/**
+ * A Lua stack frame line, "function: <f> -- file: <file> line # <n>" then
+ * " | MOD: <name>" or " | Vanilla", or null. Read from a splitLines() line
+ * (no line breaks inside). Exported for tests.
+ */
+export function parseFrameLine(line) {
+  const s = String(line ?? "").trim();
+  if (!s.startsWith(FRAME_FUNCTION)) return null;
+  const fileAt = s.indexOf(FRAME_FILE, FRAME_FUNCTION.length);
+  if (fileAt === -1) return null;
+  const fileStart = fileAt + FRAME_FILE.length;
+  // The first " line # <digits>" whose end of line reads as a frame's.
+  for (let at = s.indexOf(FRAME_LINE, fileStart); at !== -1; at = s.indexOf(FRAME_LINE, at + 1)) {
+    const digitsStart = at + FRAME_LINE.length;
+    let i = digitsStart;
+    while (i < s.length && s.charCodeAt(i) >= 48 && s.charCodeAt(i) <= 57) i++;
+    if (i === digitsStart) continue;
+    const frame = {
+      fn: s.slice(FRAME_FUNCTION.length, fileAt),
+      file: s.slice(fileStart, at),
+      line: Number(s.slice(digitsStart, i)),
+      mod: null,
+      vanilla: false,
+    };
+    // `s` is trimmed: what may follow is "" or ".".
+    const rest = s.length - i;
+    if (s.startsWith(" | MOD: ", i)) {
+      frame.mod = s.slice(i + 8, Math.max(i + 8, endBeforeDotAndSpaces(s)));
+      return frame;
+    }
+    if (s.startsWith(" | Vanilla", i)) {
+      const after = s.length - (i + 10);
+      if (after === 0 || (after === 1 && s[s.length - 1] === ".")) {
+        frame.vanilla = true;
+        return frame;
+      }
+    }
+    if (rest === 0 || (rest === 1 && s[i] === ".")) return frame;
+  }
+  return null;
+}
+
+// The earliest index p >= `from` at which `s` ends in
+// "<spaces>at <name>(<no ')'>)" plus an optional "." and spaces, with only
+// spaces between p and "at"; or -1. `exact` asks for p === from.
+function frameSuffixStart(s, from, exact) {
+  const close = endBeforeDotAndSpaces(s) - 1;
+  if (close < 0 || s[close] !== ")") return -1;
+  const prevClose = s.lastIndexOf(")", close - 1);
+  if (exact) {
+    let w = from;
+    while (isSpaceAt(s, w)) w++;
+    if (w === from || !s.startsWith("at ", w)) return -1;
+    let o = w + 3;
+    while (o < close && FRAME_NAME_CHAR_RE.test(s[o])) o++;
+    return o > w + 3 && s[o] === "(" && o > prevClose && o < close ? from : -1;
+  }
+  for (let o = s.indexOf("(", prevClose + 1); o !== -1 && o < close; o = s.indexOf("(", o + 1)) {
+    let r = o;
+    while (r > prevClose + 1 && FRAME_NAME_CHAR_RE.test(s[r - 1])) r--;
+    if (r === o || r - 4 < from || !s.startsWith("at ", r - 3) || !isSpaceAt(s, r - 4)) continue;
+    let p = r - 4;
+    while (p > from && isSpaceAt(s, p - 1)) p--;
+    return p;
+  }
+  return -1;
+}
+
+/**
+ * A Java exception line, "<pkg>.<Name>Exception: <message> at <frame>(...)."
+ * (or ...Error, optionally after "Caused by: "): { cls, message } with
+ * message undefined when the line has no ":" part; or null. Read from a
+ * splitLines() line (no line breaks inside). Exported for tests.
+ */
+export function parseExceptionLine(line) {
+  const s = String(line ?? "");
+  let i = s.length - s.trimStart().length;
+  if (s.startsWith("Caused by: ", i)) i += 11;
+  CLASS_NAME_RE.lastIndex = i;
+  const name = CLASS_NAME_RE.exec(s);
+  if (!name) return null;
+  const cls = name[0];
+  const last = cls.slice(cls.lastIndexOf(".") + 1);
+  const named = (last.endsWith("Exception") && last.length > 9) || (last.endsWith("Error") && last.length > 5);
+  if (!named) return null;
+  const after = i + cls.length;
+  if (s[after] === ":") {
+    const from = isSpaceAt(s, after + 1) ? after + 2 : after + 1;
+    const suffix = frameSuffixStart(s, from, false);
+    const end = suffix !== -1 ? suffix : Math.max(endBeforeDotAndSpaces(s), from);
+    return { cls, message: s.slice(from, end) };
+  }
+  if (frameSuffixStart(s, after, true) !== -1 || after >= endBeforeDotAndSpaces(s)) {
+    return { cls, message: undefined };
+  }
+  return null;
+}
+
+/**
+ * A "Caused by: <pkg>.<Name>: <message>" line: { cls, message }, or null.
+ * Read from a splitLines() line (no line breaks inside). Exported for tests.
+ */
+export function parseCausedByLine(line) {
+  const s = String(line ?? "");
+  let i = s.length - s.trimStart().length;
+  if (!s.startsWith("Caused by: ", i)) return null;
+  i += 11;
+  CLASS_NAME_RE.lastIndex = i;
+  const name = CLASS_NAME_RE.exec(s);
+  if (!name) return null;
+  let from = i + name[0].length;
+  if (s[from] === ":") from++;
+  while (isSpaceAt(s, from)) from++;
+  return { cls: name[0], message: s.slice(from, Math.max(endBeforeDotAndSpaces(s), from)) };
+}
+
+const LUA_FILE_ERROR = "Error found in LUA file: ";
+const LUA_FILE_MAX_CHARS = 500;
+
+/**
+ * "Error found in LUA file: <path>": the first such text whose path (the
+ * rest of the line, before trailing spaces) is 1 to 500 characters, as a
+ * match array ([text, path]); or null. Exported for tests.
+ */
+export function matchLuaFileError(line) {
+  const s = String(line ?? "");
+  const end = s.trimEnd().length;
+  const at = s.indexOf(LUA_FILE_ERROR, Math.max(0, end - LUA_FILE_MAX_CHARS - LUA_FILE_ERROR.length));
+  if (at === -1) return null;
+  const start = at + LUA_FILE_ERROR.length;
+  if (start >= s.length) return null;
+  const path = s.slice(start, Math.max(start + 1, end));
+  return [s.slice(at, start + path.length), path];
 }
 
 // ─── Mods ─────────────────────────────────────────────────────────────────
 
-const normPath = (p) => String(p ?? "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+// Trailing slashes go by a loop: /\/+$/ backtracks on a long run of slashes
+// in the middle of a path a log line names.
+const normPath = (p) => {
+  const s = String(p ?? "").replace(/\\/g, "/");
+  let end = s.length;
+  while (end > 0 && s.charCodeAt(end - 1) === 47) end--;
+  return s.slice(0, end).toLowerCase();
+};
 
 /** What the finder knows about the installed mods, for attributing a line. */
 export function buildModIndex(mods = [], enabledModIds = []) {
@@ -400,13 +588,19 @@ const KIND_META = {
 
 // ServerManager's warning when a Windows process scan fails; this many in the
 // panel's recent log make one finding (a 1.5.0 support bundle had 2,057).
-const PROCESS_SCAN_FAILED_RE = /Windows process scan failed \((.*)\)/;
+// SECURITY (2026-10-28): anchored to the start of ServerManager's own line.
+// The log also holds text a stranger chose (POST /api/debug/client-errors
+// takes reports before sign-in, logged as "[ClientError] <message>"), and an
+// unanchored match let such a report raise this warning in Problems found.
+const PROCESS_SCAN_FAILED_RE = /^getServerProcessDetails: Windows process scan failed \((.*)\)/;
 export const PROCESS_SCAN_FAILURES_FOR_FINDING = 3;
 
 export const FINDING_KINDS = Object.freeze(Object.keys(KIND_META));
 
 // Single-line signatures, first match wins. `make` returns { key, params,
-// message?, path? } or null to let the line fall through.
+// message?, path? } or null to let the line fall through. `match(line)`
+// stands in for `re` where a pattern would backtrack; it returns a match
+// array or null.
 const LINE_SIGNATURES = [
   {
     kind: "outOfMemory",
@@ -458,7 +652,7 @@ const LINE_SIGNATURES = [
   },
   {
     kind: "luaFileError",
-    re: /Error found in LUA file: (.{1,500}?)\s*$/,
+    match: matchLuaFileError,
     make: (m) => ({ key: normPath(m[1]), path: m[1], params: { file: m[1].replace(/\\/g, "/").split("/").slice(-3).join("/") } }),
   },
   {
@@ -489,7 +683,11 @@ function splitLines(logs) {
     if (lines.length && log.gapBefore) lines.push(null);
     for (const part of parts) {
       if (lines.length >= FINDER_LIMITS.maxLines) break;
-      lines.push(part);
+      // Each line is read up to maxScanLineChars (findings show 300), and
+      // a line break left inside it (a lone \r, U+2028, U+2029) is a space,
+      // so no reader below has to stop at one.
+      const cut = part.length > FINDER_LIMITS.maxScanLineChars ? part.slice(0, FINDER_LIMITS.maxScanLineChars) : part;
+      lines.push(cut.replace(LINE_BREAKS_RE, " "));
     }
   }
   return lines;
@@ -506,8 +704,8 @@ function readLuaError(lines, i, entries) {
     const line = lines[j];
     if (line === null || entries[j]) break;
     used.push(j);
-    const f = FRAME_RE.exec(line.trim());
-    if (f) frames.push({ fn: f[1], file: f[2], line: Number(f[3]), mod: f[4] ? f[4].trim().replace(/\.$/, "") : null, vanilla: Boolean(f[5]) });
+    const f = parseFrameLine(line);
+    if (f) frames.push({ fn: f.fn, file: f.file, line: f.line, mod: f.mod ? f.mod.trim().replace(/\.$/, "") : null, vanilla: f.vanilla });
   }
   let message = null;
   const before = i > 0 ? entries[i - 1] : null;
@@ -523,11 +721,11 @@ function readLuaError(lines, i, entries) {
     for (let k = j + 1; k < lines.length && k - j <= 120; k++) {
       if (lines[k] === null || entries[k]) break;
       used.push(k);
-      const c = CAUSED_BY_RE.exec(lines[k]);
-      if (c && !cause) cause = `${c[1].split(".").pop()}: ${c[2]}`.replace(/: $/, "");
+      const c = cause ? null : parseCausedByLine(lines[k]);
+      if (c) cause = `${c.cls.split(".").pop()}: ${c.message}`.replace(/: $/, "");
       if (exception === null) {
-        const e = EXCEPTION_LINE_RE.exec(lines[k]);
-        if (e) exception = (e[2] || "").trim();
+        const e = parseExceptionLine(lines[k]);
+        if (e) exception = (e.message || "").trim();
       }
     }
     // An InvocationTargetException says nothing: its "Caused by:" does.
@@ -540,7 +738,7 @@ function sampleOf(lines, indices, redact) {
   const out = [];
   for (const k of [...new Set(indices)].sort((a, b) => a - b)) {
     if (lines[k] === null || lines[k] === undefined) continue;
-    const text = lines[k].replace(/\s+$/, "");
+    const text = lines[k].trimEnd();
     if (!text) continue;
     out.push(redactLine(text, redact));
     if (out.length >= FINDER_LIMITS.maxSampleLines) break;
@@ -691,7 +889,7 @@ export function findServerErrors(input = {}) {
     // a "LOG  : Lua" entry).
     let matched = false;
     for (const sig of LINE_SIGNATURES) {
-      const m = sig.re.exec(line);
+      const m = sig.match ? sig.match(line) : sig.re.exec(line);
       if (!m) continue;
       const made = sig.make(m, ctx);
       if (!made) {
@@ -737,8 +935,8 @@ export function findServerErrors(input = {}) {
       for (let k = i + 1; k < lines.length && k - i <= 6; k++) {
         if (lines[k] === null || entries[k]) break;
         idx.push(k);
-        const e = EXCEPTION_LINE_RE.exec(lines[k]);
-        if (e && !exception) exception = { cls: e[1], text: e[2] };
+        const e = exception ? null : parseExceptionLine(lines[k]);
+        if (e) exception = { cls: e.cls, text: e.message };
       }
       const cls = exception ? exception.cls.split(".").pop() : "Exception";
       const text = exception ? exception.text : "";

@@ -8,6 +8,10 @@ import {
   getPlayerNotes,
   getPlayerNote,
   upsertPlayerNote,
+  normalizePlayerNoteTags,
+  PlayerNotesFullError,
+  MAX_PLAYER_NOTES,
+  MAX_PLAYER_NOTE_TAGS,
   deletePlayerNote,
   getPlayerStats,
   getPlayerStat,
@@ -15,9 +19,11 @@ import {
   addSteamIdBan,
   removeSteamIdBan,
   getActiveServer,
+  getRoleByName,
 } from '../database/init.js';
 import { VEHICLES, PERKS, PERK_CATALOG, ACCESS_LEVELS } from '../utils/commands.js';
 import { sanitizeError } from '../utils/sanitize.js';
+import { escapeLogText } from '../utils/logText.js';
 import bridge from '../services/panelBridge.js';
 import { listWhitelistAccounts, listServerRoleNames } from '../utils/whitelistDb.js';
 import { requirePermission } from '../services/permissions.js';
@@ -136,6 +142,69 @@ export function normalizePlayerLogLimit(value) {
   return parseClampedInteger(value, 100, 1, 500);
 }
 
+// SECURITY (2026-10-28, R2-5): an in-game access level above a plain player
+// is a game-server console. PZ's admin role holds every capability (quit,
+// changeoption on any server option including Mods=/WorkshopItems=,
+// reloadlua, createhorde/lightning at a player, setaccesslevel), its
+// moderator role all of that but quit/save/options/reloadlua, and gm and
+// observer cheats and targeted events (Roles.addStatic, B42 jar). Over RCON
+// GameServer.changeRole skips PZ's own "can't grant above your rank" check,
+// so players.moderate alone made any account -- the caller's own included --
+// an in-game admin, past every panel gate on those commands. Granting such a
+// level, or changing the level of an account that holds one, now also needs
+// rcon.execute, the capability that already reaches the same console.
+//
+// A level is "login only" when its role carries nothing beyond these:
+const LOGIN_ONLY_PZ_CAPABILITIES = new Set(['LoginOnServer', 'PriorityLogin', 'CantBeKickedIfTooLaggy']);
+// PZ's built-in, read-only roles: their capabilities come from
+// Roles.addStatic(), not the [capabilities] table, so they are judged by name.
+// 'none' is SetAccessLevelCommand's own "no role" value.
+const BUILTIN_ACCESS_LEVELS = new Set(['banned', 'user', 'priority', 'observer', 'gm', 'overseer', 'moderator', 'admin']);
+const LOGIN_ONLY_BUILTIN_ACCESS_LEVELS = new Set(['none', 'banned', 'user', 'priority']);
+const STAFF_ACCESS_LEVEL_CAPABILITY = 'rcon.execute';
+
+// roleCapabilities: listServerRoleNames()'s Map (role name -> PZ
+// capabilities), or null when the server's role table can't be read. A
+// custom role is only ever login-only when that table says so.
+export function isStaffAccessLevel(level, roleCapabilities) {
+  if (level === 'none') return false;
+  const fromTable = roleCapabilities instanceof Map ? roleCapabilities.get(level) : undefined;
+  if (Array.isArray(fromTable) && fromTable.some((capability) => !LOGIN_ONLY_PZ_CAPABILITIES.has(capability))) {
+    return true;
+  }
+  if (BUILTIN_ACCESS_LEVELS.has(level)) return !LOGIN_ONLY_BUILTIN_ACCESS_LEVELS.has(level);
+  return !(roleCapabilities instanceof Map);
+}
+
+// SECURITY (2026-10-28, audit R2-6): the activity log (GET /activity) and the
+// info lines name the panel account behind each action, so with several
+// moderators an admin can tell who granted an access level or banned
+// someone. None while panel logins are off (no account is signed in).
+function actorOf(req) {
+  const username = req.user?.username;
+  return typeof username === 'string' && username ? username : null;
+}
+
+function byActor(req) {
+  const actor = actorOf(req);
+  return actor ? ` by ${escapeLogText(actor)}` : '';
+}
+
+function logModeration(req, playerName, action, details = null) {
+  return logPlayerAction(playerName, action, details, undefined, actorOf(req));
+}
+
+// Fails closed: a caller whose role can't be resolved holds nothing.
+async function callerHolds(req, capability) {
+  if (!req.user) return false;
+  try {
+    const role = await getRoleByName(req.user.role);
+    return Array.isArray(role?.capabilities) && role.capabilities.includes(capability);
+  } catch {
+    return false;
+  }
+}
+
 // STALE CLAIM CORRECTED 2026-08-27: this comment used to say B42's
 // godmod/invisible RCON commands ignore a target username and are a no-op
 // over RCON. That was true of an earlier version of rcon.js; Kevin's
@@ -217,12 +286,12 @@ router.post('/kick', requirePermission("players.moderate"), async (req, res) => 
     }
 
     const result = await rconService.kickPlayer(username, reason);
-    log.info(`POST /kick: ${username} (reason=${reason || 'none'})`);
+    log.info(`POST /kick: ${username} (reason=${reason || 'none'})${byActor(req)}`);
     // Same unconditional-write shape as /ban et al.: only log the action if
     // RCON actually performed it, so the activity log doesn't claim a kick
     // happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'kick', reason);
+      await logModeration(req, username, 'kick', reason);
     }
 
     res.json(result);
@@ -266,13 +335,13 @@ router.post('/ban', requirePermission("players.moderate"), async (req, res) => {
     // sentReason, so this never logs "undefined".
     const sentReason = result?.sentReason ?? reason;
     log.info(
-      `POST /ban: ${username} (banIp=${banIp}, reason=${sentReason || 'none'}${sentReason !== reason ? ` [requested: ${reason}]` : ''})`,
+      `POST /ban: ${username} (banIp=${banIp}, reason=${sentReason || 'none'}${sentReason !== reason ? ` [requested: ${reason}]` : ''})${byActor(req)}`,
     );
     // Same unconditional-write shape as /unban: only log the action if RCON
     // actually performed it, so the activity log doesn't claim a ban
     // happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'ban', `IP: ${banIp}, Reason: ${sentReason}`);
+      await logModeration(req, username, 'ban', `IP: ${banIp}, Reason: ${sentReason}`);
     }
 
     res.json(result);
@@ -297,12 +366,12 @@ router.post('/unban', requirePermission("players.moderate"), async (req, res) =>
     }
 
     const result = await rconService.unbanPlayer(username);
-    log.info(`POST /unban: ${username}`);
+    log.info(`POST /unban: ${username}${byActor(req)}`);
     // Same unconditional-write shape as /banid: only log the action if RCON
     // actually performed it, so the activity log (GET /activity) doesn't
     // claim an unban happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'unban', null);
+      await logModeration(req, username, 'unban', null);
     }
 
     res.json(result);
@@ -333,10 +402,12 @@ router.post('/access-level', requirePermission("players.moderate"), async (req, 
     // to close, just for custom roles instead of overseer/priority.
     const activeServer = await getActiveServer();
     let validLevels = ACCESS_LEVELS;
+    let roleCapabilities = null;
     if (activeServer && !activeServer.isRemote) {
       const roleResult = await listServerRoleNames(activeServer.zomboidDataPath, activeServer.serverName);
       if (roleResult.available) {
         validLevels = [...roleResult.roleNames, 'none'];
+        roleCapabilities = roleResult.roleCapabilities ?? null;
       }
     }
 
@@ -384,41 +455,59 @@ router.post('/access-level', requirePermission("players.moderate"), async (req, 
     // if the file can't be read) this silently skips rather than guessing,
     // since a wrong "you're removing the last admin" claim would be worse
     // than no warning at all.
-    if (level !== 'admin' && !confirm && activeServer && !activeServer.isRemote) {
+    let whitelistAccounts = null;
+    if (activeServer && !activeServer.isRemote) {
       try {
         const whitelistResult = await listWhitelistAccounts(
           activeServer.zomboidDataPath,
           activeServer.serverName,
         );
-        if (whitelistResult.available) {
-          const targetAccount = whitelistResult.accounts.find(
-            (account) =>
-              typeof account.username === 'string' &&
-              account.username.toLowerCase() === username.toLowerCase(),
-          );
-          const adminCount = whitelistResult.accounts.filter((account) => account.role === 'admin').length;
-          if (targetAccount?.role === 'admin' && adminCount === 1) {
-            return res.status(409).json({
-              error: `${username} is the only account with the admin access level. Removing it will leave nobody with full admin commands in-game until it is granted again.`,
-              code: ErrorCode.PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM,
-              params: { username },
-            });
-          }
-        }
+        if (whitelistResult.available) whitelistAccounts = whitelistResult.accounts;
       } catch (error) {
-        log.warn(`Could not check for last-admin lockout before /access-level: ${error.message}`);
+        log.warn(`Could not read the whitelist before /access-level: ${error.message}`);
         // Fall through -- don't block the action just because the safety
         // check itself failed to read the whitelist database.
       }
     }
+    const targetAccount = whitelistAccounts?.find(
+      (account) =>
+        typeof account.username === 'string' &&
+        account.username.toLowerCase() === username.toLowerCase(),
+    );
+
+    // R2-5: see isStaffAccessLevel() above. The target's current level counts
+    // too (a role it can't grant, it can't take away either); a level the
+    // role table doesn't list is treated as staff.
+    const targetRole = targetAccount?.role;
+    const touchesStaffLevel =
+      isStaffAccessLevel(level, roleCapabilities) ||
+      (typeof targetRole === 'string' &&
+        (!validLevels.includes(targetRole) || isStaffAccessLevel(targetRole, roleCapabilities)));
+    if (touchesStaffLevel && !(await callerHolds(req, STAFF_ACCESS_LEVEL_CAPABILITY))) {
+      return res.status(403).json({
+        error: 'Only a role with Run RCON commands (rcon.execute) can grant a staff access level such as admin, moderator or gm, or change the level of an account that has one: those levels run server console commands in game.',
+        code: ErrorCode.PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON,
+      });
+    }
+
+    if (level !== 'admin' && !confirm && whitelistAccounts) {
+      const adminCount = whitelistAccounts.filter((account) => account.role === 'admin').length;
+      if (targetAccount?.role === 'admin' && adminCount === 1) {
+        return res.status(409).json({
+          error: `${username} is the only account with the admin access level. Removing it will leave nobody with full admin commands in-game until it is granted again.`,
+          code: ErrorCode.PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM,
+          params: { username },
+        });
+      }
+    }
 
     const result = await rconService.setAccessLevel(username, level);
-    log.info(`POST /access-level: ${username} → ${level}`);
+    log.info(`POST /access-level: ${username} → ${level}${byActor(req)}`);
     // Same unconditional-write shape as /ban et al.: only log the action if
     // RCON actually performed it, so the activity log doesn't claim an
     // access-level change happened when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'access_level', level);
+      await logModeration(req, username, 'access_level', level);
     }
 
     res.json(result);
@@ -447,8 +536,8 @@ router.post('/whitelist/add', requirePermission("players.moderate"), async (req,
 
     const result = await rconService.addToWhitelist(username, password);
     if (!result?.success) return res.status(400).json(result);
-    log.info(`POST /whitelist/add: ${username}`);
-    await logPlayerAction(username, 'whitelist_add', null);
+    log.info(`POST /whitelist/add: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'whitelist_add', null);
 
     res.json(result);
   } catch (error) {
@@ -473,8 +562,8 @@ router.post('/whitelist/remove', requirePermission("players.moderate"), async (r
 
     const result = await rconService.removeFromWhitelist(username);
     if (!result?.success) return res.status(400).json(result);
-    log.info(`POST /whitelist/remove: ${username}`);
-    await logPlayerAction(username, 'whitelist_remove', null);
+    log.info(`POST /whitelist/remove: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'whitelist_remove', null);
 
     res.json(result);
   } catch (error) {
@@ -577,7 +666,7 @@ router.post('/add-item', requirePermission("players.gm_tools"), async (req, res)
     // RCON actually performed it, so the activity log doesn't claim an item
     // was given when the server never received it.
     if (username && result?.success) {
-      await logPlayerAction(username, 'add_item', `${item} x${itemCount}`);
+      await logModeration(req, username, 'add_item', `${item} x${itemCount}`);
     }
 
     res.json(result);
@@ -619,7 +708,7 @@ router.post('/add-xp', requirePermission("players.gm_tools"), async (req, res) =
     // RCON actually performed it, so the activity log doesn't claim XP was
     // granted when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'add_xp', `${perk}=${amount}`);
+      await logModeration(req, username, 'add_xp', `${perk}=${amount}`);
     }
 
     res.json(result);
@@ -655,7 +744,7 @@ router.post('/add-vehicle', requirePermission("players.gm_tools"), async (req, r
     // RCON actually performed it, so the activity log doesn't claim a
     // vehicle was spawned when the server never received it.
     if (username && result?.success) {
-      await logPlayerAction(username, 'add_vehicle', vehicle);
+      await logModeration(req, username, 'add_vehicle', vehicle);
     }
 
     res.json(result);
@@ -714,7 +803,7 @@ router.post('/godmode', requirePermission("players.gm_tools"), async (req, res) 
     // the underlying command actually performed it, so the activity log
     // doesn't claim godmode changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'godmode', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'godmode', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -745,7 +834,7 @@ router.post('/invisible', requirePermission("players.gm_tools"), async (req, res
     // the underlying command actually performed it, so the activity log
     // doesn't claim invisibility changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'invisible', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'invisible', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -776,7 +865,7 @@ router.post('/noclip', requirePermission("players.gm_tools"), async (req, res) =
     // the underlying command actually performed it, so the activity log
     // doesn't claim noclip changed when the server never received it.
     if (result?.success) {
-      await logPlayerAction(username, 'noclip', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'noclip', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -805,15 +894,23 @@ router.get('/perks', requirePermission("players.view"), (req, res) => {
 // special case) so it's unconditionally appended here, not sourced from it.
 router.get('/access-levels', requirePermission("players.view"), async (req, res) => {
   try {
+    // staffLevels: the ones POST /access-level also requires rcon.execute for
+    // (R2-5), so the Players page offers a role without it only the others.
     const activeServer = await getActiveServer();
     if (!activeServer || activeServer.isRemote) {
-      return res.json({ levels: ACCESS_LEVELS, available: false });
+      return res.json({
+        levels: ACCESS_LEVELS,
+        staffLevels: ACCESS_LEVELS.filter((level) => isStaffAccessLevel(level, null)),
+        available: false,
+      });
     }
 
     const result = await listServerRoleNames(activeServer.zomboidDataPath, activeServer.serverName);
     const levels = result.available ? [...result.roleNames, 'none'] : ACCESS_LEVELS;
+    const roleCapabilities = result.available ? (result.roleCapabilities ?? null) : null;
     res.json({
       levels,
+      staffLevels: levels.filter((level) => isStaffAccessLevel(level, roleCapabilities)),
       available: result.available,
       ...(result.reason ? { reason: result.reason } : {}),
     });
@@ -855,7 +952,7 @@ router.post('/banid', requirePermission("players.moderate"), async (req, res) =>
     }
 
     const result = await rconService.banSteamId(steamId);
-    log.info(`POST /banid: SteamID ${steamId}`);
+    log.info(`POST /banid: SteamID ${steamId}${byActor(req)}`);
     // Only record the ban if RCON actually applied it. execute() resolves
     // {success:false} rather than throwing when the server is offline or
     // mid-restart, so an unconditional write here used to leave the panel's
@@ -864,7 +961,7 @@ router.post('/banid', requirePermission("players.moderate"), async (req, res) =>
     // someone.
     if (result?.success) {
       await addSteamIdBan(steamId, normalizedReason || null);
-      await logPlayerAction(steamId, 'banid', normalizedReason || null);
+      await logModeration(req, steamId, 'banid', normalizedReason || null);
     }
 
     res.json(result);
@@ -889,13 +986,13 @@ router.post('/unbanid', requirePermission("players.moderate"), async (req, res) 
     }
 
     const result = await rconService.unbanSteamId(steamId);
-    log.info(`POST /unbanid: SteamID ${steamId}`);
+    log.info(`POST /unbanid: SteamID ${steamId}${byActor(req)}`);
     // Same shape as /banid above: only clear the local ban record if RCON
     // actually removed it. Otherwise the panel would report someone as
     // no-longer-banned while the server still enforces the ban.
     if (result?.success) {
       await removeSteamIdBan(steamId);
-      await logPlayerAction(steamId, 'unbanid', null);
+      await logModeration(req, steamId, 'unbanid', null);
     }
 
     res.json(result);
@@ -923,9 +1020,9 @@ router.post('/voiceban', requirePermission("players.moderate"), async (req, res)
     }
 
     const result = await rconService.voiceBan(username, enabled);
-    log.info(`POST /voiceban: ${username} → ${enabled ? 'ON' : 'OFF'}`);
+    log.info(`POST /voiceban: ${username} → ${enabled ? 'ON' : 'OFF'}${byActor(req)}`);
     if (result?.success) {
-      await logPlayerAction(username, 'voiceban', enabled ? 'enabled' : 'disabled');
+      await logModeration(req, username, 'voiceban', enabled ? 'enabled' : 'disabled');
     }
 
     res.json(result);
@@ -956,7 +1053,8 @@ router.post('/adduser', requirePermission("players.moderate"), async (req, res) 
 
     const result = await rconService.addUser(username, password);
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(username, 'adduser', null);
+    log.info(`POST /adduser: ${username}${byActor(req)}`);
+    await logModeration(req, username, 'adduser', null);
 
     res.json(result);
   } catch (error) {
@@ -986,7 +1084,8 @@ router.post('/whitelist/steamid/add', requirePermission("players.moderate"), asy
     }
     const result = await req.app.get('rconService').addAllowedSteamId(String(steamId));
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(String(steamId), 'whitelist_steamid_add', null);
+    log.info(`POST /whitelist/steamid/add: ${steamId}${byActor(req)}`);
+    await logModeration(req, String(steamId), 'whitelist_steamid_add', null);
     res.json(result);
   } catch (error) {
     log.error(`Failed to add allowed SteamID: ${error.message}`);
@@ -1002,7 +1101,8 @@ router.post('/whitelist/steamid/remove', requirePermission("players.moderate"), 
     }
     const result = await req.app.get('rconService').removeAllowedSteamId(String(steamId));
     if (!result?.success) return res.status(400).json(result);
-    await logPlayerAction(String(steamId), 'whitelist_steamid_remove', null);
+    log.info(`POST /whitelist/steamid/remove: ${steamId}${byActor(req)}`);
+    await logModeration(req, String(steamId), 'whitelist_steamid_remove', null);
     res.json(result);
   } catch (error) {
     log.error(`Failed to remove allowed SteamID: ${error.message}`);
@@ -1093,13 +1193,27 @@ router.post('/notes', requirePermission("players.moderate"), async (req, res) =>
     if (!Array.isArray(tags)) {
       return res.status(400).json({ error: 'Tags must be an array', code: ErrorCode.PLAYERS_NOTE_TAGS_MUST_BE_ARRAY });
     }
+    // R1-9: and at most MAX_PLAYER_NOTE_TAGS of them, once blanks and repeats
+    // are dropped (the Players page sends ten at most).
+    const invalidTags = { error: `Tags must be text, at most 50 characters each and ${MAX_PLAYER_NOTE_TAGS} per note`, code: ErrorCode.PLAYERS_NOTE_INVALID_TAGS };
     if (tags.some(t => typeof t !== 'string' || t.length > 50)) {
-      return res.status(400).json({ error: 'Tags must be strings (max 50 chars each)', code: ErrorCode.PLAYERS_NOTE_INVALID_TAGS });
+      return res.status(400).json(invalidTags);
+    }
+    const uniqueTags = normalizePlayerNoteTags(tags);
+    if (new Set(tags.filter(t => t.trim() !== '')).size > MAX_PLAYER_NOTE_TAGS) {
+      return res.status(400).json(invalidTags);
     }
 
-    const result = await upsertPlayerNote(playerName, note, tags);
+    const result = await upsertPlayerNote(playerName, note, uniqueTags);
     res.json({ success: true, note: result });
   } catch (error) {
+    if (error instanceof PlayerNotesFullError) {
+      return res.status(409).json({
+        error: `Player notes are full (${MAX_PLAYER_NOTES} notes or 5 million characters in all). Delete notes you no longer need, then try again.`,
+        code: ErrorCode.PLAYERS_NOTES_FULL,
+        params: { max: MAX_PLAYER_NOTES },
+      });
+    }
     log.error(`Failed to save player note: ${error.message}`);
     res.status(500).json({ error: sanitizeError(error.message) });
   }

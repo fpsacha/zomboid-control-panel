@@ -70,10 +70,16 @@ import { candidateIniPaths } from "../utils/zomboidPaths.js";
 import { serverHasWorldFolder } from "../utils/savesFolder.js";
 import { adminPasswordStartScriptRefusal } from "../services/startScriptValues.js";
 import {
+  ADMIN_PASSWORD_ENV,
+  adminPasswordForLaunch,
+  recordAdminPasswordPassed,
+} from "../services/adminPasswordLaunch.js";
+import {
   quoteForBatch,
   quoteForShell,
   textForScriptComment,
 } from "../utils/startScriptQuoting.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import {
   checkZomboidDataPath,
   describeRefusal,
@@ -123,7 +129,6 @@ import {
 import { installDirKey } from "../services/bridgeDisk.js";
 import { resolveInstallDir } from "../services/panelBridgeInstaller.js";
 import { isUnmanagedRemoteServer } from "../utils/serverStatusModel.js";
-import { redactGameLogSecrets } from "../utils/gameLogSecrets.js";
 
 const router = express.Router();
 
@@ -212,8 +217,29 @@ function getSteamCmdExe(steamcmdPath) {
 // as a side effect of being previewed/used, not read back from the request
 // object a second time for the actual spawn. Omitting candidatePath is the
 // steady-state case: resolve whatever is already saved.
+// SECURITY (2026-10-28): SteamCMD is a program the panel runs, so it is never
+// run from a Steam Workshop download folder or a Windows network share,
+// whose files anyone can supply (utils/untrustedFolder.js): server.install
+// could otherwise point it at a downloaded Workshop item. Refused where a
+// request names the folder, and again in saveAndResolveSteamCmdExe(), so a
+// folder saved before this check doesn't run either.
+export function steamCmdFolderRefusal(dir) {
+  if (!untrustedFolderReason(dir)) return null;
+  return {
+    error:
+      "SteamCMD can't be used from this folder: it is inside a Steam Workshop download folder or on a network share, whose files anyone could supply. Choose the folder SteamCMD is installed in on this computer.",
+    code: ErrorCode.STEAMCMD_FOLDER_REFUSED,
+  };
+}
+
+function throwIfSteamCmdFolderRefused(dir) {
+  const refusal = steamCmdFolderRefusal(dir);
+  if (refusal) throw Object.assign(new Error(refusal.error), { code: refusal.code });
+}
+
 async function saveAndResolveSteamCmdExe(candidatePath) {
   if (candidatePath) {
+    throwIfSteamCmdFolderRefused(candidatePath);
     const current = await getSetting("steamcmdPath");
     if (current !== candidatePath) {
       await setSetting("steamcmdPath", candidatePath);
@@ -227,6 +253,7 @@ async function saveAndResolveSteamCmdExe(candidatePath) {
     return getSteamCmdExe(candidatePath);
   }
   const configuredPath = await getSetting("steamcmdPath");
+  throwIfSteamCmdFolderRefused(configuredPath);
   return configuredPath ? getSteamCmdExe(configuredPath) : null;
 }
 
@@ -683,6 +710,29 @@ function normalizeSteamBranch(branch) {
     : branch;
 }
 
+// SECURITY (2026-10-28): the branch a request names is passed to SteamCMD as
+// the value after -beta, and SteamCMD reads its own command line (quotes,
+// +commands) by its own rules, so any text there could become another
+// SteamCMD command. Steam branch names are letters, digits, dots, dashes and
+// underscores ("public", "unstable", "42.19", "legacy41"); anything else is
+// refused before SteamCMD runs. `true` is the legacy "unstable".
+const STEAM_BRANCH_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+export function isValidSteamBranch(branch) {
+  if (branch === true) return true;
+  const name = normalizeSteamBranch(branch);
+  return typeof name === "string" && STEAM_BRANCH_NAME_RE.test(name);
+}
+
+function steamBranchRefusal(branch) {
+  if (isValidSteamBranch(branch)) return null;
+  return {
+    error:
+      "Invalid Steam branch name. Use only letters, numbers, dots, dashes and underscores.",
+    code: ErrorCode.STEAM_BRANCH_INVALID,
+  };
+}
+
 function recoverMismatchedSteamBranchManifest(installPath, selectedBranch) {
   const manifestPath = path.join(
     installPath,
@@ -1118,6 +1168,11 @@ export function isValidPath(inputPath) {
   if (normalized.includes("..")) return false;
   // Must be absolute path
   if (!path.isAbsolute(normalized)) return false;
+  // SECURITY (2026-10-28): no Windows network path (//host/share, //?/UNC/...).
+  // Merely touching one makes the panel's account sign in to that host,
+  // handing it the account's NTLM login, and a share serves whatever files
+  // it likes (utils/untrustedFolder.js). No SteamCMD or game folder is one.
+  if (untrustedFolderReason(inputPath, { windows: isWindows }) === "networkShare") return false;
   return true;
 }
 
@@ -1491,21 +1546,30 @@ export function generateStartupScripts(options) {
     minMemory = 4,
     maxMemory = 8,
     zomboidDataPath,
-    adminPassword,
+    embeddedAdminPassword,
     serverPort = 16261,
     useNoSteam = false,
     useDebug = false,
   } = options;
 
-  // The server name, data folder and admin password reach the game exactly as
-  // stored, each quoted for the script it goes into (utils/startScriptQuoting.js).
-  // They used to be stripped of every shell metacharacter, which silently
-  // pointed the game at another folder and gave it another password; a value
-  // that can't be quoted (a double quote, a control character) now stops the
-  // script from being generated instead.
+  // The server name and data folder reach the game exactly as stored, each
+  // quoted for the script it goes into (utils/startScriptQuoting.js). They
+  // used to be stripped of every shell metacharacter, which silently pointed
+  // the game at another folder; a value that can't be quoted (a double quote,
+  // a control character) now stops the script from being generated instead.
+  //
+  // The admin password is not written into either script (security audit
+  // R1-30/R1-35, services/adminPasswordLaunch.js): both read it from
+  // PZ_PANEL_ADMIN_PASSWORD, which the panel sets for the launches that need
+  // it, and pass -adminpassword only then. `embeddedAdminPassword` is for a
+  // systemd/OpenRC unit alone, which the panel can't hand an environment: the
+  // .sh then carries it as text for that one start.
   const nameText = String(serverName ?? "");
   const dataPathText = zomboidDataPath ? String(zomboidDataPath) : "";
-  const adminPasswordText = adminPassword ? String(adminPassword) : "";
+  const embeddedAdminPasswordText = embeddedAdminPassword ? String(embeddedAdminPassword) : "";
+  const shellAdminPasswordSource = embeddedAdminPasswordText
+    ? quoteForShell(embeddedAdminPasswordText, "The admin password")
+    : `"\${${ADMIN_PASSWORD_ENV}:-}"`;
   const commentName = textForScriptComment(nameText);
   // 0 = automatic: no -Xms, so the JVM starts small and ZGC can return
   // whatever the server isn't using -- it never uncommits below -Xms.
@@ -1559,16 +1623,15 @@ export function generateStartupScripts(options) {
 
   // Build game arguments: the same list for both scripts, each value quoted
   // the way its script reads it (a .bat is read by cmd.exe, a .sh by bash).
-  const buildGameArgs = (quote) => {
+  const buildGameArgs = (quote, adminPasswordArgs) => {
     const args = [`-servername ${quote(nameText, "The server name")}`];
 
     if (dataPathText) {
       args.push(`-cachedir=${quote(dataPathText, "The Zomboid data folder")}`);
     }
 
-    if (adminPasswordText) {
-      args.push(`-adminpassword ${quote(adminPasswordText, "The admin password")}`);
-    }
+    // `-adminpassword "<password>"` when the launch provides one, else nothing.
+    args.push(adminPasswordArgs);
 
     if (serverPort !== 16261) {
       args.push(`-port ${serverPort}`);
@@ -1579,8 +1642,13 @@ export function generateStartupScripts(options) {
     }
     return args;
   };
-  const batchGameArgs = buildGameArgs(quoteForBatch);
-  const shellGameArgs = buildGameArgs(quoteForShell);
+  const batchGameArgs = buildGameArgs(quoteForBatch, "%PZ_ADMIN_ARGS%");
+  // Bash's ${VAR:+...}: both words only when the variable is set and not
+  // empty, the password one word whatever it holds.
+  const shellGameArgs = buildGameArgs(
+    quoteForShell,
+    `\${PZ_ADMIN_PASSWORD:+-adminpassword "$PZ_ADMIN_PASSWORD"}`,
+  );
 
   const classpathEntries = buildClasspathEntries(installPath);
 
@@ -1632,6 +1700,12 @@ REM =====================================================
 
 SET PZ_CLASSPATH=${classpathEntries.join(";")}
 
+REM No admin password is written here. The panel sets ${ADMIN_PASSWORD_ENV}
+REM for the starts that need it: a new world, or a changed password.
+SET "PZ_ADMIN_ARGS="
+IF DEFINED ${ADMIN_PASSWORD_ENV} SET PZ_ADMIN_ARGS=-adminpassword "%${ADMIN_PASSWORD_ENV}%"
+SET "${ADMIN_PASSWORD_ENV}="
+
 ".\\jre64\\bin\\java.exe" ${jvmArgs.join(" ")} -Djava.library.path=${formatJavaLibraryPath(windowsLibraryDirs.dirs, "win32")} -cp %PZ_CLASSPATH% zombie.network.GameServer ${batchGameArgs.join(" ")}
 
 PAUSE
@@ -1673,6 +1747,18 @@ fi
 INSTDIR="$(dirname "$0")"
 export LD_LIBRARY_PATH="${linuxLdLibraryPath}"
 
+${
+  embeddedAdminPasswordText
+    ? `# The admin password is here for this start only (a systemd/OpenRC unit
+# gets no environment from the panel); the next start rewrites this file
+# without it.`
+    : `# No admin password is written here. The panel sets ${ADMIN_PASSWORD_ENV}
+# for the starts that need it: a new world, or a changed password. It is not
+# passed on to the game's own environment.`
+}
+PZ_ADMIN_PASSWORD=${shellAdminPasswordSource}
+unset ${ADMIN_PASSWORD_ENV}
+
 "$JAVA_CMD" ${linuxJvmArgs.join(" ")} -Djava.library.path=${formatJavaLibraryPath(linuxLibraryDirs.dirs, "linux")} -cp "$PZ_CLASSPATH" zombie.network.GameServer ${shellGameArgs.join(" ")}
 `;
 
@@ -1685,7 +1771,11 @@ export LD_LIBRARY_PATH="${linuxLdLibraryPath}"
 // a moved/copied install directory the same way the scripts themselves do.
 const SCRIPT_FINGERPRINT_FILE = ".pz-panel-scripts.json";
 
+// Detects a hand edit; not a password hash. The scripts carry no admin
+// password, except a systemd/OpenRC unit's .sh for the one start that needs
+// it (services/adminPasswordLaunch.js), and the sidecar is owner-only.
 function hashScriptContent(content) {
+  // codeql[js/insufficient-password-hash] A fingerprint of a whole generated start script, compared only to tell the panel's own output from a hand edit; the scripts no longer hold the admin password (env var at launch), bar a managed unit's .sh for one start, and the sidecar is written 0600 like that .sh is owner/group-only.
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
 
@@ -1780,9 +1870,11 @@ export function writeStartupScriptsWithBackup(installPath, files) {
     }
 
     try {
-      // Both scripts embed -adminpassword. An explicit mode also tightens a
-      // .bat written before #193 (writeFileAtomic otherwise keeps an existing
-      // file's mode), since every Start regenerates it here.
+      // A script written before 2026-10-28 carried -adminpassword, and a
+      // systemd/OpenRC unit's .sh still does for the start that needs it. An
+      // explicit mode also tightens a .bat written before #193
+      // (writeFileAtomic otherwise keeps an existing file's mode), since
+      // every Start regenerates it here.
       writeFileAtomic(
         filePath,
         content,
@@ -1798,10 +1890,12 @@ export function writeStartupScriptsWithBackup(installPath, files) {
   }
 
   try {
+    // Owner-only, like the scripts it fingerprints (CodeQL 334): it used to
+    // take the umask default, 0644, next to a 0600 .bat.
     writeFileAtomic(
       fingerprintPath,
       JSON.stringify(fingerprints, null, 2),
-      "utf8",
+      { encoding: "utf8", mode: 0o600 },
     );
   } catch (fpErr) {
     log.warn(`Could not persist script fingerprint file: ${fpErr.message}`);
@@ -1931,6 +2025,8 @@ export async function refreshLaunchTargetBeforeStart(
   }
 
   let scriptBackupWarnings = [];
+  // The admin password a direct launch hands the game, "" for none.
+  let launchAdminPassword = "";
   // Whether this launch runs a start script the panel wrote just now (and
   // so loads linux64/ first), for the leftover-natives warning below.
   let wroteLaunchedScript = false;
@@ -1961,6 +2057,16 @@ export async function refreshLaunchTargetBeforeStart(
     activeServer.serverName
   ) {
     try {
+      // Whether this start hands the game its admin password, decided from
+      // the record as it is now (services/adminPasswordLaunch.js). A direct
+      // launch gets it through its environment (returned below, for
+      // serverManager.startServer()); a systemd/OpenRC unit runs the .sh
+      // with no environment from the panel, so it goes into the .sh itself,
+      // for that start only.
+      const dueAdminPassword = adminPasswordForLaunch(activeServer);
+      const managedUnit =
+        platform !== "win32" && isManagedLifecycleProvider(activeServer.lifecycleProvider);
+      const embeddedAdminPassword = managedUnit ? dueAdminPassword : "";
       const scripts = generateStartupScripts({
         installPath: launchDir,
         serverName: activeServer.serverName,
@@ -1968,7 +2074,7 @@ export async function refreshLaunchTargetBeforeStart(
         minMemory: activeServer.minMemory ?? 4,
         maxMemory: activeServer.maxMemory || 8,
         zomboidDataPath: activeServer.zomboidDataPath || "",
-        adminPassword: activeServer.adminPassword || "",
+        embeddedAdminPassword,
         serverPort: activeServer.serverPort || 16261,
         useNoSteam: activeServer.useNoSteam || false,
         useDebug: activeServer.useDebug || false,
@@ -1988,6 +2094,13 @@ export async function refreshLaunchTargetBeforeStart(
           { path: shPath, content: scripts.sh.replace(/\r\n/g, "\n") },
         ],
       );
+      // Recorded now; it only counts as applied once the game has written
+      // its account database after this (adminPasswordForLaunch()), so a
+      // start that never happens or never gets that far passes it again.
+      if (dueAdminPassword && (!managedUnit || !failedPaths.includes(shPath))) {
+        recordAdminPasswordPassed(activeServer, dueAdminPassword);
+        if (!managedUnit) launchAdminPassword = dueAdminPassword;
+      }
       scriptBackupWarnings = backupMessages;
       if (scriptBackupWarnings.length > 0) {
         log.warn(
@@ -2029,7 +2142,7 @@ export async function refreshLaunchTargetBeforeStart(
         launchesPanelStartScript(activeServer, { windows: platform === "win32" }),
     });
   }
-  return { scriptBackupWarnings };
+  return { scriptBackupWarnings, launchAdminPassword };
 }
 
 // Logs, before every launch the panel performs, the leftover natives/ folder
@@ -3382,9 +3495,28 @@ function steamCmdFolderHasBinary(dir) {
   return names.some((name) => fs.existsSync(path.join(dir, name)));
 }
 
+// SECURITY (2026-10-28): GET /branches runs SteamCMD, and saves the folder
+// its query names as the SteamCMD folder. A GET is the request any web page
+// can make the operator's browser send unasked (an <img>, with no Origin
+// header for the CORS check to judge), and while panel logins are off every
+// request is an admin's: a page the operator visited could make the panel
+// save and run a steamcmd.exe from a folder of its choosing, a file it had
+// the browser download for instance. Browsers mark such a request
+// Sec-Fetch-Site: cross-site or same-site, which no page can change; the
+// panel's own page sends same-origin, a typed address none. Same rule as
+// routes/auth.js's refuseCrossSiteCookieUse(); a client that sends no such
+// header is not a browser page.
+function isCrossSiteBrowserRequest(req) {
+  const site = req.headers?.["sec-fetch-site"];
+  return Boolean(site) && site !== "same-origin" && site !== "none";
+}
+
 // Get available Steam branches for PZ Dedicated Server (App ID 380870)
 router.get("/branches", requirePermission("server.install"), async (req, res) => {
   try {
+    if (isCrossSiteBrowserRequest(req)) {
+      return res.status(403).json({ error: "Cross-origin request refused" });
+    }
     const steamcmdPath =
       req.query.steamcmdPath || (await getSetting("steamcmdPath"));
     log.info(
@@ -3408,6 +3540,8 @@ router.get("/branches", requirePermission("server.install"), async (req, res) =>
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     // A candidate from the query string is saved below, so only one that is
     // really a SteamCMD folder gets that far. The Update dialog asks for the
@@ -3632,7 +3766,12 @@ function parseSteamBranches(output) {
 export function getBetaArgs(branch) {
   // Backwards compatibility: treat boolean true as 'unstable'
   if (branch === true) return ["-beta", "unstable"];
-  // Allow any branch name - Steam will validate it
+  // Only a real branch name reaches SteamCMD (isValidSteamBranch(); the
+  // routes refuse anything else before they answer).
+  if (!isValidSteamBranch(branch)) {
+    const refusal = steamBranchRefusal(branch);
+    throw Object.assign(new Error(refusal.error), { code: refusal.code });
+  }
   return ["-beta", normalizeSteamBranch(branch)];
 }
 
@@ -3691,6 +3830,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
 
     // Determine branch - support both new 'branch' param and legacy 'useUnstable'
     const selectedBranch = branch || (useUnstable ? "unstable" : "stable");
+    const branchRefused = steamBranchRefusal(selectedBranch);
+    if (branchRefused) return res.status(400).json(branchRefused);
     log.info(
       `POST /install (steamcmd=${steamcmdPath}, install=${installPath}, server=${serverName}, branch=${selectedBranch}, noSteam=${useNoSteam}, debug=${useDebug})`,
     );
@@ -3715,6 +3856,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid install path", code: ErrorCode.INSTALL_PATH_INVALID });
@@ -4301,7 +4444,6 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
                 minMemory: safeMinMemory,
                 maxMemory: safeMaxMemory,
                 zomboidDataPath: zomboidPath,
-                adminPassword,
                 serverPort: safeServerPort,
                 useNoSteam,
                 useDebug,
@@ -4313,8 +4455,8 @@ router.post("/install", requirePermission("server.install"), async (req, res) =>
               );
               writeFileAtomic(batchPath, scripts.bat, {
                 encoding: "utf8",
-                // security audit L1: the .bat embeds -adminpassword; keep it
-                // owner-only like the .sh (0750) instead of the umask default.
+                // Owner-only (security audit L1), though the scripts no longer
+                // carry the admin password (services/adminPasswordLaunch.js).
                 mode: 0o600,
               });
               log.info(`Created custom startup batch: ${batchPath}`);
@@ -4834,7 +4976,6 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
       minMemory: safeMinMemory,
       maxMemory: safeMaxMemory,
       zomboidDataPath: zomboidPath,
-      adminPassword,
       serverPort: safeServerPort,
       useNoSteam,
       useDebug,
@@ -4843,8 +4984,8 @@ router.post("/quick-setup", requirePermission("server.install"), async (req, res
     const batchPath = path.join(installPath, `StartServer_${serverName}.bat`);
     writeFileAtomic(batchPath, scripts.bat, {
       encoding: "utf8",
-      // security audit L1: the .bat embeds -adminpassword; keep it
-      // owner-only like the .sh (0750) instead of the umask default.
+      // Owner-only (security audit L1), though the scripts no longer
+      // carry the admin password (services/adminPasswordLaunch.js).
       mode: 0o600,
     });
     log.info(`Created custom startup batch: ${batchPath}`);
@@ -5271,6 +5412,8 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
 
     // Determine branch - support both new 'branch' param and legacy 'useUnstable'
     const selectedBranch = branch || (useUnstable ? "unstable" : "stable");
+    const branchRefused = steamBranchRefusal(selectedBranch);
+    if (branchRefused) return res.status(400).json(branchRefused);
 
     // Auto-load steamcmdPath from settings if not provided
     if (!steamcmdPath) {
@@ -5286,6 +5429,8 @@ router.post("/steam-update", requirePermission("server.install"), async (req, re
     if (!isValidPath(steamcmdPath)) {
       return res.status(400).json({ error: "Invalid SteamCMD path", code: ErrorCode.STEAMCMD_PATH_INVALID });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(steamcmdPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid install path", code: ErrorCode.INSTALL_PATH_INVALID });
@@ -5721,6 +5866,8 @@ router.post("/steamcmd/download", requirePermission("server.install"), async (re
     if (!isValidPath(installPath)) {
       return res.status(400).json({ error: "Invalid installation path", code: ErrorCode.STEAMCMD_DOWNLOAD_INVALID_PATH });
     }
+    const steamcmdFolderRefused = steamCmdFolderRefusal(installPath);
+    if (steamcmdFolderRefused) return res.status(400).json(steamcmdFolderRefused);
 
     // Claim the guard NOW, before the first `await` below -- mirrors
     // panelUpdateChecker.js's isDownloading (see its own comment at
@@ -6282,6 +6429,37 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
       return res.status(400).json({ error: "Invalid path", code: ErrorCode.INVALID_PATH });
     }
 
+    // hasPzInstallMarker() below only confirms a handful of marker
+    // FILENAMES exist -- trivially satisfied by creating an empty file
+    // with one of those names anywhere on the host, not an authorization
+    // check (bug-hunt-2026-08-27). The two real callers of this route
+    // (Servers.tsx's "Delete Everything" and "Clear Install Folder") only
+    // ever pass a path that's already a configured server's own
+    // installPath, so require an exact match against one -- turning
+    // "any directory with a spoofable marker file" into "must be a server
+    // the panel already has on record" (creating that record requires
+    // servers.manage, a capability distinct from server.wipe).
+    //
+    // SECURITY (2026-10-28, CodeQL js/path-injection 307): matched FIRST,
+    // before the path touches the disk. The existence and marker checks
+    // used to run on any absolute path, so their different answers told a
+    // server.wipe role whether any folder or file on the host existed.
+    const resolvedDeletePath = path.resolve(deletePath);
+    const configuredServers = await getServers();
+    // .find(), not .some() -- the matched record's own zomboidDataPath and
+    // lifecycleProvider are needed below for the nesting and stopped
+    // checks, not just a yes/no membership test.
+    const targetServer = configuredServers.find(
+      (s) => s.installPath && path.resolve(s.installPath) === resolvedDeletePath,
+    );
+    if (!targetServer) {
+      return res.status(400).json({
+        error:
+          "This path doesn't match a server the panel has on record. Refusing to delete for safety.",
+        code: ErrorCode.DELETE_FILES_NOT_CONFIGURED_SERVER,
+      });
+    }
+
     // Safety check: path must exist and contain PZ server files
     if (!fs.existsSync(deletePath)) {
       return res.status(404).json({ error: "Path does not exist", code: ErrorCode.PATH_NOT_FOUND });
@@ -6302,34 +6480,6 @@ router.post("/delete-files", requirePermission("server.wipe"), async (req, res) 
         error:
           "This does not appear to be a Project Zomboid server installation. Refusing to delete for safety.",
         code: ErrorCode.DELETE_FILES_NOT_PZ_INSTALL,
-      });
-    }
-
-    // hasPzInstallMarker() above only confirms a handful of marker
-    // FILENAMES exist -- trivially satisfied by creating an empty file
-    // with one of those names anywhere on the host, not an authorization
-    // check (bug-hunt-2026-08-27). The two real callers of this route
-    // (Servers.tsx's "Delete Everything" and "Clear Install Folder") only
-    // ever pass a path that's already a configured server's own
-    // installPath, so require an exact match against one -- turning
-    // "any directory with a spoofable marker file" into "must be a server
-    // the panel already has on record" (creating that record requires
-    // servers.manage, a capability distinct from server.wipe). This is a
-    // second, narrower layer on top of the marker check, not a
-    // replacement for it.
-    const resolvedDeletePath = path.resolve(deletePath);
-    const configuredServers = await getServers();
-    // .find(), not .some() -- the matched record's own zomboidDataPath and
-    // lifecycleProvider are needed below for the nesting and stopped
-    // checks, not just a yes/no membership test.
-    const targetServer = configuredServers.find(
-      (s) => s.installPath && path.resolve(s.installPath) === resolvedDeletePath,
-    );
-    if (!targetServer) {
-      return res.status(400).json({
-        error:
-          "This path doesn't match a server the panel has on record. Refusing to delete for safety.",
-        code: ErrorCode.DELETE_FILES_NOT_CONFIGURED_SERVER,
       });
     }
 
@@ -6953,15 +7103,42 @@ const CONSOLE_LOG_FILE_NAME = "server-console.txt";
 // SECURITY (2026-10-20): every role, admins included, gets the game's
 // "Command line admin password: <value>" line redacted
 // (utils/gameLogSecrets.js); the Console page never needs to show it.
+// SECURITY (audit R1-27): and every secret the download and the support
+// bundle redact (routes/debug.js redactRawLogText): the passwords the panel
+// holds, adduser/setpassword passwords, and the RCON password in the AUTH
+// packet the game prints with -debug. The known values are re-read at most
+// every few seconds: the Console page polls every 2 s.
+const CONSOLE_KNOWN_SECRETS_TTL_MS = 5000;
+let consoleKnownSecretsCache = { at: 0, values: null };
+
+async function consoleLogRedactor() {
+  // Loaded here, not at the top: routes/debug.js imports routes/mods.js,
+  // which imports this file, so a static import would be a cycle.
+  const { collectBundleKnownSecrets, redactRawLogText } = await import("./debug.js");
+  const now = Date.now();
+  if (
+    !consoleKnownSecretsCache.values ||
+    now - consoleKnownSecretsCache.at > CONSOLE_KNOWN_SECRETS_TTL_MS
+  ) {
+    consoleKnownSecretsCache = {
+      at: now,
+      values: await collectBundleKnownSecrets().catch(() => []),
+    };
+  }
+  const knownSecrets = consoleKnownSecretsCache.values;
+  return (line) => redactRawLogText(line, knownSecrets);
+}
+
 async function consoleLogView(req) {
+  const redact = await consoleLogRedactor();
   if (await canSeeHostPaths(req.user)) {
     return {
-      lines: (lines) => lines.map((line) => redactGameLogSecrets(line)),
+      lines: (lines) => lines.map((line) => redact(line)),
       path: (consoleLogPath) => consoleLogPath,
     };
   }
   return {
-    lines: (lines) => lines.map((line) => (line ? sanitizeError(redactGameLogSecrets(line)) : line)),
+    lines: (lines) => lines.map((line) => (line ? sanitizeError(redact(line)) : line)),
     path: () => CONSOLE_LOG_FILE_NAME,
   };
 }
@@ -7122,12 +7299,9 @@ router.get("/console-log/download", requirePermission("server.world_events"), as
       return res.status(404).json({ error: "File not found", code: ErrorCode.FILE_NOT_FOUND });
     }
 
-    // Loaded here, not at the top: routes/debug.js imports routes/mods.js,
-    // which imports this file, so a static import would be a cycle.
-    const { collectBundleKnownSecrets, redactRawLogText } = await import("./debug.js");
-    const knownSecrets = await collectBundleKnownSecrets().catch(() => []);
+    // The same redaction as the Console page (consoleLogView).
     const view = await consoleLogView(req);
-    const redactLine = (line) => view.lines([redactRawLogText(line, knownSecrets)])[0];
+    const redactLine = (line) => view.lines([line])[0];
 
     const size = stats.size;
     const start = Math.max(0, size - CONSOLE_LOG_DOWNLOAD_MAX_BYTES);

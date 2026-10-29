@@ -14,6 +14,7 @@ import {
 } from "../database/init.js";
 import { withFileLock, writeFileAtomic } from "../utils/fileWriteQueue.js";
 import { escapeRegExp } from "../utils/regex.js";
+import { untrustedFolderReason } from "../utils/untrustedFolder.js";
 import { getDataPaths } from "../utils/paths.js";
 import { parseBoundedInteger } from "../utils/queryNumbers.js";
 import {
@@ -25,6 +26,7 @@ import {
   getStartBlockingSteamOperation,
 } from "./activeSteamOperations.js";
 import { notifyServerLaunched, prepareForLaunch } from "./lifecycleCoordinator.js";
+import { launchEnvWithAdminPassword } from "./adminPasswordLaunch.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { listNonInternalIPv4Interfaces } from "../utils/networkInterfaces.js";
 import { buildLinuxLdLibraryCandidates } from "../utils/nativeLibraryPaths.js";
@@ -388,9 +390,25 @@ function isSystemOrInterpreter(real) {
   return COMMAND_INTERPRETER_RE.test(name);
 }
 
-// null when the launch may go ahead, or `{ program }` (the file name only,
-// never its folder) when it is refused. A start command wins over a custom
-// launcher, as in startServer().
+// SECURITY (2026-10-28): the launch FOLDER is part of the launch target too.
+// A managed launch runs the folder's own jre64/bin/java(.exe), the classes
+// and jars in its java/ folder and the native libraries beside them -- and,
+// when the panel can't rewrite it, the start script already there. So
+// whoever supplies the folder's files decides what runs on this computer.
+// servers.manage may point a server at any folder, which is right for the
+// game's own install, but a Steam Workshop download folder or a Windows
+// network share holds files anyone can supply, and is never a real game
+// install (utils/untrustedFolder.js).
+/** "workshop", "networkShare" or null for a launch folder (see above). */
+export function untrustedLaunchFolderReason(dir, { windows = isWindows } = {}) {
+  return untrustedFolderReason(dir, { windows });
+}
+
+// null when the launch may go ahead, `{ folder }` (a reason from
+// untrustedLaunchFolderReason()) when the launch folder itself is refused,
+// or `{ program }` (the file name only, never its folder) when the program
+// is refused. A start command wins over a custom launcher, as in
+// startServer().
 //
 // A START COMMAND is the EXEC-1 vector (`powershell.exe -enc <base64>`): its
 // program is resolved against the install folder and must sit inside it --
@@ -404,6 +422,8 @@ function isSystemOrInterpreter(real) {
 // and system-dir programs. A start command with no install folder to
 // confine it to is refused outright rather than left unconfined.
 export function findLaunchTargetRefusal({ installDir, startCommand, launcherPath } = {}) {
+  const folder = untrustedLaunchFolderReason(installDir);
+  if (folder) return { folder };
   const command = typeof startCommand === "string" ? startCommand.trim() : "";
   if (command) {
     const cmd = parseCustomStartCommand(command).cmd;
@@ -427,7 +447,8 @@ export function findLaunchTargetRefusal({ installDir, startCommand, launcherPath
 // The refusal, thrown by startServer() and forwarded by POST
 // /api/server/start like SERVER_START_SCRIPT_MISSING below. Only the file
 // name goes in `params`.
-export function launchTargetRefusedError({ program }) {
+export function launchTargetRefusedError({ program, folder }) {
+  if (folder) return launchFolderRefusedError(folder);
   const error = new Error(
     `The panel won't launch ${program} for this server: it only launches a script or program inside the server's own install folder, never one elsewhere on this computer or a system command interpreter. An admin can fix this in My Servers › Edit Server: point Custom Start Command (or an Install Path that names a launcher script) at a script inside the server's install folder, or clear Custom Start Command so the panel writes and runs its own launch script.`,
   );
@@ -436,9 +457,22 @@ export function launchTargetRefusedError({ program }) {
   return error;
 }
 
+// The launch folder refused (untrustedLaunchFolderReason()): at start, at
+// restart (before anything is stopped) and when it is saved. `reason` goes
+// in params only; the text covers both kinds of folder.
+export function launchFolderRefusedError(reason) {
+  const error = new Error(
+    "The panel won't start this server from its install folder: it is inside a Steam Workshop download folder or on a network share, where whoever publishes the Workshop item or runs the share decides what runs on this computer. An admin can set the game's own install folder in My Servers › Edit Server.",
+  );
+  error.code = ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED;
+  error.params = { reason };
+  return error;
+}
+
 // The same refusal, asked before a Restart stops anything (see
 // ServerManager.assertNamedStartupScriptLaunchable()).
-export function launchTargetRestartRefusedError({ program }) {
+export function launchTargetRestartRefusedError({ program, folder }) {
+  if (folder) return launchFolderRefusedError(folder);
   const error = new Error(
     `Restart called off before stopping the server, which is still running: the panel wouldn't launch ${program} to start it again, because it only launches a script or program inside the server's own install folder, never one elsewhere on this computer or a system command interpreter. An admin can fix this in My Servers › Edit Server, then restart again.`,
   );
@@ -464,8 +498,9 @@ function stockStartupScript(useNoSteam) {
 // The launch script the panel generates for a MANAGED server (see
 // resolveLaunchMode() below): routes/server.js's
 // refreshLaunchTargetBeforeStart() writes both files into the install
-// folder before every start, with -servername/-cachedir/-adminpassword
-// baked in. `windows` is a parameter only so tests can ask for the other
+// folder before every start, with -servername/-cachedir baked in (the
+// admin password comes from the launch environment, see
+// services/adminPasswordLaunch.js). `windows` is a parameter only so tests can ask for the other
 // platform's name.
 export function managedStartupScriptName(serverName, windows = isWindows) {
   return windows
@@ -2512,13 +2547,15 @@ export class ServerManager {
         const refusal = findLaunchTargetRefusal(target);
         if (refusal) {
           log.warn(
-            `Start refused: launch target ${refusal.program} is outside the install folder or is a system program`,
+            refusal.folder
+              ? `Start refused: the launch folder is untrusted (${refusal.folder})`
+              : `Start refused: launch target ${refusal.program} is outside the install folder or is a system program`,
           );
           throw launchTargetRefusedError(refusal);
         }
       }
 
-      const { scriptWarnings, launchSeq } = await prepareForLaunch(
+      const { scriptWarnings, launchSeq, launchAdminPassword } = await prepareForLaunch(
         this._serverRecord,
       );
 
@@ -2843,6 +2880,19 @@ export class ServerManager {
 
       const launchLogPath = this._openLaunchLog();
       const launchStdio = ["ignore", this._launchLogFd, this._launchLogFd];
+      // The script the panel generated reads the admin password from its
+      // environment, set only for the starts that need it, as
+      // prepareForLaunch() decided from the record as it is now (security
+      // audit R1-30/R1-35, services/adminPasswordLaunch.js). Any other
+      // script never got one.
+      const launchesNamedScript =
+        Boolean(this._serverRecord) &&
+        this.launchMode !== "custom" &&
+        Boolean(this.serverName) &&
+        this.serverBat === managedStartupScriptName(this.serverName);
+      const launchEnv = launchEnvWithAdminPassword(
+        launchesNamedScript ? launchAdminPassword : "",
+      );
 
       if (isWindows) {
         // Two fixes, 2026-09-03 Windows spawn bugs (Dwight's pz-verify
@@ -2888,6 +2938,7 @@ export class ServerManager {
           detached: true,
           stdio: "ignore",
           windowsVerbatimArguments: true,
+          env: launchEnv,
         });
       } else {
         // Ensure the script is executable
@@ -2910,7 +2961,7 @@ export class ServerManager {
           detached: true,
           stdio: launchStdio,
           env: {
-            ...process.env,
+            ...launchEnv,
             LD_LIBRARY_PATH: ldPath,
             HOME: buildLinuxServerHome(serverAbsPath),
           },
@@ -3853,7 +3904,9 @@ export class ServerManager {
       const refusal = findLaunchTargetRefusal(launchTargetOf(record));
       if (refusal) {
         log.warn(
-          `Restart refused before stopping the server: launch target ${refusal.program} is outside the install folder or is a system program`,
+          refusal.folder
+            ? `Restart refused before stopping the server: the launch folder is untrusted (${refusal.folder})`
+            : `Restart refused before stopping the server: launch target ${refusal.program} is outside the install folder or is a system program`,
         );
         throw launchTargetRestartRefusedError(refusal);
       }

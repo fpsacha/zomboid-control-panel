@@ -286,6 +286,7 @@
     "languageLabel": "消息语言",
     "templateLabel": "倒计时模板",
     "templateHint": "使用 {count} 表示数字，使用 {unit} 表示分钟或秒。",
+    "templateNoPermission": "编写自定义消息需要 server.world_events 权限，而该角色没有此权限。你仍然可以选择一种语言并使用其预设。",
     "presetButton": "使用语言预设",
     "saveButton": "保存警告",
     "saved": "重启警告已保存",

@@ -96,6 +96,7 @@
     "switchToThisServer": "Chanje sou Sèvè Sa a",
     "added": "Ajoute {{date}}",
     "noPermissionDocker": "Pou ou jere konteni sa a, ou bezwen pèmisyon docker.manage, e wòl sa a pa genyen li.",
+    "noPermissionDockerControl": "Lè ou demare, kanpe oswa redemare konteni sa a, ou demare, kanpe oswa redemare sèvè a, kidonk ou bezwen pèmisyon server.control tou, e wòl sa a pa genyen li.",
     "noPermissionManage": "Pou ou fè aksyon sa a, ou bezwen pèmisyon servers.manage, e wòl sa a pa genyen li.",
     "noPermissionStartStop": "Ou bezwen ni servers.manage ni server.control — si w gen sèlman youn, sèvè a ta ka aktive men li pa ta demare/rete."
   },

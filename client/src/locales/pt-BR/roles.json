@@ -166,7 +166,7 @@
     "rcon": {
       "execute": {
         "label": "Executar comandos RCON",
-        "description": "Conectar ao RCON e executar comandos de console arbitrários, inclusive os que podem parar o servidor. Também dá acesso de leitura ao histórico completo de comandos RCON — inclusive senhas reais de jogadores digitadas em comandos da lista de permissões, como adduser."
+        "description": "Conectar ao RCON e executar comandos de console arbitrários, inclusive os que podem parar o servidor. Também dá acesso de leitura ao histórico completo de comandos RCON — inclusive senhas reais de jogadores digitadas em comandos da lista de permissões, como adduser. Junto com “Moderar jogadores”, também concede níveis de acesso de equipe no jogo, como admin."
       }
     },
     "servers": {
@@ -202,7 +202,7 @@
     "players": {
       "moderate": {
         "label": "Moderar jogadores",
-        "description": "Banir, desbanir, expulsar ou adicionar um jogador à lista de permissões, e alterar o nível de acesso de um jogador no jogo — inclusive conceder ou revogar admin."
+        "description": "Banir, desbanir, expulsar ou adicionar um jogador à lista de permissões, e definir o nível de acesso dele no jogo como um nível simples, como user ou priority. Conceder um nível de equipe (admin, moderator, gm, observer ou um cargo personalizado com mais poderes), ou alterar o nível de uma conta que já tem um, também exige “Executar comandos RCON”: esses níveis executam comandos de console do servidor no jogo."
       },
       "gm_tools": {
         "label": "Ferramentas de GM",

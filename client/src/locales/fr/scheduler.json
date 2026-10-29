@@ -310,6 +310,7 @@
     "languageLabel": "Langue du message",
     "templateLabel": "Modèle du compte à rebours",
     "templateHint": "Utilisez {count} pour le nombre et {unit} pour les minutes ou secondes.",
+    "templateNoPermission": "Écrire votre propre message nécessite la permission server.world_events, que ce rôle ne possède pas. Vous pouvez toujours choisir une langue et utiliser son préréglage.",
     "presetButton": "Utiliser le préréglage de langue",
     "saveButton": "Enregistrer les avertissements",
     "saved": "Avertissements de redémarrage enregistrés",

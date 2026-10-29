@@ -438,6 +438,7 @@
     "description": "Change access level for {{player}}",
     "label": "Access Level",
     "placeholder": "Select level...",
+    "staffLevelsHint": "Staff levels such as admin, moderator or gm also need the Run RCON commands permission, so they aren't listed here.",
     "submit": "Set Level"
   },
   "confirmLastAdmin": {
@@ -577,6 +578,7 @@
     "saveButton": "Save Note",
     "activityLogTitle": "Activity Log",
     "activityLogTruncatedHint": "Showing the most recent {{count}} entries -- older activity may not be shown.",
+    "activityByActor": "by {{actor}}",
     "logsErrorTitle": "Activity log unavailable",
     "filterPlaceholder": "Filter by player name...",
     "filterAria": "Filter activity logs by player name",

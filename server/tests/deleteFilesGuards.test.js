@@ -716,3 +716,70 @@ describe("POST /api/server/delete-files safety guards", () => {
     });
   });
 });
+
+// CodeQL js/path-injection 307: the existence and PZ-marker checks ran on
+// any absolute path before the configured-server match, so their different
+// answers (404, NOT_PZ_INSTALL, NOT_CONFIGURED_SERVER) told a server.wipe
+// role whether any folder or file on the host existed. The match now comes
+// first, and nothing touches the disk for a path that isn't a server's.
+describe("POST /api/server/delete-files does not probe paths that aren't a server's", () => {
+  let probeRoot;
+
+  beforeEach(() => {
+    probeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pz-delete-probe-"));
+    scanHostForServerProcesses.mockReset().mockResolvedValue({ scanFailed: false, matched: [] });
+    getServers.mockReset().mockResolvedValue([{ id: 1, installPath: path.join(probeRoot, "configured") }]);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(probeRoot, { recursive: true, force: true });
+  });
+
+  async function answerFor(target) {
+    const response = createResponse();
+    await getDeleteFilesHandler()({ body: { path: target, confirm: true } }, response);
+    return {
+      status: response.status.mock.calls[0]?.[0],
+      code: response.json.mock.calls[0]?.[0]?.code,
+    };
+  }
+
+  it("answers a missing path, a plain folder and a folder with a PZ marker the same way", async () => {
+    const plain = path.join(probeRoot, "plain");
+    fs.mkdirSync(plain);
+    const marked = path.join(probeRoot, "marked");
+    fs.mkdirSync(marked);
+    fs.writeFileSync(path.join(marked, "ProjectZomboid64.json"), "{}");
+
+    const answers = [
+      await answerFor(path.join(probeRoot, "missing")),
+      await answerFor(plain),
+      await answerFor(marked),
+    ];
+    for (const answer of answers) {
+      expect(answer).toEqual({ status: 400, code: "DELETE_FILES_NOT_CONFIGURED_SERVER" });
+    }
+    expect(fs.existsSync(marked)).toBe(true);
+  });
+
+  it("never touches the disk for a path no server is configured at", async () => {
+    const target = path.join(probeRoot, "elsewhere");
+    const touched = [];
+    for (const name of ["existsSync", "statSync", "lstatSync", "readdirSync", "accessSync"]) {
+      const real = fs[name];
+      vi.spyOn(fs, name).mockImplementation((p, ...rest) => {
+        if (typeof p === "string" && p.startsWith(target)) touched.push(`${name} ${p}`);
+        return real.call(fs, p, ...rest);
+      });
+    }
+    const answer = await answerFor(target);
+    expect(answer.code).toBe("DELETE_FILES_NOT_CONFIGURED_SERVER");
+    expect(touched).toEqual([]);
+  });
+
+  it("still reaches the existence check for the configured server's own folder, spelled with a trailing separator", async () => {
+    const answer = await answerFor(path.join(probeRoot, "configured") + path.sep);
+    expect(answer).toEqual({ status: 404, code: "PATH_NOT_FOUND" });
+  });
+});

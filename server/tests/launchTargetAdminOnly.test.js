@@ -186,3 +186,45 @@ describe("POST /api/servers -- creating with a launcher install path is admin-on
     expect(r.json.code).toBe(ErrorCode.SERVER_LAUNCH_TARGET_ADMIN_ONLY);
   });
 });
+
+// SECURITY (2026-10-28): a managed launch runs the launch folder's own
+// jre64/java and java/ classes, so a technician pointing a server at a
+// downloaded Workshop item (or a network share) chose what Start runs.
+// Refused when saved, for every role (launchFolderUntrusted.test.js covers
+// the start-time check).
+describe("POST/PUT /api/servers -- a Workshop download folder is not a launch folder", () => {
+  const workshopItem = () =>
+    path.join(installDir, "steamapps", "workshop", "content", "108600", "3000000001");
+
+  it("refuses a technician moving installPath or serverPath into a Workshop item (400)", async () => {
+    const id = await makeServer();
+    fs.mkdirSync(workshopItem(), { recursive: true });
+    currentRole = "technician";
+    for (const key of ["installPath", "serverPath"]) {
+      const r = await call("PUT", `/api/servers/${id}`, { [key]: workshopItem() });
+      expect(r.status).toBe(400);
+      expect(r.json.code).toBe(ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED);
+    }
+    expect((await getServer(id)).installPath).toBe(installDir);
+  });
+
+  it("refuses an admin too, and a new server created there (400)", async () => {
+    const id = await makeServer();
+    currentRole = "admin";
+    const moved = await call("PUT", `/api/servers/${id}`, { installPath: workshopItem() });
+    expect(moved.status).toBe(400);
+    expect(moved.json.code).toBe(ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED);
+
+    currentRole = "technician";
+    const created = await call("POST", "/api/servers", {
+      name: "FromWorkshop",
+      serverName: "FromWorkshop",
+      installPath: workshopItem(),
+      rconHost: "127.0.0.1",
+      rconPort: 27901,
+      rconPassword: "x",
+    });
+    expect(created.status).toBe(400);
+    expect(created.json.code).toBe(ErrorCode.SERVER_LAUNCH_FOLDER_REFUSED);
+  });
+});

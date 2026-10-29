@@ -65,12 +65,14 @@ import { resolveDockerHostSignal } from "../services/managedContainer.js";
 import { resolveProvider } from "../utils/serverStatusModel.js";
 import {
   findLaunchTargetRefusal,
+  launchFolderRefusedError,
   launchTargetOf,
   launchTargetRefusedError,
   resolveLaunchMode,
   ServerManager,
   scanLeavesServerUnknown,
   scoreServerProcessOwnership,
+  untrustedLaunchFolderReason,
 } from "../services/serverManager.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { canSeeHostPaths, hideHostPaths } from "../utils/hostPathView.js";
@@ -134,6 +136,16 @@ function validateInstallPathShape(value) {
     return { valid: false, error: "Install path contains invalid characters" };
   }
   const { mode } = resolveLaunchMode({ installPath: value });
+  // The launch folder rule startServer() enforces (a Workshop download
+  // folder or a network share is anyone's files): refused when saved too,
+  // for every role, so the record never holds a server that can't start.
+  const untrustedFolder = untrustedLaunchFolderReason(
+    mode === "custom" ? path.dirname(value) : value,
+  );
+  if (untrustedFolder) {
+    const error = launchFolderRefusedError(untrustedFolder);
+    return { valid: false, error: error.message, code: error.code };
+  }
   if (mode === "custom") {
     return { valid: true, mode };
   }
@@ -248,10 +260,11 @@ async function refuseLaunchTargetChange(req, res, server) {
     ? null
     : findLaunchTargetRefusal(launchTargetOf(server));
   if (refusal) {
+    const error = launchTargetRefusedError(refusal);
     res.status(400).json({
-      error: launchTargetRefusedError(refusal).message,
-      code: ErrorCode.SERVER_LAUNCH_TARGET_REFUSED,
-      params: refusal,
+      error: error.message,
+      code: error.code,
+      params: error.params,
     });
     return true;
   }
@@ -526,6 +539,11 @@ router.post("/auto-scan", requirePermission("servers.discover"), async (req, res
     if (!path.isAbsolute(scanPath)) {
       return res.status(400).json({ error: "Must be an absolute path" });
     }
+    // A Windows network path is never touched, as on /detect: the panel's
+    // account would sign in to that host (utils/untrustedFolder.js).
+    if (untrustedLaunchFolderReason(scanPath) === "networkShare") {
+      return res.status(400).json({ error: "Invalid path format" });
+    }
     const resolvedPath = path.resolve(scanPath);
 
     // Block scanning root paths directly — require at least one subfolder
@@ -648,6 +666,11 @@ router.post("/detect", requirePermission("servers.discover"), async (req, res) =
     if (!path.isAbsolute(dataPath)) {
       return res.status(400).json({ error: "Must be an absolute path" });
     }
+    // A Windows network path is never touched: the panel's account would
+    // sign in to that host (utils/untrustedFolder.js).
+    if (untrustedLaunchFolderReason(dataPath) === "networkShare") {
+      return res.status(400).json({ error: "Data path does not exist" });
+    }
     const resolvedData = path.resolve(dataPath);
 
     // Verify data path exists
@@ -675,6 +698,9 @@ router.post("/detect", requirePermission("servers.discover"), async (req, res) =
       }
       if (!path.isAbsolute(installPath)) {
         return res.status(400).json({ error: "Install path must be absolute" });
+      }
+      if (untrustedLaunchFolderReason(installPath) === "networkShare") {
+        return res.status(400).json({ error: "Invalid install path format" });
       }
       resolvedInstall = path.resolve(installPath);
       if (fs.existsSync(resolvedInstall)) {
@@ -1503,7 +1529,7 @@ router.post("/", requirePermission("servers.manage"), async (req, res) => {
     if (!isRemote) {
       const installPathCheck = validateInstallPathShape(config.installPath);
       if (!installPathCheck.valid) {
-        return res.status(400).json({ error: installPathCheck.error });
+        return res.status(400).json({ error: installPathCheck.error, ...(installPathCheck.code ? { code: installPathCheck.code } : {}) });
       }
     }
 
@@ -1822,7 +1848,7 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
       if (updates[key] !== undefined && updates[key] !== "") {
         const check = validateInstallPathShape(updates[key]);
         if (!check.valid) {
-          return res.status(400).json({ error: check.error });
+          return res.status(400).json({ error: check.error, ...(check.code ? { code: check.code } : {}) });
         }
       }
     }

@@ -310,6 +310,7 @@
     "languageLabel": "Idioma da mensagem",
     "templateLabel": "Modelo da contagem regressiva",
     "templateHint": "Use {count} para o número e {unit} para minutos ou segundos.",
+    "templateNoPermission": "Escrever sua própria mensagem requer a permissão server.world_events, que este cargo não tem. Você ainda pode escolher um idioma e usar a predefinição dele.",
     "presetButton": "Usar predefinição do idioma",
     "saveButton": "Salvar avisos",
     "saved": "Avisos de reinício salvos",

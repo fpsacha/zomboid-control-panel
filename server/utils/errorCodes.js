@@ -551,6 +551,12 @@ export const ErrorCode = Object.freeze({
    * inflated past the size the archive records, so the extraction stopped
    * and the live world was left alone. */
   BACKUP_ARCHIVE_SIZE_MISMATCH: "BACKUP_ARCHIVE_SIZE_MISMATCH",
+  /** server/services/backupRestoreExtract.js -- POST /api/backup/restore/:name
+   * (and the restore's result/status): the archive makes more files and
+   * folders than the saves volume has inodes free, or nests an entry deeper
+   * than any world save, so the extraction stopped and the live world was
+   * left alone. */
+  BACKUP_ARCHIVE_LAYOUT_REFUSED: "BACKUP_ARCHIVE_LAYOUT_REFUSED",
   /** server/services/backupService.js -- POST /api/backup/create (and the
    * scheduled backup), the server's own Saves/Multiplayer/<name> folder is
    * missing and no other folder can safely be taken for it. */
@@ -671,6 +677,14 @@ export const ErrorCode = Object.freeze({
    * Restart stops anything, so the restart is called off and the server is
    * left running. Same {{program}} param. */
   SERVER_RESTART_LAUNCH_TARGET_REFUSED: "SERVER_RESTART_LAUNCH_TARGET_REFUSED",
+  /** server/services/serverManager.js -- launchFolderRefusedError(): the
+   * server's launch folder (serverPath || installPath, or a launcher's
+   * folder) is inside a Steam Workshop download folder or is a Windows
+   * network share (untrustedLaunchFolderReason()), so its files are anyone's.
+   * Thrown at start and before a Restart stops anything; servers.js answers
+   * it (400) when such a folder is saved. Carries {{reason}} ("workshop" or
+   * "networkShare"), not shown. */
+  SERVER_LAUNCH_FOLDER_REFUSED: "SERVER_LAUNCH_FOLDER_REFUSED",
   /** server/routes/servers.js -- POST / and PUT /:id (403): the request sets
    * or changes a server's launch target (its custom start command, or an
    * install path naming a launcher script, or the install path of a server
@@ -774,6 +788,16 @@ export const ErrorCode = Object.freeze({
   /** server/routes/server.js (sites: /branches, /install, /steam-update) --
    * steamcmdPath fails isValidPath(). */
   STEAMCMD_PATH_INVALID: "STEAMCMD_PATH_INVALID",
+  /** server/routes/server.js (/branches, /install, /steam-update,
+   * /steamcmd/download) and server/routes/config.js (PUT /app-settings) --
+   * the SteamCMD folder is inside a Steam Workshop download folder or is a
+   * Windows network share (steamCmdFolderRefusal(), utils/untrustedFolder.js):
+   * its files are anyone's, so SteamCMD is never run from it. */
+  STEAMCMD_FOLDER_REFUSED: "STEAMCMD_FOLDER_REFUSED",
+  /** server/routes/server.js (/install, /steam-update, getBetaArgs()) -- the
+   * Steam branch named is not letters, digits, dots, dashes and underscores
+   * (isValidSteamBranch()), so it never reaches SteamCMD's -beta. */
+  STEAM_BRANCH_INVALID: "STEAM_BRANCH_INVALID",
   /** server/routes/server.js (sites: /install, /quick-setup, /steam-update) --
    * installPath fails isValidPath(). */
   INSTALL_PATH_INVALID: "INSTALL_PATH_INVALID",
@@ -1113,6 +1137,11 @@ export const ErrorCode = Object.freeze({
    * start. Refused before anything is deleted: the chunks would go but their
    * vehicles would stay in vehicles.db and come back. */
   SQLITE_ENGINE_UNAVAILABLE: "SQLITE_ENGINE_UNAVAILABLE",
+  /** server/routes/chunks.js -- POST /delete-chunks and POST /delete-region
+   * with deleteVehicles, when vehicles.db has a hot journal (or a WAL) from
+   * an unclean stop. Refused before anything is deleted: the game would play
+   * it over the edited file on its next start. */
+  VEHICLES_DB_UNFINISHED_TRANSACTION: "VEHICLES_DB_UNFINISHED_TRANSACTION",
   /** server/routes/chunks.js -- POST /delete-chunks, a chunk entry has no
    * `file`. */
   DELETE_CHUNKS_INVALID_FILE_NAME: "DELETE_CHUNKS_INVALID_FILE_NAME",
@@ -1181,6 +1210,11 @@ export const ErrorCode = Object.freeze({
   /** server/routes/chunks.js -- GET /browse, resolved path exists but isn't
    * a directory. */
   BROWSE_CHUNKS_PATH_NOT_DIRECTORY: "BROWSE_CHUNKS_PATH_NOT_DIRECTORY",
+  /** server/routes/chunks.js -- refuseNetworkCustomPath() (400): on Windows,
+   * a Map Cleanup custom path (customPath, POST /save-path's path) names a
+   * network share or device path that is not inside a data folder already
+   * set for a server, so it is never opened. */
+  CHUNKS_CUSTOM_PATH_NETWORK_REFUSED: "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED",
 
   /** server/routes/mods.js -- POST /add-mod-advanced, neither selectedModIds nor includeAllModIds given. */
   MODS_ADD_ADVANCED_SELECTION_REQUIRED: "MODS_ADD_ADVANCED_SELECTION_REQUIRED",
@@ -1386,8 +1420,8 @@ export const ErrorCode = Object.freeze({
    * this file, kept separate rather than normalized). Identical wording across
    * these 5 sites, shared code. */
   MODS_INVALID_WORKSHOP_ID_CAP: "MODS_INVALID_WORKSHOP_ID_CAP",
-  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info) -- workshopId present but fails
-   * /^\d{1,15}$/. Identical wording, shared code. */
+  /** server/routes/mods.js -- (sites: POST /track, /get-mod-info, PUT /presets/:id workshopIds) --
+   * workshopId present but fails /^\d{1,15}$/. Identical wording, shared code. */
   MODS_INVALID_WORKSHOP_ID_FORMAT: "MODS_INVALID_WORKSHOP_ID_FORMAT",
   /** server/routes/mods.js -- (sites: DELETE /track/:id, /ignored/:id, /collection/items(+/:id),
    * /collection/tracking/:id, /delete-disk-mod, /purge-mod, GET /mod-details)
@@ -1401,7 +1435,8 @@ export const ErrorCode = Object.freeze({
    * per-dependency validation) -- a submitted workshopId fails /^\d{1,15}$/.
    * Identical template (same "Invalid Workshop ID: " prefix and 20-char
    * truncation) both sites, shared code. Sends `{ workshopId }` (the same
-   * 20-char-truncated value embedded in the English message). */
+   * 20-char-truncated value embedded in the English message). Also PUT /presets/:id, an element
+   * of workshopIds. */
   MODS_INVALID_WORKSHOP_ID_TEMPLATE: "MODS_INVALID_WORKSHOP_ID_TEMPLATE",
   /** server/routes/mods.js -- (sites: PUT /presets/:id modIds field, POST /save-order) -- `modIds`
    * present but not an array. Identical wording, shared code. */
@@ -1477,9 +1512,11 @@ export const ErrorCode = Object.freeze({
   MODS_RESTART_MAX_DELAY_MINUTES_INVALID: "MODS_RESTART_MAX_DELAY_MINUTES_INVALID",
   /** server/routes/mods.js -- PUT /restart-options, warningMinutes outside 0-1440. */
   MODS_RESTART_WARNING_MINUTES_INVALID: "MODS_RESTART_WARNING_MINUTES_INVALID",
-  /** server/routes/mods.js -- POST /save-order, an entry isn't a string or exceeds 200 chars. */
+  /** server/routes/mods.js -- POST /save-order, an entry isn't a string or exceeds 200 chars; PUT
+   * /presets/:id, a modIds entry Mods= can't hold. */
   MODS_SAVE_ORDER_MODID_STRING_REQUIRED: "MODS_SAVE_ORDER_MODID_STRING_REQUIRED",
-  /** server/routes/mods.js -- POST /save-order, modIds.length exceeds 2000. */
+  /** server/routes/mods.js -- POST /save-order, modIds.length exceeds 2000; PUT /presets/:id, the
+   * same cap on workshopIds or modIds. */
   MODS_SAVE_ORDER_TOO_MANY: "MODS_SAVE_ORDER_TOO_MANY",
   /** server/routes/mods.js -- POST /search-workshop-mods, query under 2 characters. */
   MODS_SEARCH_QUERY_TOO_SHORT: "MODS_SEARCH_QUERY_TOO_SHORT",
@@ -1821,6 +1858,16 @@ export const ErrorCode = Object.freeze({
    * entries, or an entry's level is not a whole number from 0 to 10 (a huge
    * level used to freeze the game server, one LevelPerk call per level). */
   PANELBRIDGE_CHARACTER_PERK_INVALID: "PANELBRIDGE_CHARACTER_PERK_INVALID",
+  /** 400, server/routes/panelBridge.js (utils/characterImport.js says
+   * why) -- POST /character/import or POST /command importPlayerData:
+   * `data.inventory` is not a list, lists more than 2000 items, or names an
+   * item type with quotes, backslashes or control characters. */
+  PANELBRIDGE_CHARACTER_INVENTORY_INVALID: "PANELBRIDGE_CHARACTER_INVENTORY_INVALID",
+  /** 400/413, server/routes/panelBridge.js (utils/bridgeCommandArgs.js) --
+   * POST /command or /character/import: the command's args nest more than
+   * 32 levels deep or serialize to more than 64 KB (512 KB for a character
+   * import). The mod parses every command on the game thread. */
+  PANELBRIDGE_ARGS_TOO_LARGE: "PANELBRIDGE_ARGS_TOO_LARGE",
   /** server/routes/panelBridge.js -- POST /zombies/clear-near (or
    * similar), `count` outside 1-100. */
   PANELBRIDGE_HORDE_COUNT_INVALID: "PANELBRIDGE_HORDE_COUNT_INVALID",
@@ -2058,6 +2105,11 @@ export const ErrorCode = Object.freeze({
    * then-confirm, not a hard refusal -- see the route's own comment for
    * why this differs from ROLE_LOCKOUT_LAST_MANAGER. */
   PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM: "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM",
+  /** server/routes/players.js -- POST /api/players/access-level, 403: the
+   * level (or the target account's current level) carries more than a plain
+   * player's login capabilities, and the caller's role lacks rcon.execute
+   * (security audit R2-5). */
+  PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON: "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON",
   /** server/routes/players.js (sites: /whitelist/add, /adduser) --
    * optional `password` fails its alphanumeric-plus-symbols/length format
    * check. Identical wording/meaning both sites, shared code. */
@@ -2150,8 +2202,14 @@ export const ErrorCode = Object.freeze({
    * but not an array. */
   PLAYERS_NOTE_TAGS_MUST_BE_ARRAY: "PLAYERS_NOTE_TAGS_MUST_BE_ARRAY",
   /** server/routes/players.js -- POST /api/players/notes, a `tags` entry
-   * isn't a string or exceeds 50 characters. */
+   * isn't a string or exceeds 50 characters, or there are more than 20
+   * distinct non-blank tags. */
   PLAYERS_NOTE_INVALID_TAGS: "PLAYERS_NOTE_INVALID_TAGS",
+  /** server/routes/players.js -- POST /api/players/notes, 409: a new
+   * player's note past MAX_PLAYER_NOTES (5,000), or a note that would grow
+   * all notes past 5 million characters (database/init.js upsertPlayerNote,
+   * security audit R1-9). Carries `{{max}}`. */
+  PLAYERS_NOTES_FULL: "PLAYERS_NOTES_FULL",
   /** server/routes/players.js -- DELETE /api/players/notes/:playerName, no
    * note existed for that player. */
   PLAYERS_NOTE_NOT_FOUND: "PLAYERS_NOTE_NOT_FOUND",
@@ -2236,6 +2294,9 @@ export const ErrorCode = Object.freeze({
    * /tasks/:id, POST /tasks/:id/run) -- no scheduled task exists for the
    * given ID. Identical wording/meaning at every site, shared code. */
   SCHEDULER_TASK_NOT_FOUND: "SCHEDULER_TASK_NOT_FOUND",
+  /** server/routes/scheduler.js -- POST /tasks, the panel already keeps the most scheduled tasks
+   * it keeps (database/init.js MAX_SCHEDULED_TASKS). Sends `{ max }`. */
+  SCHEDULER_TOO_MANY_TASKS: "SCHEDULER_TOO_MANY_TASKS",
   /** server/routes/scheduler.js -- PUT /tasks/:id, scheduler.scheduleTask()
    * rejected the updated task; the previous DB record is restored before
    * this responds. Carries the underlying reason as the `reason` param,
@@ -2762,6 +2823,15 @@ export const ErrorCode = Object.freeze({
    * in-game message route needs. `params.detail` names the capability
    * (security sweep 2026-10-05, HT4b). */
   DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED: "DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /webhook-events and PUT /config, 403:
+   * turning on a join/leave/death notification, changing an enabled one's
+   * template, or moving the notification channel while one is on, without
+   * players.view (security audit R1-23). `params.detail` names it. */
+  DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED: "DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /config and PUT /permissions, 403:
+   * panel logins are off and the request would change the bot token, guild,
+   * admin or mod role ID, or lower a command's tier (security audit R1-51). */
+  DISCORD_CHANGES_NEED_LOGINS: "DISCORD_CHANGES_NEED_LOGINS",
   /* --- end security sweep W4: hardening --- */
   /* --- security sweep W5: hardening (sec/w5-hardening) --- */
   /** server/routes/discord.js -- POST /test-message (400): the bot didn't
@@ -2807,6 +2877,20 @@ export const ErrorCode = Object.freeze({
    * display name as the `name` param. */
   SERVER_ALREADY_EXISTS: "SERVER_ALREADY_EXISTS",
   /* --- end servers/settings flows pass 2026-10-10 --- */
+  /* --- security audit 2026-10-28: data folders --- */
+  /** server/utils/paths.js setDataPaths() (POST /api/debug/paths) and
+   * server/services/zomboidDataPath.js checkZomboidDataPath() (every place a
+   * server's Zomboid data folder is saved) -- on Windows, the folder is a
+   * network share or device path (\\host\share, \\?\..., \\.\...), refused
+   * before any file call: touching one signs the panel's account in to that
+   * host. */
+  FOLDER_NETWORK_SHARE_REFUSED: "FOLDER_NETWORK_SHARE_REFUSED",
+  /** server/utils/paths.js setDataPaths() (POST /api/debug/paths) -- the new
+   * panel data folder is, holds or sits inside the program folder (other than
+   * its own data folder), or sits inside the web client the panel serves to
+   * anyone (dataDirRefusal()). */
+  PANEL_DATA_FOLDER_REFUSED: "PANEL_DATA_FOLDER_REFUSED",
+  /* --- end security audit 2026-10-28: data folders --- */
 });
 
 /**
