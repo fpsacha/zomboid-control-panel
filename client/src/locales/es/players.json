@@ -442,6 +442,7 @@
     "description": "Cambiar el nivel de acceso de {{player}}",
     "label": "Nivel de acceso",
     "placeholder": "Seleccionar nivel...",
+    "staffLevelsHint": "Los niveles de equipo como admin, moderator o gm también requieren el permiso «Ejecutar comandos RCON», por eso no aparecen aquí.",
     "submit": "Establecer nivel"
   },
   "confirmLastAdmin": {
@@ -577,6 +578,7 @@
     "saveButton": "Guardar nota",
     "activityLogTitle": "Registro de actividad",
     "activityLogTruncatedHint": "Mostrando las {{count}} entradas más recientes -- es posible que no se muestre actividad más antigua.",
+    "activityByActor": "por {{actor}}",
     "logsErrorTitle": "Registro de actividad no disponible",
     "filterPlaceholder": "Filtrar por nombre de jugador...",
     "filterAria": "Filtrar el registro de actividad por nombre de jugador",

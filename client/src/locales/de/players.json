@@ -438,6 +438,7 @@
     "description": "Zugriffsebene für {{player}} ändern",
     "label": "Zugriffsebene",
     "placeholder": "Ebene auswählen …",
+    "staffLevelsHint": "Team-Ebenen wie admin, moderator oder gm erfordern zusätzlich die Berechtigung „RCON-Befehle ausführen“ und werden deshalb hier nicht angezeigt.",
     "submit": "Ebene festlegen"
   },
   "confirmLastAdmin": {
@@ -573,6 +574,7 @@
     "saveButton": "Notiz speichern",
     "activityLogTitle": "Aktivitätsprotokoll",
     "activityLogTruncatedHint": "Die neuesten {{count}} Einträge werden angezeigt -- ältere Aktivitäten werden möglicherweise nicht angezeigt.",
+    "activityByActor": "von {{actor}}",
     "logsErrorTitle": "Aktivitätsprotokoll nicht verfügbar",
     "filterPlaceholder": "Nach Spielername filtern...",
     "filterAria": "Aktivitätsprotokoll nach Spielername filtern",

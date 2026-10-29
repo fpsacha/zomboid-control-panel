@@ -166,7 +166,7 @@
     "rcon": {
       "execute": {
         "label": "Exécuter des commandes RCON",
-        "description": "Se connecter au RCON et exécuter des commandes de console arbitraires, y compris celles pouvant arrêter le serveur. Accorde aussi un accès en lecture à l'historique complet des commandes RCON — y compris les vrais mots de passe de joueurs saisis dans des commandes de liste blanche comme adduser."
+        "description": "Se connecter au RCON et exécuter des commandes de console arbitraires, y compris celles pouvant arrêter le serveur. Accorde aussi un accès en lecture à l'historique complet des commandes RCON — y compris les vrais mots de passe de joueurs saisis dans des commandes de liste blanche comme adduser. Avec « Sanctionner les joueurs », accorde aussi les niveaux d'accès d'équipe en jeu comme admin."
       }
     },
     "servers": {
@@ -202,7 +202,7 @@
     "players": {
       "moderate": {
         "label": "Sanctionner les joueurs",
-        "description": "Bannir, débannir, expulser ou mettre sur liste blanche un joueur, et changer le niveau d'accès en jeu d'un joueur — y compris accorder ou révoquer les droits d'administrateur."
+        "description": "Bannir, débannir, expulser ou mettre sur liste blanche un joueur, et lui donner un niveau d'accès en jeu simple comme user ou priority. Accorder un niveau d'équipe (admin, moderator, gm, observer ou un rôle personnalisé avec plus de pouvoirs), ou changer le niveau d'un compte qui en a un, nécessite aussi « Exécuter des commandes RCON » : ces niveaux lancent des commandes de console du serveur en jeu."
       },
       "gm_tools": {
         "label": "Outils de maître du jeu",

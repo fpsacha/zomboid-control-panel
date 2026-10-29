@@ -50,6 +50,31 @@ function loadRoleMap(db) {
   return roles;
 }
 
+// SECURITY (2026-10-28, R2-5): each role's PZ capabilities, from the
+// [capabilities] table ([name] TEXT, [role] INTEGER) that
+// ServerWorldDatabase.loadRoles() reads for every role it doesn't take from
+// Roles.addStatic() (B42 jar). Keyed by role name, as setaccesslevel takes
+// it; two rows sharing a name are merged, so the stronger one counts. null
+// when the table can't be read (an older database), which callers treat as
+// "unknown".
+function loadRoleCapabilities(db, roles) {
+  let result;
+  try {
+    result = db.exec("SELECT name, role FROM capabilities");
+  } catch (error) {
+    log.debug(`Role capability table is unavailable: ${error.message}`);
+    return null;
+  }
+  const byRole = new Map();
+  for (const [capability, roleId] of result[0]?.values || []) {
+    const roleName = roles.get(Number(roleId));
+    if (typeof roleName !== "string" || typeof capability !== "string") continue;
+    if (!byRole.has(roleName)) byRole.set(roleName, new Set());
+    byRole.get(roleName).add(capability);
+  }
+  return new Map([...byRole].map(([name, capabilities]) => [name, [...capabilities]]));
+}
+
 export async function listWhitelistAccounts(zomboidDataPath, serverName) {
   const dbPath = getWhitelistDatabasePath(zomboidDataPath, serverName);
   if (!dbPath) {
@@ -137,7 +162,11 @@ export async function listServerRoleNames(zomboidDataPath, serverName) {
     const db = new SQL.Database(await fs.promises.readFile(dbPath));
     try {
       const roles = loadRoleMap(db);
-      return { available: true, roleNames: [...roles.values()] };
+      return {
+        available: true,
+        roleNames: [...roles.values()],
+        roleCapabilities: loadRoleCapabilities(db, roles),
+      };
     } finally {
       db.close();
     }

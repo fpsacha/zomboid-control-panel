@@ -442,6 +442,7 @@
     "description": "Chanje nivo aksè pou {{player}}",
     "label": "Nivo Aksè",
     "placeholder": "Chwazi yon nivo...",
+    "staffLevelsHint": "Nivo estaf tankou admin, moderator oswa gm bezwen tou pèmisyon « Egzekite kòmand RCON », se pou sa yo pa parèt isit la.",
     "submit": "Defini Nivo a"
   },
   "confirmLastAdmin": {
@@ -581,6 +582,7 @@
     "saveButton": "Sove Nòt",
     "activityLogTitle": "Jounal Aktivite",
     "activityLogTruncatedHint": "N ap montre {{count}} antre ki pi resan yo -- aktivite ki pi ansyen ka pa parèt.",
+    "activityByActor": "pa {{actor}}",
     "logsErrorTitle": "Jounal aktivite pa disponib",
     "filterPlaceholder": "Filtre pa non jwè...",
     "filterAria": "Filtre jounal aktivite pa non jwè",

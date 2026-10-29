@@ -438,6 +438,7 @@
     "description": "更改 {{player}} 的權限等級",
     "label": "權限等級",
     "placeholder": "選擇等級…",
+    "staffLevelsHint": "admin、moderator 或 gm 等管理級別還需要「執行 RCON 命令」權限，因此未在此列出。",
     "submit": "設定等級"
   },
   "confirmLastAdmin": {
@@ -573,6 +574,7 @@
     "saveButton": "儲存備註",
     "activityLogTitle": "活動日誌",
     "activityLogTruncatedHint": "正在顯示最近 {{count}} 條記錄——更早的活動可能未顯示。",
+    "activityByActor": "操作者：{{actor}}",
     "logsErrorTitle": "活動日誌無法使用",
     "filterPlaceholder": "按玩家名稱篩選…",
     "filterAria": "按玩家名稱篩選活動日誌",

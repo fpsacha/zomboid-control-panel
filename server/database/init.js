@@ -1800,7 +1800,11 @@ export async function getLatestScheduleExecutionByCommand(command, serverId = un
 // of pre-fix untagged rows. `serverId` overrides the active server for a
 // caller that knows which server the action happened on (PanelBridge's
 // player connect/disconnect, see recordPlayerSession()).
-export async function logPlayerAction(playerName, action, details = null, serverId = undefined) {
+// SECURITY (2026-10-28, audit R2-6): `actor` names the panel account behind a
+// deliberate action (routes/players.js), so the trail shows which moderator
+// granted an access level or banned someone. Absent on automatic rows, on
+// rows from before this change, and while panel logins are off.
+export async function logPlayerAction(playerName, action, details = null, serverId = undefined, actor = null) {
   const db = await getDb();
   const entry = {
     id: generateId(),
@@ -1808,6 +1812,7 @@ export async function logPlayerAction(playerName, action, details = null, server
     player_name: playerName,
     action,
     details,
+    ...(typeof actor === "string" && actor ? { actor } : {}),
     logged_at: new Date().toISOString(),
   };
 
@@ -2638,6 +2643,43 @@ export async function getPlayerNote(playerName) {
   );
 }
 
+// SECURITY (2026-10-28, audit R1-9): player notes had no count, tag or total
+// size bound, so the role that writes them could grow db.json (rewritten in
+// full on every flush) without limit, one new player name per request. New
+// names are refused past MAX_PLAYER_NOTES, and any note that would grow the
+// total past MAX_PLAYER_NOTES_CHARS; a note can always be shortened or
+// deleted. Refused rather than evicted: the oldest notes are other staff's
+// records.
+export const MAX_PLAYER_NOTES = 5000;
+export const MAX_PLAYER_NOTE_TAGS = 20;
+const MAX_PLAYER_NOTES_CHARS = 5_000_000;
+
+export class PlayerNotesFullError extends Error {
+  constructor() {
+    super("Player notes are full");
+    this.name = "PlayerNotesFullError";
+  }
+}
+
+function playerNoteChars(entry) {
+  const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+  return (
+    String(entry?.note ?? "").length +
+    tags.reduce((sum, tag) => sum + String(tag ?? "").length, 0)
+  );
+}
+
+// Strings only, no blank or repeated tag, at most MAX_PLAYER_NOTE_TAGS.
+export function normalizePlayerNoteTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  const unique = [];
+  for (const tag of tags) {
+    if (typeof tag !== "string" || tag.trim() === "" || unique.includes(tag)) continue;
+    unique.push(tag);
+  }
+  return unique.slice(0, MAX_PLAYER_NOTE_TAGS);
+}
+
 export async function upsertPlayerNote(playerName, note, tags = []) {
   const db = await getDb();
   if (!db.data.player_notes) db.data.player_notes = [];
@@ -2649,9 +2691,25 @@ export async function upsertPlayerNote(playerName, note, tags = []) {
   const entry = {
     player_name: playerName,
     note: note || "",
-    tags: tags || [],
+    tags: normalizePlayerNoteTags(tags),
     updated_at: new Date().toISOString(),
   };
+
+  if (existingIndex === -1 && db.data.player_notes.length >= MAX_PLAYER_NOTES) {
+    throw new PlayerNotesFullError();
+  }
+  const previousChars =
+    existingIndex === -1 ? 0 : playerNoteChars(db.data.player_notes[existingIndex]);
+  const nextChars = playerNoteChars(entry);
+  if (nextChars > previousChars) {
+    const totalChars = db.data.player_notes.reduce(
+      (sum, existing) => sum + playerNoteChars(existing),
+      0,
+    );
+    if (totalChars - previousChars + nextChars > MAX_PLAYER_NOTES_CHARS) {
+      throw new PlayerNotesFullError();
+    }
+  }
 
   if (existingIndex !== -1) {
     db.data.player_notes[existingIndex] = {

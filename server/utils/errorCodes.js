@@ -2072,6 +2072,11 @@ export const ErrorCode = Object.freeze({
    * then-confirm, not a hard refusal -- see the route's own comment for
    * why this differs from ROLE_LOCKOUT_LAST_MANAGER. */
   PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM: "PLAYERS_LAST_ADMIN_ACCESS_LEVEL_CONFIRM",
+  /** server/routes/players.js -- POST /api/players/access-level, 403: the
+   * level (or the target account's current level) carries more than a plain
+   * player's login capabilities, and the caller's role lacks rcon.execute
+   * (security audit R2-5). */
+  PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON: "PLAYERS_STAFF_ACCESS_LEVEL_NEEDS_RCON",
   /** server/routes/players.js (sites: /whitelist/add, /adduser) --
    * optional `password` fails its alphanumeric-plus-symbols/length format
    * check. Identical wording/meaning both sites, shared code. */
@@ -2164,8 +2169,14 @@ export const ErrorCode = Object.freeze({
    * but not an array. */
   PLAYERS_NOTE_TAGS_MUST_BE_ARRAY: "PLAYERS_NOTE_TAGS_MUST_BE_ARRAY",
   /** server/routes/players.js -- POST /api/players/notes, a `tags` entry
-   * isn't a string or exceeds 50 characters. */
+   * isn't a string or exceeds 50 characters, or there are more than 20
+   * distinct non-blank tags. */
   PLAYERS_NOTE_INVALID_TAGS: "PLAYERS_NOTE_INVALID_TAGS",
+  /** server/routes/players.js -- POST /api/players/notes, 409: a new
+   * player's note past MAX_PLAYER_NOTES (5,000), or a note that would grow
+   * all notes past 5 million characters (database/init.js upsertPlayerNote,
+   * security audit R1-9). Carries `{{max}}`. */
+  PLAYERS_NOTES_FULL: "PLAYERS_NOTES_FULL",
   /** server/routes/players.js -- DELETE /api/players/notes/:playerName, no
    * note existed for that player. */
   PLAYERS_NOTE_NOT_FOUND: "PLAYERS_NOTE_NOT_FOUND",
@@ -2776,6 +2787,15 @@ export const ErrorCode = Object.freeze({
    * in-game message route needs. `params.detail` names the capability
    * (security sweep 2026-10-05, HT4b). */
   DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED: "DISCORD_CHAT_RELAY_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /webhook-events and PUT /config, 403:
+   * turning on a join/leave/death notification, changing an enabled one's
+   * template, or moving the notification channel while one is on, without
+   * players.view (security audit R1-23). `params.detail` names it. */
+  DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED: "DISCORD_PLAYER_EVENTS_CAPABILITY_REQUIRED",
+  /** server/routes/discord.js -- PUT /config and PUT /permissions, 403:
+   * panel logins are off and the request would change the bot token, guild,
+   * admin or mod role ID, or lower a command's tier (security audit R1-51). */
+  DISCORD_CHANGES_NEED_LOGINS: "DISCORD_CHANGES_NEED_LOGINS",
   /* --- end security sweep W4: hardening --- */
   /* --- security sweep W5: hardening (sec/w5-hardening) --- */
   /** server/routes/discord.js -- POST /test-message (400): the bot didn't

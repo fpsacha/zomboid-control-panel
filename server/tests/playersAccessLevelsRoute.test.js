@@ -4,6 +4,8 @@ const getActiveServer = vi.fn();
 const listServerRoleNames = vi.fn();
 
 vi.mock("../database/init.js", () => ({
+  // R2-5: these tests act as a role that may grant staff levels.
+  getRoleByName: vi.fn(async () => ({ capabilities: ["players.moderate", "rcon.execute"] })),
   getActiveServer,
   logPlayerAction: vi.fn(),
   getPlayerLogs: vi.fn(),
@@ -39,6 +41,7 @@ function createResponse() {
 function createRequest(body = {}, rconService = {}) {
   return {
     body,
+    user: { username: "tech", role: "technician" },
     app: { get: () => rconService },
   };
 }
@@ -74,6 +77,8 @@ describe("GET /players/access-levels", () => {
     expect(listServerRoleNames).toHaveBeenCalledWith("/zomboid", "DoomerZ");
     expect(response.json).toHaveBeenCalledWith({
       levels: ["user", "admin", "vip", "none"],
+      // R2-5: without the capability table a custom role counts as staff.
+      staffLevels: ["admin", "vip"],
       available: true,
     });
   });

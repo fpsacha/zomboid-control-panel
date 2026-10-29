@@ -359,6 +359,7 @@
   },
   "capabilityGate": {
     "connection": "Solo puede cambiar esto quien tenga todos los permisos que requieren los comandos del bot: el propietario del servidor de Discord del bot y cualquiera con su rol de administrador pueden ejecutar todos los comandos.",
-    "modRole": "Solo puede cambiar esto quien tenga los permisos que requieren los comandos de nivel Moderador: cualquiera con este rol puede ejecutar esos comandos."
+    "modRole": "Solo puede cambiar esto quien tenga los permisos que requieren los comandos de nivel Moderador: cualquiera con este rol puede ejecutar esos comandos.",
+    "playerEvents": "Solo quien puede ver la información de los jugadores puede activar esto, cambiar su mensaje o mover su canal: publica nombres y posiciones de jugadores en Discord."
   }
 }

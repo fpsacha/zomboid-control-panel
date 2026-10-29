@@ -39,7 +39,8 @@ function getRouteHandler(method, routePath) {
 }
 
 function createRequest(body, rconService) {
-  return { body, app: { get: () => rconService } };
+  // R2-6: the signed-in panel account is recorded as the actor.
+  return { body, user: { username: "mod1", role: "moderator" }, app: { get: () => rconService } };
 }
 
 // Root cause (Angela): RconService.execute() resolves {success:false} rather
@@ -71,7 +72,7 @@ describe("players routes: persistent records only written on RCON success", () =
       );
 
       expect(addSteamIdBan).toHaveBeenCalledWith(steamId, "griefing");
-      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "banid", "griefing");
+      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "banid", "griefing", undefined, "mod1");
       expect(response.json).toHaveBeenCalledWith({ success: true, response: "ok" });
     });
 
@@ -116,7 +117,7 @@ describe("players routes: persistent records only written on RCON success", () =
       );
 
       expect(removeSteamIdBan).toHaveBeenCalledWith(steamId);
-      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "unbanid", null);
+      expect(logPlayerAction).toHaveBeenCalledWith(steamId, "unbanid", null, undefined, "mod1");
     });
 
     it("does NOT remove the SteamID ban when RCON reports failure -- the panel must not claim someone is unbanned when the server still enforces it", async () => {
@@ -180,6 +181,8 @@ describe("players routes: persistent records only written on RCON success", () =
         "Bob",
         "ban",
         "IP: false, Reason: griefing",
+        undefined,
+        "mod1",
       );
     });
 
@@ -231,6 +234,8 @@ describe("players routes: persistent records only written on RCON success", () =
         "Bob",
         "ban",
         "IP: false, Reason: repete",
+        undefined,
+        "mod1",
       );
     });
 
@@ -249,6 +254,8 @@ describe("players routes: persistent records only written on RCON success", () =
         "Bob",
         "ban",
         "IP: false, Reason: griefing",
+        undefined,
+        "mod1",
       );
     });
   });
@@ -265,7 +272,7 @@ describe("players routes: persistent records only written on RCON success", () =
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "unban", null);
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "unban", null, undefined, "mod1");
     });
 
     it("does not log the action when RCON reports failure", async () => {
@@ -295,7 +302,7 @@ describe("players routes: persistent records only written on RCON success", () =
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "voiceban", "enabled");
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "voiceban", "enabled", undefined, "mod1");
     });
 
     it("does not log the action when RCON reports failure", async () => {
@@ -329,7 +336,7 @@ describe("players routes: persistent records only written on RCON success", () =
         response,
       );
 
-      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "adduser", null);
+      expect(logPlayerAction).toHaveBeenCalledWith("Bob", "adduser", null, undefined, "mod1");
     });
 
     it("does not log the action when RCON reports failure, and responds 400", async () => {

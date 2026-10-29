@@ -91,6 +91,40 @@ describe("listServerRoleNames", () => {
     expect(result.roleNames).not.toContain("none");
   });
 
+  // R2-5: POST /players/access-level judges a custom role by the PZ
+  // capabilities in the server's [capabilities] table ([name], [role]).
+  it("returns each role's PZ capabilities from the capabilities table, and null for a database without one", async () => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-role-caps-"));
+    const SQL = await initSqlJs({
+      locateFile: (file) => path.resolve("node_modules/sql.js/dist", file),
+    });
+    const dataDir = path.join(root, "db");
+    fs.mkdirSync(dataDir, { recursive: true });
+
+    const db = new SQL.Database();
+    db.run("CREATE TABLE role (id INTEGER, name TEXT)");
+    db.run("CREATE TABLE capabilities (name TEXT NOT NULL, role INTEGER)");
+    db.run("INSERT INTO role VALUES (8, 'VIP'), (9, 'Helper'), (10, 'Helper')");
+    db.run("INSERT INTO capabilities VALUES ('LoginOnServer', 8), ('PriorityLogin', 8), ('LoginOnServer', 9), ('AddItem', 10), ('Orphan', 99)");
+    fs.writeFileSync(path.join(dataDir, "DoomerZ.db"), Buffer.from(db.export()));
+    db.close();
+
+    const result = await listServerRoleNames(root, "DoomerZ");
+    expect(result.roleCapabilities).toBeInstanceOf(Map);
+    expect(result.roleCapabilities.get("VIP")).toEqual(["LoginOnServer", "PriorityLogin"]);
+    // Two rows with one name merge, so the stronger one counts.
+    expect(result.roleCapabilities.get("Helper")).toEqual(["LoginOnServer", "AddItem"]);
+
+    const old = new SQL.Database();
+    old.run("CREATE TABLE role (id INTEGER, name TEXT)");
+    old.run("INSERT INTO role VALUES (8, 'VIP')");
+    fs.writeFileSync(path.join(dataDir, "Old.db"), Buffer.from(old.export()));
+    old.close();
+    const oldResult = await listServerRoleNames(root, "Old");
+    expect(oldResult.available).toBe(true);
+    expect(oldResult.roleCapabilities).toBeNull();
+  });
+
   it("reports unavailable, not a thrown error, when the server has never started (no db file yet)", async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "zcp-roles-missing-"));
 

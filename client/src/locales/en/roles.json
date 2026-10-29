@@ -163,7 +163,7 @@
     "rcon": {
       "execute": {
         "label": "Run RCON commands",
-        "description": "Connect to RCON and execute arbitrary console commands, including ones that can stop the server. Also grants read access to the full RCON command history — including real player passwords typed into whitelist commands like adduser."
+        "description": "Connect to RCON and execute arbitrary console commands, including ones that can stop the server. Also grants read access to the full RCON command history — including real player passwords typed into whitelist commands like adduser. With Discipline players, it also grants in-game staff access levels such as admin."
       }
     },
     "servers": {
@@ -199,7 +199,7 @@
     "players": {
       "moderate": {
         "label": "Discipline players",
-        "description": "Ban, unban, kick or whitelist a player, and change a player's in-game access level — including granting or revoking admin."
+        "description": "Ban, unban, kick or whitelist a player, and set a player's in-game access level to a plain one such as user or priority. Granting a staff level (admin, moderator, gm, observer or a custom role with more powers), or changing the level of an account that has one, also needs Run RCON commands: those levels run server console commands in game."
       },
       "gm_tools": {
         "label": "Game-master tools",
