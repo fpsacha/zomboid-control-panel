@@ -64,19 +64,47 @@ export function serverConfigPathIsConfined(value, zomboidDataPath) {
   if (typeof zomboidDataPath !== "string" || !zomboidDataPath.trim()) {
     return false;
   }
-  // SECURITY (2026-10-28): a Windows network path (\\host\share) is judged on
-  // its text before anything below touches it: resolving it through links
-  // makes the panel's account sign in to that host. Only one inside the data
-  // folder's Server folder as written goes on (a data folder on a share, if
-  // the data-folder rule accepted it); any other is refused unread.
-  if (
-    untrustedFolderReason(value) === "networkShare" &&
-    !isSameOrInside(path.resolve(value), path.resolve(zomboidDataPath, "Server"))
-  ) {
+  // SECURITY (2026-10-28): a Windows network path (\\host\share, \\?\, \\.\)
+  // is judged on its text before anything below touches it: resolving one
+  // makes the panel's account sign in to that host. A data folder on one is
+  // refused unread, as the data-folder rule refuses it -- a remote record's
+  // data folder never meets that rule when it is saved -- except the
+  // operator's own PZ_SAVE_PATH, which that rule accepts. A config folder on
+  // one goes on only when it is inside, as written, a Server folder this
+  // check accepts; any other is refused unread.
+  if (isNetworkPath(zomboidDataPath) && !isOperatorDataFolder(zomboidDataPath)) {
     return false;
+  }
+  if (isNetworkPath(value)) {
+    const written = path.resolve(value);
+    if (!writtenAnchors(zomboidDataPath).some((anchor) => isSameOrInside(written, anchor))) {
+      return false;
+    }
   }
   const target = resolveThroughLinks(value);
   return configAnchors(zomboidDataPath).some((anchor) => isSameOrInside(target, anchor));
+}
+
+function isNetworkPath(value) {
+  return untrustedFolderReason(value) === "networkShare";
+}
+
+// The data folder PZ_SAVE_PATH names: the operator's own, which the
+// data-folder rule accepts wherever it is.
+function isOperatorDataFolder(zomboidDataPath) {
+  const configured = process.env.PZ_SAVE_PATH;
+  if (!configured || !path.isAbsolute(configured)) return false;
+  const own = path.resolve(configured);
+  const given = path.resolve(zomboidDataPath);
+  return process.platform === "win32" ? own.toLowerCase() === given.toLowerCase() : own === given;
+}
+
+// configAnchors() below as written, links not followed.
+function writtenAnchors(zomboidDataPath) {
+  const anchors = [path.resolve(zomboidDataPath, "Server")];
+  const root = zomboidFolderAround(zomboidDataPath);
+  if (root) anchors.push(path.join(root, "Server"));
+  return anchors;
 }
 
 // SECURITY (2026-10-05, PT2 verifier round 1): the Server folder of the
