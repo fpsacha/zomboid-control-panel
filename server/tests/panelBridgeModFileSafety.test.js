@@ -37,6 +37,7 @@ vi.mock("../database/init.js", () => ({
 
 const { PanelBridge, readModFileCapped } = await import("../services/panelBridge.js");
 const { default: router } = await import("../routes/panelBridge.js");
+const { writeModFileNoFollow } = await import("../utils/bridgeModFile.js");
 
 function writeOversized(file, head = '{"lastProcessedSeq":5,"pad":"') {
   const fd = fs.openSync(file, "w");
@@ -124,6 +125,23 @@ describe("bridge files: one descriptor, no links, a hard cap", () => {
 
     expect(fs.readFileSync(target, "utf8")).toBe('{"keep":true}');
     expect(JSON.parse(fs.readFileSync(bridge.getCommandFileBySeq(seq), "utf8"))).toMatchObject({ id: "id-1" });
+  });
+
+  it("does not empty or overwrite what a hard link at a directly written name shares", () => {
+    const database = path.join(outside, "db.json");
+    fs.writeFileSync(database, '{"users":["admin"]}');
+    const stateFile = path.join(dir, "queue-state.json");
+    fs.linkSync(database, stateFile);
+
+    expect(() => writeModFileNoFollow(stateFile, '{"seq":1}')).toThrow(expect.objectContaining({ code: "BRIDGE_FILE_NOT_REGULAR" }));
+    expect(fs.readFileSync(database, "utf8")).toBe('{"users":["admin"]}');
+  });
+
+  it("still writes a plain file at a directly written name, shorter than before", () => {
+    const stateFile = path.join(dir, "queue-state.json");
+    fs.writeFileSync(stateFile, '{"seq":12345,"pad":"xxxxxxxx"}');
+    writeModFileNoFollow(stateFile, '{"seq":1}');
+    expect(fs.readFileSync(stateFile, "utf8")).toBe('{"seq":1}');
   });
 
   it("does not read an oversized inbox cursor", () => {

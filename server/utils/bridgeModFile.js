@@ -100,6 +100,10 @@ export function writeFreshModFile(filePath, text) {
   fs.writeFileSync(filePath, text, { mode: 0o600, flag: 'wx' });
 }
 
+// A file already at the name is written only while it is a regular file
+// with one name, checked on the opened descriptor before it is emptied: a
+// hard link there (to db.json, say) shares the target's data, and O_TRUNC
+// at open() emptied it before any check could run.
 export function writeModFileNoFollow(filePath, text) {
   let existing = null;
   try {
@@ -107,9 +111,24 @@ export function writeModFileNoFollow(filePath, text) {
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }
-  if (existing && !existing.isFile()) throw notRegularBridgeFile(filePath);
-  const { O_WRONLY, O_CREAT, O_TRUNC } = fs.constants;
-  fs.writeFileSync(filePath, text, { mode: 0o600, flag: O_WRONLY | O_CREAT | O_TRUNC | NO_FOLLOW | NON_BLOCKING });
+  if (existing && (!existing.isFile() || existing.nlink > 1)) throw notRegularBridgeFile(filePath);
+  const { O_WRONLY, O_CREAT } = fs.constants;
+  let fd;
+  try {
+    fd = fs.openSync(filePath, O_WRONLY | O_CREAT | NO_FOLLOW | NON_BLOCKING, 0o600);
+  } catch (error) {
+    if (['ELOOP', 'EMLINK', 'EISDIR', 'ENXIO'].includes(error?.code)) throw notRegularBridgeFile(filePath);
+    throw error;
+  }
+  try {
+    const opened = fs.fstatSync(fd);
+    const swapped = existing && (opened.ino !== existing.ino || opened.dev !== existing.dev);
+    if (!opened.isFile() || opened.nlink > 1 || swapped) throw notRegularBridgeFile(filePath);
+    fs.ftruncateSync(fd, 0);
+    fs.writeFileSync(fd, text);
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 export function isUnreadableBridgeFile(error) {

@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Path is not a directory",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Map Cleanup doesn't open a network share or device path typed here. Use a folder on this computer, or a data folder already set for a server.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Either selectedModIds or includeAllModIds is required",
+  "CHUNKS_PATH_TOO_LONG": "That path is too long.",
   "MODS_ADD_ALL_DEPS_REQUIRED": "No dependencies provided",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Too many dependencies in one request (max 200)",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "Mods array is required",

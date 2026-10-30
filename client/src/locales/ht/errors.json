@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Chemen an se pa yon dosye",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Netwayaj Kat la pa louvri yon pataj rezo oswa yon chemen aparèy ou tape la a. Sèvi ak yon dosye sou òdinatè sa a, oswa yon dosye done ki deja mete pou yon sèvè.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds oswa includeAllModIds obligatwa",
+  "CHUNKS_PATH_TOO_LONG": "Chemen sa a twò long.",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Pa gen depandans bay",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Twòp depandans nan yon sèl demann (maksimòm 200)",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "Tablo Mods obligatwa",

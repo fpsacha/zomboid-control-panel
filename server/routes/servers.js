@@ -178,6 +178,19 @@ function serverConfigPathRefusal() {
   };
 }
 
+// SECURITY (2026-10-28): a remote server's data folder names a folder on its
+// own host, so the data-folder rule doesn't judge it when it is saved; but a
+// Windows network path (\\host\share) is never one: the panel's features
+// would reach it through the share, and merely looking makes the panel's
+// account sign in to that host. Refused on its text, nothing touched.
+function remoteDataPathRefusal(value) {
+  if (typeof value !== "string" || untrustedLaunchFolderReason(value) !== "networkShare") return null;
+  return {
+    error: `Invalid Zomboid data path: ${value}. A network share can't be a server's data folder; choose a folder on this computer, or map the share to a drive letter first.`,
+    code: ErrorCode.ZOMBOID_DATA_PATH_INVALID,
+  };
+}
+
 // Run a requirePermission() check outside of route-level middleware, for a
 // capability that only applies to one branch of a handler (importIniFrom
 // below needs servers.discover -- the same capability that gates /auto-scan
@@ -1438,6 +1451,13 @@ router.post("/", requirePermission("servers.manage"), async (req, res) => {
           .status(400)
           .json({ error: "Invalid importIniFrom.dataPath" });
       }
+      // A Windows network path is never touched, as on /detect and
+      // /auto-scan: the panel's account would sign in to that host.
+      if (untrustedLaunchFolderReason(importDataPath) === "networkShare") {
+        return res
+          .status(400)
+          .json({ error: "Invalid importIniFrom.dataPath" });
+      }
       if (!isValidServerName(importServerName)) {
         return res
           .status(400)
@@ -1545,6 +1565,10 @@ router.post("/", requirePermission("servers.manage"), async (req, res) => {
         return res.status(400).json(dataPathCheck.body);
       }
       config.zomboidDataPath = dataPathCheck.path;
+    }
+    const remoteDataPathRefused = isRemote && requestsDataPath && remoteDataPathRefusal(config.zomboidDataPath);
+    if (remoteDataPathRefused) {
+      return res.status(400).json(remoteDataPathRefused);
     }
 
     // FILES-2: see serverConfigPathIsConfined(). Judged against the data
@@ -1891,6 +1915,10 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
         if (updates.zomboidDataPath !== undefined) {
           updates.zomboidDataPath = dataPathCheck.path;
         }
+      }
+      const remoteDataPathRefused = nextIsRemote && dataPathChanged && remoteDataPathRefusal(nextDataPath);
+      if (remoteDataPathRefused) {
+        return res.status(400).json(remoteDataPathRefused);
       }
     }
 
