@@ -7,6 +7,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.10.3] - 2026-10-30
+
 ### Security
 
 - **Docker images take Debian's security updates:** the images now install the base system's pending security patches (OpenSSL, Perl and others) when built, and no longer ship npm, which the panel never runs.
