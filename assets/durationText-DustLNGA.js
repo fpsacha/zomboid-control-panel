@@ -1,0 +1,1 @@
+import{r as e}from"./utils-I33qAVtd.js";import{J as t}from"./errorMessage-DHZ3fZZl.js";function n(n){let r=Number.isFinite(n)?Math.max(0,Math.floor(n)):0,i=r<60?r:r-r%60;return e(i).map(({unit:e,count:n})=>t.t(`units.${e}`,{ns:`serverUptime`,count:n})).join(` `)}export{n as t};
