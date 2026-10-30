@@ -35,7 +35,7 @@ import {
   invalidateCandidatePathsCache,
   inspectZomboidPath,
 } from "../utils/zomboidPaths.js";
-import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { isWindowsNetworkPath } from "../utils/untrustedFolder.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { resolveObservedServerRunning } from "../utils/serverStatus.js";
 import {
@@ -429,11 +429,11 @@ function isSameOrInsideWin32(target, root) {
 // file-system call, unless it is (inside) a data folder an operator already
 // configured (a server's, the saved setting, PZ_SAVE_PATH): the panel
 // already opens that share. Linux and Docker are untouched: //host is a
-// local path there.
+// local path there. The test is on the strings only (isWindowsNetworkPath):
+// no realpath runs on a path before this decision.
 async function refuseNetworkCustomPath(customPath) {
   if (process.platform !== "win32") return;
-  const isShare = (p) =>
-    Boolean(p) && untrustedFolderReason(p, { windows: true }) === "networkShare";
+  const isShare = (p) => isWindowsNetworkPath(p);
   const raw = String(customPath);
   const typed = normalizeUserPath(raw, { expandEnv: false });
   if (!isShare(raw) && !isShare(typed)) {
@@ -461,8 +461,28 @@ function refusalCode(error) {
   return error?.errorCode ? { code: error.errorCode } : {};
 }
 
+// SECURITY (2026-10-30): a typed path longer than any real folder's is
+// refused before any work on it. Expanding and resolving a path costs time
+// that grows with its length (a request body may hold 1 MB), and that work
+// blocks every other request meanwhile.
+const MAX_TYPED_PATH_LENGTH = 4096;
+
+function isOverlongTypedPath(value) {
+  return String(value).length > MAX_TYPED_PATH_LENGTH;
+}
+
+function refuseOverlongTypedPath(value) {
+  if (!isOverlongTypedPath(value)) return;
+  const error = new Error("That path is too long.");
+  error.statusCode = 400;
+  error.errorCode = ErrorCode.CHUNKS_PATH_TOO_LONG;
+  error.details = { reason: "too-long" };
+  throw error;
+}
+
 async function resolveCustomOrDefaultDataPath(customPath) {
   if (!customPath) return null;
+  refuseOverlongTypedPath(customPath);
   await refuseNetworkCustomPath(customPath);
   const cleaned = normalizeUserPath(customPath);
   if (!cleaned) return null;
@@ -481,9 +501,9 @@ async function resolveCustomOrDefaultDataPath(customPath) {
   // \\host\s\%VAR% sends the variable's value along -- so it reads as a
   // folder that isn't there (services/zomboidDataPath.js refuses it as a data
   // folder; utils/untrustedFolder.js).
+  // A string test only (no realpath walk on the typed path), Windows only.
   const networkShare =
-    untrustedFolderReason(customPath) === "networkShare" ||
-    untrustedFolderReason(cleaned) === "networkShare";
+    process.platform === "win32" && (isWindowsNetworkPath(customPath) || isWindowsNetworkPath(cleaned));
   if (networkShare || !fs.existsSync(normalized)) {
     const error = new Error(
       `Custom path does not exist: ${customPath}. ` +
@@ -987,6 +1007,12 @@ router.post("/save-path", requirePermission("chunks.manage"), async (req, res) =
       return res.status(400).json({
         error: "Missing path.",
         code: ErrorCode.CHUNKS_SAVE_PATH_MISSING,
+      });
+    }
+    if (isOverlongTypedPath(rawPath)) {
+      return res.status(400).json({
+        error: "That path is too long.",
+        code: ErrorCode.CHUNKS_PATH_TOO_LONG,
       });
     }
     // SECURITY (2026-10-28): without server.configure only the path already
@@ -3064,6 +3090,12 @@ function formatBytes(bytes) {
 router.get("/browse", requirePermission("chunks.manage"), async (req, res) => {
   try {
     const browsePath = req.query.path ? String(req.query.path) : null;
+    if (browsePath && isOverlongTypedPath(browsePath)) {
+      return res.status(400).json({
+        error: "That path is too long.",
+        code: ErrorCode.CHUNKS_PATH_TOO_LONG,
+      });
+    }
     const zomboidDataPath = await getZomboidDataPath();
 
     if (!browsePath) {
@@ -3100,9 +3132,10 @@ router.get("/browse", requirePermission("chunks.manage"), async (req, res) => {
     // SECURITY (2026-10-28, R2-13): confineToRoots() resolves the real path
     // of what it is given, and on Windows that opens a \\host\share (an NTLM
     // sign-in to that host). A network or device path not written inside
-    // the data folder is refused before that.
+    // the data folder is refused before that: a string test, Windows only.
     if (
-      untrustedFolderReason(browsePath) === "networkShare" &&
+      process.platform === "win32" &&
+      isWindowsNetworkPath(browsePath) &&
       !isSameOrInsideWin32(
         path.win32.resolve(browsePath).toLowerCase(),
         path.win32.resolve(zomboidDataPath).toLowerCase(),

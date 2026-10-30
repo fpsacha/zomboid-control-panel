@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Pfad ist kein Ordner",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Die Kartenbereinigung öffnet keine hier eingegebene Netzwerkfreigabe und keinen Gerätepfad. Verwende einen Ordner auf diesem Computer oder einen Datenordner, der bereits für einen Server festgelegt ist.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds oder includeAllModIds ist erforderlich",
+  "CHUNKS_PATH_TOO_LONG": "Dieser Pfad ist zu lang.",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Keine Abhängigkeiten angegeben",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Zu viele Abhängigkeiten in einer Anfrage (max. 200)",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "Mods-Array ist erforderlich",

@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "Шлях не є текою",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "Очищення карти не відкриває введені тут мережеву теку чи шлях до пристрою. Вкажіть теку на цьому комп'ютері або теку даних, уже задану для сервера.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "Потрібно вказати або selectedModIds, або includeAllModIds",
+  "CHUNKS_PATH_TOO_LONG": "Цей шлях задовгий.",
   "MODS_ADD_ALL_DEPS_REQUIRED": "Залежності не надано",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "Забагато залежностей в одному запиті (максимум 200)",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "Потрібен масив Mods",

@@ -1215,6 +1215,10 @@ export const ErrorCode = Object.freeze({
    * network share or device path that is not inside a data folder already
    * set for a server, so it is never opened. */
   CHUNKS_CUSTOM_PATH_NETWORK_REFUSED: "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED",
+  /** server/routes/chunks.js (sites: resolveCustomOrDefaultDataPath(), POST
+   * /save-path, GET /browse) (400) -- a typed Map Cleanup path is longer than
+   * any real folder's (4096 characters), so no work is done on it. */
+  CHUNKS_PATH_TOO_LONG: "CHUNKS_PATH_TOO_LONG",
 
   /** server/routes/mods.js -- POST /add-mod-advanced, neither selectedModIds nor includeAllModIds given. */
   MODS_ADD_ADVANCED_SELECTION_REQUIRED: "MODS_ADD_ADVANCED_SELECTION_REQUIRED",
