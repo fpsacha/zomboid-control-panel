@@ -15,13 +15,16 @@
 const LINE_SEPARATORS = String.fromCharCode(0x2028, 0x2029);
 const LOG_CONTROL_CHARS_RE = new RegExp(`[\\x00-\\x1f\\x7f-\\x9f${LINE_SEPARATORS}]`, "g");
 
-// The characters a log viewer may break a line on that no message the panel
-// writes itself contains: C1 control characters (NEL among them),
-// U+2028/U+2029, and the vertical tab, form feed and file/group/record
-// separators (Python's splitlines() breaks on those). utils/logger.js
-// escapes these in every entry, whatever its source; CR/LF the panel's own
-// messages and stack traces use, so indentLogContinuationLines handles them.
-const LOG_LINE_BREAKERS_RE = new RegExp(`[\\x0b\\x0c\\x1c-\\x1e\\x80-\\x9f${LINE_SEPARATORS}]`, "g");
+// The control characters no message the panel writes itself contains, which
+// utils/logger.js escapes in every entry, whatever its source: every C0
+// control but tab, CR and LF, DEL, every C1 control and U+2028/U+2029.
+// Log viewers break lines on some (NEL, U+2028/U+2029, and the vertical
+// tab, form feed and separators Python's splitlines() breaks on); a
+// terminal showing the log (tail -f, docker logs, the exe's console) moves
+// the cursor on others (ESC sequences, backspace), so a forged entry could
+// be drawn at column 0 or over the real one. CR/LF the panel's own messages
+// and stack traces use, so indentLogContinuationLines handles them.
+const LOG_LINE_BREAKERS_RE = new RegExp(`[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f-\\x9f${LINE_SEPARATORS}]`, "g");
 const LOG_LINE_BREAK_RE = /\r\n|\r|\n/g;
 const LOG_CONTINUATION_INDENT = "    ";
 
@@ -44,8 +47,8 @@ export function escapeLogText(value) {
 }
 
 /**
- * Escape only the invisible line breakers (C1 controls, U+2028/U+2029) in a
- * finished log entry. See LOG_LINE_BREAKERS_RE.
+ * Escape the control characters but tab, CR and LF in a finished log entry.
+ * See LOG_LINE_BREAKERS_RE.
  * @param {string} text
  * @returns {string}
  */
@@ -58,16 +61,19 @@ export function escapeLogLineBreakers(text) {
  * traces, command output) but start every line after the first with
  * whitespace. A real entry's line starts with its timestamp, so text a
  * request chose (a backup name, a task id in a path) can no longer start a
- * line that reads as an entry of its own, at any call site. A line that
- * already starts with a space or tab, like a stack frame, is left as it is.
+ * line that reads as an entry of its own, at any call site. Only a line
+ * already visibly indented (a tab, or four spaces like a stack frame's
+ * "    at") is left as it is: one space would look like column 0.
  * @param {string} text
  * @returns {string}
  */
 export function indentLogContinuationLines(text) {
   if (typeof text !== "string") return text;
   return text.replace(LOG_LINE_BREAK_RE, (lineBreak, offset, whole) => {
-    const next = whole.charAt(offset + lineBreak.length);
-    return next === "" || next === " " || next === "\t" ? lineBreak : lineBreak + LOG_CONTINUATION_INDENT;
+    const start = offset + lineBreak.length;
+    const indented =
+      start === whole.length || whole.charAt(start) === "\t" || whole.startsWith(LOG_CONTINUATION_INDENT, start);
+    return indented ? lineBreak : lineBreak + LOG_CONTINUATION_INDENT;
   });
 }
 

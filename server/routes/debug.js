@@ -236,13 +236,55 @@ const CHECKED_READ_FLAGS =
 // Read-only and never blocking on a FIFO, for a game log the panel only scans.
 const SCAN_READ_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK ?? 0);
 
+// realTarget is realDir or below it (both real paths).
+function isWithinRealDir(realDir, realTarget) {
+  const rel = path.relative(realDir, realTarget);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+// realFile is directly inside realDir (both real paths).
+function isDirectlyInRealDir(realDir, realFile) {
+  const rel = path.relative(realDir, realFile);
+  return Boolean(rel) && rel !== ".." && !rel.includes(path.sep) && !path.isAbsolute(rel);
+}
+
+// A log file the panel reads from a folder another OS account may own (the
+// install folder) is a regular file with one name: a hard link to the
+// panel's own jwt.secret is a regular file too, and its real path is the
+// link's own.
+function isSingleLinkFile(stats) {
+  return stats.isFile() && !(stats.nlink > 1);
+}
+
+// Where an opened file really is. On Linux /proc/self/fd names the file the
+// descriptor holds, so a folder link swapped in and out around the checks
+// can't hide it; elsewhere it is the path's real path now, while that is
+// still the opened file. null when neither can tell.
+async function openedFileRealPath(handle, filePath, opened) {
+  try {
+    const viaProc = await fs.promises.readlink(`/proc/self/fd/${handle.fd}`);
+    if (path.isAbsolute(viaProc)) return viaProc;
+  } catch {
+    // No /proc (Windows, macOS).
+  }
+  try {
+    const real = await fs.promises.realpath(filePath);
+    const now = await fs.promises.stat(real);
+    return now.ino === opened.ino && now.dev === opened.dev ? real : null;
+  } catch {
+    return null;
+  }
+}
+
 // Opens a log file the listing shows, or returns null. The name must be one
 // readdir() returns (exact spelling: no case alias, trailing dot, short name
-// or ":stream" suffix), a regular file whose real path is directly inside
-// the folder's real path, and the file opened must be the one checked.
-// isListedEntry is the listing's own rule (GET /logs/files by default,
-// GET /crash-logs for crash logs).
-async function openListedLogFile(logsDir, filename, isListedEntry = isListedLogEntry) {
+// or ":stream" suffix), a regular file with one name whose real path is
+// directly inside the folder's real path, and the file opened must be the
+// one checked. isListedEntry is the listing's own rule (GET /logs/files by
+// default, GET /crash-logs for crash logs). With `within`, the folder's
+// real path must also be inside that folder's: a <server>/logs link to
+// another folder (the panel's data folder) is not read.
+async function openListedLogFile(logsDir, filename, isListedEntry = isListedLogEntry, { within = null } = {}) {
   let entries;
   try {
     entries = await fs.promises.readdir(logsDir, { withFileTypes: true });
@@ -255,13 +297,18 @@ async function openListedLogFile(logsDir, filename, isListedEntry = isListedLogE
   let handle = null;
   try {
     const checked = await fs.promises.lstat(filePath);
-    if (!checked.isFile()) return null;
+    if (!isSingleLinkFile(checked)) return null;
     const realDir = await fs.promises.realpath(logsDir);
-    const rel = path.relative(realDir, await fs.promises.realpath(filePath));
-    if (!rel || rel.includes(path.sep) || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    if (within && !isWithinRealDir(await fs.promises.realpath(within), realDir)) return null;
+    if (!isDirectlyInRealDir(realDir, await fs.promises.realpath(filePath))) return null;
     handle = await fs.promises.open(filePath, CHECKED_READ_FLAGS);
     const opened = await handle.stat();
-    if (!opened.isFile() || opened.ino !== checked.ino || opened.dev !== checked.dev) {
+    if (!isSingleLinkFile(opened) || opened.ino !== checked.ino || opened.dev !== checked.dev) {
+      await handle.close();
+      return null;
+    }
+    const openedReal = await openedFileRealPath(handle, filePath, opened);
+    if (!openedReal || !isDirectlyInRealDir(realDir, openedReal)) {
       await handle.close();
       return null;
     }
@@ -283,6 +330,8 @@ async function getAvailableLogFiles(logsDir) {
           try {
             const filePath = path.join(logsDir, entry.name);
             const stats = await fs.promises.stat(filePath);
+            // Listed only when GET /logs/download/:filename would serve it.
+            if (!isSingleLinkFile(stats)) return null;
             return {
               name: entry.name,
               size: stats.size,
@@ -337,9 +386,29 @@ async function collectBundleFilesFromDir(
     maxDepth = 0,
     skipDirectories = [],
     maxFiles = 500,
+    within = null,
   } = {},
 ) {
   if (!dir) return { addedFiles: 0, visitedDirectories: 0 };
+
+  // The folder is scanned at its real path. With `within` (a logs folder
+  // below the install, server or SteamCMD folder, which another OS account
+  // may own), that real path must be inside within's: `<install>/logs` as a
+  // link to the panel's data folder is not scanned. Every file must stay
+  // inside `realBase` until it is opened (openBundleEntry). Subfolder links
+  // are never followed (a link's Dirent is not a directory).
+  let realRoot;
+  let realBase;
+  try {
+    realRoot = await fs.promises.realpath(dir);
+    realBase = within ? await fs.promises.realpath(within) : realRoot;
+  } catch {
+    return { addedFiles: 0, visitedDirectories: 0 };
+  }
+  if (!isWithinRealDir(realBase, realRoot)) {
+    log.warn(`Support bundle: not scanning ${dir}, a link to a folder outside ${within}`);
+    return { addedFiles: 0, visitedDirectories: 0 };
+  }
 
   const skipped = new Set(skipDirectories.map((name) => name.toLowerCase()));
   let addedFiles = 0;
@@ -369,17 +438,49 @@ async function collectBundleFilesFromDir(
       const dedupeKey = path.resolve(filePath).toLowerCase();
       if (seenFiles.has(dedupeKey)) continue;
 
+      // A hard link (to jwt.secret, say) is a regular file too: one name only.
+      let stats;
+      try {
+        stats = await fs.promises.lstat(filePath);
+      } catch {
+        continue;
+      }
+      if (!isSingleLinkFile(stats)) continue;
+
       seenFiles.add(dedupeKey);
       entries.push({
         filePath,
         archivePath: `${archivePrefix}/${[...relativeParts, entry.name].join("/")}`,
+        realBase,
+        dev: stats.dev,
+        ino: stats.ino,
       });
       addedFiles += 1;
     }
   };
 
-  await visit(path.resolve(dir), [], 0);
+  await visit(realRoot, [], 0);
   return { addedFiles, visitedDirectories };
+}
+
+// Opens a file collectBundleFilesFromDir listed, or returns null: still a
+// regular file with one name (not a link, FIFO or hard link swapped in at
+// the name since the scan), the same file the scan saw, and really inside
+// the folder the scan was held to.
+async function openBundleEntry(entry) {
+  let handle = null;
+  try {
+    handle = await fs.promises.open(entry.filePath, CHECKED_READ_FLAGS);
+    const opened = await handle.stat();
+    if (isSingleLinkFile(opened) && opened.ino === entry.ino && opened.dev === entry.dev) {
+      const openedReal = await openedFileRealPath(handle, entry.filePath, opened);
+      if (openedReal && isWithinRealDir(entry.realBase, openedReal)) return handle;
+    }
+  } catch {
+    // Gone, swapped for a link (ELOOP) or unreadable since the scan.
+  }
+  if (handle) await handle.close().catch(() => {});
+  return null;
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -1956,28 +2057,28 @@ async function getSupportBundleEntries() {
     zomboidDataRoot ? path.join(zomboidDataRoot, "Logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-server/Logs",
-    { maxDepth: 3, maxFiles: 1000 },
+    { maxDepth: 3, maxFiles: 1000, within: zomboidDataRoot },
   );
 
   await scan(
     installRoot ? path.join(installRoot, "logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-install/logs",
-    { maxDepth: 3, maxFiles: 1000 },
+    { maxDepth: 3, maxFiles: 1000, within: installRoot },
   );
 
   await scan(
     installRoot ? path.join(installRoot, "steamapps", "logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "zomboid-install/steamapps-logs",
-    { maxDepth: 3, maxFiles: 1000 },
+    { maxDepth: 3, maxFiles: 1000, within: installRoot },
   );
 
   await scan(
     steamcmdRoot ? path.join(steamcmdRoot, "logs") : null,
     (name) => SUPPORT_LOG_FILE_RE.test(name),
     "steamcmd/logs",
-    { maxDepth: 3, maxFiles: 1000 },
+    { maxDepth: 3, maxFiles: 1000, within: steamcmdRoot },
   );
 
   const alternateServerRoots = [serverPathRoot].filter(
@@ -1994,7 +2095,7 @@ async function getSupportBundleEntries() {
       path.join(root, "logs"),
       (name) => SUPPORT_LOG_FILE_RE.test(name),
       "zomboid-server/alternate-logs",
-      { maxDepth: 3, maxFiles: 1000 },
+      { maxDepth: 3, maxFiles: 1000, within: root },
     );
   }
 
@@ -2009,7 +2110,7 @@ async function getSupportBundleEntries() {
     installRoot ? path.join(installRoot, "logs") : null,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/install-logs",
-    { maxDepth: 3, maxFiles: 200 },
+    { maxDepth: 3, maxFiles: 200, within: installRoot },
   );
 
   await scan(
@@ -2023,7 +2124,7 @@ async function getSupportBundleEntries() {
     zomboidDataRoot ? path.join(zomboidDataRoot, "Logs") : null,
     (name) => CRASH_FILE_RE.test(name),
     "crash-logs/server-logs",
-    { maxDepth: 3, maxFiles: 200 },
+    { maxDepth: 3, maxFiles: 200, within: zomboidDataRoot },
   );
 
   return {
@@ -2167,14 +2268,19 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
     archive.append(manifest, { name: "support-bundle-info.txt" });
 
     for (const entry of entries) {
+      // The scan listed regular files only; a link, FIFO or hard link
+      // swapped in at the name since (crash logs sit in a folder another OS
+      // account may own) is left out instead of followed or waited on.
+      const handle = await openBundleEntry(entry);
+      if (!handle) {
+        log.warn(`Support bundle: left out ${entry.archivePath}, changed since the scan`);
+        continue;
+      }
       // pipe() does not forward 'error' from source to destination -- the
       // raw read stream needs its own handler or a rotated/deleted/unreadable
       // log file crashes the whole process instead of failing this request
       // (same convention as backupService.js's restore-extraction path).
-      // The scan listed regular files only; a link or FIFO swapped in at the
-      // name since (crash logs sit in a folder another OS account may own)
-      // is refused instead of followed or waited on.
-      const entryStream = fs.createReadStream(entry.filePath, { flags: CHECKED_READ_FLAGS });
+      const entryStream = handle.createReadStream();
       entryStream.on("error", handleArchiveFailure);
       archive.append(entryStream.pipe(createRedactingLogStream(knownSecrets)), {
         name: entry.archivePath,
@@ -6865,6 +6971,26 @@ function isCrashLogEntry(entry) {
   return entry.isFile() && isCrashLogFilename(entry.name);
 }
 
+// Where both crash-log routes look. <server>/logs is read only while it
+// really is below the server folder (not a link to another folder).
+function crashLogDirs(serverPath) {
+  return [
+    { dir: serverPath },
+    { dir: serverPath ? path.join(serverPath, "logs") : "", within: serverPath },
+    { dir: getDataPaths().logsDir },
+  ].filter(({ dir }) => Boolean(dir));
+}
+
+async function isUsableCrashLogDir({ dir, within }) {
+  if (!within) return true;
+  try {
+    const [realWithin, realDir] = await Promise.all([fs.promises.realpath(within), fs.promises.realpath(dir)]);
+    return isWithinRealDir(realWithin, realDir);
+  } catch {
+    return false;
+  }
+}
+
 router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, res) => {
   try {
     const serverManager = req.app.get("serverManager");
@@ -6879,16 +7005,13 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
     // happened to sit next to the executable -- on a shared dev machine,
     // that included another process's error.log, test-mock strings and
     // all.
-    const crashDirs = [
-      serverPath,
-      path.join(serverPath, "logs"),
-      getDataPaths().logsDir,
-    ].filter(Boolean);
+    const crashDirs = crashLogDirs(serverPath);
 
     const crashLogs = [];
     const seenFiles = new Set(); // Prevent duplicates
 
-    for (const dir of crashDirs) {
+    for (const crashDir of crashDirs) {
+      const { dir } = crashDir;
       try {
         // Check dir exists
         try {
@@ -6897,6 +7020,7 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
           log.debug(`Crash log dir not accessible (${dir}): ${e.message}`);
           continue;
         }
+        if (!(await isUsableCrashLogDir(crashDir))) continue;
 
         const entries = await fs.promises.readdir(dir, { withFileTypes: true });
 
@@ -6911,6 +7035,8 @@ router.get("/crash-logs", requirePermission("diagnostics.manage"), async (req, r
               try {
                 const filePath = path.join(dir, file);
                 const stats = await fs.promises.lstat(filePath);
+                // Listed only when GET /crash-logs/:filename would serve it.
+                if (!isSingleLinkFile(stats)) return;
                 if (!seenFiles.has(file)) {
                   // Check again after await
                   seenFiles.add(file);
@@ -6982,19 +7108,13 @@ router.get("/crash-logs/:filename", requirePermission("diagnostics.manage"), asy
       return res.status(400).json({ error: "Invalid filename" });
     }
 
-    const searchDirs = [
-      serverPath,
-      path.join(serverPath, "logs"),
-      getDataPaths().logsDir,
-    ].filter(Boolean);
-
-    for (const dir of searchDirs) {
+    for (const { dir, within } of crashLogDirs(serverPath)) {
       try {
         // Only a crash log GET /crash-logs lists, opened as checked: the
         // install folder may belong to another OS account (an externally
         // managed or network-mounted server), and a link it plants there
         // under a crash-log name must not be followed.
-        const handle = await openListedLogFile(dir, filename, isCrashLogEntry);
+        const handle = await openListedLogFile(dir, filename, isCrashLogEntry, { within });
         if (!handle) continue;
 
         // Read only first 100KB using file handle to prevent OOM on large files

@@ -97,9 +97,14 @@ describe("GET /logs/download-zip attaches an error handler to each entry's raw r
 
   it("a real stream error after the handler runs does not throw unhandled, and fails the bundle instead of the process", async () => {
     const capturedStreams = [];
-    const realCreateReadStream = fs.createReadStream.bind(fs);
-    vi.spyOn(fs, "createReadStream").mockImplementation((...args) => {
-      const real = realCreateReadStream(...args);
+    // Each entry is read through the FileHandle the bundle opened and
+    // checked (openBundleEntry), so capture FileHandle#createReadStream.
+    const probe = await fs.promises.open(process.execPath, "r");
+    const fileHandleProto = Object.getPrototypeOf(probe);
+    await probe.close();
+    const realCreateReadStream = fileHandleProto.createReadStream;
+    vi.spyOn(fileHandleProto, "createReadStream").mockImplementation(function (...args) {
+      const real = realCreateReadStream.apply(this, args);
       capturedStreams.push(real);
       return real;
     });
