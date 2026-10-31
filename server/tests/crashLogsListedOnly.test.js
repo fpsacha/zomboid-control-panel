@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { PassThrough } from "stream";
+import unzipper from "unzipper";
 import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 
 // Security audit 2026-10-28: GET /crash-logs/:filename checked only that a
@@ -13,13 +15,19 @@ import { mockGetRoleByName } from "./helpers/mockPermissionsDb.js";
 // The route now serves only what GET /crash-logs lists: a regular file (not
 // a link) spelled exactly as readdir() spells it, opened as checked, as GET
 // /logs/download/:filename already does.
+// Review round 1: a hard link is a regular file whose real path is its own,
+// so one to jwt.secret passed every check; and a <server>/logs (or
+// <install>/logs for the support bundle) that is itself a link to another
+// folder was read through. Both are refused now, also when the link is
+// swapped in and out around the checks.
 const getRoleByName = vi.fn(async (name) =>
   name === "diagnostics_manage_only" ? { capabilities: ["diagnostics.manage"] } : mockGetRoleByName(name),
 );
 
+let activeServer = null;
 vi.mock("../database/init.js", async () => {
   const actual = await vi.importActual("../database/init.js");
-  return { ...actual, getRoleByName };
+  return { ...actual, getRoleByName, getActiveServer: vi.fn(async () => activeServer) };
 });
 
 const { default: debugRouter } = await import("../routes/debug.js");
@@ -66,6 +74,37 @@ const getCrashLog = (filename, installRoot) => run("/crash-logs/:filename", { fi
 const listCrashLogs = async (installRoot) =>
   (await run("/crash-logs", {}, installRoot)).getBody().crashLogs.map((entry) => entry.name);
 
+// Runs GET /logs/download-zip and returns the zip's files by name.
+// beforeStream runs once, after the scan and before any file is read.
+async function downloadBundle({ beforeStream } = {}) {
+  const out = new PassThrough();
+  const chunks = [];
+  out.on("data", (chunk) => chunks.push(chunk));
+  const ended = new Promise((resolve, reject) => {
+    out.on("end", resolve);
+    out.on("error", reject);
+  });
+  let hooked = false;
+  out.headersSent = false;
+  out.setHeader = () => {
+    if (!hooked) {
+      hooked = true;
+      beforeStream?.();
+    }
+  };
+  out.status = (code) => ({ json: (body) => out.destroy(new Error(`${code} ${JSON.stringify(body)}`)) });
+  const layer = debugRouter.stack.find((entry) => entry.route?.path === "/logs/download-zip");
+  const stack = layer.route.stack;
+  await stack[stack.length - 1].handle({}, out);
+  await ended;
+  const zip = await unzipper.Open.buffer(Buffer.concat(chunks));
+  const files = {};
+  for (const file of zip.files) {
+    if (file.type === "File") files[file.path] = (await file.buffer()).toString("utf8");
+  }
+  return files;
+}
+
 function trySymlink(target, link, type, ctx) {
   try {
     fs.symlinkSync(target, link, type);
@@ -91,6 +130,7 @@ describe("GET /crash-logs/:filename serves only listed crash logs", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    activeServer = null;
     fs.rmSync(installRoot, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });
   });
@@ -183,59 +223,201 @@ describe("GET /crash-logs/:filename serves only listed crash logs", () => {
     expect(outcome).toBe(404);
   });
 
-  // Adversary pass: the support bundle (same diagnostics.manage holder) lists
-  // regular files and streams them later; a link swapped in at a listed name
-  // in between must not be followed.
-  it.skipIf(process.platform === "win32")("the support bundle does not follow a link swapped in after its scan", async () => {
-    const { getDataPaths } = await import("../utils/paths.js");
-    const logsDir = getDataPaths().logsDir;
-    fs.mkdirSync(logsDir, { recursive: true });
-    const name = "zz-swapped.log";
-    fs.writeFileSync(path.join(logsDir, name), "a real log line\n");
-    const reads = [];
-    const realCreateReadStream = fs.createReadStream.bind(fs);
-    vi.spyOn(fs, "createReadStream").mockImplementation((filePath, options) => {
-      if (path.basename(String(filePath)) !== name) return realCreateReadStream(filePath, options);
-      fs.rmSync(filePath);
-      fs.symlinkSync(secretPath, filePath);
-      const stream = realCreateReadStream(filePath, options);
-      reads.push(
-        new Promise((resolve) => {
-          const chunks = [];
-          stream.on("data", (chunk) => chunks.push(chunk));
-          stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-          stream.on("error", (error) => resolve(error.code));
-        }),
-      );
-      return stream;
+  it("refuses a hard link named like a crash log, and does not list it", async () => {
+    fs.linkSync(secretPath, path.join(installRoot, "hs_err_pid9.log"));
+
+    const res = await getCrashLog("hs_err_pid9.log", installRoot);
+
+    expect(res.getStatusCode()).toBe(404);
+    expect(JSON.stringify(res.getBody())).not.toContain("TOP-SECRET");
+    const listed = await listCrashLogs(installRoot);
+    expect(listed).toContain("hs_err_pid1.log");
+    expect(listed).not.toContain("hs_err_pid9.log");
+  });
+
+  it("does not read crash logs through a <server>/logs link to another folder", async () => {
+    fs.writeFileSync(path.join(outside, "zomboid-crash.log"), "TOP-SECRET-VIA-FOLDER-LINK");
+    fs.symlinkSync(outside, path.join(installRoot, "logs"), "junction");
+
+    const res = await getCrashLog("zomboid-crash.log", installRoot);
+
+    expect(res.getStatusCode()).toBe(404);
+    expect(JSON.stringify(res.getBody())).not.toContain("TOP-SECRET");
+    expect(await listCrashLogs(installRoot)).not.toContain("zomboid-crash.log");
+  });
+
+  // Adversary pass: <server>/logs is the link while the folder is listed and
+  // the file opened, and a real folder while its real path is checked.
+  it("does not read through a <server>/logs link swapped out only while it is checked", async () => {
+    const other = fs.mkdtempSync(path.join(os.tmpdir(), "pz-crash-other-"));
+    try {
+      fs.writeFileSync(path.join(other, "zomboid-crash.log"), "TOP-SECRET-FLIPPED");
+      const logs = path.join(installRoot, "logs");
+      const parkedLink = path.join(installRoot, "logs-link");
+      const parkedDir = path.join(installRoot, "logs-dir");
+      fs.mkdirSync(parkedDir);
+      fs.writeFileSync(path.join(parkedDir, "zomboid-crash.log"), "a real crash log");
+      fs.symlinkSync(other, logs, "junction");
+      let state = "link";
+      const realRealpath = fs.promises.realpath.bind(fs.promises);
+      vi.spyOn(fs.promises, "realpath").mockImplementation(async (target, ...rest) => {
+        if (state === "link" && path.resolve(String(target)) === logs) {
+          fs.renameSync(logs, parkedLink);
+          fs.renameSync(parkedDir, logs);
+          state = "dir";
+        }
+        return realRealpath(target, ...rest);
+      });
+      const realOpen = fs.promises.open.bind(fs.promises);
+      vi.spyOn(fs.promises, "open").mockImplementation(async (target, ...rest) => {
+        if (state === "dir" && path.basename(String(target)) === "zomboid-crash.log") {
+          fs.renameSync(logs, parkedDir);
+          fs.renameSync(parkedLink, logs);
+          state = "link again";
+        }
+        return realOpen(target, ...rest);
+      });
+
+      const res = await getCrashLog("zomboid-crash.log", installRoot);
+
+      expect(state).toBe("link again");
+      expect(res.getStatusCode()).toBe(404);
+      expect(JSON.stringify(res.getBody())).not.toContain("TOP-SECRET");
+    } finally {
+      vi.restoreAllMocks();
+      fs.rmSync(other, { recursive: true, force: true });
+    }
+  });
+});
+
+// The support bundle (same diagnostics.manage holder) scans the install
+// folder's logs and streams the files it found later.
+describe("the support bundle reads only the server's own log files", () => {
+  let installRoot;
+  let outside;
+  let secretPath;
+
+  beforeEach(() => {
+    installRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-install-"));
+    outside = fs.mkdtempSync(path.join(os.tmpdir(), "pz-bundle-outside-"));
+    secretPath = path.join(outside, "jwt.secret");
+    fs.writeFileSync(secretPath, "TOP-SECRET-SIGNING-KEY");
+    activeServer = { id: "s1", name: "s1", installPath: installRoot };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    activeServer = null;
+    fs.rmSync(installRoot, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+
+  const leaked = (files) => Object.values(files).some((content) => content.includes("TOP-SECRET"));
+
+  it("still includes the install folder's logs and crash dumps", async () => {
+    fs.mkdirSync(path.join(installRoot, "logs"));
+    fs.writeFileSync(path.join(installRoot, "logs", "console.txt"), "a real log line");
+    fs.writeFileSync(path.join(installRoot, "hs_err_pid1.log"), "# A fatal error");
+
+    const files = await downloadBundle();
+
+    expect(files["zomboid-install/logs/console.txt"]).toBe("a real log line");
+    expect(files["crash-logs/install-root/hs_err_pid1.log"]).toBe("# A fatal error");
+  });
+
+  it("leaves out a hard link in the install folder", async () => {
+    fs.writeFileSync(path.join(installRoot, "hs_err_pid1.log"), "# A fatal error");
+    fs.linkSync(secretPath, path.join(installRoot, "hs_err_pid9.log"));
+
+    const files = await downloadBundle();
+
+    expect(files["crash-logs/install-root/hs_err_pid1.log"]).toBe("# A fatal error");
+    expect(Object.keys(files).some((name) => name.includes("hs_err_pid9"))).toBe(false);
+    expect(leaked(files)).toBe(false);
+  });
+
+  it("does not scan an <install>/logs that links to another folder", async () => {
+    fs.writeFileSync(path.join(installRoot, "hs_err_pid1.log"), "# A fatal error");
+    fs.writeFileSync(path.join(outside, "reset-token.txt"), "TOP-SECRET-RESET-TOKEN");
+    fs.writeFileSync(path.join(outside, "server-crash.log"), "TOP-SECRET-CRASH");
+    fs.symlinkSync(outside, path.join(installRoot, "logs"), "junction");
+
+    const files = await downloadBundle();
+
+    expect(files["crash-logs/install-root/hs_err_pid1.log"]).toBe("# A fatal error");
+    expect(Object.keys(files).some((name) => /reset-token|server-crash/.test(name))).toBe(false);
+    expect(leaked(files)).toBe(false);
+  });
+
+  it("leaves out a hard link swapped in at a scanned name before it is read", async () => {
+    fs.mkdirSync(path.join(installRoot, "logs"));
+    const scanned = path.join(installRoot, "logs", "console.txt");
+    fs.writeFileSync(scanned, "a real log line");
+    fs.writeFileSync(path.join(installRoot, "logs", "other.txt"), "another log line");
+
+    const files = await downloadBundle({
+      beforeStream: () => {
+        fs.rmSync(scanned);
+        fs.linkSync(secretPath, scanned);
+      },
     });
-    const res = {
-      headersSent: false,
-      setHeader() {},
-      status() {
-        return { json() {}, end() {} };
-      },
-      destroy() {},
-      on() {
-        return this;
-      },
-      once() {
-        return this;
-      },
-      write() {
-        return true;
-      },
-      end() {},
-      emit() {
-        return false;
-      },
-    };
 
-    const layer = debugRouter.stack.find((entry) => entry.route?.path === "/logs/download-zip");
-    const stack = layer.route.stack;
-    await stack[stack.length - 1].handle({}, res);
+    expect(files["zomboid-install/logs/other.txt"]).toBe("another log line");
+    expect(files).not.toHaveProperty(["zomboid-install/logs/console.txt"]);
+    expect(leaked(files)).toBe(false);
+  });
 
-    expect(reads).toHaveLength(1);
-    expect(await reads[0]).toBe("ELOOP");
+  it.skipIf(process.platform === "win32")("leaves out a symbolic link swapped in at a scanned name", async () => {
+    fs.mkdirSync(path.join(installRoot, "logs"));
+    const scanned = path.join(installRoot, "logs", "console.txt");
+    fs.writeFileSync(scanned, "a real log line");
+    fs.writeFileSync(path.join(installRoot, "logs", "other.txt"), "another log line");
+
+    const files = await downloadBundle({
+      beforeStream: () => {
+        fs.rmSync(scanned);
+        fs.symlinkSync(secretPath, scanned);
+      },
+    });
+
+    expect(files["zomboid-install/logs/other.txt"]).toBe("another log line");
+    expect(files).not.toHaveProperty(["zomboid-install/logs/console.txt"]);
+    expect(leaked(files)).toBe(false);
+  });
+
+  // Adversary pass: <install>/logs is a real folder while its real path is
+  // checked, and the link while it is listed and the files are opened.
+  it("does not read through an <install>/logs link swapped out only while it is checked", async () => {
+    fs.writeFileSync(path.join(outside, "console.txt"), "TOP-SECRET-FLIPPED");
+    const logs = path.join(installRoot, "logs");
+    const parkedLink = path.join(installRoot, "logs-link");
+    const parkedDir = path.join(installRoot, "logs-dir");
+    fs.mkdirSync(parkedDir);
+    fs.writeFileSync(path.join(parkedDir, "console.txt"), "a real log line");
+    fs.symlinkSync(outside, logs, "junction");
+    let state = "link";
+    const realRealpath = fs.promises.realpath.bind(fs.promises);
+    vi.spyOn(fs.promises, "realpath").mockImplementation(async (target, ...rest) => {
+      if (state === "link" && path.resolve(String(target)) === logs) {
+        fs.renameSync(logs, parkedLink);
+        fs.renameSync(parkedDir, logs);
+        state = "dir";
+      }
+      return realRealpath(target, ...rest);
+    });
+    const realReaddir = fs.promises.readdir.bind(fs.promises);
+    vi.spyOn(fs.promises, "readdir").mockImplementation(async (target, ...rest) => {
+      if (state === "dir" && path.basename(String(target)) === "logs") {
+        fs.renameSync(logs, parkedDir);
+        fs.renameSync(parkedLink, logs);
+        state = "link again";
+      }
+      return realReaddir(target, ...rest);
+    });
+
+    const files = await downloadBundle();
+
+    expect(state).toBe("link again");
+    expect(leaked(files)).toBe(false);
   });
 });

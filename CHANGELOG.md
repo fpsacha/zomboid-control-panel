@@ -7,6 +7,13 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+### Security
+- Log entries now escape every terminal control character and indent continuation lines that start with one space.
+- Crash logs and the support bundle skip hard-linked files and log folders that link elsewhere.
+- A remote server's data folder or an ini import folder can no longer be a Windows network path.
+- Very long or deeply nested typed folder paths (Map Cleanup, folder checks) no longer stall the panel.
+- PanelBridge state files are no longer written through a hard link.
+
 ## [2026.10.3] - 2026-10-30
 
 ### Security

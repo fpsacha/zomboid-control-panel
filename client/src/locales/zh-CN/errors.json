@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "路径不是目录",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "地图清理不会打开在此输入的网络共享或设备路径。请使用这台电脑上的文件夹，或已为某个服务器设置的数据文件夹。",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "selectedModIds 或 includeAllModIds 二者之一为必填项",
+  "CHUNKS_PATH_TOO_LONG": "该路径过长。",
   "MODS_ADD_ALL_DEPS_REQUIRED": "未提供依赖项",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "单次请求中的依赖项过多（最多 200 个）",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "Mods 数组为必填项",

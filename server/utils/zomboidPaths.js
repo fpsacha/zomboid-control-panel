@@ -33,7 +33,10 @@ export function normalizeUserPath(input, { expandEnv = true } = {}) {
   }
   if (!expandEnv) return s;
   s = s.replace(/%([^%]+)%/g, (m, name) => process.env[name] || m);
-  s = s.replace(/\$\{([^}]+)\}/g, (m, name) => process.env[name] || m);
+  // A name never holds "$" or "{": with them allowed, "${${${..." made
+  // this scan cost the square of the input's length (a request path of
+  // 80 KB took seconds).
+  s = s.replace(/\$\{([^${}]+)\}/g, (m, name) => process.env[name] || m);
   s = s.replace(/\$([A-Z_][A-Z0-9_]*)/gi, (m, name) => process.env[name] || m);
   return s;
 }

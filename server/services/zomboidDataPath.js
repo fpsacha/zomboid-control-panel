@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { startScriptValueProblem } from "../utils/startScriptQuoting.js";
-import { untrustedFolderReason } from "../utils/untrustedFolder.js";
+import { isWindowsNetworkPath } from "../utils/untrustedFolder.js";
 import { holdsSaveFiles, inspectZomboidPath, normalizeUserPath } from "../utils/zomboidPaths.js";
 import { RENAME_TEMP_SUFFIX, TRASH_DIR_NAME, UPLOAD_TEMP_SUFFIX } from "./fileManagerContract.js";
 
@@ -223,7 +223,7 @@ function hasPathShape(value) {
 // expansion refusal below could run. A mapped drive letter still works, and
 // so does the operator's own PZ_SAVE_PATH.
 function isNetworkSharePath(value) {
-  return untrustedFolderReason(value) === "networkShare" && !isOperatorDataPath(path.resolve(value));
+  return process.platform === "win32" && isWindowsNetworkPath(value) && !isOperatorDataPath(path.resolve(value));
 }
 
 function isOperatorDataPath(resolved) {

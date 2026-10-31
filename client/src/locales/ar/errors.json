@@ -274,6 +274,7 @@
   "BROWSE_CHUNKS_PATH_NOT_DIRECTORY": "المسار ليس دليلًا",
   "CHUNKS_CUSTOM_PATH_NETWORK_REFUSED": "لا يفتح تنظيف الخريطة مشاركة شبكة أو مسار جهاز مكتوبًا هنا. استخدم مجلدًا على هذا الكمبيوتر، أو مجلد بيانات معيّنًا مسبقًا لخادم.",
   "MODS_ADD_ADVANCED_SELECTION_REQUIRED": "مطلوب إما selectedModIds أو includeAllModIds",
+  "CHUNKS_PATH_TOO_LONG": "هذا المسار طويل جدًا.",
   "MODS_ADD_ALL_DEPS_REQUIRED": "لم تُقدَّم أي تبعيات",
   "MODS_ADD_ALL_DEPS_TOO_MANY": "عدد كبير جدًا من التبعيات في طلب واحد (بحد أقصى 200)",
   "MODS_ADD_BULK_MODS_ARRAY_REQUIRED": "مصفوفة Mods مطلوبة",
