@@ -741,6 +741,21 @@ batched, so this should be rare.
 
 ---
 
+### I can't join my own server by its public IP (but friends can)
+
+**What you see:** friends connect fine, but from the same network as the
+server you get stuck on "connecting" or a loopback / timeout error when you
+use the public IP or domain name.
+
+**What it means:** many home routers don't support NAT loopback (hairpinning),
+so a machine on the LAN can't reach the router's own public address.
+
+**What to do:** from inside your network, join with the server's LAN IP
+(for example `192.168.1.20`) or `127.0.0.1` if it runs on the same PC. Keep
+the public IP for people outside your network.
+
+---
+
 ### Admins can join but players can't
 
 **What you see:** with `DoLuaChecksum=true`, your admin account joins, but
