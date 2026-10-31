@@ -94,7 +94,7 @@ async function openActive() {
   await screen.findByText(/IDs enabled/)
 }
 
-// The Multi-ID chip starts on and hides single-ID items; turn it off so every item is listed.
+// The Multi-ID chip starts off; if a remembered filter left it on, it hides single-ID items; turn it off so every item is listed.
 function showAllItems() {
   // The chip itself, not the "Remove filter" button of its remembered-filter tag.
   const multi = screen.queryByRole('button', { name: /^Multi-ID/ })
@@ -130,11 +130,12 @@ describe('Active on server: Not enabled filter', () => {
     await waitFor(() => expect(shown('Alpha Mod')).toBe(true))
   })
 
-  it('lists single-ID items too when turned on from the default view (the Multi-ID filter is on by default)', async () => {
+  it('narrows the default view to the not-enabled items (the Multi-ID filter is off by default)', async () => {
     prime(MIXED)
     await openActive()
-    // Default view: only the multi-ID item.
-    expect(shown('Bravo Mod')).toBe(false)
+    // Default view: every item, single-ID ones included.
+    expect(shown('Bravo Mod')).toBe(true)
+    expect(shown('Alpha Mod')).toBe(true)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Not enabled (2)' }))
 

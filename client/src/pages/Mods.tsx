@@ -496,7 +496,7 @@ export default function Mods() {
   const [confirmRemoveWorkshop, setConfirmRemoveWorkshop] = useState<{ wsId: string; knownModIds: string[] } | null>(null) // wsId for config tab remove
   const [deduplicating, setDeduplicating] = useState(false)
   const [deduplicateResult, setDeduplicateResult] = useState<string | null>(null)
-  const [filterMultiId, setFilterMultiId] = useLocalStorageState<boolean>('zcp:mods:active:multiIdOnly', true)
+  const [filterMultiId, setFilterMultiId] = useLocalStorageState<boolean>('zcp:mods:active:multiIdOnly', false)
   // "Active on server" list shape. Compact hides the per-ID chip grid (still
   // reachable in the inspector); warnings render in both densities.
   const [filterAttention, setFilterAttention] = useLocalStorageState<boolean>('zcp:mods:active:attentionOnly', false)

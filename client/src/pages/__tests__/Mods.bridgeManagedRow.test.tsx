@@ -136,9 +136,6 @@ async function openActiveOnServer() {
   renderMods()
   await waitFor(() => expect(getTrackedMods).toHaveBeenCalled())
   await openModsView('Active on server')
-  // Show every item, not only the multi-ID ones the list opens on.
-  // The chip itself, not the "Remove filter" button of its remembered-filter tag.
-  fireEvent.click(await screen.findByRole('button', { name: /^Multi-ID/ }))
 }
 
 // A Radix DropdownMenu opens on pointerdown, not click.
