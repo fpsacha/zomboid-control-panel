@@ -35,7 +35,7 @@
     "workshop:art": "node scripts/workshop/generate-art.mjs && node scripts/workshop/render-art.mjs"
   },
   "dependencies": {
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
