@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{m as t}from"./charts-MbFxBz83.js";import{d as n}from"./router-KwUuxVrM.js";var r=e(t(),1);function i(e,t,i){let[a,o]=n(),s=a.get(e);return[s!==null&&t.includes(s)?s:i,(0,r.useCallback)(t=>{o(n=>{let r=new URLSearchParams(n);return r.set(e,t),r},{replace:!0})},[e,o])]}export{i as t};
