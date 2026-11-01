@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}} % utilisé",
   "diagnostics": "Diagnostics",
   "dismiss": "Ignorer",
-  "dismissAria": "Ignorer l'avertissement de stockage"
+  "dismissAria": "Ignorer l'avertissement de stockage",
+  "plainHttpTitle": "Le panneau est ouvert sur Internet en HTTP non chiffré",
+  "plainHttpMessage": "Les connexions et sessions circulent sans chiffrement. Placez le panneau derrière un proxy inverse HTTPS (définir TRUST_PROXY et HTTPS=true), ou utilisez un VPN ou un tunnel SSH, et fermez le port 3001 dans le pare-feu.",
+  "plainHttpDismissAria": "Fermer l'avertissement HTTP"
 }

@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}}% used",
   "diagnostics": "Diagnostics",
   "dismiss": "Dismiss",
-  "dismissAria": "Dismiss storage warning"
+  "dismissAria": "Dismiss storage warning",
+  "plainHttpTitle": "Panel is open to the Internet over plain HTTP",
+  "plainHttpMessage": "Logins and sessions cross the network unencrypted. Put the panel behind an HTTPS reverse proxy (set TRUST_PROXY and HTTPS=true), or use a VPN or SSH tunnel, and close port 3001 in the firewall.",
+  "plainHttpDismissAria": "Dismiss the HTTP warning"
 }

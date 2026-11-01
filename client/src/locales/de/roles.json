@@ -28,6 +28,7 @@
     "deleteSeededTooltip": "Integrierte Rollen können auf diesem Bildschirm nicht gelöscht werden.",
     "renameSeededTooltip": "Integrierte Rollen können nicht umbenannt werden.",
     "recoveryCapabilityHint": "Wird die letzte Person mit diesem Recht entfernt, sperrt das Administratoren aus — das Panel verweigert diese Änderung und nennt den Grund.",
+    "hostAccessHint": "Gleichwertig mit Shell-Zugriff auf den Host-Rechner. Nur an Personen vergeben, denen Sie den Rechner anvertrauen würden.",
     "savingCell": "Wird gespeichert…",
     "capabilityCount_one": "{{count}} Recht",
     "capabilityCount_other": "{{count}} Rechte"

@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}} % verwendet",
   "diagnostics": "Diagnose",
   "dismiss": "Schließen",
-  "dismissAria": "Speicherwarnung schließen"
+  "dismissAria": "Speicherwarnung schließen",
+  "plainHttpTitle": "Panel ist über unverschlüsseltes HTTP aus dem Internet erreichbar",
+  "plainHttpMessage": "Anmeldungen und Sitzungen laufen unverschlüsselt durchs Netz. Stellen Sie das Panel hinter einen HTTPS-Reverse-Proxy (TRUST_PROXY und HTTPS=true setzen) oder nutzen Sie ein VPN oder einen SSH-Tunnel, und sperren Sie Port 3001 in der Firewall.",
+  "plainHttpDismissAria": "HTTP-Warnung schließen"
 }

@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}}% usado",
   "diagnostics": "Diagnóstico",
   "dismiss": "Descartar",
-  "dismissAria": "Descartar aviso de almacenamiento"
+  "dismissAria": "Descartar aviso de almacenamiento",
+  "plainHttpTitle": "El panel está abierto a Internet por HTTP sin cifrar",
+  "plainHttpMessage": "Los inicios de sesión y las sesiones viajan sin cifrar. Pon el panel detrás de un proxy inverso HTTPS (define TRUST_PROXY y HTTPS=true), o usa una VPN o un túnel SSH, y cierra el puerto 3001 en el cortafuegos.",
+  "plainHttpDismissAria": "Descartar el aviso de HTTP"
 }

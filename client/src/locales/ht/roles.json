@@ -32,6 +32,7 @@
     "deleteSeededTooltip": "Wòl entegre yo pa ka efase nan ekran sa a.",
     "renameSeededTooltip": "Wòl entegre yo pa ka chanje non.",
     "recoveryCapabilityHint": "Retire dènye moun ki gen kapasite sa a bloke aksè administratè yo — panèl la refize chanjman sa a epi eksplike poukisa.",
+    "hostAccessHint": "Li egal ak aksè shell sou machin òt la. Bay li sèlman moun ou ta fè konfyans sou machin nan.",
     "savingCell": "Ap sove…"
   },
   "roleFormDialog": {

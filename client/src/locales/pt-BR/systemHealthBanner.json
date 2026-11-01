@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}}% usado",
   "diagnostics": "Diagnóstico",
   "dismiss": "Dispensar",
-  "dismissAria": "Dispensar aviso de armazenamento"
+  "dismissAria": "Dispensar aviso de armazenamento",
+  "plainHttpTitle": "O painel está aberto à Internet por HTTP sem criptografia",
+  "plainHttpMessage": "Logins e sessões trafegam sem criptografia. Coloque o painel atrás de um proxy reverso HTTPS (defina TRUST_PROXY e HTTPS=true), ou use uma VPN ou um túnel SSH, e feche a porta 3001 no firewall.",
+  "plainHttpDismissAria": "Dispensar o aviso de HTTP"
 }

@@ -30,6 +30,7 @@
     "deleteSeededTooltip": "Cargos predefinidos não podem ser excluídos nesta tela.",
     "renameSeededTooltip": "Cargos predefinidos não podem ser renomeados.",
     "recoveryCapabilityHint": "Tirar esta permissão do último usuário que a tem deixaria os administradores sem acesso — o painel recusa essa alteração e explica o motivo.",
+    "hostAccessHint": "Equivale a acesso de shell na máquina hospedeira. Conceda apenas a alguém em quem você confiaria a máquina.",
     "savingCell": "Salvando…",
     "memberCount_many": "{{count}} membros",
     "capabilityCount_many": "{{count}} permissões"
