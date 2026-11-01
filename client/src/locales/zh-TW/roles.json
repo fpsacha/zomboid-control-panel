@@ -28,6 +28,7 @@
     "deleteSeededTooltip": "內建角色無法在此頁面刪除。",
     "renameSeededTooltip": "內建角色無法重新命名。",
     "recoveryCapabilityHint": "移除此權限項的最後一位持有者會導致管理員被鎖定在外——面板將拒絕此更改並說明原因。",
+    "hostAccessHint": "相當於對主機的 shell 存取權限。只授予你願意把這台機器託付的人。",
     "savingCell": "正在儲存…",
     "capabilityCount_one": "{{count}} 項權限",
     "capabilityCount_other": "{{count}} 項權限"

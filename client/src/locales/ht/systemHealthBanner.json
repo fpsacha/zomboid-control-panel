@@ -6,5 +6,8 @@
   "usedPercent": "{{percent}}% itilize",
   "diagnostics": "Dyagnostik",
   "dismiss": "Ekate",
-  "dismissAria": "Ekate avètisman espas disk la"
+  "dismissAria": "Ekate avètisman espas disk la",
+  "plainHttpTitle": "Panèl la louvri sou Entènèt ak HTTP ki pa chifre",
+  "plainHttpMessage": "Koneksyon ak sesyon yo pase sou rezo a san chifreman. Mete panèl la dèyè yon pwoksi envès HTTPS (defini TRUST_PROXY ak HTTPS=true), oswa sèvi ak yon VPN oswa yon tinèl SSH, epi fèmen pò 3001 nan firewall la.",
+  "plainHttpDismissAria": "Fèmen avètisman HTTP la"
 }

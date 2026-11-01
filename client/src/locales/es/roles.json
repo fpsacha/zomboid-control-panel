@@ -28,6 +28,7 @@
     "deleteSeededTooltip": "Los roles predefinidos no se pueden eliminar desde esta pantalla.",
     "renameSeededTooltip": "Los roles predefinidos no se pueden renombrar.",
     "recoveryCapabilityHint": "Retirar esta capacidad a quien sea su último titular deja fuera a los administradores — el panel rechaza ese cambio y explica el motivo.",
+    "hostAccessHint": "Equivale a acceso de shell en la máquina anfitriona. Concédela solo a alguien en quien confiarías la máquina.",
     "savingCell": "Guardando…",
     "capabilityCount_one": "{{count}} capacidad",
     "capabilityCount_other": "{{count}} capacidades",

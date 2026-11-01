@@ -29,6 +29,7 @@ import { useConfirmLeave, useGuardedNavigate } from '@/contexts/UnsavedChangesCo
 import { CommandPalette } from './CommandPalette'
 import { ConnectionStatus, ConnectionAnnouncer } from './ConnectionStatus'
 import { SystemHealthBanner } from './SystemHealthBanner'
+import { PlainHttpBanner } from './PlainHttpBanner'
 import { serversApi, ServerInstance, updateApi, UpdateStatus, serverApi, modsApi, panelUpdateApi } from '@/lib/api'
 import { isStatusEventForServer, resolveClientProvider } from '@/lib/serverStatus'
 import { getResultErrorMessage } from '@/lib/errorMessage'
@@ -1303,6 +1304,7 @@ export default function Layout({ children }: LayoutProps) {
       <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto pt-16 focus:outline-none lg:pt-0">
         <div className={cn('mx-auto p-4 lg:p-8', mainWidth)}>
           <SystemHealthBanner />
+          <PlainHttpBanner />
           {/* Server Update Banner: a warning strip with the build delta (data, in mono). */}
           {updateInfo && updateInfo.updateAvailable && !updateDismissed && (
             <div

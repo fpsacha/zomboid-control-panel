@@ -51,6 +51,9 @@ import { getUserErrorMessage } from '@/lib/errorMessage'
 // screen that can lock an administrator out of the panel.
 const RECOVERY_CAPABILITY_KEYS = new Set(['roles.manage', 'users.manage'])
 
+// Rights that amount to shell access on the host (install a server, edit any file, run servers).
+const HOST_ACCESS_CAPABILITY_KEYS = new Set(['server.install', 'files.manage', 'servers.manage'])
+
 // Which of the two recovery capabilities (server/services/permissions.js
 // RECOVERY_CAPABILITIES) a pending capability change would remove -- lets
 // the client fill in the {{action}} placeholder in the server's
@@ -692,6 +695,11 @@ export default function RolesPermissions({ embedded = false }: { embedded?: bool
                                     Same information, on demand instead of permanent -- "dense by
                                     default, help on demand," not information removed. */}
                                 <HelpTip label={capabilityLabel(cap)}>{capabilityDescription(cap)}</HelpTip>
+                                {HOST_ACCESS_CAPABILITY_KEYS.has(cap.key) && (
+                                  <span title={t('matrix.hostAccessHint')}>
+                                    <ShieldAlert className="h-3 w-3 shrink-0 text-warning" aria-label={t('matrix.hostAccessHint')} />
+                                  </span>
+                                )}
                                 {RECOVERY_CAPABILITY_KEYS.has(cap.key) && (
                                   <span title={t('matrix.recoveryCapabilityHint')}>
                                     <Lock

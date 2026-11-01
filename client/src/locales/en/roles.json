@@ -30,6 +30,7 @@
     "deleteSeededTooltip": "Built-in roles can't be deleted from this screen.",
     "renameSeededTooltip": "Built-in roles can't be renamed.",
     "recoveryCapabilityHint": "Removing everyone's last holder of this capability locks administrators out — the panel refuses that change and tells you why.",
+    "hostAccessHint": "Equivalent to shell access on the host machine. Grant it only to someone you would trust with the machine.",
     "savingCell": "Saving…"
   },
   "roleFormDialog": {

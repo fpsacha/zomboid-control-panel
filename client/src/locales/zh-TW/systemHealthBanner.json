@@ -6,5 +6,8 @@
   "usedPercent": "已使用 {{percent}}%",
   "diagnostics": "診斷",
   "dismiss": "關閉",
-  "dismissAria": "關閉儲存警告"
+  "dismissAria": "關閉儲存警告",
+  "plainHttpTitle": "面板正透過未加密的 HTTP 暴露在網際網路上",
+  "plainHttpMessage": "登入與工作階段會以明文在網路上傳輸。請把面板放在 HTTPS 反向代理之後（設定 TRUST_PROXY 與 HTTPS=true），或使用 VPN 或 SSH 通道，並在防火牆中關閉 3001 連接埠。",
+  "plainHttpDismissAria": "關閉 HTTP 警告"
 }

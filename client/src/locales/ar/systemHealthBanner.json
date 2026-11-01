@@ -6,5 +6,8 @@
   "usedPercent": "المستخدم {{percent}}%",
   "diagnostics": "التشخيص",
   "dismiss": "تجاهل",
-  "dismissAria": "تجاهل تحذير التخزين"
+  "dismissAria": "تجاهل تحذير التخزين",
+  "plainHttpTitle": "اللوحة مفتوحة على الإنترنت عبر HTTP غير مشفّر",
+  "plainHttpMessage": "تنتقل عمليات تسجيل الدخول والجلسات دون تشفير. ضع اللوحة خلف وكيل عكسي بـ HTTPS (اضبط TRUST_PROXY وHTTPS=true)، أو استخدم VPN أو نفق SSH، وأغلق المنفذ 3001 في جدار الحماية.",
+  "plainHttpDismissAria": "تجاهل تحذير HTTP"
 }

@@ -28,6 +28,7 @@
     "deleteSeededTooltip": "Les rôles intégrés ne peuvent pas être supprimés depuis cet écran.",
     "renameSeededTooltip": "Les rôles intégrés ne peuvent pas être renommés.",
     "recoveryCapabilityHint": "Retirer le dernier détenteur de cette capacité verrouillerait les administrateurs hors du panneau — celui-ci refuse ce changement et vous explique pourquoi.",
+    "hostAccessHint": "Équivaut à un accès shell sur la machine hôte. À n'accorder qu'à quelqu'un à qui vous confieriez la machine.",
     "savingCell": "Enregistrement…",
     "capabilityCount_one": "{{count}} capacité",
     "capabilityCount_other": "{{count}} capacités",
