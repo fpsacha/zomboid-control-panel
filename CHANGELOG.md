@@ -7,6 +7,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.10.4] - 2026-10-31
+
 ### Security
 - Log entries now escape every terminal control character and indent continuation lines that start with one space.
 - Crash logs and the support bundle skip hard-linked files and log folders that link elsewhere.
