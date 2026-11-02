@@ -81,6 +81,8 @@
     "maxBackupsHelp": "Die ältesten Backups werden automatisch gelöscht, sobald das Limit erreicht ist",
     "includeDbLabel": "Panel-Datenbank einschließen (ohne Passwörter)",
     "includeDbHelp": "Fügt jedem Backup eine Kopie der Panel-Datenbank hinzu (Server, Einstellungen, Zeitpläne, Konten), ohne Passwörter, Sitzungen und andere Geheimnisse. Beim Wiederherstellen eines Backups wird sie nie angewendet.",
+    "onlyWhenOnlineLabel": "Nur sichern, während der Server läuft",
+    "onlyWhenOnlineHelp": "Geplante Backups überspringen einen gestoppten Server: Seine Welt kann sich nicht ändern, solange er aus ist. Kann das Panel es nicht feststellen, sichert es trotzdem. Manuelle Backups sind nicht betroffen.",
     "scheduledServersLabel": "Server im geplanten Backup",
     "scheduledServersHelp": "Jeder markierte Server wird nacheinander gesichert, in seinen eigenen Backup-Ordner. Bis du wählst, sichert der Zeitplan nur den aktiven Server.",
     "scheduledServersNone": "Kein Server ist markiert, daher sichert der Zeitplan nichts.",

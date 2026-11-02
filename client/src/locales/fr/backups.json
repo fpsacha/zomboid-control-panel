@@ -82,6 +82,8 @@
     "maxBackupsHelp": "Le panneau supprime automatiquement les sauvegardes les plus anciennes lorsque cette limite est atteinte",
     "includeDbLabel": "Inclure la base de données du panneau (sans mots de passe)",
     "includeDbHelp": "Ajoute à chaque sauvegarde une copie de la base de données du panneau (serveurs, paramètres, planifications, comptes), sans les mots de passe, sessions et autres secrets. Restaurer une sauvegarde ne l'applique jamais.",
+    "onlyWhenOnlineLabel": "Sauvegarder uniquement quand le serveur tourne",
+    "onlyWhenOnlineHelp": "Les sauvegardes planifiées ignorent un serveur arrêté : son monde ne peut pas changer tant qu'il est éteint. Si le panneau ne peut pas le savoir, il sauvegarde quand même. Les sauvegardes manuelles ne sont pas concernées.",
     "scheduledServersLabel": "Serveurs de la sauvegarde planifiée",
     "scheduledServersHelp": "Chaque serveur coché est sauvegardé à son tour, dans son propre dossier de sauvegardes. Tant que vous n'avez pas choisi, la planification sauvegarde le serveur actif seul.",
     "scheduledServersNone": "Aucun serveur n'est coché, la planification ne sauvegarde donc rien.",

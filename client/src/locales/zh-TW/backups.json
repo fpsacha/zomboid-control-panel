@@ -81,6 +81,8 @@
     "maxBackupsHelp": "達到數量上限後，最舊的備份將被自動刪除",
     "includeDbLabel": "包含面板資料庫（不含密碼）",
     "includeDbHelp": "在每個備份中加入面板資料庫的副本（伺服器、設定、排程、帳號），不含密碼、工作階段和其他機密。還原備份時不會套用它。",
+    "onlyWhenOnlineLabel": "僅在伺服器執行時備份",
+    "onlyWhenOnlineHelp": "排程備份會略過已停止的伺服器：伺服器關閉時其世界不會改變。面板無法判斷時仍會備份。手動備份不受影響。",
     "scheduledServersLabel": "排程備份的伺服器",
     "scheduledServersHelp": "每個勾選的伺服器依序備份到各自的備份資料夾。在你選擇之前，排程只備份目前使用中的伺服器。",
     "scheduledServersNone": "未勾選任何伺服器，因此排程不會備份任何內容。",

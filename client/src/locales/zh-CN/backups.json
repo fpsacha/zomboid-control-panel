@@ -81,6 +81,8 @@
     "maxBackupsHelp": "达到数量上限后，最旧的备份将被自动删除",
     "includeDbLabel": "包含面板数据库（不含密码）",
     "includeDbHelp": "在每个备份中加入面板数据库的副本（服务器、设置、计划、账户），不含密码、会话和其他机密。恢复备份时不会应用它。",
+    "onlyWhenOnlineLabel": "仅在服务器运行时备份",
+    "onlyWhenOnlineHelp": "计划备份会跳过已停止的服务器：服务器关闭时其世界不会改变。面板无法判断时仍会备份。手动备份不受影响。",
     "scheduledServersLabel": "定时备份的服务器",
     "scheduledServersHelp": "每个勾选的服务器依次备份到各自的备份文件夹。在你选择之前，计划只备份当前活动服务器。",
     "scheduledServersNone": "未勾选任何服务器，因此计划不会备份任何内容。",

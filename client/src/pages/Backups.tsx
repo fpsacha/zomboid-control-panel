@@ -326,6 +326,10 @@ export default function Backups() {
   // it; now this setting alone decides, and it starts off on an upgrade.
   const loadedIncludeDbRef = useRef<boolean | null>(null)
   const [backupIncludeDb, setBackupIncludeDb] = useState(false)
+  // And whether the schedule skips a server that is stopped
+  // (backupOnlyWhenOnline; the scheduler checks before each server).
+  const loadedOnlyWhenOnlineRef = useRef<boolean | null>(null)
+  const [backupOnlyWhenOnline, setBackupOnlyWhenOnline] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
 
   // Dialog state
@@ -392,6 +396,11 @@ export default function Backups() {
       if (loadedIncludeDbRef.current !== includeDb) {
         loadedIncludeDbRef.current = includeDb
         setBackupIncludeDb(includeDb)
+      }
+      const onlyWhenOnline = status.onlyWhenOnline === true
+      if (loadedOnlyWhenOnlineRef.current !== onlyWhenOnline) {
+        loadedOnlyWhenOnlineRef.current = onlyWhenOnline
+        setBackupOnlyWhenOnline(onlyWhenOnline)
       }
       setLoadError(null)
       setBackupStatusLoadError(false)
@@ -1135,6 +1144,7 @@ export default function Backups() {
         schedule: scheduleToSave,
         maxBackups: backupMaxCount,
         includeDb: backupIncludeDb,
+        onlyWhenOnline: backupOnlyWhenOnline,
       }, activeServerId)
       await fetchBackupStatus()
       toast({
@@ -1280,7 +1290,8 @@ export default function Backups() {
   // Object.is: an emptied field is NaN, and NaN !== NaN.
   const maxBackupsChanged = backupStatus !== null && !Object.is(backupMaxCount, backupStatus.maxBackups)
   const includeDbChanged = backupStatus !== null && backupIncludeDb !== (backupStatus.includeDb === true)
-  const settingsDirty = canManageBackups && (scheduleChanged || maxBackupsChanged || includeDbChanged)
+  const onlyWhenOnlineChanged = backupStatus !== null && backupOnlyWhenOnline !== (backupStatus.onlyWhenOnline === true)
+  const settingsDirty = canManageBackups && (scheduleChanged || maxBackupsChanged || includeDbChanged || onlyWhenOnlineChanged)
   const maxBackupsInvalid = maxBackupsChanged
     && !(Number.isInteger(backupMaxCount) && backupMaxCount >= 1 && backupMaxCount <= 100)
   const saveSettingsBlockedReason = !canManageBackups
@@ -1301,6 +1312,7 @@ export default function Backups() {
     setCustomCron(isPreset ? '' : schedule)
     setBackupMaxCount(backupStatus.maxBackups)
     setBackupIncludeDb(backupStatus.includeDb === true)
+    setBackupOnlyWhenOnline(backupStatus.onlyWhenOnline === true)
   }
 
   // Opening the card (the header button, the Auto-backup cell, or a link
@@ -1765,6 +1777,21 @@ export default function Backups() {
           </div>
           {/* Saved with the schedule and limit (the save bar), unlike the
               on/off switch above. */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/25 p-3">
+            <div className="min-w-0 space-y-0.5">
+              <Label htmlFor="backup-only-when-online" className="text-sm font-medium">{t('settingsPanel.onlyWhenOnlineLabel')}</Label>
+              <p id="backup-only-when-online-help" className="text-xs text-muted-foreground">{t('settingsPanel.onlyWhenOnlineHelp')}</p>
+            </div>
+            <DisabledReason reason={!canManageBackups ? t('permissions.noManage') : null}>
+              <Switch
+                id="backup-only-when-online"
+                checked={backupOnlyWhenOnline}
+                onCheckedChange={setBackupOnlyWhenOnline}
+                disabled={!canManageBackups || backupStatus === null}
+                aria-describedby="backup-only-when-online-help"
+              />
+            </DisabledReason>
+          </div>
           <div className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/25 p-3">
             <div className="min-w-0 space-y-0.5">
               <Label htmlFor="backup-include-db" className="text-sm font-medium">{t('settingsPanel.includeDbLabel')}</Label>

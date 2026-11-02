@@ -82,6 +82,8 @@
     "maxBackupsHelp": "Las copias de seguridad más antiguas se eliminarán automáticamente al alcanzar el límite",
     "includeDbLabel": "Incluir la base de datos del panel (sin contraseñas)",
     "includeDbHelp": "Añade a cada copia de seguridad una copia de la base de datos del panel (servidores, ajustes, programaciones, cuentas), sin contraseñas, sesiones ni otros secretos. Restaurar una copia nunca la aplica.",
+    "onlyWhenOnlineLabel": "Hacer copia solo mientras el servidor está en marcha",
+    "onlyWhenOnlineHelp": "Las copias programadas omiten un servidor detenido: su mundo no puede cambiar mientras está apagado. Si el panel no puede saberlo, hace la copia igualmente. Las copias manuales no se ven afectadas.",
     "scheduledServersLabel": "Servidores de la copia programada",
     "scheduledServersHelp": "Cada servidor marcado se copia por turno, en su propia carpeta de copias. Hasta que elijas, la programación copia solo el servidor activo.",
     "scheduledServersNone": "No hay ningún servidor marcado, así que la programación no copia nada.",

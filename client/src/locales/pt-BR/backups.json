@@ -82,6 +82,8 @@
     "maxBackupsHelp": "Os backups mais antigos serão excluídos automaticamente quando o limite for atingido",
     "includeDbLabel": "Incluir o banco de dados do painel (sem senhas)",
     "includeDbHelp": "Adiciona a cada backup uma cópia do banco de dados do painel (servidores, configurações, agendamentos, contas), sem senhas, sessões e outros segredos. Restaurar um backup nunca a aplica.",
+    "onlyWhenOnlineLabel": "Fazer backup só enquanto o servidor está rodando",
+    "onlyWhenOnlineHelp": "Backups agendados ignoram um servidor parado: o mundo dele não pode mudar enquanto está desligado. Se o painel não conseguir saber, faz o backup mesmo assim. Backups manuais não são afetados.",
     "scheduledServersLabel": "Servidores no backup agendado",
     "scheduledServersHelp": "Cada servidor marcado é salvo em sequência, na sua própria pasta de backups. Até você escolher, o agendamento salva só o servidor ativo.",
     "scheduledServersNone": "Nenhum servidor marcado, então o agendamento não salva nada.",
