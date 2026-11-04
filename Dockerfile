@@ -48,7 +48,7 @@ ENV PANEL_BUILD_SHA=${PANEL_BUILD_SHA}
 RUN cd client && npm run build
 
 # --- Runtime stage ---
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da
 
 # The panel supports arm64 for remote-server administration. SteamCMD itself
 # is only usable on amd64, where its 32-bit runtime libraries are installed.
