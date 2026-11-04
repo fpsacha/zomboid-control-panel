@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@yao-pkg/pkg": "^6.23.0",
+    "@yao-pkg/pkg": "^6.24.0",
     "concurrently": "^9.2.5",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
