@@ -210,7 +210,7 @@ describe('Backups.tsx: custom cron schedule', () => {
     fireEvent.click(save)
     fireEvent.click(save)
     await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '15 */6 * * *', maxBackups: 10, includeDb: true }, 1),
+      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '15 */6 * * *', maxBackups: 10, includeDb: true, onlyWhenOnline: false }, 1),
     )
     await waitFor(() => expect(save).not.toBeDisabled())
     expect(updateSettings).toHaveBeenCalledTimes(1)
@@ -246,7 +246,7 @@ describe('Backups.tsx: custom cron schedule', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /save settings/i }))
     await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */12 * * *', maxBackups: 10, includeDb: true }, 1),
+      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */12 * * *', maxBackups: 10, includeDb: true, onlyWhenOnline: false }, 1),
     )
   })
 })

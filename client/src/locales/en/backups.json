@@ -81,6 +81,8 @@
     "maxBackupsHelp": "Oldest backups will be auto-deleted when limit is reached",
     "includeDbLabel": "Include panel database (without passwords)",
     "includeDbHelp": "Adds a copy of the panel database (servers, settings, schedules, accounts) to every backup, with passwords, sessions and other secrets left out. Restoring a backup never applies it.",
+    "onlyWhenOnlineLabel": "Only back up while the server is running",
+    "onlyWhenOnlineHelp": "Scheduled backups skip a server that is stopped: its world can't change while it's down. When the panel can't tell, it backs up anyway. Manual backups are not affected.",
     "scheduledServersLabel": "Servers the schedule backs up",
     "scheduledServersHelp": "Each checked server is backed up in turn, into its own backups folder. Until you choose, the schedule backs up the active server alone.",
     "scheduledServersNone": "No server is checked, so the schedule backs up nothing.",
