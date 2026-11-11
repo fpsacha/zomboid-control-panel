@@ -6,7 +6,7 @@ const log = createLogger("Scheduler");
 import panelBridge from "./panelBridge.js";
 import { RconService } from "./rcon.js";
 import { ServerManager } from "./serverManager.js";
-import { runManagedLifecycle } from "./managedContainer.js";
+import { resolveDockerHostSignal, runManagedLifecycle } from "./managedContainer.js";
 import {
   acquireLifecycleLock,
   holdServerUntilRcon,
@@ -18,8 +18,8 @@ import {
   getStartBlockingSteamOperation,
 } from "./activeSteamOperations.js";
 import { createBackupIfChanged } from "../utils/configBackup.js";
-import { resolveServerPhase } from "../utils/serverStatus.js";
-import { isUnmanagedRemoteServer } from "../utils/serverStatusModel.js";
+import { resolveObservedServerRunning, resolveServerPhase } from "../utils/serverStatus.js";
+import { isUnmanagedRemoteServer, resolveProvider } from "../utils/serverStatusModel.js";
 import { candidateIniPaths } from "../routes/server.js";
 import { ErrorCode } from "../utils/errorCodes.js";
 import { serverConfigDirOf, serverConfigDirRefusalReason } from "../utils/serverConfigPath.js";
@@ -1605,6 +1605,16 @@ export class Scheduler {
   // One server's scheduled backup, written to Schedule History under that
   // server. `target` null: whichever server is active.
   async _runScheduledBackupOf(target, settings, lateNote) {
+    // "Only when the server is online" (backupOnlyWhenOnline): a server seen
+    // stopped is skipped quietly -- no Schedule History row, which would
+    // otherwise fill up with one every tick for as long as it stays down.
+    // A server whose state can't be told is backed up, as without the option.
+    if (settings.onlyWhenOnline && (await this._isBackupTargetOnline(target)) === false) {
+      log.info(
+        `Scheduled backup skipped: ${target ? `server "${target.name ?? target.id}"` : "the active server"} is not running`,
+      );
+      return;
+    }
     const startTime = Date.now();
     // A legacy run (no target) writes its rows exactly as before.
     const history = target ? [{ serverId: target.id }] : [];
@@ -1667,6 +1677,32 @@ export class Scheduler {
         ...history,
       );
       log.error(`Scheduled backup error: ${error.message}${lateNote}`);
+    }
+  }
+
+  // Whether a scheduled backup's server is up: true, false, or null when it
+  // can't be told. The active server (or no target) gets the panel's usual
+  // verdict, RCON and PanelBridge included; another one only its own host
+  // signal -- its container, or a process scan scoped to it -- since the
+  // panel holds no RCON or bridge connection to it.
+  async _isBackupTargetOnline(target) {
+    try {
+      const active = await getActiveServer();
+      if (!target || (active && String(active.id) === String(target.id))) {
+        return await resolveObservedServerRunning(this.serverManager, this.rconService);
+      }
+      const provider = resolveProvider(target);
+      if (provider === "docker-local" || provider === "docker-managed") {
+        const signal = await resolveDockerHostSignal(target);
+        return signal.scanFailed ? null : Boolean(signal.running);
+      }
+      const manager = new ServerManager();
+      await manager.loadConfig(target.id);
+      const details = await manager.getServerProcessDetails();
+      return details?.scanFailed ? null : Boolean(details?.running);
+    } catch (error) {
+      log.warn(`Scheduled backup: could not tell whether the server is running, backing it up anyway: ${error.message}`);
+      return null;
     }
   }
 

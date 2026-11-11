@@ -10,6 +10,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 ### Added
 - Administrators opening the panel over plain HTTP from a public address see a dismissible warning to use an HTTPS reverse proxy, a VPN or an SSH tunnel.
 - Roles & Permissions marks the three host-level rights (install server, manage files, manage servers) as equivalent to shell access.
+- Schedule & retention has an "Only back up while the server is running" switch: scheduled backups skip a server that is stopped.
 
 ## [2026.10.4] - 2026-10-31
 

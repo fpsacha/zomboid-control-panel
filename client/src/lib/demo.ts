@@ -1109,6 +1109,7 @@ export function getDemoBackupStatus() {
     schedule: DEMO_BACKUP_SCHEDULE,
     maxBackups: 10,
     includeDb: true,
+    onlyWhenOnline: false,
     backupInProgress: false,
     restoreInProgress: false,
     currentRestore: null,

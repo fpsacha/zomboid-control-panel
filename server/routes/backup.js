@@ -417,6 +417,16 @@ router.post("/settings", requirePermission("backups.manage"), async (req, res) =
       }
       allowed.includeDb = includeDb;
     }
+    if (req.body.onlyWhenOnline !== undefined) {
+      const onlyWhenOnline = parseBackupBoolean(req.body.onlyWhenOnline);
+      if (onlyWhenOnline === undefined) {
+        return res.status(400).json({
+          success: false,
+          error: "onlyWhenOnline must be a boolean or 0/1",
+        });
+      }
+      allowed.onlyWhenOnline = onlyWhenOnline;
+    }
     // The servers the schedule backs up (the Dashboard's list of servers):
     // ids, unique, up to BACKUP_SERVER_IDS_MAX. One deleted since the page
     // loaded is kept rather than refused, as autoStartServerIds does; the

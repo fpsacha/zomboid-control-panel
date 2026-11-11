@@ -82,6 +82,8 @@
     "maxBackupsHelp": "Kopi sovgad ki pi ansyen yo ap efase otomatikman lè limit la rive",
     "includeDbLabel": "Mete baz done panèl la ladan (san modpas)",
     "includeDbHelp": "Ajoute yon kopi baz done panèl la (sèvè, paramèt, orè, kont) nan chak backup, san modpas, sesyon ak lòt sekrè. Retabli yon backup pa janm aplike li.",
+    "onlyWhenOnlineLabel": "Fè backup sèlman pandan sèvè a ap mache",
+    "onlyWhenOnlineHelp": "Backup planifye yo sote yon sèvè ki kanpe: mond li pa ka chanje pandan li fèmen. Lè panèl la pa ka konnen, li fè backup la kanmenm. Backup manyèl yo pa afekte.",
     "scheduledServersLabel": "Sèvè nan sovgad pwograme a",
     "scheduledServersHelp": "Chak sèvè ki make sove youn apre lòt, nan pwòp dosye sovgad li. Jiskaske ou chwazi, pwogram nan sove sèvè aktif la sèlman.",
     "scheduledServersNone": "Pa gen okenn sèvè ki make, kidonk pwogram nan pa sove anyen.",

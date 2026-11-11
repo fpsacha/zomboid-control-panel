@@ -4471,6 +4471,8 @@ export interface BackupSettings {
   schedule: string;
   maxBackups: number;
   includeDb: boolean;
+  // Scheduled backups skip a server that is stopped (backupOnlyWhenOnline).
+  onlyWhenOnline?: boolean;
   // The servers the schedule backs up; null: the active server alone.
   serverIds?: string[] | null;
 }

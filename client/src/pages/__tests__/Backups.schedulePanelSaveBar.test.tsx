@@ -143,7 +143,7 @@ describe('Backups.tsx: the schedule card saves through the save bar', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save Settings' }))
 
     await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */6 * * *', maxBackups: 12, includeDb: true }, 1),
+      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */6 * * *', maxBackups: 12, includeDb: true, onlyWhenOnline: false }, 1),
     )
   })
 
@@ -195,7 +195,7 @@ describe('Backups.tsx: "Include panel database" in the schedule card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
 
     await waitFor(() =>
-      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */6 * * *', maxBackups: 10, includeDb: true }, 1),
+      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */6 * * *', maxBackups: 10, includeDb: true, onlyWhenOnline: false }, 1),
     )
     // Saved: the bar goes away and the switch keeps the saved value.
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
@@ -214,5 +214,29 @@ describe('Backups.tsx: "Include panel database" in the schedule card', () => {
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
     expect(includeDb).toBeChecked()
     expect(updateSettings).not.toHaveBeenCalled()
+  })
+})
+
+// Scheduled backups can skip a server that is stopped (backupOnlyWhenOnline);
+// the switch saves with the rest of the card.
+describe('Backups.tsx: "Only back up while the server is running" in the schedule card', () => {
+  it('shows the saved choice and saves a change with the rest', async () => {
+    getStatus.mockResolvedValue({ ...status, onlyWhenOnline: false })
+    renderAt('/backups?panel=schedule')
+    const onlyWhenOnline = await screen.findByRole('switch', { name: 'Only back up while the server is running' })
+    await waitFor(() => expect(onlyWhenOnline).toBeEnabled())
+    expect(onlyWhenOnline).not.toBeChecked()
+
+    fireEvent.click(onlyWhenOnline)
+    expect(await screen.findByText('Unsaved changes')).toBeInTheDocument()
+    updateSettings.mockResolvedValue({ success: true, settings: { ...status, onlyWhenOnline: true } })
+    getStatus.mockResolvedValue({ ...status, onlyWhenOnline: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
+
+    await waitFor(() =>
+      expect(updateSettings).toHaveBeenCalledWith({ enabled: true, schedule: '0 */6 * * *', maxBackups: 10, includeDb: true, onlyWhenOnline: true }, 1),
+    )
+    await waitFor(() => expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument())
+    expect(onlyWhenOnline).toBeChecked()
   })
 })

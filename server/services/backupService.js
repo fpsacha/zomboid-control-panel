@@ -860,12 +860,15 @@ export class BackupService {
     const schedule = (await getSetting("backupSchedule")) ?? "0 */6 * * *"; // Every 6 hours
     const maxBackups = (await getSetting("backupMaxCount")) ?? 10;
     const includeDb = (await getSetting("backupIncludeDb")) ?? false;
+    // Scheduled backups of a server that is stopped are skipped: its world
+    // can't have changed since it went down.
+    const onlyWhenOnline = (await getSetting("backupOnlyWhenOnline")) ?? false;
     // The servers the schedule backs up (the Dashboard's list of servers);
     // null until someone chooses, which means the active server alone.
     const storedServerIds = await getSetting("backupServerIds");
     const serverIds = Array.isArray(storedServerIds) ? storedServerIds.map(String) : null;
 
-    return { enabled, schedule, maxBackups, includeDb, serverIds };
+    return { enabled, schedule, maxBackups, includeDb, onlyWhenOnline, serverIds };
   }
 
   /**
@@ -893,6 +896,12 @@ export class BackupService {
       throw new Error("includeDb must be a boolean");
     }
     if (
+      settings.onlyWhenOnline !== undefined &&
+      typeof settings.onlyWhenOnline !== "boolean"
+    ) {
+      throw new Error("onlyWhenOnline must be a boolean");
+    }
+    if (
       settings.schedule !== undefined &&
       (!isSupportedFiveFieldCron(settings.schedule) ||
         isCronTooFrequent(settings.schedule))
@@ -912,6 +921,9 @@ export class BackupService {
     }
     if (settings.includeDb !== undefined) {
       await setSetting("backupIncludeDb", settings.includeDb);
+    }
+    if (settings.onlyWhenOnline !== undefined) {
+      await setSetting("backupOnlyWhenOnline", settings.onlyWhenOnline);
     }
     if (settings.serverIds !== undefined) {
       if (
