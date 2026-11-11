@@ -3434,6 +3434,21 @@ export default function Servers() {
                     <p className="text-xs text-destructive">{t('editDialog.customStartCommandDisallowed')}</p>
                   )}
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`edit-extra-jvm-args-${editingServer.id}`}>{t('editDialog.extraJvmArgsLabel')}</Label>
+                  <DisabledReason reason={!canFilesManage ? t('editDialog.launchTargetNoPermission') : null} className="w-full">
+                    <Input
+                      id={`edit-extra-jvm-args-${editingServer.id}`}
+                      value={editingServer.extraJvmArgs || ''}
+                      onChange={e => setEditingServer({ ...editingServer, extraJvmArgs: e.target.value })}
+                      className="font-mono text-sm"
+                      placeholder="-javaagent:ZombieBuddy.jar"
+                      maxLength={1024}
+                      disabled={!canFilesManage}
+                    />
+                  </DisabledReason>
+                  <p className="text-xs text-muted-foreground">{t('editDialog.extraJvmArgsHint')}</p>
+                </div>
                 <div className="flex items-start gap-3 rounded-md border border-border/60 p-3">
                   <Checkbox
                     id={`edit-use-no-steam-${editingServer.id}`}

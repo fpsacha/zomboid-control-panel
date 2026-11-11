@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // The backup taken right before a restore or a wipe is the operator's only
 // copy of the world that is about to be replaced. It used to be named like any
@@ -71,7 +71,7 @@ function backupNames() {
 async function writeValidBackup(zipPath, marker) {
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 0 } });
+    const archive = new ZipArchive({ zlib: { level: 0 } });
     output.on("close", resolve);
     output.on("error", reject);
     archive.on("error", reject);

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // A restore whose extraction hits a write error (a full disk, an unwritable
 // path) used to report the failure at once but leave the archive parser
@@ -79,7 +79,7 @@ function createService() {
 async function writeArchive(zipPath, { before = 5, after = 400, failingEntry = null } = {}) {
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 0 } });
+    const archive = new ZipArchive({ zlib: { level: 0 } });
     output.on("close", resolve);
     output.on("error", reject);
     archive.on("error", reject);

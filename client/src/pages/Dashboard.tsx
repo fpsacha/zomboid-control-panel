@@ -2007,7 +2007,7 @@ export default function Dashboard() {
         />
       </header>
 
-      <AutoUpdateResultBanner />
+      <AutoUpdateResultBanner serverRunning={hostUnknown ? null : online} />
       <PageAlerts alerts={alerts} />
 
       {/* ─── VERDICT ────────────────────────────────────────────────────── */}

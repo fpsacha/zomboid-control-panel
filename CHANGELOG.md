@@ -11,6 +11,15 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 - Administrators opening the panel over plain HTTP from a public address see a dismissible warning to use an HTTPS reverse proxy, a VPN or an SSH tunnel.
 - Roles & Permissions marks the three host-level rights (install server, manage files, manage servers) as equivalent to shell access.
 - Schedule & retention has an "Only back up while the server is running" switch: scheduled backups skip a server that is stopped.
+- Edit server has an "Extra JVM arguments" field for the generated start script, e.g. `-javaagent:ZombieBuddy.jar` (#303).
+
+### Fixed
+- A failed automatic server update is no longer retried (and the server stopped again) on every check: it backs off from 1 hour up to 24 hours, and the banner shows SteamCMD's error line and the live server state (#302).
+- The Linux start script says when the folder holds the Windows build of the server instead of only "Java not found" (#304).
+- "Only back up while the server is running" no longer skips every backup of a remote (SFTP) server.
+
+### Changed
+- archiver 8 (replaces #294).
 
 ## [2026.10.4] - 2026-10-31
 

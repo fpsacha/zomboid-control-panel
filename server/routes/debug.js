@@ -7,7 +7,7 @@ import path from "path";
 import crypto from "crypto";
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { createLogger } from "../utils/logger.js";
 import { escapeLogText } from "../utils/logText.js";
 import { getDiskFree } from "../utils/diskSpace.js";
@@ -2212,7 +2212,7 @@ router.get("/logs/download-zip", requirePermission("diagnostics.manage"), async 
       `attachment; filename="${archiveName}"`,
     );
 
-    const archive = archiver("zip", {
+    const archive = new ZipArchive({
       zlib: { level: 6 },
     });
 

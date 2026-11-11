@@ -80,6 +80,7 @@ import { canSeeRconTarget, withoutRconTarget } from "../utils/rconTargetView.js"
 import { serverConfigDirOf, serverConfigPathIsConfined, serverFolderProblem } from "../utils/serverConfigPath.js";
 import { checkZomboidDataPath } from "../services/zomboidDataPath.js";
 import { adminPasswordStartScriptRefusal } from "../services/startScriptValues.js";
+import { parseExtraJvmArgs } from "../utils/extraJvmArgs.js";
 import {
   buildLifecycleTemplate,
   createLinuxServiceLifecycle,
@@ -235,6 +236,8 @@ export function changesLaunchTarget(stored, updates) {
     updates[key] !== undefined &&
     String(updates[key] ?? "") !== String(stored?.[key] ?? "");
   if (differs("startCommand")) return true;
+  // A -javaagent runs code at the next start (GH #303).
+  if (differs("extraJvmArgs")) return true;
   const after = { ...stored, ...updates };
   return ["installPath", "serverPath"].some(
     (key) =>
@@ -1757,6 +1760,7 @@ const ALLOWED_SERVER_UPDATE_FIELDS = [
   "useUpnp",
   "isRemote",
   "startCommand",
+  "extraJvmArgs",
   "adminPassword",
   // startBat/batFile used to be allowed here too. Re-confirmed dead
   // (2026-08-27, custom-launcher-as-a-real-supported-mode-not-an-accident):
@@ -2058,6 +2062,18 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
     }
 
     if (updates.startCommand === null) updates.startCommand = "";
+    if (updates.extraJvmArgs === null) updates.extraJvmArgs = "";
+    if (updates.extraJvmArgs !== undefined) {
+      const extra = parseExtraJvmArgs(updates.extraJvmArgs);
+      if (!extra.ok) {
+        return res.status(400).json({
+          error: `Extra JVM arguments may only hold options starting with "-" (letters, digits and _ . : = + , / \\ @ -)`,
+          code: ErrorCode.EXTRA_JVM_ARGS_INVALID,
+          params: { token: extra.token },
+        });
+      }
+      updates.extraJvmArgs = extra.args.join(" ");
+    }
     if (
       updates.startCommand !== undefined &&
       typeof updates.startCommand !== "string"
@@ -2066,7 +2082,7 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
     }
 
     // RCE-STARTCMD: see changesLaunchTarget().
-    if (["startCommand", "installPath", "serverPath"].some((key) => key in updates)) {
+    if (["startCommand", "extraJvmArgs", "installPath", "serverPath"].some((key) => key in updates)) {
       const stored = await getServer(serverId);
       if (
         stored &&
@@ -2161,6 +2177,7 @@ router.put("/:id", requirePermission("servers.manage"), async (req, res) => {
         "useNoSteam",
         "useDebug",
         "startCommand",
+        "extraJvmArgs",
         "serverName",
       ].some((k) => Object.prototype.hasOwnProperty.call(updates, k));
 

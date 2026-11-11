@@ -248,6 +248,8 @@
     "customStartCommandPlaceholder": "Commande utilisée pour démarrer ce serveur",
     "customStartCommandDisallowed": "La commande contient des caractères shell non autorisés",
     "customStartCommandInstallFolderHint": "Doit lancer un script ou un programme situé dans le dossier d'installation de ce serveur ; le panneau ne lance rien d'autre.",
+    "extraJvmArgsLabel": "Arguments JVM supplémentaires",
+    "extraJvmArgsHint": "Ajoutés au script de démarrage généré à chaque démarrage, par ex. -javaagent:ZombieBuddy.jar pour ZombieBuddy (le .jar dans le dossier d'installation). Uniquement des options commençant par « - », séparées par des espaces. Ignorés avec une commande de démarrage personnalisée.",
     "launchTargetNoPermission": "Modifier la commande de démarrage, ou le chemin d'installation d'un serveur qui utilise une commande de démarrage ou un script de lancement, nécessite la permission files.manage, que ce rôle ne possède pas : ce qu'ils désignent s'exécute sur cet ordinateur au démarrage du serveur.",
     "noSteamLabel": "Lancer sans Steam",
     "noSteamHint": "Utiliser le mode serveur dédié sans Steam au prochain démarrage.",

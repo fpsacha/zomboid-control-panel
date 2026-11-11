@@ -248,6 +248,8 @@
     "customStartCommandPlaceholder": "Comando usado para iniciar este servidor",
     "customStartCommandDisallowed": "El comando contiene caracteres de shell no permitidos",
     "customStartCommandInstallFolderHint": "Debe ejecutar un script o programa dentro de la carpeta de instalación de este servidor; el panel no inicia nada más.",
+    "extraJvmArgsLabel": "Argumentos JVM adicionales",
+    "extraJvmArgsHint": "Se añaden al script de inicio generado en cada inicio, p. ej. -javaagent:ZombieBuddy.jar para ZombieBuddy (el .jar en la carpeta de instalación). Solo opciones que empiecen por \"-\", separadas por espacios. No se usan con un comando de inicio personalizado.",
     "launchTargetNoPermission": "Cambiar el comando de inicio, o la ruta de instalación de un servidor que usa un comando de inicio o un script de inicio, requiere el permiso files.manage, del cual este rol no dispone: lo que indiquen se ejecuta en este equipo cuando el servidor arranca.",
     "noSteamLabel": "Iniciar sin Steam",
     "noSteamHint": "Usa el modo de servidor dedicado sin Steam en el próximo inicio.",

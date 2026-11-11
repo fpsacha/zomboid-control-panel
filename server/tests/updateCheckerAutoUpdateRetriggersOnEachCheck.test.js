@@ -136,3 +136,59 @@ describe("UpdateChecker.checkForUpdates re-considers scheduling on every check w
     clearTimeout(checker.autoUpdateTimer);
   });
 });
+
+// GH #302: a failed run is not retried on every check for the same build
+// (each retry warned players and stopped the server again); it backs off,
+// 1 h then doubling up to 24 h, and a newer build retries right away.
+describe("UpdateChecker auto-update back-off after a failure (GH #302)", () => {
+  const failedFor = (buildId, msAgo, attempts = 1) => ({
+    status: "failed",
+    targetBuildId: buildId,
+    at: new Date(Date.now() - msAgo).toISOString(),
+    attempts,
+    dismissed: false,
+  });
+
+  it("does not schedule the same build again within the back-off", async () => {
+    autoUpdateEnabled = true;
+    const { checker } = buildChecker();
+    checker.lastAutoUpdateResult = failedFor("200", 10 * 60 * 1000);
+    await checker.checkForUpdates();
+    expect(checker.autoUpdateTimer).toBeNull();
+  });
+
+  it("doubles the wait with each failed attempt", async () => {
+    autoUpdateEnabled = true;
+    const { checker } = buildChecker();
+    checker.lastAutoUpdateResult = failedFor("200", 90 * 60 * 1000, 2);
+    await checker.checkForUpdates();
+    expect(checker.autoUpdateTimer).toBeNull();
+  });
+
+  it("retries once the back-off is over", async () => {
+    autoUpdateEnabled = true;
+    const { checker } = buildChecker();
+    checker.lastAutoUpdateResult = failedFor("200", 61 * 60 * 1000);
+    await checker.checkForUpdates();
+    expect(checker.autoUpdateTimer).not.toBeNull();
+    clearTimeout(checker.autoUpdateTimer);
+  });
+
+  it("schedules a newer build right away", async () => {
+    autoUpdateEnabled = true;
+    const { checker } = buildChecker();
+    checker.lastAutoUpdateResult = failedFor("150", 60 * 1000);
+    await checker.checkForUpdates();
+    expect(checker.autoUpdateTimer).not.toBeNull();
+    clearTimeout(checker.autoUpdateTimer);
+  });
+
+  it("counts consecutive failures for the same build", async () => {
+    const { checker } = buildChecker();
+    checker.lastAutoUpdateResult = failedFor("200", 0, 3);
+    await checker._recordAutoUpdateResult({ status: "failed", targetBuildId: "200", at: new Date().toISOString() });
+    expect(checker.lastAutoUpdateResult.attempts).toBe(4);
+    await checker._recordAutoUpdateResult({ status: "failed", targetBuildId: "300", at: new Date().toISOString() });
+    expect(checker.lastAutoUpdateResult.attempts).toBe(1);
+  });
+});

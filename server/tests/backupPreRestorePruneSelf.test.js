@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // bug hunt 2026-09-05 (backup-restore-round-trip sweep, item #1): the
 // mandatory pre-restore backup's completion runs cleanupOldBackups() --
@@ -64,7 +64,7 @@ async function writeValidBackup(zipPath, marker) {
   writeWorld(stagingWorld, marker);
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 0 } });
+    const archive = new ZipArchive({ zlib: { level: 0 } });
     output.on("close", resolve);
     output.on("error", reject);
     archive.on("error", reject);

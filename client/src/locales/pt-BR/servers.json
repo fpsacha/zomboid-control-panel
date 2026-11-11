@@ -250,6 +250,8 @@
     "customStartCommandPlaceholderPosix": "ex.: ./start-server.sh -servername MeuServidor",
     "customStartCommandDisallowed": "O comando contém caracteres de shell não permitidos",
     "customStartCommandInstallFolderHint": "Precisa executar um script ou programa dentro da pasta de instalação deste servidor; o painel não inicia mais nada.",
+    "extraJvmArgsLabel": "Argumentos JVM extras",
+    "extraJvmArgsHint": "Adicionados ao script de inicialização gerado a cada início, por exemplo -javaagent:ZombieBuddy.jar para o ZombieBuddy (o .jar na pasta de instalação). Apenas opções que começam com \"-\", separadas por espaços. Não são usados com um comando de inicialização personalizado.",
     "launchTargetNoPermission": "Alterar o comando de inicialização, ou o caminho de instalação de um servidor que usa um comando ou script de inicialização, requer a permissão files.manage, que este cargo não tem: o que eles indicam é executado neste computador quando o servidor inicia.",
     "noSteamLabel": "Iniciar sem a Steam",
     "noSteamHint": "Usar o modo de servidor dedicado sem Steam na próxima inicialização.",

@@ -2743,6 +2743,8 @@ export interface ServerInstance {
   folderProblem?: { error: string; code: string } | null;
   isActive: boolean;
   startCommand: string;
+  // Added to the generated start script's JVM options (GH #303).
+  extraJvmArgs?: string;
   lifecycleProvider?: "direct" | "systemd" | "openrc";
   adminPassword: string;
   createdAt: string;
@@ -5055,6 +5057,9 @@ export interface AutoUpdateResult {
   params?: Record<string, string | number> | null;
   phase?: "not-started" | "before-stop" | "updating";
   serverUp?: boolean | null;
+  // consecutive failed attempts at targetBuildId (automatic retries back off)
+  targetBuildId?: string | null;
+  attempts?: number;
   // success-only
   appliedVersion?: string | null;
 }

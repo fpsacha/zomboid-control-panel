@@ -129,6 +129,7 @@ import {
 import { installDirKey } from "../services/bridgeDisk.js";
 import { resolveInstallDir } from "../services/panelBridgeInstaller.js";
 import { isUnmanagedRemoteServer } from "../utils/serverStatusModel.js";
+import { parseExtraJvmArgs } from "../utils/extraJvmArgs.js";
 
 const router = express.Router();
 
@@ -1550,6 +1551,7 @@ export function generateStartupScripts(options) {
     serverPort = 16261,
     useNoSteam = false,
     useDebug = false,
+    extraJvmArgs = "",
   } = options;
 
   // The server name and data folder reach the game exactly as stored, each
@@ -1611,6 +1613,15 @@ export function generateStartupScripts(options) {
   if (useDebug) {
     jvmArgs.push("-Ddebug");
   }
+
+  // The operator's own JVM options (GH #303: a Java agent like ZombieBuddy),
+  // after the panel's so a repeated -XX/-D one wins. Checked again here: they
+  // go into both scripts unquoted.
+  const extra = parseExtraJvmArgs(extraJvmArgs);
+  if (!extra.ok) {
+    throw new Error(`Extra JVM arguments can't go into a start script: "${extra.token}"`);
+  }
+  jvmArgs.push(...extra.args);
 
   // Linux-only additions. THP cuts TLB misses on ZGC's large heap; it needs the
   // host's transparent_hugepage set to "madvise" or "always" to do anything, and
@@ -1740,6 +1751,10 @@ fi
 
 # Verify Java is actually available
 if ! command -v "$JAVA_CMD" >/dev/null 2>&1; then
+  if [ -f "./jre64/bin/java.exe" ]; then
+    echo "ERROR: Java not found. This folder holds the Windows build of the server (jre64/bin/java.exe), which can't run on Linux or in a Linux container. Install the Linux server files with SteamCMD (+@sSteamCmdForcePlatformType linux +app_update 380870 validate), or run the panel on Windows."
+    exit 1
+  fi
   echo "ERROR: Java not found. Install OpenJDK: sudo yum install java-17-openjdk (CentOS) or sudo apt install openjdk-17-jre (Ubuntu)"
   exit 1
 fi
@@ -2078,6 +2093,7 @@ export async function refreshLaunchTargetBeforeStart(
         serverPort: activeServer.serverPort || 16261,
         useNoSteam: activeServer.useNoSteam || false,
         useDebug: activeServer.useDebug || false,
+        extraJvmArgs: activeServer.extraJvmArgs || "",
       });
       const batPath = path.join(
         launchDir,

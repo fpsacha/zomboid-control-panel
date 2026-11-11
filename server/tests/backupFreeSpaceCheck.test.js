@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import crypto from "crypto";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // Backups are written under <data folder>/backups, on the same volume as the
 // live world, and retention only ran after a backup succeeded. A backup that
@@ -279,7 +279,7 @@ describe("restoreBackup checks the room its extraction and safety backup need", 
   async function writeArchive(name, entries) {
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(path.join(backupsPath, name));
-      const archive = archiver("zip", { zlib: { level: 0 } });
+      const archive = new ZipArchive({ zlib: { level: 0 } });
       output.on("close", resolve);
       output.on("error", reject);
       archive.on("error", reject);

@@ -35,6 +35,33 @@ function fireSocketEvent(event: string, payload?: unknown) {
   socketHandlers.get(event)?.forEach((h) => h(payload))
 }
 
+// GH #302: on the Dashboard the server state is the live one (the recorded
+// serverUp goes stale once the server is stopped or started afterwards),
+// and SteamCMD's own error line is shown under the reason.
+describe('AutoUpdateResultBanner: live state and SteamCMD detail (GH #302)', () => {
+  const failed: AutoUpdateResult = {
+    status: 'failed', at: '2026-11-09T14:29:19.000Z', dismissed: false,
+    reason: 'STEAMCMD_EXIT_CODE', params: { code: 8, detail: 'Error! App 380870 state is 0x6 after update job.' },
+    phase: 'updating', serverUp: true,
+  }
+  it('shows the live state over the recorded one', async () => {
+    getStatus.mockResolvedValue(statusWith(failed))
+    render(<AutoUpdateResultBanner serverRunning={false} />)
+    expect(await screen.findByText(en.autoUpdateResult.serverDown)).toBeInTheDocument()
+    expect(screen.queryByText(en.autoUpdateResult.serverUp)).not.toBeInTheDocument()
+  })
+  it('falls back to the recorded state without a live one', async () => {
+    getStatus.mockResolvedValue(statusWith(failed))
+    render(<AutoUpdateResultBanner />)
+    expect(await screen.findByText(en.autoUpdateResult.serverUp)).toBeInTheDocument()
+  })
+  it('shows the SteamCMD error line', async () => {
+    getStatus.mockResolvedValue(statusWith(failed))
+    render(<AutoUpdateResultBanner serverRunning={null} />)
+    expect(await screen.findByText('Error! App 380870 state is 0x6 after update job.')).toBeInTheDocument()
+  })
+})
+
 const getStatus = vi.mocked(updateApi.getStatus)
 const dismissAutoUpdateResult = vi.mocked(updateApi.dismissAutoUpdateResult)
 

@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import http from "http";
 import express from "express";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import unzipper from "unzipper";
 import { fileURLToPath } from "url";
 import {
@@ -64,7 +64,7 @@ function copyExtension(target, overrides = {}) {
 
 function zipOf(entries) {
   return new Promise((resolve, reject) => {
-    const archive = archiver("zip");
+    const archive = new ZipArchive();
     const chunks = [];
     archive.on("data", (chunk) => chunks.push(chunk));
     archive.on("end", () => resolve(Buffer.concat(chunks)));

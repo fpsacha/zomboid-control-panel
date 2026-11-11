@@ -15,7 +15,7 @@
 import fs from "fs";
 import path from "path";
 import { gunzipSync, gzipSync } from "zlib";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // Every file popup.html loads must be listed: a missing urlPolicy.js would
 // leave the popup unable to send anything.
@@ -112,7 +112,7 @@ export function loadCurrentExtensionFiles({
 
 export function zipExtensionFiles(files) {
   return new Promise((resolve, reject) => {
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     const chunks = [];
     archive.on("data", (chunk) => chunks.push(chunk));
     archive.on("error", reject);
