@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { spawnSync } from "child_process";
 
 const logServerEvent = vi.fn(async () => {});
@@ -60,7 +60,7 @@ async function writeValidBackup(zipPath, marker) {
 
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 0 } });
+    const archive = new ZipArchive({ zlib: { level: 0 } });
     output.on("close", resolve);
     output.on("error", reject);
     archive.on("error", reject);
@@ -172,7 +172,7 @@ describe("restoreBackup archive safety", () => {
     const emptyZip = path.join(backupsPath, "empty.zip");
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(emptyZip);
-      const archive = archiver("zip", { zlib: { level: 0 } });
+      const archive = new ZipArchive({ zlib: { level: 0 } });
       output.on("close", resolve);
       output.on("error", reject);
       archive.on("error", reject);
@@ -295,7 +295,7 @@ describe("restoreBackup archive safety", () => {
 
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(portable);
-      const archive = archiver("zip", { zlib: { level: 0 } });
+      const archive = new ZipArchive({ zlib: { level: 0 } });
       output.on("close", resolve);
       output.on("error", reject);
       archive.on("error", reject);
@@ -722,7 +722,7 @@ describe("getBackupSnapshot", () => {
     const backupPath = path.join(backupsPath, "snapshot.zip");
     await new Promise((resolve, reject) => {
       const output = fs.createWriteStream(backupPath);
-      const archive = archiver("zip", { zlib: { level: 0 } });
+      const archive = new ZipArchive({ zlib: { level: 0 } });
       output.on("close", resolve);
       output.on("error", reject);
       archive.on("error", reject);

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 
 // Concurrency hunt 2026-08-29 (conversation hunt-wave5-2026-08-29): god's brief
 // flagged "a restart racing a backup, a backup racing a wipe" as an angle to
@@ -69,7 +69,7 @@ async function writeValidBackup(zipPath, marker) {
 
   await new Promise((resolve, reject) => {
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver("zip", { zlib: { level: 0 } });
+    const archive = new ZipArchive({ zlib: { level: 0 } });
     output.on("close", resolve);
     output.on("error", reject);
     archive.on("error", reject);

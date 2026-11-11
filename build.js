@@ -1,5 +1,5 @@
 import esbuild from "esbuild";
-import archiver from "archiver";
+import { TarArchive } from "archiver";
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -30,7 +30,7 @@ const LINUX_ARCHIVE_EXECUTABLE_NAMES = new Set([
 function createLinuxReleaseArchive(sourceDir, archivePath) {
   return new Promise((resolve, reject) => {
     const output = fs.createWriteStream(archivePath);
-    const archive = archiver("tar", { gzip: true });
+    const archive = new TarArchive({ gzip: true });
 
     output.on("close", resolve);
     archive.on("error", reject);

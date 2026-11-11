@@ -247,6 +247,8 @@
     "customStartCommandPlaceholder": "Befehl zum Starten dieses Servers",
     "customStartCommandDisallowed": "Befehl enthält nicht erlaubte Shell-Zeichen",
     "customStartCommandInstallFolderHint": "Muss ein Skript oder Programm im Installationsordner dieses Servers starten; etwas anderes startet das Panel nicht.",
+    "extraJvmArgsLabel": "Zusätzliche JVM-Argumente",
+    "extraJvmArgsHint": "Werden bei jedem Start in das erzeugte Startskript übernommen, z. B. -javaagent:ZombieBuddy.jar für ZombieBuddy (die .jar im Installationsordner). Nur Optionen, die mit \"-\" beginnen, durch Leerzeichen getrennt. Wird mit einem eigenen Startbefehl nicht verwendet.",
     "launchTargetNoPermission": "Das Ändern des Startbefehls oder des Installationspfads eines Servers, der einen Startbefehl oder ein Startskript verwendet, erfordert die Berechtigung files.manage, über die diese Rolle nicht verfügt: Was dort angegeben ist, läuft beim Start des Servers auf diesem Computer.",
     "noSteamLabel": "Ohne Steam starten",
     "noSteamHint": "Verwendet beim nächsten Start den dedizierten Servermodus ohne Steam.",

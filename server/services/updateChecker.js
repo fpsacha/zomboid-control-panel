@@ -19,6 +19,10 @@ import {
 import { acquireLifecycleLock } from "./lifecycleCoordinator.js";
 import { waitForProcessExit } from "../utils/processScanRetry.js";
 
+// GH #302: back-off between automatic attempts at a build that failed.
+const AUTO_UPDATE_RETRY_BASE_MS = 60 * 60 * 1000;
+const AUTO_UPDATE_RETRY_MAX_MS = 24 * 60 * 60 * 1000;
+
 export function parseAutoUpdateWarningMinutes(value) {
   if (value === null || value === undefined) return 15;
   if (typeof value === "string" && value.trim() === "") return 15;
@@ -583,6 +587,19 @@ export class UpdateChecker {
     const enabled = await getSetting("serverAutoUpdate");
     if (enabled !== true && enabled !== "true") return;
 
+    // GH #302: a run that failed for this same build isn't retried on every
+    // check (each retry warns players and may stop the server again for an
+    // update that can't install). It backs off instead; a newer build, or a
+    // manual update, ends the wait.
+    const retryAt = await this._autoUpdateRetryAt(updateInfo);
+    if (retryAt) {
+      if (this._autoUpdateBackoffLogged !== retryAt) {
+        this._autoUpdateBackoffLogged = retryAt;
+        log.warn(`Automatic update failed for build ${updateInfo.latest?.buildId}; next attempt after ${new Date(retryAt).toISOString()}`);
+      }
+      return;
+    }
+
     const warningMinutes = parseAutoUpdateWarningMinutes(
       await getSetting("serverAutoUpdateWarningMinutes"),
     );
@@ -609,6 +626,23 @@ export class UpdateChecker {
       this.autoUpdateTimer = null;
       this.runAutoUpdate(updateInfo).catch((error) => log.error(`Automatic update failed: ${error.message}`));
     }, warningMinutes * 60 * 1000);
+  }
+
+  // When the next automatic attempt at this build may run, or null when it
+  // may run now: 1 h after the first failure, doubling up to 24 h.
+  async _autoUpdateRetryAt(updateInfo) {
+    if (this.lastAutoUpdateResult === undefined) {
+      this.lastAutoUpdateResult = (await getSetting("lastAutoUpdateResult")) || null;
+    }
+    const last = this.lastAutoUpdateResult;
+    const target = updateInfo?.latest?.buildId;
+    if (!last || last.status !== "failed" || !target || String(last.targetBuildId) !== String(target)) return null;
+    const failedAt = Date.parse(last.at);
+    if (!Number.isFinite(failedAt)) return null;
+    const attempts = Math.max(1, Number(last.attempts) || 1);
+    const delay = Math.min(AUTO_UPDATE_RETRY_BASE_MS * 2 ** (attempts - 1), AUTO_UPDATE_RETRY_MAX_MS);
+    const retryAt = failedAt + delay;
+    return Date.now() < retryAt ? retryAt : null;
   }
 
   async runAutoUpdate(updateInfo) {
@@ -823,6 +857,9 @@ export class UpdateChecker {
 
       let code;
       let killedByWatchdog = false;
+      // SteamCMD's own last "Error!" line (e.g. "state is 0x6 after update
+      // job"), shown with a failed exit code (GH #302).
+      let steamcmdErrorLine = null;
       try {
         const child = spawn(steamcmdExe, ["+force_install_dir", activeServer.installPath, ...loginArgs, "+app_info_update", "1", "+app_update", "380870", ...branch, "validate", "+quit"], { cwd: steamcmdPath });
         // Listeners attached synchronously, in the same tick as spawn --
@@ -851,6 +888,11 @@ export class UpdateChecker {
           if (op) op.lastOutputAt = Date.now();
         };
         child.stdout.on("data", bumpLastOutput);
+        child.stdout.on("data", (chunk) => {
+          for (const line of String(chunk).split(/\r?\n/)) {
+            if (/\berror!?\b/i.test(line) && line.trim()) steamcmdErrorLine = line.trim().slice(0, 300);
+          }
+        });
         child.stderr.on("data", bumpLastOutput);
         const operation = getActiveSteamOperations().get(candidateInstallPath);
         if (operation) {
@@ -890,7 +932,13 @@ export class UpdateChecker {
           { minutes: idleMinutes },
         );
       }
-      if (code !== 0) fail("STEAMCMD_EXIT_CODE", `SteamCMD exited with code ${code}`, { code });
+      if (code !== 0) {
+        fail(
+          "STEAMCMD_EXIT_CODE",
+          `SteamCMD exited with code ${code}${steamcmdErrorLine ? `: ${steamcmdErrorLine}` : ""}`,
+          steamcmdErrorLine ? { code, detail: sanitizeError(steamcmdErrorLine) } : { code },
+        );
+      }
 
       // SteamCMD's own exit code is not proof the install actually changed --
       // it can exit 0 on a no-op (stale/corrupt local manifest cache, a
@@ -937,6 +985,7 @@ export class UpdateChecker {
         status: "failed",
         at: new Date().toISOString(),
         reason: error.autoUpdateReason || "UNKNOWN",
+        targetBuildId: updateInfo?.latest?.buildId ?? null,
         params: error.autoUpdateParams || null,
         phase,
         // Provisional -- "before-stop" means still running, "updating"
@@ -999,7 +1048,15 @@ export class UpdateChecker {
     // dismissed starts false on every NEW run's result -- a fresh failure
     // (or success) always re-arms the banner even if the previous one was
     // acknowledged.
-    this.lastAutoUpdateResult = { ...result, dismissed: false };
+    const previous = this.lastAutoUpdateResult;
+    const attempts =
+      result.status === "failed" &&
+      previous?.status === "failed" &&
+      result.targetBuildId != null &&
+      String(previous.targetBuildId) === String(result.targetBuildId)
+        ? (Number(previous.attempts) || 1) + 1
+        : 1;
+    this.lastAutoUpdateResult = { ...result, ...(result.status === "failed" ? { attempts } : {}), dismissed: false };
     await setSetting("lastAutoUpdateResult", this.lastAutoUpdateResult);
   }
 

@@ -99,6 +99,13 @@ describe("scheduled backup: only when the server is online", () => {
     expect(createBackup).toHaveBeenCalledTimes(1);
   });
 
+  it("backs up another remote (SFTP) server without a local process scan", async () => {
+    const { scheduler, createBackup } = makeScheduler();
+    await scheduler._runScheduledBackupOf({ id: 4, isRemote: true }, { onlyWhenOnline: true }, "");
+    expect(getServerProcessDetails).not.toHaveBeenCalled();
+    expect(createBackup).toHaveBeenCalledTimes(1);
+  });
+
   it("judges another Docker server by its container", async () => {
     resolveDockerHostSignal.mockResolvedValue({ running: true, scanFailed: false });
     const { scheduler, createBackup } = makeScheduler();

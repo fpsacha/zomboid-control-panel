@@ -691,6 +691,10 @@ export const ErrorCode = Object.freeze({
    * that has one) and the caller's role doesn't hold files.manage
    * (RCE-STARTCMD). */
   SERVER_LAUNCH_TARGET_ADMIN_ONLY: "SERVER_LAUNCH_TARGET_ADMIN_ONLY",
+  /** server/routes/servers.js -- PUT /:id (400): extraJvmArgs has a token
+   * that isn't a plain JVM option (utils/extraJvmArgs.js). Carries
+   * {{token}}, the first one refused ("" when the whole value is). GH #303. */
+  EXTRA_JVM_ARGS_INVALID: "EXTRA_JVM_ARGS_INVALID",
   /* --- access-control audit 2026-10-20 (servers) --- */
   /** server/routes/servers.js -- PUT /:id (403): the edit changes the RCON
    * host, port or password, and the caller's role doesn't hold

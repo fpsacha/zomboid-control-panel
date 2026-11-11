@@ -263,6 +263,8 @@
     "customStartCommandPlaceholderPosix": "مثال: ./start-server.sh -servername MyServer",
     "customStartCommandDisallowed": "يحتوي الأمر على محارف صدفة غير مسموح بها",
     "customStartCommandInstallFolderHint": "يجب أن يشغّل سكربتًا أو برنامجًا داخل مجلد تثبيت هذا الخادم؛ لن تشغّل اللوحة أي شيء آخر.",
+    "extraJvmArgsLabel": "وسائط JVM إضافية",
+    "extraJvmArgsHint": "تُضاف إلى سكربت التشغيل المُنشأ عند كل تشغيل، مثل -javaagent:ZombieBuddy.jar لـ ZombieBuddy (ملف ‎.jar في مجلد التثبيت). خيارات تبدأ بـ \"-\" فقط، مفصولة بمسافات. لا تُستخدم مع أمر تشغيل مخصص.",
     "launchTargetNoPermission": "يتطلب تغيير أمر البدء، أو مسار تثبيت خادم يستخدم أمر بدء أو سكربت تشغيل، صلاحية files.manage، وهي غير متاحة لهذا الدور: فما يشيران إليه يعمل على هذا الكمبيوتر عند بدء الخادم.",
     "noSteamLabel": "التشغيل بدون Steam",
     "noSteamHint": "استخدم وضع الخادم المخصص غير التابع لـ Steam عند التشغيل التالي.",

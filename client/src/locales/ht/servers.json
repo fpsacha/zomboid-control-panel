@@ -248,6 +248,8 @@
     "customStartCommandPlaceholder": "Kòmand yo itilize pou demare sèvè sa a",
     "customStartCommandDisallowed": "Kòmand lan gen karaktè shell ki pa otorize",
     "customStartCommandInstallFolderHint": "Li dwe lanse yon script oswa yon pwogram ki nan dosye enstalasyon sèvè sa a; panèl la p ap lanse anyen lòt.",
+    "extraJvmArgsLabel": "Agiman JVM anplis",
+    "extraJvmArgsHint": "Yo ajoute nan script demaraj panèl la jenere a chak demaraj, pa egzanp -javaagent:ZombieBuddy.jar pou ZombieBuddy (.jar la nan dosye enstalasyon an). Sèlman opsyon ki kòmanse ak \"-\", separe ak espas. Yo pa sèvi lè gen yon kòmand demaraj pèsonalize.",
     "launchTargetNoPermission": "Pou chanje kòmand demaraj la, oswa chemen enstalasyon yon sèvè ki itilize yon kòmand demaraj oswa yon script lansman, ou bezwen pèmisyon files.manage, e wòl sa a pa genyen li: sa yo nonmen an ap mache sou òdinatè sa a lè sèvè a demare.",
     "noSteamLabel": "Lanse san Steam",
     "noSteamHint": "Itilize mòd sèvè dedye san-Steam la nan pwochen demaraj la.",

@@ -247,6 +247,8 @@
     "customStartCommandPlaceholder": "用于启动此服务器的命令",
     "customStartCommandDisallowed": "命令中包含不允许的 shell 字符",
     "customStartCommandInstallFolderHint": "必须运行此服务器安装文件夹内的脚本或程序；面板不会启动其他任何内容。",
+    "extraJvmArgsLabel": "额外 JVM 参数",
+    "extraJvmArgsHint": "每次启动时加入生成的启动脚本，例如 ZombieBuddy 使用 -javaagent:ZombieBuddy.jar（.jar 放在安装文件夹中）。只能是以“-”开头的选项，用空格分隔。使用自定义启动命令时不生效。",
     "launchTargetNoPermission": "更改启动命令，或更改使用启动命令或启动脚本的服务器的安装路径，需要 files.manage 权限，而该角色没有此权限：它们所指定的内容会在服务器启动时在本机上运行。",
     "noSteamLabel": "不通过 Steam 启动",
     "noSteamHint": "下次启动时使用非 Steam 专用服务器模式。",

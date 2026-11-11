@@ -1692,6 +1692,9 @@ export class Scheduler {
         return await resolveObservedServerRunning(this.serverManager, this.rconService);
       }
       const provider = resolveProvider(target);
+      // A remote (SFTP) server's process isn't on this host: a local scan
+      // would always say "stopped" and skip every backup.
+      if (provider === "remote-sftp") return null;
       if (provider === "docker-local" || provider === "docker-managed") {
         const signal = await resolveDockerHostSignal(target);
         return signal.scanFailed ? null : Boolean(signal.running);

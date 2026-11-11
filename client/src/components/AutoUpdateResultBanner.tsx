@@ -28,7 +28,10 @@ interface AutoUpdateScheduled {
 // N minutes", no live notice on completion, nothing until you navigated
 // away and back. This subscribes to both existing events -- the server
 // side already works and is untouched.
-export function AutoUpdateResultBanner() {
+// `serverRunning`: the live state where the page knows it (the Dashboard).
+// The recorded serverUp is only what the run left behind, and goes stale
+// once the server is started or stopped afterwards (GH #302).
+export function AutoUpdateResultBanner({ serverRunning }: { serverRunning?: boolean | null } = {}) {
   const { t } = useTranslation('dashboard')
   const { toast } = useToast()
   const socket = useSocket()
@@ -132,12 +135,15 @@ export function AutoUpdateResultBanner() {
             </p>
             {isFailure && (
               <p className="text-sm font-medium text-foreground">
-                {getAutoUpdateServerStateMessage(t, result.serverUp)}
+                {getAutoUpdateServerStateMessage(t, typeof serverRunning === 'boolean' ? serverRunning : result.serverUp)}
               </p>
             )}
             <p className="text-sm text-muted-foreground">
               {isFailure ? getAutoUpdateReasonMessage(t, result) : getAutoUpdateSuccessMessage(t, result)}
             </p>
+            {isFailure && typeof result.params?.detail === 'string' && result.params.detail && (
+              <p className="break-words font-mono text-xs text-muted-foreground">{result.params.detail}</p>
+            )}
           </div>
           <button
             type="button"

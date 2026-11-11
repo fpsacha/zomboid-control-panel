@@ -249,6 +249,8 @@
     "customStartCommandPlaceholderPosix": "e.g. ./start-server.sh -servername MyServer",
     "customStartCommandDisallowed": "Command contains disallowed shell characters",
     "customStartCommandInstallFolderHint": "Must run a script or program inside this server's install folder; the panel won't launch anything else.",
+    "extraJvmArgsLabel": "Extra JVM arguments",
+    "extraJvmArgsHint": "Added to the generated start script on every start, e.g. -javaagent:ZombieBuddy.jar for ZombieBuddy (the .jar in the install folder). Options starting with \"-\" only, separated by spaces. Not used with a custom start command.",
     "launchTargetNoPermission": "Changing the start command, or the install path of a server that uses a start command or launcher script, requires the files.manage permission, which this role doesn't have: whatever it names runs on this computer when the server starts.",
     "noSteamLabel": "Launch without Steam",
     "noSteamHint": "Use the non-Steam dedicated-server mode on the next start.",

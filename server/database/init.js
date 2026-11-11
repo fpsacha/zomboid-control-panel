@@ -2450,6 +2450,7 @@ export async function createServer(serverConfig) {
     isRemote: serverConfig.isRemote || false,
     lifecycleProvider: "direct",
     startCommand: serverConfig.startCommand || "",
+    extraJvmArgs: serverConfig.extraJvmArgs || "",
     // 2026-08-26, two real users: this field-by-field literal never named
     // adminPassword, so servers.js's POST / forwarding it correctly made no
     // difference -- it was dropped right here, on every single server ever
