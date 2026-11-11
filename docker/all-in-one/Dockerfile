@@ -4,7 +4,7 @@
 #
 # The official Node.js image. The client is built in it, and the runtime
 # stage below copies Node.js out of it.
-FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS node-image
+FROM node:22-bookworm-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS node-image
 
 FROM node-image AS client-build
 
