@@ -7,6 +7,8 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.11.1] - 2026-11-11
+
 ### Added
 - Administrators opening the panel over plain HTTP from a public address see a dismissible warning to use an HTTPS reverse proxy, a VPN or an SSH tunnel.
 - Roles & Permissions marks the three host-level rights (install server, manage files, manage servers) as equivalent to shell access.
