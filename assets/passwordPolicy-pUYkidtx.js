@@ -1,0 +1,1 @@
+function e(e){return[...e].length>=10}function t(e){return new TextEncoder().encode(e).length>72}export{e as n,t};
