@@ -78,6 +78,12 @@
     },
     "readdirp": {
       "picomatch": "2.3.2"
+    },
+    "readdir-glob": {
+      "minimatch": "^11.0.8"
+    },
+    "nodemon": {
+      "minimatch": "^11.0.8"
     }
   }
 }
