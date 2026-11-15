@@ -1074,6 +1074,21 @@ function PanelBridge.invoke(obj, methodName, ...)
     return false, result
 end
 
+-- For methods the jar audit found absent on Build 42 but kept in case a later
+-- build restores them. invoke() can't cache a failure on receivers with an
+-- overridden toString (IsoPlayer, InventoryItem), and the game logs a
+-- RuntimeException with a stack trace for every failed call (issue #312), so
+-- these are tried once per server run and skipped after the first failure.
+PanelBridge.absentMethods = PanelBridge.absentMethods or {}
+function PanelBridge.invokeOnceIfAbsent(obj, methodName, ...)
+    if PanelBridge.absentMethods[methodName] then
+        return false, "Method '" .. methodName .. "' not available on this build"
+    end
+    local ok, result = PanelBridge.invoke(obj, methodName, ...)
+    if not ok then PanelBridge.absentMethods[methodName] = true end
+    return ok, result
+end
+
 -- Advisory only: a false result does NOT prove the method is missing (see
 -- PanelBridge.invoke). Never gate an action on this; use invoke instead.
 function PanelBridge.hasMethod(obj, methodName)
@@ -6618,7 +6633,7 @@ handlers.teleportPlayer = function(args)
     -- teleportTo itself in B42 or has no Lua-exposed equivalent at all.
     -- Left in place (harmless pcall, and the Step 6 probe below already
     -- reports its real absence at runtime) rather than guessed at.
-    if PanelBridge.invoke(player, "setNetworkTeleportEnabled", true) then
+    if PanelBridge.invokeOnceIfAbsent(player, "setNetworkTeleportEnabled", true) then
         table.insert(debugInfo, "networkTeleportEnabled(pre) set")
     end
 
@@ -6640,7 +6655,7 @@ handlers.teleportPlayer = function(args)
     end
 
     -- Step 2: Update last-known position for network consistency
-    if PanelBridge.invoke(player, "setLx", x) then
+    if PanelBridge.invokeOnceIfAbsent(player, "setLx", x) then
         PanelBridge.invoke(player, "setLy", y)
         PanelBridge.invoke(player, "setLz", z)
         table.insert(debugInfo, "setLxyz done")
@@ -6648,7 +6663,7 @@ handlers.teleportPlayer = function(args)
 
     -- Step 3: same call as Step 0c, same verified-absent method (see comment
     -- there) -- kept only in case a future PZ build re-adds it.
-    if PanelBridge.invoke(player, "setNetworkTeleportEnabled", true) then
+    if PanelBridge.invokeOnceIfAbsent(player, "setNetworkTeleportEnabled", true) then
         table.insert(debugInfo, "networkTeleportEnabled(post) set")
     end
 

@@ -64,3 +64,21 @@ describe('PanelBridge.lua exportPlayerData avoids calls that always fail on B42'
     expect(bridge.getGlobal('__CALLS')).toBe('trait.toString');
   });
 });
+
+describe('PanelBridge.invokeOnceIfAbsent', () => {
+  it('stops calling a method after its first failure, and keeps calling one that works', () => {
+    const bridge = loadPanelBridge(LUA_PATH, BASE);
+    bridge.run(`
+      local n, m = 0, 0
+      local obj = setmetatable({}, { __tostring = function() return "IsoPlayer" end })
+      function obj:missing() n = n + 1 error("absent") end
+      function obj:present() m = m + 1 return 7 end
+      for _ = 1, 4 do PanelBridgeModule.invokeOnceIfAbsent(obj, "missing") end
+      for _ = 1, 4 do PanelBridgeModule.invokeOnceIfAbsent(obj, "present") end
+      __MISSING_CALLS = n
+      __PRESENT_CALLS = m
+    `);
+    expect(bridge.getGlobal('__MISSING_CALLS')).toBe(1);
+    expect(bridge.getGlobal('__PRESENT_CALLS')).toBe(4);
+  });
+});
