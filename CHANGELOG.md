@@ -7,6 +7,11 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 
 ## [Unreleased]
 
+## [2026.11.2] - 2026-11-15
+
+### Fixed
+- **PanelBridge no longer floods the server log when exporting a player:** trait names are read without a call that always fails on Build 42, and bag contents are only read from items that are containers (#312).
+
 ## [2026.11.1] - 2026-11-11
 
 ### Added
