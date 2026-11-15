@@ -311,7 +311,7 @@ function splitTopLevelArgs(text) {
   return args.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
-const HELPER_NAMES = ['invoke', 'hasMethod', 'safeCall', 'safeGet', 'tryGet'];
+const HELPER_NAMES = ['invoke', 'hasMethod', 'safeCall', 'safeGet', 'tryGet', 'invokeOnceIfAbsent'];
 const HELPER_CALL_RE = new RegExp(`PanelBridge\\.(${HELPER_NAMES.join('|')})\\s*\\(`, 'g');
 
 /**
