@@ -69,11 +69,13 @@ function FakeContainer2:getItems() return FakeSubItemList2 end
 FakeBackpackItem = {}
 function FakeBackpackItem:getFullType() return "Base.Backpack" end
 function FakeBackpackItem:getCondition() return 100 end
+function FakeBackpackItem:IsInventoryContainer() return true end
 function FakeBackpackItem:getItemContainer() return FakeContainer1 end
 
 FakeBagItem = {}
 function FakeBagItem:getFullType() return "Base.Bag" end
 function FakeBagItem:getCondition() return 100 end
+function FakeBagItem:IsInventoryContainer() return true end
 function FakeBagItem:getItemContainer() return FakeContainer2 end
 
 FakeWorn1 = {}

@@ -5458,9 +5458,12 @@ local function getPlayerTraits(player)
             if type(trait) == "string" then
                 table.insert(traits, trait)
             else
-                local typeOk, typeValue = PanelBridge.invoke(trait, "getType")
+                -- toString first: B42's CharacterTrait has no getType(), and
+                -- every failed call is logged by the game as a RuntimeException
+                -- with a stack trace, once per trait per export (issue #312).
+                local typeOk, typeValue = PanelBridge.invoke(trait, "toString")
                 if not typeOk then
-                    typeOk, typeValue = PanelBridge.invoke(trait, "toString")
+                    typeOk, typeValue = PanelBridge.invoke(trait, "getType")
                 end
                 table.insert(traits, typeOk and typeValue or tostring(trait))
             end
@@ -5571,7 +5574,12 @@ handlers.exportPlayerData = function(args)
                         for _, w in ipairs(wornList) do
                             if w and w:getItem() and w:getItem():getFullType() == worn.fullType then
                                 local wornItem = PanelBridge.tryGet(w, "getItem")
-                                local containerOk, subContainer = PanelBridge.invoke(wornItem, "getItemContainer")
+                                -- getItemContainer exists on InventoryContainer only; calling it on
+                                -- clothing logged a RuntimeException per worn item (issue #312).
+                                local containerOk, subContainer = false, nil
+                                if PanelBridge.tryGet(wornItem, "IsInventoryContainer") then
+                                    containerOk, subContainer = PanelBridge.invoke(wornItem, "getItemContainer")
+                                end
                                 if containerOk and subContainer then
                                         local subItems = serializeInventory(subContainer)
                                         if #subItems > 0 then
@@ -6515,7 +6523,10 @@ handlers.importPlayerData = function(args)
                                     end
                                     -- Handle container contents (bags) with depth limit
                                     if itemData.contents and type(itemData.contents) == "table" then
-                                        local containerOk, subContainer = PanelBridge.invoke(newItem, "getItemContainer")
+                                        local containerOk, subContainer = false, nil
+                                        if PanelBridge.tryGet(newItem, "IsInventoryContainer") then
+                                            containerOk, subContainer = PanelBridge.invoke(newItem, "getItemContainer")
+                                        end
                                         if containerOk and subContainer then
                                             addItems(subContainer, itemData.contents, depth + 1)
                                         end
