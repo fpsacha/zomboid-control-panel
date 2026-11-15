@@ -1,7 +1,7 @@
 ---@diagnostic disable: undefined-global, deprecated
 --[[
     PanelBridge - Server-side mod for Zomboid Control Panel
-    Version: 1.7.79
+    Version: 1.7.80
 
     This mod enables external control panel communication with the PZ server.
     Communication happens via JSON files in the server save folder.
@@ -786,7 +786,7 @@ if not (isServer and isServer()) then return end
 local json
 
 local PanelBridge = {
-    VERSION = "1.7.79",
+    VERSION = "1.7.80",
     -- Change only for a breaking wire-format change. Bridge changes must be additive: a
     -- Workshop server runs whatever version was last published, not the panel's bundled one.
     PROTOCOL_VERSION = "queue-v1",
