@@ -8,6 +8,7 @@ and this project uses dated versions, `YYYY.MM.N` (year, month, and the release 
 ## [Unreleased]
 
 ### Fixed
+- **PanelBridge player export no longer logs an error per item:** worn items are read by index and the nonexistent `getDelta` call is gone (#316).
 - **PanelBridge teleports no longer log three errors each:** calls that Build 42 does not have are tried once per server run instead of on every teleport.
 
 ## [2026.11.2] - 2026-11-15
