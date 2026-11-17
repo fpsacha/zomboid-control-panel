@@ -1176,7 +1176,9 @@ function PanelBridge.tryGet(obj, methodName, ...)
     return nil
 end
 
-local function collectJavaCollection(collection, label)
+-- indexedOnly skips iterator(): WornItems has only size()/get(i), and the game
+-- logs a RuntimeException for every call to a method that isn't there (#316).
+local function collectJavaCollection(collection, label, indexedOnly)
     label = label or "Java collection"
     if not collection then return nil, label .. " is nil" end
 
@@ -1184,7 +1186,10 @@ local function collectJavaCollection(collection, label)
     local expected = sizeOk and tonumber(size) or nil
     local items = {}
 
-    local iteratorOk, iterator = PanelBridge.invoke(collection, "iterator")
+    local iteratorOk, iterator = false, nil
+    if not indexedOnly then
+        iteratorOk, iterator = PanelBridge.invoke(collection, "iterator")
+    end
     if iteratorOk and iterator then
         local complete = true
         while true do
@@ -5333,12 +5338,11 @@ local function serializeInventory(container, depth, maxItems, currentCount)
                 -- (progress on a job left in the item, e.g. a partly-read book)
                 -- and getUseDelta (remaining fraction on a drainable item, e.g.
                 -- a lighter or propane tank) -- exporting both, additively,
-                -- rather than guessing which one "delta" meant. data.delta
-                -- itself is left as-is (still always nil) since fixing it would
-                -- mean picking one of the two and silently dropping the other.
+                -- rather than guessing which one "delta" meant. data.delta is
+                -- no longer read: the call failed for every item and the game
+                -- logged a RuntimeException each time (#316).
                 data.jobDelta = PanelBridge.tryGet(item, "getJobDelta")
                 data.useDelta = PanelBridge.tryGet(item, "getUseDelta")
-                data.delta = PanelBridge.tryGet(item, "getDelta")
 
                 return data
             end)
@@ -5517,7 +5521,7 @@ local function getWornItems(player)
 
     if not wornItems then return {}, "getWornItems returned nil or failed" end
 
-    local wornList, collectErr = collectJavaCollection(wornItems, method .. " list")
+    local wornList, collectErr = collectJavaCollection(wornItems, method .. " list", true)
     if not wornList then return {}, collectErr end
     if #wornList == 0 then return {}, method .. " returned size 0" end
 
@@ -5584,7 +5588,7 @@ handlers.exportPlayerData = function(args)
                 local ok, wornObj = pcall(function()
                     local wi = player:getWornItems()
                     if wi then
-                        local wornList = collectJavaCollection(wi, "Worn item list")
+                        local wornList = collectJavaCollection(wi, "Worn item list", true)
                         if not wornList then return end
                         for _, w in ipairs(wornList) do
                             if w and w:getItem() and w:getItem():getFullType() == worn.fullType then
