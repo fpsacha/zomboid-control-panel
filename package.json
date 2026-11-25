@@ -48,7 +48,7 @@
     "jsonwebtoken": "^9.0.3",
     "lowdb": "^7.0.1",
     "node-cron": "^4.6.0",
-    "openid-client": "^6.8.9",
+    "openid-client": "^6.9.0",
     "socket.io": "^4.8.4",
     "sql.js": "^1.16.0",
     "ssh2-sftp-client": "^12.1.1",
@@ -67,7 +67,7 @@
     "globals": "^14.0.0",
     "jose": "^6.2.17",
     "nodemon": "^3.1.14",
-    "playwright": "^1.65.0",
+    "playwright": "^1.65.1",
     "vitest": "^4.1.12"
   },
   "overrides": {
